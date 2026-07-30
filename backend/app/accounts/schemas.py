@@ -32,7 +32,9 @@ class UserCreate(ApiModel):
 
 
 class UserUpdate(ApiModel):
-    display_name: str | None = Field(default=None, alias="displayName", min_length=1, max_length=200)
+    display_name: str | None = Field(
+        default=None, alias="displayName", min_length=1, max_length=200
+    )
     is_active: bool | None = Field(default=None, alias="isActive")
     password: str | None = Field(default=None, min_length=8, max_length=256)
 

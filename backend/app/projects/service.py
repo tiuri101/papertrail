@@ -9,11 +9,8 @@ from app.accounts.models import User
 from app.api.errors import ConflictError, ForbiddenError, NotFoundError
 from app.projects.models import (
     AllocationMode,
-    Criterion,
-    ExclusionReason,
     Project,
     ProjectMembership,
-    ResearchQuestion,
     ResolutionMethod,
     ReviewType,
     ScreeningConfig,
@@ -21,8 +18,15 @@ from app.projects.models import (
 )
 
 
-def create_project(db: Session, name: str, description: str | None, review_type: ReviewType) -> Project:
-    project = Project(name=name.strip(), description=description, review_type=review_type, random_seed=secrets.token_hex(32))
+def create_project(
+    db: Session, name: str, description: str | None, review_type: ReviewType
+) -> Project:
+    project = Project(
+        name=name.strip(),
+        description=description,
+        review_type=review_type,
+        random_seed=secrets.token_hex(32),
+    )
     db.add(project)
     db.flush()
     for stage in ScreeningStage:
@@ -69,11 +73,15 @@ def require_project_access(db: Session, project_id: str, user: User) -> Project:
 def list_projects_for_user(db: Session, user: User) -> list[Project]:
     query = select(Project).order_by(Project.name)
     if not user.is_admin:
-        query = query.join(ProjectMembership).where(ProjectMembership.user_id == user.id)
+        query = query.join(ProjectMembership).where(
+            ProjectMembership.user_id == user.id
+        )
     return list(db.scalars(query))
 
 
-def add_membership(db: Session, project: Project, user: User, **eligibility: bool) -> ProjectMembership:
+def add_membership(
+    db: Session, project: Project, user: User, **eligibility: bool
+) -> ProjectMembership:
     existing = db.scalar(
         select(ProjectMembership).where(
             ProjectMembership.project_id == project.id,
@@ -82,14 +90,20 @@ def add_membership(db: Session, project: Project, user: User, **eligibility: boo
     )
     if existing:
         raise ConflictError("User is already a project member")
-    membership = ProjectMembership(project_id=project.id, user_id=user.id, **eligibility)
+    membership = ProjectMembership(
+        project_id=project.id, user_id=user.id, **eligibility
+    )
     db.add(membership)
     db.flush()
     return membership
 
 
-def next_position(db: Session, model: type, project_id: str, *, stage: ScreeningStage | None = None) -> int:
-    query = select(func.coalesce(func.max(model.position), -1) + 1).where(model.project_id == project_id)
+def next_position(
+    db: Session, model: type, project_id: str, *, stage: ScreeningStage | None = None
+) -> int:
+    query = select(func.coalesce(func.max(model.position), -1) + 1).where(
+        model.project_id == project_id
+    )
     if stage is not None:
         query = query.where(model.stage == stage)
     return int(db.scalar(query) or 0)

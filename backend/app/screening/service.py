@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import hashlib
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, joinedload
 
 from app.accounts.models import User
-from app.api.errors import ConflictError, DomainError, ForbiddenError, NotFoundError
+from app.api.errors import DomainError, ForbiddenError, NotFoundError
 from app.projects.models import (
     Criterion,
     ExclusionReason,
@@ -17,13 +17,18 @@ from app.projects.models import (
     ScreeningStage,
 )
 from app.publications.models import Publication
-from app.screening.models import ScreeningDecision, ScreeningOutcome, ScreeningWorkItem, WorkItemStatus
+from app.screening.models import (
+    ScreeningDecision,
+    ScreeningOutcome,
+    ScreeningWorkItem,
+    WorkItemStatus,
+)
 
 RESERVATION_HOURS = 24
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def rank_for(project: Project, publication_id: str, stage: ScreeningStage) -> str:
@@ -31,7 +36,9 @@ def rank_for(project: Project, publication_id: str, stage: ScreeningStage) -> st
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
-def eligible_reviewer_ids(db: Session, project_id: str, stage: ScreeningStage) -> list[str]:
+def eligible_reviewer_ids(
+    db: Session, project_id: str, stage: ScreeningStage
+) -> list[str]:
     membership_flag = (
         ProjectMembership.can_title_abstract_screen
         if stage == ScreeningStage.TITLE_ABSTRACT
@@ -50,12 +57,18 @@ def eligible_reviewer_ids(db: Session, project_id: str, stage: ScreeningStage) -
         )
     )
     admin_ids = list(
-        db.scalars(select(User.id).where(User.is_admin.is_(True), User.is_active.is_(True)).order_by(User.username))
+        db.scalars(
+            select(User.id)
+            .where(User.is_admin.is_(True), User.is_active.is_(True))
+            .order_by(User.username)
+        )
     )
     return list(dict.fromkeys(member_ids + admin_ids))
 
 
-def get_screening_config(db: Session, project_id: str, stage: ScreeningStage) -> ScreeningConfig | None:
+def get_screening_config(
+    db: Session, project_id: str, stage: ScreeningStage
+) -> ScreeningConfig | None:
     return db.scalar(
         select(ScreeningConfig).where(
             ScreeningConfig.project_id == project_id,
@@ -76,7 +89,8 @@ def create_screening_work_items(
     reviewers = eligible_reviewer_ids(db, project.id, stage)
     if len(reviewers) < config.required_reviewers:
         raise DomainError(
-            f"At least {config.required_reviewers} eligible reviewers are required for {stage.value}"
+            f"At least {config.required_reviewers} eligible reviewers are required "
+            f"for {stage.value}"
         )
     query = select(Publication).where(
         Publication.project_id == project.id,
@@ -99,7 +113,9 @@ def create_screening_work_items(
             )
             if existing:
                 continue
-            reviewer_index = (publication_index * config.required_reviewers + slot) % len(reviewers)
+            reviewer_index = (
+                publication_index * config.required_reviewers + slot
+            ) % len(reviewers)
             db.add(
                 ScreeningWorkItem(
                     project_id=project.id,
@@ -129,7 +145,9 @@ def claim_next_work_item(
             ScreeningWorkItem.assigned_reviewer_id == reviewer_id,
             ScreeningWorkItem.reserved_by_id == reviewer_id,
         ),
-        ScreeningWorkItem.status.in_([WorkItemStatus.RESERVED, WorkItemStatus.SUBMITTED]),
+        ScreeningWorkItem.status.in_(
+            [WorkItemStatus.RESERVED, WorkItemStatus.SUBMITTED]
+        ),
     )
     query = (
         select(ScreeningWorkItem)
@@ -180,7 +198,9 @@ def save_draft(item: ScreeningWorkItem, reviewer_id: str, draft: dict) -> None:
 def required_criterion_ids(db: Session, project_id: str) -> set[str]:
     return set(
         db.scalars(
-            select(Criterion.id).where(Criterion.project_id == project_id, Criterion.is_active.is_(True))
+            select(Criterion.id).where(
+                Criterion.project_id == project_id, Criterion.is_active.is_(True)
+            )
         )
     )
 
@@ -197,22 +217,29 @@ def submit_decision(
     if item.assigned_reviewer_id != reviewer_id:
         raise ForbiddenError("This work item is assigned to another reviewer")
     required = required_criterion_ids(db, item.project_id)
-    if set(criteria_answers) != required or any(not isinstance(value, bool) for value in criteria_answers.values()):
-        raise DomainError("Every active inclusion and exclusion criterion must be explicitly answered")
+    if set(criteria_answers) != required or any(
+        not isinstance(value, bool) for value in criteria_answers.values()
+    ):
+        raise DomainError(
+            "Every active inclusion and exclusion criterion must be explicitly answered"
+        )
     parsed_outcome = ScreeningOutcome(outcome)
     exclusion_reason_text = None
     if parsed_outcome == ScreeningOutcome.EXCLUDE:
-        if not exclusion_reason_id:
+        if exclusion_reason_id:
+            reason = db.get(ExclusionReason, exclusion_reason_id)
+            if (
+                reason is None
+                or reason.project_id != item.project_id
+                or reason.stage != item.stage
+                or not reason.is_active
+            ):
+                raise DomainError(
+                    "The selected exclusion reason is not valid for this stage"
+                )
+            exclusion_reason_text = reason.label
+        elif item.stage == ScreeningStage.FULL_TEXT:
             raise DomainError("An exclusion reason is required")
-        reason = db.get(ExclusionReason, exclusion_reason_id)
-        if (
-            reason is None
-            or reason.project_id != item.project_id
-            or reason.stage != item.stage
-            or not reason.is_active
-        ):
-            raise DomainError("The selected exclusion reason is not valid for this stage")
-        exclusion_reason_text = reason.label
     current = db.scalar(
         select(ScreeningDecision).where(
             ScreeningDecision.work_item_id == item.id,
@@ -237,6 +264,7 @@ def submit_decision(
     db.add(decision)
     if current is not None:
         from app.conflicts.service import invalidate_final_decisions
+
         invalidate_final_decisions(db, item.publication_id, item.stage)
     item.status = WorkItemStatus.SUBMITTED
     item.reserved_by_id = reviewer_id
@@ -254,20 +282,25 @@ def decisions_visible(db: Session, publication_id: str, stage: ScreeningStage) -
     config = get_screening_config(db, publication.project_id, stage)
     if config is None:
         return False
-    count = db.scalar(
-        select(func.count())
-        .select_from(ScreeningDecision)
-        .join(ScreeningWorkItem)
-        .where(
-            ScreeningWorkItem.publication_id == publication_id,
-            ScreeningWorkItem.stage == stage,
-            ScreeningDecision.is_current.is_(True),
+    count = (
+        db.scalar(
+            select(func.count())
+            .select_from(ScreeningDecision)
+            .join(ScreeningWorkItem)
+            .where(
+                ScreeningWorkItem.publication_id == publication_id,
+                ScreeningWorkItem.stage == stage,
+                ScreeningDecision.is_current.is_(True),
+            )
         )
-    ) or 0
+        or 0
+    )
     return count >= config.required_reviewers
 
 
-def current_decisions(db: Session, publication_id: str, stage: ScreeningStage) -> list[ScreeningDecision]:
+def current_decisions(
+    db: Session, publication_id: str, stage: ScreeningStage
+) -> list[ScreeningDecision]:
     if not decisions_visible(db, publication_id, stage):
         return []
     return list(

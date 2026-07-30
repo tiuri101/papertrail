@@ -48,8 +48,7 @@ def add_sheet(
     sheet.auto_filter.ref = sheet.dimensions
     for column in sheet.columns:
         maximum = max(
-            (len(str(cell.value)) if cell.value is not None else 0)
-            for cell in column
+            (len(str(cell.value)) if cell.value is not None else 0) for cell in column
         )
         sheet.column_dimensions[column[0].column_letter].width = max(
             10,
@@ -135,7 +134,11 @@ def build_excel(db: Session, project_id: str) -> bytes:
         "Included publications",
         publication_headers,
         publication_rows(
-            [publication for publication in publications if publication.id in included_ids]
+            [
+                publication
+                for publication in publications
+                if publication.id in included_ids
+            ]
         ),
     )
     _add_evidence_sheets(db, workbook, project_id)

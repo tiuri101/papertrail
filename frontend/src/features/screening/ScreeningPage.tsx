@@ -30,6 +30,18 @@ function sortedByKind(criteria: WorkItem['criteria']): WorkItem['criteria'] {
   return [...criteria].sort((a, b) => (a.kind === b.kind ? 0 : a.kind === 'inclusion' ? -1 : 1))
 }
 
+function criterionNumbers(criteria: WorkItem['criteria']): Record<string, string> {
+  const counts: Record<string, number> = {}
+  const numbers: Record<string, string> = {}
+  criteria.forEach((criterion) => {
+    const prefix = criterion.kind === 'inclusion' ? 'IC' : 'EC'
+    const count = (counts[criterion.kind] ?? 0) + 1
+    counts[criterion.kind] = count
+    numbers[criterion.id] = `${prefix}${count}`
+  })
+  return numbers
+}
+
 function defaultAnswerForKind(kind: string): boolean {
   return kind === 'inclusion'
 }
@@ -42,6 +54,8 @@ export function ScreeningPage() {
   const [reasonId, setReasonId] = useState('')
   const [notes, setNotes] = useState('')
   const [queueEmpty, setQueueEmpty] = useState(false)
+  const [loadingNext, setLoadingNext] = useState(true)
+  const [nextError, setNextError] = useState<string | null>(null)
   const project = useQuery({
     queryKey: ['project', projectId],
     queryFn: () => apiRequest<ProjectDetail>(`/api/v1/projects/${projectId}`),
@@ -54,8 +68,25 @@ export function ScreeningPage() {
     onSuccess: (result) => {
       setItem(result)
       setQueueEmpty(result === null)
+      setLoadingNext(false)
+    },
+    onError: (error) => {
+      setNextError(error instanceof Error ? error.message : 'Failed to load the next publication')
+      setLoadingNext(false)
     },
   })
+  // React 18 StrictMode's double-invoked mount effects can desync
+  // useMutation's own isPending/status/error after mutate() is fired from an
+  // effect (not from a click handler), leaving the mutation looking
+  // perpetually "pending" even once onSuccess/onError have already run. Track
+  // loading/error state ourselves from those callbacks instead of reading it
+  // off the mutation object.
+  const fetchNext = () => {
+    setLoadingNext(true)
+    setNextError(null)
+    next.mutate()
+  }
+
   const submit = useMutation({
     mutationFn: () => {
       if (!item) throw new Error('No screening item is open')
@@ -66,7 +97,7 @@ export function ScreeningPage() {
         body: JSON.stringify({
           outcome,
           criteriaAnswers: answers,
-          exclusionReasonId: outcome === 'exclude' ? reasonId : null,
+          exclusionReasonId: outcome === 'exclude' && stage === 'full_text' ? reasonId : null,
           notes: notes || null,
         }),
         },
@@ -78,7 +109,7 @@ export function ScreeningPage() {
       setOutcome('include')
       setReasonId('')
       setNotes('')
-      next.mutate()
+      fetchNext()
     },
   })
 
@@ -87,9 +118,27 @@ export function ScreeningPage() {
     const key = `${projectId}:${stage}`
     if (autoFetchKey.current !== key) {
       autoFetchKey.current = key
-      next.mutate()
+      fetchNext()
     }
-  }, [projectId, stage, next])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, stage])
+
+  const activeItemRef = useRef<WorkItem | null>(null)
+  useEffect(() => {
+    activeItemRef.current = item
+  }, [item])
+
+  useEffect(() => {
+    return () => {
+      const abandoned = activeItemRef.current
+      if (abandoned) {
+        apiRequest(
+          `/api/v1/projects/${projectId}/screening/work-items/${abandoned.id}/release`,
+          { method: 'POST' },
+        ).catch(() => {})
+      }
+    }
+  }, [projectId, stage])
 
   useEffect(() => {
     if (item) {
@@ -107,6 +156,15 @@ export function ScreeningPage() {
     }
   }, [item])
 
+  useEffect(() => {
+    if (!item) return
+    const shouldExclude = item.criteria.some((criterion) => (
+      (criterion.kind === 'inclusion' && answers[criterion.id] === false)
+      || (criterion.kind === 'exclusion' && answers[criterion.id] === true)
+    ))
+    if (shouldExclude) setOutcome('exclude')
+  }, [answers, item])
+
   const reasons = project.data?.exclusionReasons.filter(
     (reason) => reason.stage === stage,
   ) ?? []
@@ -114,7 +172,9 @@ export function ScreeningPage() {
     (criterion) => answers[criterion.id] !== null
       && answers[criterion.id] !== undefined,
   ) ?? false
-  const canSubmit = criteriaComplete && (outcome !== 'exclude' || Boolean(reasonId))
+  const reasonRequired = outcome === 'exclude' && stage === 'full_text'
+  const canSubmit = criteriaComplete && (!reasonRequired || Boolean(reasonId))
+  const numbers = item ? criterionNumbers(item.criteria) : {}
 
   return (
     <main className="page">
@@ -125,10 +185,10 @@ export function ScreeningPage() {
       </h1>
       {!item ? (
         <>
-          {next.isPending ? <p>Loading the next publication…</p> : null}
-          {queueEmpty && !next.isPending ? <p>No publications are currently available.</p> : null}
-          {next.error ? (
-            <p className="error" role="alert">{next.error.message}</p>
+          {loadingNext ? <p>Loading the next publication…</p> : null}
+          {!loadingNext && queueEmpty ? <p>No publications are currently available.</p> : null}
+          {!loadingNext && nextError ? (
+            <p className="error" role="alert">{nextError}</p>
           ) : null}
         </>
       ) : (
@@ -168,7 +228,7 @@ export function ScreeningPage() {
             <tbody>
               {sortedByKind(item.criteria).map((criterion) => (
                 <tr key={criterion.id}>
-                  <th scope="row">{capitalize(criterion.kind)}: {criterion.text}</th>
+                  <th scope="row">{numbers[criterion.id]}: {criterion.text}</th>
                   <td>
                     <input
                       type="checkbox"
@@ -207,7 +267,7 @@ export function ScreeningPage() {
               <option value="duplicate">Duplicate</option>
             </select>
           </label>
-          {outcome === 'exclude' ? (
+          {outcome === 'exclude' && stage === 'full_text' ? (
             <label>
               Exclusion reason
               <select

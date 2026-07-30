@@ -85,7 +85,7 @@ export function ConflictResolutionPage() {
       {resolve.error ? <p className="error" role="alert">{resolve.error.message}</p> : null}
       {addReviewer.error ? <p className="error" role="alert">{addReviewer.error.message}</p> : null}
       <p>{list.length} unresolved publications</p>
-      <ul className="card-list">
+      <ul className="card-list stacked">
         {list.map((conflict) => (
           <ConflictCard
             key={conflict.publicationId}

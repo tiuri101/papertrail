@@ -29,7 +29,7 @@ export function DangerZonePanel({ projectId }: { projectId: string }) {
   const mutationError = reset.error ?? deleteProject.error
 
   return (
-    <section className="card">
+    <section className="card danger-zone">
       <h2>Danger zone</h2>
       {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
       {reset.isSuccess ? <p>Project has been reset to draft.</p> : null}
@@ -40,6 +40,7 @@ export function DangerZonePanel({ projectId }: { projectId: string }) {
           warning="This deletes every imported publication and all screening, duplicate-review, full-text, extraction, and quality-assessment progress, and returns the project to draft. Research questions, criteria, screening configuration, and membership are kept. This cannot be undone."
           onConfirm={() => reset.mutate()}
           disabled={reset.isPending || deleteProject.isPending}
+          variant="danger"
         />
         <ConfirmButton
           label="Delete project"
@@ -47,6 +48,7 @@ export function DangerZonePanel({ projectId }: { projectId: string }) {
           warning="This permanently deletes the entire project, including its configuration, publications, and all progress. This cannot be undone."
           onConfirm={() => deleteProject.mutate()}
           disabled={reset.isPending || deleteProject.isPending}
+          variant="danger"
         />
       </div>
     </section>

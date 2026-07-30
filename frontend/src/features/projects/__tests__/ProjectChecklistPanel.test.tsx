@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { ProjectChecklistPanel } from '../ProjectChecklistPanel'
 import { jsonResponse, mockFetch } from '../../../test/http'
@@ -52,7 +52,7 @@ describe('ProjectChecklistPanel', () => {
     expect(screen.queryByText('Resolve duplicates')).not.toBeInTheDocument()
     expect(screen.queryByText(/Detect duplicate publications/)).not.toBeInTheDocument()
 
-    expect(screen.getByRole('button', { name: 'Mark project ready' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Mark project ready' })).toBeDisabled()
   })
 
   it('explains that an auto-advancing stage needs no manual action', async () => {
@@ -73,19 +73,78 @@ describe('ProjectChecklistPanel', () => {
   })
 
   it('marks the project ready and refreshes the checklist', async () => {
+    const completeChecklist = {
+      ...draftChecklist,
+      stages: [
+        {
+          ...draftChecklist.stages[0],
+          items: draftChecklist.stages[0].items.map((item) => ({ ...item, done: true })),
+        },
+        draftChecklist.stages[1],
+      ],
+    }
     const fetchMock = mockFetch((input, init) => {
       if (String(input).endsWith('/ready') && init?.method === 'POST') {
         return jsonResponse({ jobId: 'job-1', stage: 'duplicate_review' }, 202)
       }
-      return jsonResponse(draftChecklist)
+      return jsonResponse(completeChecklist)
     })
     renderWithProviders(<ProjectChecklistPanel projectId="p1" />)
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Mark project ready' }))
+    const button = await screen.findByRole('button', { name: 'Mark project ready' })
+    expect(button).not.toBeDisabled()
+    fireEvent.click(button)
 
     await waitFor(() => {
       const call = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/ready') && init?.method === 'POST')
       expect(call).toBeTruthy()
+    })
+  })
+
+  it('disables the ready action until every checklist item is complete', async () => {
+    mockFetch(() => jsonResponse(draftChecklist))
+    renderWithProviders(<ProjectChecklistPanel projectId="p1" />)
+
+    expect(await screen.findByRole('button', { name: 'Mark project ready' })).toBeDisabled()
+  })
+
+  it('enables the ready action once outstanding work finishes, as background polling would deliver', async () => {
+    let itemsDone = false
+    mockFetch(() => jsonResponse({
+      ...draftChecklist,
+      stages: [
+        {
+          ...draftChecklist.stages[0],
+          items: draftChecklist.stages[0].items.map((item) => ({ ...item, done: itemsDone || item.key === 'research_questions' })),
+        },
+        draftChecklist.stages[1],
+      ],
+    }))
+    const { queryClient } = renderWithProviders(<ProjectChecklistPanel projectId="p1" />)
+
+    expect(await screen.findByRole('button', { name: 'Mark project ready' })).toBeDisabled()
+
+    itemsDone = true
+    await queryClient.invalidateQueries({ queryKey: ['project-checklist', 'p1'] })
+
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: 'Mark project ready' })).not.toBeDisabled()
+    })
+  })
+
+  it('invalidates the project query once the checklist reports a stage change', async () => {
+    let stage = 'draft'
+    mockFetch(() => jsonResponse({ ...draftChecklist, stage }))
+    const { queryClient } = renderWithProviders(<ProjectChecklistPanel projectId="p1" />)
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
+
+    await screen.findByText("What's next: Set up the project")
+
+    stage = 'duplicate_review'
+    await queryClient.invalidateQueries({ queryKey: ['project-checklist', 'p1'] })
+
+    await waitFor(() => {
+      expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['project', 'p1'] })
     })
   })
 })

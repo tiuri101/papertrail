@@ -7,14 +7,40 @@ from app.api.errors import NotFoundError
 from app.audit.service import record_audit
 from app.db.session import get_db
 from app.extraction.models import ExtractionWorkItem
-from app.extraction.schemas import ExtractionItemResponse, ExtractionResponseModel, ExtractionSubmit
-from app.extraction.service import claim_next_extraction, submit_extraction
+from app.extraction.schemas import (
+    ExtractionItemResponse,
+    ExtractionResponseModel,
+    ExtractionSubmit,
+)
+from app.extraction.service import (
+    active_fields,
+    claim_next_extraction,
+    project_form,
+    submit_extraction,
+)
 from app.projects.service import require_project_access
+from app.publications.models import Publication
 
 router = APIRouter(tags=["extraction"])
 
 
-@router.post("/projects/{project_id}/extraction/next", response_model=ExtractionItemResponse | None)
+def extraction_item_payload(db: Session, item: ExtractionWorkItem) -> dict:
+    form = project_form(db, item.project_id)
+    return {
+        "id": item.id,
+        "publication_id": item.publication_id,
+        "assigned_reviewer_id": item.assigned_reviewer_id,
+        "status": item.status,
+        "draft": item.draft,
+        "publication": db.get(Publication, item.publication_id),
+        "fields": active_fields(db, form) if form else [],
+    }
+
+
+@router.post(
+    "/projects/{project_id}/extraction/next",
+    response_model=ExtractionItemResponse | None,
+)
 def next_extraction(
     project_id: str,
     session: UserSession = Depends(require_csrf),
@@ -23,7 +49,7 @@ def next_extraction(
     require_project_access(db, project_id, session.user)
     item = claim_next_extraction(db, project_id, session.user.id)
     db.commit()
-    return item
+    return extraction_item_payload(db, item) if item else None
 
 
 @router.post(

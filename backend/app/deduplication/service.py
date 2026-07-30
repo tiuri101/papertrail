@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from itertools import combinations
 
 from rapidfuzz.fuzz import ratio
@@ -13,7 +13,22 @@ from app.deduplication.models import DuplicateCandidate, PublicationMerge
 from app.projects.models import Project, ProjectStage
 from app.publications.models import Publication, PublicationSource
 
-MERGE_FIELDS = ("title", "authors", "abstract", "publication_year", "venue", "publication_type", "doi", "publisher_url", "keywords", "isbn", "issn", "pubmed_id", "arxiv_id", "other_identifiers")
+MERGE_FIELDS = (
+    "title",
+    "authors",
+    "abstract",
+    "publication_year",
+    "venue",
+    "publication_type",
+    "doi",
+    "publisher_url",
+    "keywords",
+    "isbn",
+    "issn",
+    "pubmed_id",
+    "arxiv_id",
+    "other_identifiers",
+)
 
 
 def normalized_title(title: str) -> str:
@@ -25,16 +40,44 @@ def normalized_authors(authors: str | None) -> str:
 
 
 def detect_duplicates(db: Session, project_id: str) -> int:
-    publications = list(db.scalars(select(Publication).where(Publication.project_id == project_id, Publication.is_active.is_(True)).order_by(Publication.id)))
+    publications = list(
+        db.scalars(
+            select(Publication)
+            .where(
+                Publication.project_id == project_id, Publication.is_active.is_(True)
+            )
+            .order_by(Publication.id)
+        )
+    )
     created = 0
     for left, right in combinations(publications, 2):
         a_id, b_id = sorted((left.id, right.id))
-        if db.scalar(select(DuplicateCandidate.id).where(DuplicateCandidate.project_id == project_id, DuplicateCandidate.publication_a_id == a_id, DuplicateCandidate.publication_b_id == b_id)):
+        if db.scalar(
+            select(DuplicateCandidate.id).where(
+                DuplicateCandidate.project_id == project_id,
+                DuplicateCandidate.publication_a_id == a_id,
+                DuplicateCandidate.publication_b_id == b_id,
+            )
+        ):
             continue
         reasons: list[str] = []
-        title_score = float(ratio(normalized_title(left.title), normalized_title(right.title)))
-        author_score = float(ratio(normalized_authors(left.authors), normalized_authors(right.authors))) if left.authors and right.authors else None
-        year_agreement = left.publication_year == right.publication_year if left.publication_year and right.publication_year else None
+        title_score = float(
+            ratio(normalized_title(left.title), normalized_title(right.title))
+        )
+        author_score = (
+            float(
+                ratio(
+                    normalized_authors(left.authors), normalized_authors(right.authors)
+                )
+            )
+            if left.authors and right.authors
+            else None
+        )
+        year_agreement = (
+            left.publication_year == right.publication_year
+            if left.publication_year and right.publication_year
+            else None
+        )
         if left.doi and right.doi and left.doi == right.doi:
             reasons.append("exact_doi")
         if normalized_title(left.title) == normalized_title(right.title):
@@ -45,23 +88,50 @@ def detect_duplicates(db: Session, project_id: str) -> int:
             reasons.append("similar_title_authors")
         if not reasons:
             continue
-        confidence = 1.0 if "exact_doi" in reasons else min(0.99, (title_score + (author_score or title_score)) / 200)
-        db.add(DuplicateCandidate(project_id=project_id, publication_a_id=a_id, publication_b_id=b_id, match_reasons=reasons, title_similarity=title_score, author_similarity=author_score, year_agreement=year_agreement, confidence=confidence))
+        confidence = (
+            1.0
+            if "exact_doi" in reasons
+            else min(0.99, (title_score + (author_score or title_score)) / 200)
+        )
+        db.add(
+            DuplicateCandidate(
+                project_id=project_id,
+                publication_a_id=a_id,
+                publication_b_id=b_id,
+                match_reasons=reasons,
+                title_similarity=title_score,
+                author_similarity=author_score,
+                year_agreement=year_agreement,
+                confidence=confidence,
+            )
+        )
         created += 1
     db.flush()
     return created
 
 
 def snapshot(publication: Publication) -> dict:
-    return {field: getattr(publication, field) for field in MERGE_FIELDS} | {"is_active": publication.is_active, "merged_into_id": publication.merged_into_id}
+    return {field: getattr(publication, field) for field in MERGE_FIELDS} | {
+        "is_active": publication.is_active,
+        "merged_into_id": publication.merged_into_id,
+    }
 
 
-def merge_publications(db: Session, candidate: DuplicateCandidate, canonical_id: str, merged_by_id: str | None = None) -> PublicationMerge:
+def merge_publications(
+    db: Session,
+    candidate: DuplicateCandidate,
+    canonical_id: str,
+    merged_by_id: str | None = None,
+) -> PublicationMerge:
     if candidate.status != "unresolved":
         raise ConflictError("Duplicate candidate is already resolved")
     if canonical_id not in {candidate.publication_a_id, candidate.publication_b_id}:
         raise ConflictError("Canonical publication must belong to the candidate pair")
-    merged_id = candidate.publication_b_id if canonical_id == candidate.publication_a_id else candidate.publication_a_id
+    merged_id = (
+        candidate.publication_b_id
+        if canonical_id == candidate.publication_a_id
+        else candidate.publication_a_id
+    )
     canonical = db.get(Publication, canonical_id)
     duplicate = db.get(Publication, merged_id)
     if canonical is None or duplicate is None:
@@ -69,9 +139,17 @@ def merge_publications(db: Session, candidate: DuplicateCandidate, canonical_id:
     canonical_before = snapshot(canonical)
     merged_before = snapshot(duplicate)
     for field in MERGE_FIELDS:
-        if getattr(canonical, field) in (None, "", {}) and getattr(duplicate, field) not in (None, "", {}):
+        if getattr(canonical, field) in (None, "", {}) and getattr(
+            duplicate, field
+        ) not in (None, "", {}):
             setattr(canonical, field, getattr(duplicate, field))
-    sources = list(db.scalars(select(PublicationSource).where(PublicationSource.publication_id == duplicate.id)))
+    sources = list(
+        db.scalars(
+            select(PublicationSource).where(
+                PublicationSource.publication_id == duplicate.id
+            )
+        )
+    )
     moved_source_ids = [source.id for source in sources]
     for source in sources:
         source.publication_id = canonical.id
@@ -79,14 +157,25 @@ def merge_publications(db: Session, candidate: DuplicateCandidate, canonical_id:
     duplicate.merged_into_id = canonical.id
     candidate.status = "merged"
     candidate.resolved_by_id = merged_by_id
-    merge = PublicationMerge(project_id=candidate.project_id, canonical_publication_id=canonical.id, merged_publication_id=duplicate.id, candidate_id=candidate.id, merged_by_id=merged_by_id, canonical_before=canonical_before, merged_before=merged_before, moved_source_ids=moved_source_ids)
+    merge = PublicationMerge(
+        project_id=candidate.project_id,
+        canonical_publication_id=canonical.id,
+        merged_publication_id=duplicate.id,
+        candidate_id=candidate.id,
+        merged_by_id=merged_by_id,
+        canonical_before=canonical_before,
+        merged_before=merged_before,
+        moved_source_ids=moved_source_ids,
+    )
     db.add(merge)
     db.flush()
     db.refresh(canonical, ["sources"])
     return merge
 
 
-def reverse_merge(db: Session, merge: PublicationMerge, reversed_by_id: str | None = None) -> None:
+def reverse_merge(
+    db: Session, merge: PublicationMerge, reversed_by_id: str | None = None
+) -> None:
     if merge.reversed_at is not None:
         raise ConflictError("Merge has already been reversed")
     canonical = db.get(Publication, merge.canonical_publication_id)
@@ -106,13 +195,17 @@ def reverse_merge(db: Session, merge: PublicationMerge, reversed_by_id: str | No
         if candidate:
             candidate.status = "unresolved"
             candidate.resolved_by_id = None
-    merge.reversed_at = datetime.now(timezone.utc)
+    merge.reversed_at = datetime.now(UTC)
     merge.reversed_by_id = reversed_by_id
     db.flush()
     db.refresh(canonical, ["sources"])
 
 
-def mark_not_duplicate(candidate: DuplicateCandidate, resolved_by_id: str | None = None, note: str | None = None) -> None:
+def mark_not_duplicate(
+    candidate: DuplicateCandidate,
+    resolved_by_id: str | None = None,
+    note: str | None = None,
+) -> None:
     candidate.status = "not_duplicate"
     candidate.resolved_by_id = resolved_by_id
     candidate.resolution_note = note
@@ -122,12 +215,23 @@ def transition_if_duplicate_review_complete(db: Session, project: Project) -> bo
     if project.stage != ProjectStage.DUPLICATE_REVIEW:
         return False
     db.flush()
-    unresolved = db.scalar(select(func.count()).select_from(DuplicateCandidate).where(DuplicateCandidate.project_id == project.id, DuplicateCandidate.status == "unresolved")) or 0
+    unresolved = (
+        db.scalar(
+            select(func.count())
+            .select_from(DuplicateCandidate)
+            .where(
+                DuplicateCandidate.project_id == project.id,
+                DuplicateCandidate.status == "unresolved",
+            )
+        )
+        or 0
+    )
     if unresolved:
         return False
     project.stage = ProjectStage.TITLE_ABSTRACT
-    from app.screening.service import create_screening_work_items
     from app.projects.models import ScreeningStage
+    from app.screening.service import create_screening_work_items
+
     create_screening_work_items(db, project, ScreeningStage.TITLE_ABSTRACT)
     db.flush()
     return True

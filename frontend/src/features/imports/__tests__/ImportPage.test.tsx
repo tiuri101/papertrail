@@ -91,6 +91,51 @@ describe('ImportPage', () => {
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Unsupported file format'))
   })
 
+  it('updates from "queued" to "complete" once the import job finishes', async () => {
+    setCsrfToken('csrf-import')
+    let jobStatus = 'queued'
+    mockFetch((input, init) => {
+      const url = String(input)
+      if (init?.method === 'POST' && url.endsWith('/searches')) {
+        return jsonResponse({ id: 'search-1', sourceName: 'IEEE Xplore', query: 'urban', searchDate: '2026-07-30', filters: null }, 201)
+      }
+      if (url.endsWith('/searches')) return jsonResponse([])
+      if (init?.method === 'POST' && url.endsWith('/imports')) {
+        return jsonResponse({ jobId: 'job-77' }, 202)
+      }
+      if (url.endsWith('/jobs')) {
+        return jsonResponse([
+          {
+            id: 'job-77',
+            jobType: 'parse_import',
+            status: jobStatus,
+            progressCurrent: 0,
+            progressTotal: 0,
+            progressMessage: null,
+            errorMessage: null,
+            createdAt: '2026-07-30T09:00:00Z',
+            completedAt: null,
+          },
+        ])
+      }
+      return jsonResponse([])
+    })
+    const { queryClient } = renderWithProviders(<ImportPage />, { route: '/projects/project-1/imports', path: '/projects/:projectId/imports' })
+
+    await screen.findByLabelText('Database')
+    fillSearchFields()
+    const file = new File(['Title,Authors\nPaper,Author'], 'records.csv', { type: 'text/csv' })
+    fireEvent.change(screen.getByLabelText('Bibliographic export'), { target: { files: [file] } })
+    fireEvent.click(screen.getByRole('button', { name: 'Upload' }))
+
+    expect(await screen.findByText('Import queued: job-77')).toBeInTheDocument()
+
+    jobStatus = 'completed'
+    await queryClient.invalidateQueries({ queryKey: ['jobs', 'project-1'] })
+
+    expect(await screen.findByText('Import complete.')).toBeInTheDocument()
+  })
+
   it('lists previously documented searches for reference', async () => {
     mockFetch(() => jsonResponse([
       { id: 'search-1', sourceName: 'IEEE Xplore', query: 'virtual reality AND urban', searchDate: '2026-07-30', filters: null },

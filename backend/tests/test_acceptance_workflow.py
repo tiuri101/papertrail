@@ -43,7 +43,9 @@ from app.screening.service import (
 def test_complete_review_workflow_produces_exports(db, tmp_path) -> None:
     admin = create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
     reviewer = create_user(db, "reviewer", "Reviewer", "secret-password")
-    project = create_project(db, "Acceptance Review", None, ReviewType.SYSTEMATIC_REVIEW)
+    project = create_project(
+        db, "Acceptance Review", None, ReviewType.SYSTEMATIC_REVIEW
+    )
     db.add(
         ProjectMembership(
             project_id=project.id,
@@ -113,7 +115,9 @@ def test_complete_review_workflow_produces_exports(db, tmp_path) -> None:
     db.commit()
 
     process_import_job(db, import_job)
-    publication = db.scalar(select(Publication).where(Publication.project_id == project.id))
+    publication = db.scalar(
+        select(Publication).where(Publication.project_id == project.id)
+    )
     assert publication is not None
 
     project.stage = ProjectStage.TITLE_ABSTRACT
@@ -134,19 +138,27 @@ def test_complete_review_workflow_produces_exports(db, tmp_path) -> None:
         None,
         None,
     )
-    assert refresh_automatic_final_decision(
-        db,
-        publication.id,
-        ScreeningStage.TITLE_ABSTRACT,
-    ) is not None
-    assert transition_if_screening_complete(
-        db,
-        project,
-        ScreeningStage.TITLE_ABSTRACT,
-    ) is True
+    assert (
+        refresh_automatic_final_decision(
+            db,
+            publication.id,
+            ScreeningStage.TITLE_ABSTRACT,
+        )
+        is not None
+    )
+    assert (
+        transition_if_screening_complete(
+            db,
+            project,
+            ScreeningStage.TITLE_ABSTRACT,
+        )
+        is True
+    )
 
     retrieval = db.scalar(
-        select(FullTextRetrieval).where(FullTextRetrieval.publication_id == publication.id)
+        select(FullTextRetrieval).where(
+            FullTextRetrieval.publication_id == publication.id
+        )
     )
     assert retrieval is not None
     set_retrieval_status(
@@ -171,16 +183,22 @@ def test_complete_review_workflow_produces_exports(db, tmp_path) -> None:
         None,
         None,
     )
-    assert refresh_automatic_final_decision(
-        db,
-        publication.id,
-        ScreeningStage.FULL_TEXT,
-    ) is not None
-    assert transition_if_screening_complete(
-        db,
-        project,
-        ScreeningStage.FULL_TEXT,
-    ) is True
+    assert (
+        refresh_automatic_final_decision(
+            db,
+            publication.id,
+            ScreeningStage.FULL_TEXT,
+        )
+        is not None
+    )
+    assert (
+        transition_if_screening_complete(
+            db,
+            project,
+            ScreeningStage.FULL_TEXT,
+        )
+        is True
+    )
     assert project.stage == ProjectStage.EXTRACTION
 
     extraction_item = claim_next_extraction(db, project.id, reviewer.id)

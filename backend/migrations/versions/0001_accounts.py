@@ -3,8 +3,8 @@
 Revision ID: 0001_accounts
 Revises:
 """
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 
 revision = "0001_accounts"
 down_revision = None
@@ -29,7 +29,12 @@ def upgrade() -> None:
     op.create_table(
         "user_sessions",
         sa.Column("id", sa.String(36), primary_key=True),
-        sa.Column("user_id", sa.String(36), sa.ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+        sa.Column(
+            "user_id",
+            sa.String(36),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
         sa.Column("token_hash", sa.String(64), nullable=False),
         sa.Column("csrf_token", sa.String(128), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
@@ -37,7 +42,9 @@ def upgrade() -> None:
         sa.Column("revoked_at", sa.DateTime(timezone=True)),
     )
     op.create_index("ix_user_sessions_user_id", "user_sessions", ["user_id"])
-    op.create_index("ix_user_sessions_token_hash", "user_sessions", ["token_hash"], unique=True)
+    op.create_index(
+        "ix_user_sessions_token_hash", "user_sessions", ["token_hash"], unique=True
+    )
     op.create_index("ix_user_sessions_expires_at", "user_sessions", ["expires_at"])
 
 

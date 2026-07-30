@@ -5,7 +5,10 @@ import { BrowserRouter } from "react-router-dom";
 
 import { App } from "./app/App";
 import { queryClient } from "./app/queryClient";
+import { initializeTheme } from "./app/theme";
 import "./index.css";
+
+initializeTheme();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>

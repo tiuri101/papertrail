@@ -2,11 +2,20 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.projects.models import AllocationMode, CriterionKind, ProjectStage, ResolutionMethod, ReviewType, ScreeningStage
+from app.projects.models import (
+    AllocationMode,
+    CriterionKind,
+    ProjectStage,
+    ResolutionMethod,
+    ReviewType,
+    ScreeningStage,
+)
 
 
 class ApiModel(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, from_attributes=True, use_enum_values=True)
+    model_config = ConfigDict(
+        populate_by_name=True, from_attributes=True, use_enum_values=True
+    )
 
 
 class ProjectCreate(ApiModel):
@@ -25,7 +34,9 @@ class ProjectSummary(ApiModel):
 
 class MembershipCreate(ApiModel):
     user_id: str = Field(alias="userId")
-    can_title_abstract_screen: bool = Field(default=False, alias="canTitleAbstractScreen")
+    can_title_abstract_screen: bool = Field(
+        default=False, alias="canTitleAbstractScreen"
+    )
     can_full_text_screen: bool = Field(default=False, alias="canFullTextScreen")
     can_extract: bool = Field(default=False, alias="canExtract")
     can_assess_quality: bool = Field(default=False, alias="canAssessQuality")
@@ -35,7 +46,9 @@ class MembershipCreate(ApiModel):
 class MembershipResponse(ApiModel):
     id: str
     user_id: str = Field(serialization_alias="userId")
-    can_title_abstract_screen: bool = Field(serialization_alias="canTitleAbstractScreen")
+    can_title_abstract_screen: bool = Field(
+        serialization_alias="canTitleAbstractScreen"
+    )
     can_full_text_screen: bool = Field(serialization_alias="canFullTextScreen")
     can_extract: bool = Field(serialization_alias="canExtract")
     can_assess_quality: bool = Field(serialization_alias="canAssessQuality")
@@ -85,8 +98,12 @@ class ScreeningConfigResponse(ApiModel):
     stage: ScreeningStage
     required_reviewers: int = Field(serialization_alias="requiredReviewers")
     allocation_mode: AllocationMode = Field(serialization_alias="allocationMode")
-    conflict_resolution: ResolutionMethod = Field(serialization_alias="conflictResolution")
-    uncertain_resolution: ResolutionMethod = Field(serialization_alias="uncertainResolution")
+    conflict_resolution: ResolutionMethod = Field(
+        serialization_alias="conflictResolution"
+    )
+    uncertain_resolution: ResolutionMethod = Field(
+        serialization_alias="uncertainResolution"
+    )
 
 
 class ExclusionReasonCreate(ApiModel):
@@ -103,10 +120,17 @@ class ExclusionReasonResponse(ApiModel):
 
 class ProjectDetail(ProjectSummary):
     memberships: list[MembershipResponse]
-    research_questions: list[ResearchQuestionResponse] = Field(serialization_alias="researchQuestions")
+    research_questions: list[ResearchQuestionResponse] = Field(
+        serialization_alias="researchQuestions"
+    )
     criteria: list[CriterionResponse]
-    screening_configs: list[ScreeningConfigResponse] = Field(serialization_alias="screeningConfigs")
-    exclusion_reasons: list[ExclusionReasonResponse] = Field(serialization_alias="exclusionReasons")
+    screening_configs: list[ScreeningConfigResponse] = Field(
+        serialization_alias="screeningConfigs"
+    )
+    exclusion_reasons: list[ExclusionReasonResponse] = Field(
+        serialization_alias="exclusionReasons"
+    )
+
 
 class ProjectReopen(BaseModel):
     target_stage: ProjectStage = Field(alias="targetStage")

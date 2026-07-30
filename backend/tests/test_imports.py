@@ -10,7 +10,9 @@ from app.jobs.worker import execute_next_job
 
 
 def login(client) -> str:
-    response = client.post("/api/v1/auth/login", json={"username": "admin", "password": "secret-password"})
+    response = client.post(
+        "/api/v1/auth/login", json={"username": "admin", "password": "secret-password"}
+    )
     return response.json()["csrfToken"]
 
 
@@ -26,11 +28,15 @@ def test_adapters_parse_supported_formats() -> None:
     csv_rows = parse_csv(b"Title,Authors,Abstract,DOI\nPaper A,Doe,Summary,10.1/a\n")
     assert csv_rows[0]["Title"] == "Paper A"
 
-    ris_rows = parse_ris(b"TY  - JOUR\nTI  - Paper B\nAU  - Doe, Jane\nDO  - 10.1/b\nER  -\n")
+    ris_rows = parse_ris(
+        b"TY  - JOUR\nTI  - Paper B\nAU  - Doe, Jane\nDO  - 10.1/b\nER  -\n"
+    )
     assert ris_rows[0]["title"] == "Paper B"
     assert ris_rows[0]["authors"] == "Doe, Jane"
 
-    bib_rows = parse_bibtex(b"@article{doe2026, title={Paper C}, author={Doe, Jane}, year={2026}}")
+    bib_rows = parse_bibtex(
+        b"@article{doe2026, title={Paper C}, author={Doe, Jane}, year={2026}}"
+    )
     assert bib_rows[0]["title"] == "Paper C"
 
     workbook = Workbook()
@@ -70,7 +76,9 @@ def test_documented_searches_are_listed_for_a_project(client, db) -> None:
     assert listed.json()[0]["query"] == "virtual reality AND urban"
 
 
-def test_documenting_a_search_no_longer_requires_an_exported_result_count(client, db) -> None:
+def test_documenting_a_search_no_longer_requires_an_exported_result_count(
+    client, db
+) -> None:
     create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
     db.commit()
     csrf = login(client)
@@ -89,7 +97,9 @@ def test_documenting_a_search_no_longer_requires_an_exported_result_count(client
     assert created.json()["exportedResultCount"] == 0
 
 
-def test_project_jobs_are_listed_with_status(client, db, session_factory, tmp_path, monkeypatch) -> None:
+def test_project_jobs_are_listed_with_status(
+    client, db, session_factory, tmp_path, monkeypatch
+) -> None:
     create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
     db.commit()
     csrf = login(client)
@@ -97,6 +107,7 @@ def test_project_jobs_are_listed_with_status(client, db, session_factory, tmp_pa
 
     monkeypatch.setenv("PAPERTRAIL_IMPORT_DIR", str(tmp_path / "imports"))
     from app.core.config import get_settings
+
     get_settings.cache_clear()
 
     response = client.post(
@@ -118,7 +129,9 @@ def test_project_jobs_are_listed_with_status(client, db, session_factory, tmp_pa
     assert jobs_after.json()[0]["completedAt"] is not None
 
 
-def test_csv_import_runs_through_persistent_job(client, db, session_factory, tmp_path, monkeypatch) -> None:
+def test_csv_import_runs_through_persistent_job(
+    client, db, session_factory, tmp_path, monkeypatch
+) -> None:
     create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
     db.commit()
     csrf = login(client)
@@ -139,12 +152,19 @@ def test_csv_import_runs_through_persistent_job(client, db, session_factory, tmp
 
     monkeypatch.setenv("PAPERTRAIL_IMPORT_DIR", str(tmp_path / "imports"))
     from app.core.config import get_settings
+
     get_settings.cache_clear()
 
     response = client.post(
         f"/api/v1/projects/{project_id}/imports",
         data={"searchSourceId": search.json()["id"]},
-        files={"file": ("ieee.csv", b"Document Title,Authors,Abstract,DOI\nPaper A,Doe,Summary,10.1/a\n", "text/csv")},
+        files={
+            "file": (
+                "ieee.csv",
+                b"Document Title,Authors,Abstract,DOI\nPaper A,Doe,Summary,10.1/a\n",
+                "text/csv",
+            )
+        },
         headers={"X-CSRF-Token": csrf},
     )
     assert response.status_code == 202
@@ -155,7 +175,11 @@ def test_csv_import_runs_through_persistent_job(client, db, session_factory, tmp
     batch = db.scalar(select(ImportBatch).where(ImportBatch.project_id == project_id))
     assert batch is not None
     assert batch.status == "completed"
-    records = list(db.scalars(select(ImportedRecord).where(ImportedRecord.import_batch_id == batch.id)))
+    records = list(
+        db.scalars(
+            select(ImportedRecord).where(ImportedRecord.import_batch_id == batch.id)
+        )
+    )
     assert len(records) == 1
     assert records[0].parsed_data["title"] == "Paper A"
 

@@ -2,11 +2,10 @@ from __future__ import annotations
 
 import logging
 import signal
-import time
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from threading import Event, Thread
-from typing import Callable
 
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -88,7 +87,7 @@ def execute_next_job(session_factory: sessionmaker, worker_id: str) -> bool:
                 handler = HANDLERS[job.job_type]
                 result = handler(db, job)
                 job.status = JobStatus.COMPLETED
-                job.completed_at = datetime.now(timezone.utc)
+                job.completed_at = datetime.now(UTC)
                 job.lease_until = None
                 job.result = result
                 record_audit(

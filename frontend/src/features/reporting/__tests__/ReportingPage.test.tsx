@@ -30,6 +30,52 @@ describe('ReportingPage', () => {
     expect(JSON.parse(String(postCall?.[1]?.body))).toEqual({ exportType: 'xlsx', scope: 'included' })
   })
 
+  it('shows exports as generating, then lists them once the export job finishes', async () => {
+    let exportStatus = 'queued'
+    mockFetch(async (input, init) => {
+      const path = String(input)
+      if (path.endsWith('/prisma')) return jsonResponse({})
+      if (path.endsWith('/exports') && init?.method === 'POST') {
+        return jsonResponse({ jobId: 'job-9' }, 202)
+      }
+      if (path.endsWith('/jobs')) {
+        return jsonResponse([
+          {
+            id: 'job-9',
+            jobType: 'generate_export',
+            status: exportStatus,
+            progressCurrent: 0,
+            progressTotal: 0,
+            progressMessage: null,
+            errorMessage: null,
+            createdAt: '2026-07-30T08:00:00Z',
+            completedAt: null,
+          },
+        ])
+      }
+      if (path.endsWith('/exports')) {
+        return jsonResponse(
+          exportStatus === 'completed'
+            ? [{ id: 'artifact-1', type: 'xlsx', filename: 'papertrail.xlsx', createdAt: '2026-07-30T08:01:00Z' }]
+            : [],
+        )
+      }
+      return jsonResponse([])
+    })
+    const { queryClient } = renderWithProviders(<ReportingPage />, { route: '/projects/p1/reporting', path: '/projects/:projectId/reporting' })
+    await screen.findByRole('heading', { name: 'Reporting and exports' })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Generate Excel workbook' }))
+    expect(await screen.findByText('Generating export…')).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'papertrail.xlsx' })).not.toBeInTheDocument()
+
+    exportStatus = 'completed'
+    await queryClient.invalidateQueries({ queryKey: ['jobs', 'p1'] })
+
+    expect(await screen.findByRole('link', { name: 'papertrail.xlsx' })).toBeInTheDocument()
+    expect(screen.queryByText('Generating export…')).not.toBeInTheDocument()
+  })
+
   it('offers all required export families', async () => {
     mockFetch(async (input) => String(input).endsWith('/prisma') ? jsonResponse({}) : jsonResponse([]))
     renderWithProviders(<ReportingPage />, { route: '/projects/p1/reporting', path: '/projects/:projectId/reporting' })

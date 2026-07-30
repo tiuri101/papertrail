@@ -7,25 +7,24 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+from app.accounts.routes import router as accounts_router
 from app.api.errors import install_error_handlers
 from app.api.health import router as health_router
-from app.accounts.routes import router as accounts_router
-from app.projects.routes import router as projects_router
-from app.imports.routes import router as imports_router
-from app.jobs.routes import router as jobs_router
-from app.publications.routes import router as publications_router
-from app.deduplication.routes import router as deduplication_router
-from app.screening.routes import router as screening_router
-from app.conflicts.routes import router as conflicts_router
-from app.fulltext.routes import router as fulltext_router
-from app.forms.routes import router as forms_router
-from app.extraction.routes import router as extraction_router
-from app.quality.routes import router as quality_router
-from app.reporting.routes import router as reporting_router
 from app.audit.routes import router as audit_router
-from app.db import models as _models
+from app.conflicts.routes import router as conflicts_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
+from app.deduplication.routes import router as deduplication_router
+from app.extraction.routes import router as extraction_router
+from app.forms.routes import router as forms_router
+from app.fulltext.routes import router as fulltext_router
+from app.imports.routes import router as imports_router
+from app.jobs.routes import router as jobs_router
+from app.projects.routes import router as projects_router
+from app.publications.routes import router as publications_router
+from app.quality.routes import router as quality_router
+from app.reporting.routes import router as reporting_router
+from app.screening.routes import router as screening_router
 
 
 @asynccontextmanager
@@ -56,8 +55,12 @@ def create_app() -> FastAPI:
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"
-        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
-        response.headers["Content-Security-Policy"] = "frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
+        response.headers[
+            "Permissions-Policy"
+        ] = "camera=(), microphone=(), geolocation=()"
+        response.headers[
+            "Content-Security-Policy"
+        ] = "frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
         if request.url.path.startswith(settings.api_prefix):
             response.headers["Cache-Control"] = "no-store"
         return response

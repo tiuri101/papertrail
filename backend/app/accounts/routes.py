@@ -12,13 +12,19 @@ from app.accounts.dependencies import (
     require_csrf,
 )
 from app.accounts.models import User, UserSession
-from app.accounts.schemas import LoginRequest, LoginResponse, UserCreate, UserResponse, UserUpdate
+from app.accounts.schemas import (
+    LoginRequest,
+    LoginResponse,
+    UserCreate,
+    UserResponse,
+    UserUpdate,
+)
 from app.accounts.service import (
     authenticate,
     clear_login_failures,
     create_session,
-    ensure_login_allowed,
     create_user,
+    ensure_login_allowed,
     get_user_or_raise,
     password_hasher,
     record_login_failure,
@@ -34,7 +40,12 @@ users_router = APIRouter(prefix="/users", tags=["users"])
 
 
 @auth_router.post("/login", response_model=LoginResponse)
-def login(payload: LoginRequest, request: Request, response: Response, db: Session = Depends(get_db)) -> LoginResponse:
+def login(
+    payload: LoginRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+) -> LoginResponse:
     client_address = request.client.host if request.client else "unknown"
     ensure_login_allowed(db, payload.username, client_address)
     user = authenticate(db, payload.username, payload.password)
@@ -85,7 +96,9 @@ def browser_session(
 
 
 @users_router.get("", response_model=list[UserResponse])
-def list_users(_: User = Depends(require_admin), db: Session = Depends(get_db)) -> list[User]:
+def list_users(
+    _: User = Depends(require_admin), db: Session = Depends(get_db)
+) -> list[User]:
     return list(db.scalars(select(User).order_by(User.username)))
 
 
@@ -112,7 +125,9 @@ def update_user(
         user.display_name = payload.display_name.strip()
     if payload.is_active is not None:
         if user.id == admin.id and not payload.is_active:
-            raise DomainError("The active administrator cannot disable their own account")
+            raise DomainError(
+                "The active administrator cannot disable their own account"
+            )
         user.is_active = payload.is_active
         if not user.is_active:
             for session in user.sessions:

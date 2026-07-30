@@ -19,37 +19,46 @@ def calculate_prisma_counts(
     db: Session,
     project_id: str,
 ) -> dict[str, int | dict[str, int]]:
-    database_records = db.scalar(
-        select(func.count())
-        .select_from(ImportedRecord)
-        .join(ImportBatch)
-        .where(
-            ImportBatch.project_id == project_id,
-            ImportBatch.search_source_id.is_not(None),
+    database_records = (
+        db.scalar(
+            select(func.count())
+            .select_from(ImportedRecord)
+            .join(ImportBatch)
+            .where(
+                ImportBatch.project_id == project_id,
+                ImportBatch.search_source_id.is_not(None),
+            )
         )
-    ) or 0
+        or 0
+    )
     imported_publication_ids = (
         select(PublicationSource.publication_id)
         .join(ImportedRecord)
         .join(ImportBatch)
         .where(ImportBatch.project_id == project_id)
     )
-    other_records = db.scalar(
-        select(func.count())
-        .select_from(Publication)
-        .where(
-            Publication.project_id == project_id,
-            ~Publication.id.in_(imported_publication_ids),
+    other_records = (
+        db.scalar(
+            select(func.count())
+            .select_from(Publication)
+            .where(
+                Publication.project_id == project_id,
+                ~Publication.id.in_(imported_publication_ids),
+            )
         )
-    ) or 0
-    duplicates_removed = db.scalar(
-        select(func.count())
-        .select_from(PublicationMerge)
-        .where(
-            PublicationMerge.project_id == project_id,
-            PublicationMerge.reversed_at.is_(None),
+        or 0
+    )
+    duplicates_removed = (
+        db.scalar(
+            select(func.count())
+            .select_from(PublicationMerge)
+            .where(
+                PublicationMerge.project_id == project_id,
+                PublicationMerge.reversed_at.is_(None),
+            )
         )
-    ) or 0
+        or 0
+    )
     title_finals = list(
         db.scalars(
             select(FinalDecision).where(
@@ -70,9 +79,7 @@ def calculate_prisma_counts(
     )
     retrievals = list(
         db.scalars(
-            select(FullTextRetrieval).where(
-                FullTextRetrieval.project_id == project_id
-            )
+            select(FullTextRetrieval).where(FullTextRetrieval.project_id == project_id)
         )
     )
     reasons = _full_text_exclusion_reasons(db, full_finals)

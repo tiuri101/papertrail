@@ -42,8 +42,12 @@ def test_login_is_rate_limited_after_repeated_failures(client, db) -> None:
 
 
 def test_import_upload_rejects_unsupported_and_oversized_files(client, db) -> None:
-    admin = create_user(db, "admin", "Admin", "secret-password", is_admin=True)
-    project = Project(name="Secure import", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed")
+    create_user(db, "admin", "Admin", "secret-password", is_admin=True)
+    project = Project(
+        name="Secure import",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+    )
     db.add(project)
     db.commit()
     auth = login(client, "admin", "secret-password")
@@ -87,7 +91,9 @@ def test_job_lease_renewal_requires_current_worker(db) -> None:
 
 def test_export_jobs_are_idempotent(db, tmp_path: Path) -> None:
     admin = create_user(db, "admin", "Admin", "secret-password", is_admin=True)
-    project = Project(name="Export", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed")
+    project = Project(
+        name="Export", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed"
+    )
     db.add(project)
     db.flush()
     job = BackgroundJob(

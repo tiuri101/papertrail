@@ -1,4 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useRef } from 'react'
 
 import { apiRequest } from '../../api/client'
 
@@ -24,12 +25,19 @@ interface ProjectChecklist {
   stages: ChecklistStage[]
 }
 
+function currentStageIsIncomplete(data: ProjectChecklist | undefined): boolean {
+  const currentStage = data?.stages.find((stage) => stage.isCurrent)
+  if (!currentStage) return false
+  return currentStage.items.some((item) => !item.done)
+}
+
 export function ProjectChecklistPanel({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient()
   const checklist = useQuery({
     queryKey: ['project-checklist', projectId],
     queryFn: () => apiRequest<ProjectChecklist>(`/api/v1/projects/${projectId}/checklist`),
     enabled: Boolean(projectId),
+    refetchInterval: (query) => (currentStageIsIncomplete(query.state.data) ? 3000 : false),
   })
 
   const refresh = () => {
@@ -43,11 +51,23 @@ export function ProjectChecklistPanel({ projectId }: { projectId: string }) {
     onSuccess: refresh,
   })
 
+  const previousStage = useRef<string | null>(null)
+  useEffect(() => {
+    const stage = checklist.data?.stage ?? null
+    if (stage && previousStage.current && previousStage.current !== stage) {
+      queryClient.invalidateQueries({ queryKey: ['project', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['project-dashboard', projectId] })
+    }
+    previousStage.current = stage ?? previousStage.current
+  }, [checklist.data?.stage, projectId, queryClient])
+
   if (checklist.isLoading) return <p>Loading checklist…</p>
   if (checklist.isError || !checklist.data) return <p className="error" role="alert">Checklist could not be loaded.</p>
 
   const currentStage = checklist.data.stages.find((stage) => stage.isCurrent)
   if (!currentStage) return null
+
+  const allItemsDone = currentStage.items.every((item) => item.done)
 
   return (
     <section className="card">
@@ -68,7 +88,11 @@ export function ProjectChecklistPanel({ projectId }: { projectId: string }) {
         <p className="muted">Nothing left to do here.</p>
       )}
       {currentStage.action === 'ready' ? (
-        <button type="button" onClick={() => markReady.mutate()} disabled={markReady.isPending}>
+        <button
+          type="button"
+          onClick={() => markReady.mutate()}
+          disabled={markReady.isPending || !allItemsDone}
+        >
           Mark project ready
         </button>
       ) : null}

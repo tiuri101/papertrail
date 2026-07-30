@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
@@ -9,7 +9,11 @@ from app.audit.models import AuditEvent
 from app.audit.service import record_audit
 from app.conflicts.models import FinalDecision
 from app.deduplication.models import DuplicateCandidate, PublicationMerge
-from app.extraction.models import ExtractionResponse, ExtractionStatus, ExtractionWorkItem
+from app.extraction.models import (
+    ExtractionResponse,
+    ExtractionStatus,
+    ExtractionWorkItem,
+)
 from app.forms.models import FormField, FormVersion, ReviewForm
 from app.fulltext.models import FullTextRetrieval
 from app.fulltext.service import initialize_full_text_stage
@@ -17,13 +21,18 @@ from app.imports.models import ImportBatch, ImportedRecord, SearchSource
 from app.jobs.models import BackgroundJob
 from app.projects.models import Project, ProjectStage, ScreeningStage
 from app.publications.models import MetadataConflict, Publication, PublicationSource
-from app.quality.models import QualityConfig, QualityResponse, QualityStatus, QualityWorkItem
+from app.quality.models import (
+    QualityConfig,
+    QualityResponse,
+    QualityStatus,
+    QualityWorkItem,
+)
 from app.reporting.models import ExportArtifact
 from app.screening.models import ScreeningDecision, ScreeningOutcome, ScreeningWorkItem
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def included_publication_ids(db: Session, project_id: str) -> set[str]:
@@ -46,7 +55,9 @@ def evaluate_project_completion(db: Session, project: Project) -> bool:
     included_ids = included_publication_ids(db, project.id)
     extraction_items = list(
         db.scalars(
-            select(ExtractionWorkItem).where(ExtractionWorkItem.project_id == project.id)
+            select(ExtractionWorkItem).where(
+                ExtractionWorkItem.project_id == project.id
+            )
         )
     )
     extraction_by_publication = {item.publication_id: item for item in extraction_items}
@@ -123,7 +134,10 @@ def reopen_project(
         project_id=project.id,
         actor_id=actor_id,
         summary=f"Reopened project at {target_stage.value}",
-        metadata={"previousStage": previous_stage.value, "targetStage": target_stage.value},
+        metadata={
+            "previousStage": previous_stage.value,
+            "targetStage": target_stage.value,
+        },
     )
     db.flush()
     return project
@@ -174,8 +188,7 @@ def project_integrity_issues(db: Session, project: Project) -> list[dict[str, st
             ScreeningWorkItem.publication_id,
             ScreeningWorkItem.stage,
             ScreeningWorkItem.slot_number,
-        )
-        .where(ScreeningWorkItem.project_id == project.id)
+        ).where(ScreeningWorkItem.project_id == project.id)
     ).all()
     seen_slots: set[tuple[str, object, int]] = set()
     for publication_id, stage, slot_number in duplicate_slots:
@@ -228,26 +241,68 @@ def wipe_workflow_data(db: Session, project_id: str) -> None:
     configs, exclusion reasons, forms, members) untouched so callers can decide
     separately whether to keep it (reset) or remove it too (delete).
     """
-    extraction_item_ids = select(ExtractionWorkItem.id).where(ExtractionWorkItem.project_id == project_id)
-    quality_item_ids = select(QualityWorkItem.id).where(QualityWorkItem.project_id == project_id)
-    screening_item_ids = select(ScreeningWorkItem.id).where(ScreeningWorkItem.project_id == project_id)
+    extraction_item_ids = select(ExtractionWorkItem.id).where(
+        ExtractionWorkItem.project_id == project_id
+    )
+    quality_item_ids = select(QualityWorkItem.id).where(
+        QualityWorkItem.project_id == project_id
+    )
+    screening_item_ids = select(ScreeningWorkItem.id).where(
+        ScreeningWorkItem.project_id == project_id
+    )
     publication_ids = select(Publication.id).where(Publication.project_id == project_id)
-    import_batch_ids = select(ImportBatch.id).where(ImportBatch.project_id == project_id)
+    import_batch_ids = select(ImportBatch.id).where(
+        ImportBatch.project_id == project_id
+    )
 
-    db.execute(delete(ExtractionResponse).where(ExtractionResponse.work_item_id.in_(extraction_item_ids)))
-    db.execute(delete(QualityResponse).where(QualityResponse.work_item_id.in_(quality_item_ids)))
-    db.execute(delete(ScreeningDecision).where(ScreeningDecision.work_item_id.in_(screening_item_ids)))
-    db.execute(delete(ExtractionWorkItem).where(ExtractionWorkItem.project_id == project_id))
+    db.execute(
+        delete(ExtractionResponse).where(
+            ExtractionResponse.work_item_id.in_(extraction_item_ids)
+        )
+    )
+    db.execute(
+        delete(QualityResponse).where(
+            QualityResponse.work_item_id.in_(quality_item_ids)
+        )
+    )
+    db.execute(
+        delete(ScreeningDecision).where(
+            ScreeningDecision.work_item_id.in_(screening_item_ids)
+        )
+    )
+    db.execute(
+        delete(ExtractionWorkItem).where(ExtractionWorkItem.project_id == project_id)
+    )
     db.execute(delete(QualityWorkItem).where(QualityWorkItem.project_id == project_id))
-    db.execute(delete(ScreeningWorkItem).where(ScreeningWorkItem.project_id == project_id))
+    db.execute(
+        delete(ScreeningWorkItem).where(ScreeningWorkItem.project_id == project_id)
+    )
     db.execute(delete(FinalDecision).where(FinalDecision.project_id == project_id))
-    db.execute(delete(FullTextRetrieval).where(FullTextRetrieval.project_id == project_id))
-    db.execute(delete(PublicationMerge).where(PublicationMerge.project_id == project_id))
-    db.execute(delete(DuplicateCandidate).where(DuplicateCandidate.project_id == project_id))
-    db.execute(delete(MetadataConflict).where(MetadataConflict.publication_id.in_(publication_ids)))
-    db.execute(delete(PublicationSource).where(PublicationSource.publication_id.in_(publication_ids)))
+    db.execute(
+        delete(FullTextRetrieval).where(FullTextRetrieval.project_id == project_id)
+    )
+    db.execute(
+        delete(PublicationMerge).where(PublicationMerge.project_id == project_id)
+    )
+    db.execute(
+        delete(DuplicateCandidate).where(DuplicateCandidate.project_id == project_id)
+    )
+    db.execute(
+        delete(MetadataConflict).where(
+            MetadataConflict.publication_id.in_(publication_ids)
+        )
+    )
+    db.execute(
+        delete(PublicationSource).where(
+            PublicationSource.publication_id.in_(publication_ids)
+        )
+    )
     db.execute(delete(Publication).where(Publication.project_id == project_id))
-    db.execute(delete(ImportedRecord).where(ImportedRecord.import_batch_id.in_(import_batch_ids)))
+    db.execute(
+        delete(ImportedRecord).where(
+            ImportedRecord.import_batch_id.in_(import_batch_ids)
+        )
+    )
     db.execute(delete(ImportBatch).where(ImportBatch.project_id == project_id))
     db.execute(delete(SearchSource).where(SearchSource.project_id == project_id))
     db.execute(delete(ExportArtifact).where(ExportArtifact.project_id == project_id))

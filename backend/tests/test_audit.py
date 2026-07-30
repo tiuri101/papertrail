@@ -1,15 +1,21 @@
+from io import BytesIO
+
+from openpyxl import load_workbook
+
 from app.accounts.service import create_user
 from app.audit.models import AuditEvent
 from app.audit.service import project_dashboard, record_audit
 from app.projects.models import Project, ReviewType
 from app.reporting.service import build_excel
-from io import BytesIO
-from openpyxl import load_workbook
 
 
 def test_audit_events_are_append_only_domain_records(db) -> None:
     admin = create_user(db, "admin", "Admin", "secret-password", is_admin=True)
-    project = Project(name="Audit Review", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed")
+    project = Project(
+        name="Audit Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+    )
     db.add(project)
     db.flush()
 
@@ -41,7 +47,11 @@ def test_audit_events_are_append_only_domain_records(db) -> None:
 
 def test_dashboard_and_excel_include_audit_information(db) -> None:
     admin = create_user(db, "admin", "Admin", "secret-password", is_admin=True)
-    project = Project(name="Dashboard Review", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed")
+    project = Project(
+        name="Dashboard Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+    )
     db.add(project)
     db.flush()
     record_audit(

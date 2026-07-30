@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { getCsrfToken } from '../auth/session'
+import { BackgroundJob, findJob, hasActiveJob, isJobActive } from '../jobs/jobStatus'
 
 interface SearchSource {
   id: string
@@ -23,12 +24,27 @@ export function ImportPage() {
   const [query, setQuery] = useState('')
   const [searchDate, setSearchDate] = useState('')
   const [filters, setFilters] = useState('')
+  const [pendingJobId, setPendingJobId] = useState<string | null>(null)
 
   const searches = useQuery({
     queryKey: ['searches', projectId],
     queryFn: () => apiRequest<SearchSource[]>(`/api/v1/projects/${projectId}/searches`),
     enabled: Boolean(projectId),
   })
+
+  const jobs = useQuery({
+    queryKey: ['jobs', projectId],
+    queryFn: () => apiRequest<BackgroundJob[]>(`/api/v1/projects/${projectId}/jobs`),
+    enabled: Boolean(projectId) && Boolean(pendingJobId),
+    refetchInterval: (query) => (hasActiveJob(query.state.data) ? 2000 : false),
+  })
+  const pendingJob = pendingJobId ? findJob(jobs.data, pendingJobId) : undefined
+
+  useEffect(() => {
+    if (pendingJob && !isJobActive(pendingJob.status)) {
+      queryClient.invalidateQueries({ queryKey: ['publications', projectId] })
+    }
+  }, [pendingJob, projectId, queryClient])
 
   const submit = useMutation({
     mutationFn: async (): Promise<ImportResult> => {
@@ -59,12 +75,13 @@ export function ImportPage() {
       }
       return response.json() as Promise<ImportResult>
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       setSourceName('')
       setQuery('')
       setSearchDate('')
       setFilters('')
       setFile(null)
+      setPendingJobId(result.jobId)
       queryClient.invalidateQueries({ queryKey: ['searches', projectId] })
     },
   })
@@ -99,7 +116,18 @@ export function ImportPage() {
           </label>
           <button type="submit" disabled={!file || submit.isPending}>Upload</button>
         </form>
-        {submit.data ? <p>Import queued: {submit.data.jobId}</p> : null}
+        {submit.data ? (
+          !pendingJob || isJobActive(pendingJob.status) ? (
+            <p>Import queued: {submit.data.jobId}</p>
+          ) : pendingJob.status === 'completed' ? (
+            <p>Import complete.</p>
+          ) : (
+            <p className="error" role="alert">
+              Import {pendingJob.status}
+              {pendingJob.errorMessage ? `: ${pendingJob.errorMessage}` : ''}
+            </p>
+          )
+        ) : null}
         {searches.data?.length ? (
           <>
             <h3>Previously documented searches</h3>

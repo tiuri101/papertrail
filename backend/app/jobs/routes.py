@@ -13,7 +13,9 @@ router = APIRouter(prefix="/jobs", tags=["jobs"])
 
 
 @router.get("/{job_id}", response_model=JobResponse)
-def get_job(job_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_job(
+    job_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
     job = db.get(BackgroundJob, job_id)
     if job is None:
         raise NotFoundError("Job not found")

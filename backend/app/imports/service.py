@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from sqlalchemy.orm import Session
@@ -33,7 +33,9 @@ def process_import_job(db: Session, job: BackgroundJob) -> dict[str, int | str]:
             ImportedRecord(
                 import_batch_id=batch.id,
                 source_row=index + 1,
-                source_key=str(row.get("source_key")) if row.get("source_key") else None,
+                source_key=str(row.get("source_key"))
+                if row.get("source_key")
+                else None,
                 raw_data={str(k): v for k, v in row.items()},
                 parsed_data=parsed,
                 validation_state=state,
@@ -44,9 +46,15 @@ def process_import_job(db: Session, job: BackgroundJob) -> dict[str, int | str]:
         if index % 100 == 0:
             db.commit()
     batch.status = ImportStatus.COMPLETED
-    batch.completed_at = datetime.now(timezone.utc)
+    batch.completed_at = datetime.now(UTC)
     db.commit()
     from app.publications.service import normalize_imported_records
+
     normalized = normalize_imported_records(db, batch.id)
     db.commit()
-    return {"importBatchId": batch.id, "records": len(rows), "invalid": batch.invalid_record_count, "normalized": normalized}
+    return {
+        "importBatchId": batch.id,
+        "records": len(rows),
+        "invalid": batch.invalid_record_count,
+        "normalized": normalized,
+    }

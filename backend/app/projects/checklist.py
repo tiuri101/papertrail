@@ -52,35 +52,71 @@ def _count(db: Session, *clauses) -> int:
 
 def _draft_items(db: Session, project: Project) -> list[dict]:
     rq_count = sum(1 for item in project.research_questions if item.is_active)
-    inclusion_count = sum(1 for item in project.criteria if item.is_active and item.kind == CriterionKind.INCLUSION)
-    exclusion_count = sum(1 for item in project.criteria if item.is_active and item.kind == CriterionKind.EXCLUSION)
-    publication_count = _count(db, Publication.project_id == project.id, Publication.is_active.is_(True))
+    inclusion_count = sum(
+        1
+        for item in project.criteria
+        if item.is_active and item.kind == CriterionKind.INCLUSION
+    )
+    exclusion_count = sum(
+        1
+        for item in project.criteria
+        if item.is_active and item.kind == CriterionKind.EXCLUSION
+    )
+    publication_count = _count(
+        db, Publication.project_id == project.id, Publication.is_active.is_(True)
+    )
     return [
-        _item("research_questions", "Add at least one research question", rq_count > 0, f"{rq_count} added"),
+        _item(
+            "research_questions",
+            "Add at least one research question",
+            rq_count > 0,
+            f"{rq_count} added",
+        ),
         _item(
             "criteria",
             "Add at least one inclusion and one exclusion criterion",
             inclusion_count > 0 and exclusion_count > 0,
             f"{inclusion_count} inclusion, {exclusion_count} exclusion",
         ),
-        _item("publications", "Import publications to review", publication_count > 0, f"{publication_count} imported"),
+        _item(
+            "publications",
+            "Import publications to review",
+            publication_count > 0,
+            f"{publication_count} imported",
+        ),
     ]
 
 
 def _duplicate_review_items(db: Session, project: Project) -> list[dict]:
     latest_job = db.scalar(
         select(BackgroundJob)
-        .where(BackgroundJob.project_id == project.id, BackgroundJob.job_type == "detect_duplicates")
+        .where(
+            BackgroundJob.project_id == project.id,
+            BackgroundJob.job_type == "detect_duplicates",
+        )
         .order_by(BackgroundJob.created_at.desc())
         .limit(1)
     )
     detection_done = latest_job is not None and latest_job.status == JobStatus.COMPLETED
-    total = db.scalar(select(func.count()).select_from(DuplicateCandidate).where(DuplicateCandidate.project_id == project.id)) or 0
-    unresolved = db.scalar(
-        select(func.count())
-        .select_from(DuplicateCandidate)
-        .where(DuplicateCandidate.project_id == project.id, DuplicateCandidate.status == "unresolved")
-    ) or 0
+    total = (
+        db.scalar(
+            select(func.count())
+            .select_from(DuplicateCandidate)
+            .where(DuplicateCandidate.project_id == project.id)
+        )
+        or 0
+    )
+    unresolved = (
+        db.scalar(
+            select(func.count())
+            .select_from(DuplicateCandidate)
+            .where(
+                DuplicateCandidate.project_id == project.id,
+                DuplicateCandidate.status == "unresolved",
+            )
+        )
+        or 0
+    )
     resolved = total - unresolved
     return [
         _item(
@@ -89,13 +125,25 @@ def _duplicate_review_items(db: Session, project: Project) -> list[dict]:
             detection_done,
             "Detection complete" if detection_done else "Running…",
         ),
-        _item("resolve_duplicates", "Resolve every duplicate candidate", unresolved == 0, f"{resolved} of {total} resolved"),
+        _item(
+            "resolve_duplicates",
+            "Resolve every duplicate candidate",
+            unresolved == 0,
+            f"{resolved} of {total} resolved",
+        ),
     ]
 
 
 def _title_abstract_items(db: Session, project: Project) -> list[dict]:
-    total = _count(db, Publication.project_id == project.id, Publication.is_active.is_(True), Publication.merged_into_id.is_(None))
-    unresolved = len(unresolved_publication_ids(db, project.id, ScreeningStage.TITLE_ABSTRACT))
+    total = _count(
+        db,
+        Publication.project_id == project.id,
+        Publication.is_active.is_(True),
+        Publication.merged_into_id.is_(None),
+    )
+    unresolved = len(
+        unresolved_publication_ids(db, project.id, ScreeningStage.TITLE_ABSTRACT)
+    )
     decided = total - unresolved
     return [
         _item(
@@ -108,12 +156,28 @@ def _title_abstract_items(db: Session, project: Project) -> list[dict]:
 
 
 def _full_text_items(db: Session, project: Project) -> list[dict]:
-    retrievals = list(db.scalars(select(FullTextRetrieval).where(FullTextRetrieval.project_id == project.id)))
+    retrievals = list(
+        db.scalars(
+            select(FullTextRetrieval).where(FullTextRetrieval.project_id == project.id)
+        )
+    )
     total = len(retrievals)
-    retrieved = sum(1 for retrieval in retrievals if retrieval.status not in {RetrievalStatus.NOT_YET_SOUGHT, RetrievalStatus.REQUESTED})
-    available = [retrieval for retrieval in retrievals if retrieval.status == RetrievalStatus.AVAILABLE]
+    retrieved = sum(
+        1
+        for retrieval in retrievals
+        if retrieval.status
+        not in {RetrievalStatus.NOT_YET_SOUGHT, RetrievalStatus.REQUESTED}
+    )
+    available = [
+        retrieval
+        for retrieval in retrievals
+        if retrieval.status == RetrievalStatus.AVAILABLE
+    ]
     decided = sum(
-        1 for retrieval in available if valid_final_decision(db, retrieval.publication_id, ScreeningStage.FULL_TEXT) is not None
+        1
+        for retrieval in available
+        if valid_final_decision(db, retrieval.publication_id, ScreeningStage.FULL_TEXT)
+        is not None
     )
     return [
         _item(
@@ -132,14 +196,25 @@ def _full_text_items(db: Session, project: Project) -> list[dict]:
 
 
 def _extraction_items(db: Session, project: Project) -> list[dict]:
-    extraction_total = db.scalar(
-        select(func.count()).select_from(ExtractionWorkItem).where(ExtractionWorkItem.project_id == project.id)
-    ) or 0
-    extraction_done = db.scalar(
-        select(func.count())
-        .select_from(ExtractionWorkItem)
-        .where(ExtractionWorkItem.project_id == project.id, ExtractionWorkItem.status == ExtractionStatus.COMPLETED)
-    ) or 0
+    extraction_total = (
+        db.scalar(
+            select(func.count())
+            .select_from(ExtractionWorkItem)
+            .where(ExtractionWorkItem.project_id == project.id)
+        )
+        or 0
+    )
+    extraction_done = (
+        db.scalar(
+            select(func.count())
+            .select_from(ExtractionWorkItem)
+            .where(
+                ExtractionWorkItem.project_id == project.id,
+                ExtractionWorkItem.status == ExtractionStatus.COMPLETED,
+            )
+        )
+        or 0
+    )
     items = [
         _item(
             "extraction",
@@ -148,16 +223,29 @@ def _extraction_items(db: Session, project: Project) -> list[dict]:
             f"{extraction_done} of {extraction_total} extracted",
         ),
     ]
-    config = db.scalar(select(QualityConfig).where(QualityConfig.project_id == project.id))
+    config = db.scalar(
+        select(QualityConfig).where(QualityConfig.project_id == project.id)
+    )
     if config is not None and config.enabled:
-        quality_total = db.scalar(
-            select(func.count()).select_from(QualityWorkItem).where(QualityWorkItem.project_id == project.id)
-        ) or 0
-        quality_done = db.scalar(
-            select(func.count())
-            .select_from(QualityWorkItem)
-            .where(QualityWorkItem.project_id == project.id, QualityWorkItem.status == QualityStatus.COMPLETED)
-        ) or 0
+        quality_total = (
+            db.scalar(
+                select(func.count())
+                .select_from(QualityWorkItem)
+                .where(QualityWorkItem.project_id == project.id)
+            )
+            or 0
+        )
+        quality_done = (
+            db.scalar(
+                select(func.count())
+                .select_from(QualityWorkItem)
+                .where(
+                    QualityWorkItem.project_id == project.id,
+                    QualityWorkItem.status == QualityStatus.COMPLETED,
+                )
+            )
+            or 0
+        )
         items.append(
             _item(
                 "quality",
@@ -184,7 +272,9 @@ def project_checklist(db: Session, project: Project) -> dict:
     for index, stage in enumerate(STAGE_ORDER):
         builder = STAGE_BUILDERS.get(stage)
         items = builder(db, project) if builder else []
-        is_complete = index < current_index or (stage == ProjectStage.COMPLETED and project.stage == ProjectStage.COMPLETED)
+        is_complete = index < current_index or (
+            stage == ProjectStage.COMPLETED and project.stage == ProjectStage.COMPLETED
+        )
         stages.append(
             {
                 "stage": stage.value,

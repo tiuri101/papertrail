@@ -2,15 +2,17 @@ from app.accounts.service import create_user
 
 
 def login(client, username: str, password: str) -> str:
-    response = client.post("/api/v1/auth/login", json={"username": username, "password": password})
+    response = client.post(
+        "/api/v1/auth/login", json={"username": username, "password": password}
+    )
     assert response.status_code == 200
     return response.json()["csrfToken"]
 
 
 def test_admin_creates_project_and_reviewer_only_sees_memberships(client, db) -> None:
-    admin = create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
     reviewer = create_user(db, "reviewer", "Reviewer", "reviewer-password")
-    outsider = create_user(db, "outsider", "Outsider", "outsider-password")
+    create_user(db, "outsider", "Outsider", "outsider-password")
     db.commit()
 
     csrf = login(client, "admin", "secret-password")
@@ -47,7 +49,9 @@ def test_admin_creates_project_and_reviewer_only_sees_memberships(client, db) ->
     assert client.get("/api/v1/projects").json() == []
 
 
-def test_project_configuration_supports_questions_criteria_and_stage_settings(client, db) -> None:
+def test_project_configuration_supports_questions_criteria_and_stage_settings(
+    client, db
+) -> None:
     create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
     db.commit()
     csrf = login(client, "admin", "secret-password")
@@ -94,7 +98,10 @@ def test_project_configuration_supports_questions_criteria_and_stage_settings(cl
 
     details = client.get(f"/api/v1/projects/{project_id}")
     assert details.status_code == 200
-    assert details.json()["researchQuestions"][0]["text"] == "How is urban data visualized?"
+    assert (
+        details.json()["researchQuestions"][0]["text"]
+        == "How is urban data visualized?"
+    )
     assert details.json()["criteria"][0]["kind"] == "inclusion"
 
 
@@ -139,14 +146,20 @@ def test_research_questions_and_criteria_support_edit_and_delete(client, db) -> 
     assert details["researchQuestions"][0]["text"] == "Revised question"
     assert details["criteria"][0]["kind"] == "exclusion"
 
-    assert client.delete(
-        f"/api/v1/projects/{project_id}/research-questions/{rq_id}",
-        headers={"X-CSRF-Token": csrf},
-    ).status_code == 204
-    assert client.delete(
-        f"/api/v1/projects/{project_id}/criteria/{criterion_id}",
-        headers={"X-CSRF-Token": csrf},
-    ).status_code == 204
+    assert (
+        client.delete(
+            f"/api/v1/projects/{project_id}/research-questions/{rq_id}",
+            headers={"X-CSRF-Token": csrf},
+        ).status_code
+        == 204
+    )
+    assert (
+        client.delete(
+            f"/api/v1/projects/{project_id}/criteria/{criterion_id}",
+            headers={"X-CSRF-Token": csrf},
+        ).status_code
+        == 204
+    )
 
     details_after_delete = client.get(f"/api/v1/projects/{project_id}").json()
     assert details_after_delete["researchQuestions"] == []
@@ -173,7 +186,9 @@ def test_reset_project_clears_publications_but_keeps_configuration(client, db) -
         headers={"X-CSRF-Token": csrf},
     )
 
-    reset = client.post(f"/api/v1/projects/{project_id}/reset", headers={"X-CSRF-Token": csrf})
+    reset = client.post(
+        f"/api/v1/projects/{project_id}/reset", headers={"X-CSRF-Token": csrf}
+    )
     assert reset.status_code == 200
     assert reset.json()["stage"] == "draft"
 
@@ -199,7 +214,9 @@ def test_delete_project_removes_it_entirely(client, db) -> None:
         headers={"X-CSRF-Token": csrf},
     )
 
-    deleted = client.delete(f"/api/v1/projects/{project_id}", headers={"X-CSRF-Token": csrf})
+    deleted = client.delete(
+        f"/api/v1/projects/{project_id}", headers={"X-CSRF-Token": csrf}
+    )
     assert deleted.status_code == 204
 
     assert client.get(f"/api/v1/projects/{project_id}").status_code == 404

@@ -46,57 +46,75 @@ def project_dashboard(db: Session, project_id: str) -> dict[str, int | str]:
     if project is None:
         raise ValueError("Project not found")
 
-    unresolved_duplicates = db.scalar(
-        select(func.count())
-        .select_from(DuplicateCandidate)
-        .where(
-            DuplicateCandidate.project_id == project_id,
-            DuplicateCandidate.status == "unresolved",
+    unresolved_duplicates = (
+        db.scalar(
+            select(func.count())
+            .select_from(DuplicateCandidate)
+            .where(
+                DuplicateCandidate.project_id == project_id,
+                DuplicateCandidate.status == "unresolved",
+            )
         )
-    ) or 0
-    uncertain = db.scalar(
-        select(func.count())
-        .select_from(FinalDecision)
-        .where(
-            FinalDecision.project_id == project_id,
-            FinalDecision.is_valid.is_(True),
-            FinalDecision.outcome == ScreeningOutcome.UNCERTAIN,
+        or 0
+    )
+    uncertain = (
+        db.scalar(
+            select(func.count())
+            .select_from(FinalDecision)
+            .where(
+                FinalDecision.project_id == project_id,
+                FinalDecision.is_valid.is_(True),
+                FinalDecision.outcome == ScreeningOutcome.UNCERTAIN,
+            )
         )
-    ) or 0
-    reports_not_retrieved = db.scalar(
-        select(func.count())
-        .select_from(FullTextRetrieval)
-        .where(
-            FullTextRetrieval.project_id == project_id,
-            FullTextRetrieval.status.in_(
-                [RetrievalStatus.NOT_FOUND, RetrievalStatus.INACCESSIBLE]
-            ),
+        or 0
+    )
+    reports_not_retrieved = (
+        db.scalar(
+            select(func.count())
+            .select_from(FullTextRetrieval)
+            .where(
+                FullTextRetrieval.project_id == project_id,
+                FullTextRetrieval.status.in_(
+                    [RetrievalStatus.NOT_FOUND, RetrievalStatus.INACCESSIBLE]
+                ),
+            )
         )
-    ) or 0
-    extraction_remaining = db.scalar(
-        select(func.count())
-        .select_from(ExtractionWorkItem)
-        .where(
-            ExtractionWorkItem.project_id == project_id,
-            ExtractionWorkItem.status != "completed",
+        or 0
+    )
+    extraction_remaining = (
+        db.scalar(
+            select(func.count())
+            .select_from(ExtractionWorkItem)
+            .where(
+                ExtractionWorkItem.project_id == project_id,
+                ExtractionWorkItem.status != "completed",
+            )
         )
-    ) or 0
-    quality_remaining = db.scalar(
-        select(func.count())
-        .select_from(QualityWorkItem)
-        .where(
-            QualityWorkItem.project_id == project_id,
-            QualityWorkItem.status != "completed",
+        or 0
+    )
+    quality_remaining = (
+        db.scalar(
+            select(func.count())
+            .select_from(QualityWorkItem)
+            .where(
+                QualityWorkItem.project_id == project_id,
+                QualityWorkItem.status != "completed",
+            )
         )
-    ) or 0
-    failed_jobs = db.scalar(
-        select(func.count())
-        .select_from(BackgroundJob)
-        .where(
-            BackgroundJob.project_id == project_id,
-            BackgroundJob.status == JobStatus.FAILED,
+        or 0
+    )
+    failed_jobs = (
+        db.scalar(
+            select(func.count())
+            .select_from(BackgroundJob)
+            .where(
+                BackgroundJob.project_id == project_id,
+                BackgroundJob.status == JobStatus.FAILED,
+            )
         )
-    ) or 0
+        or 0
+    )
     return {
         "stage": project.stage.value,
         "unresolvedDuplicates": int(unresolved_duplicates),

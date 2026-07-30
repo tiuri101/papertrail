@@ -53,6 +53,7 @@ class ConflictResponse(ApiModel):
 class ConflictResolve(ApiModel):
     accept_proposed: bool = Field(alias="acceptProposed")
 
+
 class PublicationCreate(PublicationUpdate):
     title: str
 

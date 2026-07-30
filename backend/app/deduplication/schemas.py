@@ -1,7 +1,9 @@
 from pydantic import BaseModel, ConfigDict, Field
 
+
 class ApiModel(BaseModel):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+
 
 class CandidatePublication(ApiModel):
     id: str
@@ -10,6 +12,7 @@ class CandidatePublication(ApiModel):
     publication_year: int | None = Field(serialization_alias="publicationYear")
     venue: str | None
     doi: str | None
+
 
 class CandidateResponse(ApiModel):
     id: str
@@ -24,8 +27,10 @@ class CandidateResponse(ApiModel):
     confidence: float
     status: str
 
+
 class MergeRequest(ApiModel):
     canonical_publication_id: str = Field(alias="canonicalPublicationId")
+
 
 class ResolutionNote(ApiModel):
     note: str | None = None
