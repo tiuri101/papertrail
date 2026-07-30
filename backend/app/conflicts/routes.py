@@ -1,0 +1,72 @@
+from fastapi import APIRouter, Depends, status
+from sqlalchemy.orm import Session
+
+from app.accounts.dependencies import require_admin_csrf
+from app.accounts.models import User
+from app.audit.service import record_audit
+from app.conflicts.schemas import FinalDecisionCreate, FinalDecisionResponse
+from app.conflicts.service import (
+    add_resolution_reviewer,
+    record_final_decision,
+    transition_if_screening_complete,
+    unresolved_publication_ids,
+)
+from app.db.session import get_db
+from app.projects.models import ScreeningStage
+from app.projects.service import get_project
+
+router = APIRouter(tags=["conflict resolution"])
+
+
+@router.get("/projects/{project_id}/screening/{stage}/conflicts")
+def list_conflicts(
+    project_id: str,
+    stage: ScreeningStage,
+    _: User = Depends(require_admin_csrf),
+    db: Session = Depends(get_db),
+):
+    return {"publicationIds": unresolved_publication_ids(db, project_id, stage)}
+
+
+@router.post(
+    "/projects/{project_id}/screening/{stage}/publications/{publication_id}/final",
+    response_model=FinalDecisionResponse,
+)
+def resolve_conflict(
+    project_id: str,
+    stage: ScreeningStage,
+    publication_id: str,
+    payload: FinalDecisionCreate,
+    admin: User = Depends(require_admin_csrf),
+    db: Session = Depends(get_db),
+):
+    final = record_final_decision(
+        db,
+        publication_id,
+        stage,
+        payload.outcome,
+        payload.resolution_method,
+        admin.id,
+        payload.note,
+    )
+    transition_if_screening_complete(db, get_project(db, project_id), stage)
+    record_audit(db, action="screening.consensus_recorded", entity_type="final_decision", entity_id=final.id, project_id=project_id, actor_id=admin.id, summary=f"Recorded final {stage.value} decision", metadata={"outcome": final.outcome.value, "resolutionMethod": final.resolution_method})
+    db.commit()
+    return final
+
+
+@router.post(
+    "/projects/{project_id}/screening/{stage}/publications/{publication_id}/additional-reviewer",
+    status_code=status.HTTP_201_CREATED,
+)
+def create_additional_review(
+    project_id: str,
+    stage: ScreeningStage,
+    publication_id: str,
+    admin: User = Depends(require_admin_csrf),
+    db: Session = Depends(get_db),
+):
+    item = add_resolution_reviewer(db, publication_id, stage)
+    record_audit(db, action="screening.additional_reviewer_added", entity_type="screening_work_item", entity_id=item.id, project_id=project_id, actor_id=admin.id, summary=f"Added resolution reviewer for {stage.value}")
+    db.commit()
+    return {"workItemId": item.id, "assignedReviewerId": item.assigned_reviewer_id}

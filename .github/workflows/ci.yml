@@ -1,0 +1,34 @@
+name: CI
+on: [push, pull_request]
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - run: pip install -e 'backend[dev]'
+      - run: cd backend && pytest
+      - run: cd backend && ruff check .
+      - run: python scripts/quality_audit.py
+      - run: |
+          rm -f /tmp/papertrail-migration-test.db
+          cd backend
+          PAPERTRAIL_DATABASE_URL=sqlite+pysqlite:////tmp/papertrail-migration-test.db alembic upgrade head
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: cd frontend && npm install --no-audit --no-fund
+      - run: cd frontend && npm run typecheck
+      - run: cd frontend && npm run lint
+      - run: cd frontend && npm run build
+      - run: cd frontend && npm test
+      - run: cd frontend && npx playwright install --with-deps chromium
+      - run: cd frontend && npm run test:e2e

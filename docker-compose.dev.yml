@@ -1,0 +1,27 @@
+name: papertrail-dev
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-papertrail}
+      POSTGRES_USER: ${POSTGRES_USER:-papertrail}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-papertrail-dev}
+    ports:
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-papertrail} -d ${POSTGRES_DB:-papertrail}",
+        ]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+volumes:
+  postgres_dev_data:
+    name: papertrail_postgres_dev_data
