@@ -36,10 +36,10 @@ def work_item_payload(db: Session, item: ScreeningWorkItem) -> dict:
     )
     return {
         "id": item.id,
-        "projectId": item.project_id,
+        "project_id": item.project_id,
         "stage": item.stage.value,
-        "slotNumber": item.slot_number,
-        "reservedUntil": item.reserved_until.isoformat() if item.reserved_until else None,
+        "slot_number": item.slot_number,
+        "reserved_until": item.reserved_until.isoformat() if item.reserved_until else None,
         "draft": item.draft,
         "publication": publication,
         "criteria": criteria,

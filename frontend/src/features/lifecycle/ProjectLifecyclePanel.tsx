@@ -13,11 +13,22 @@ const stages = [
 export function ProjectLifecyclePanel({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient()
   const [targetStage, setTargetStage] = useState(stages[2])
+  const project = useQuery({
+    queryKey: ['project', projectId],
+    queryFn: () => api<{ stage: string }>(`/projects/${projectId}`),
+  })
   const integrity = useQuery({
     queryKey: ['project-integrity', projectId],
     queryFn: () => api<{ issues: Array<{ code: string; message: string }> }>(
       `/projects/${projectId}/integrity`,
     ),
+  })
+  const markReady = useMutation({
+    mutationFn: () => api(`/projects/${projectId}/ready`, { method: 'POST' }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['project-dashboard', projectId] })
+    },
   })
   const reopen = useMutation({
     mutationFn: () =>
@@ -29,19 +40,32 @@ export function ProjectLifecyclePanel({ projectId }: { projectId: string }) {
   })
 
   return (
-    <section className="space-y-4">
-      <h2 className="text-xl font-semibold">Workflow integrity</h2>
+    <section className="card">
+      {project.data?.stage === 'draft' ? (
+        <>
+          <h2>Start the review</h2>
+          <p>Once your research questions, criteria, and screening configuration are set, mark the project ready to move it into duplicate review and detect duplicate publications among your imports.</p>
+          {markReady.error ? <p className="error" role="alert">{markReady.error.message}</p> : null}
+          <button
+            type="button"
+            onClick={() => markReady.mutate()}
+            disabled={markReady.isPending}
+          >
+            Mark project ready
+          </button>
+        </>
+      ) : null}
+      <h2>Workflow integrity</h2>
       {integrity.data?.issues.length ? (
-        <ul className="list-disc space-y-1 pl-5">
+        <ul>
           {integrity.data.issues.map((issue) => (
             <li key={`${issue.code}-${issue.message}`}>{issue.message}</li>
           ))}
         </ul>
       ) : <p>No consistency issues detected.</p>}
-      <label className="block max-w-md">
-        <span className="mb-1 block text-sm font-medium">Reopen completed project at</span>
+      <label>
+        Reopen completed project at
         <select
-          className="w-full rounded-lg border px-3 py-2"
           value={targetStage}
           onChange={(event) => setTargetStage(event.target.value)}
         >
@@ -49,7 +73,6 @@ export function ProjectLifecyclePanel({ projectId }: { projectId: string }) {
         </select>
       </label>
       <button
-        className="rounded-lg bg-slate-900 px-4 py-2 text-white"
         type="button"
         onClick={() => reopen.mutate()}
         disabled={reopen.isPending}

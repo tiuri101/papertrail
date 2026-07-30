@@ -53,6 +53,10 @@ class ResearchQuestionResponse(ApiModel):
     position: int
 
 
+class ResearchQuestionUpdate(ApiModel):
+    text: str = Field(min_length=1)
+
+
 class CriterionCreate(OrderedTextCreate):
     kind: CriterionKind
 
@@ -62,6 +66,11 @@ class CriterionResponse(ApiModel):
     kind: CriterionKind
     text: str
     position: int
+
+
+class CriterionUpdate(ApiModel):
+    kind: CriterionKind | None = None
+    text: str = Field(min_length=1)
 
 
 class ScreeningConfigUpdate(ApiModel):
@@ -101,3 +110,25 @@ class ProjectDetail(ProjectSummary):
 
 class ProjectReopen(BaseModel):
     target_stage: ProjectStage = Field(alias="targetStage")
+
+
+class ChecklistItem(ApiModel):
+    key: str
+    label: str
+    done: bool
+    detail: str
+
+
+class ChecklistStage(ApiModel):
+    stage: ProjectStage
+    label: str
+    is_current: bool = Field(serialization_alias="isCurrent")
+    is_complete: bool = Field(serialization_alias="isComplete")
+    items: list[ChecklistItem]
+    auto_advances: bool = Field(serialization_alias="autoAdvances")
+    action: str | None = None
+
+
+class ProjectChecklist(ApiModel):
+    stage: ProjectStage
+    stages: list[ChecklistStage]

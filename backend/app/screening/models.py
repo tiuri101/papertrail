@@ -64,3 +64,4 @@ class ScreeningDecision(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     is_current: Mapped[bool] = mapped_column(Boolean, default=True, index=True, nullable=False)
 
     work_item: Mapped[ScreeningWorkItem] = relationship(back_populates="decisions")
+    reviewer = relationship("User", foreign_keys=[reviewer_id])

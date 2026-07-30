@@ -1,19 +1,52 @@
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 
+import { apiRequest } from '../../api/client'
 import { getCsrfToken } from '../auth/session'
+
+interface SearchSource {
+  id: string
+  sourceName: string
+  query: string
+  searchDate: string
+  filters: string | null
+}
 
 interface ImportResult { jobId: string }
 
 export function ImportPage() {
   const { projectId = '' } = useParams()
+  const queryClient = useQueryClient()
   const [file, setFile] = useState<File | null>(null)
-  const upload = useMutation({
+  const [sourceName, setSourceName] = useState('')
+  const [query, setQuery] = useState('')
+  const [searchDate, setSearchDate] = useState('')
+  const [filters, setFilters] = useState('')
+
+  const searches = useQuery({
+    queryKey: ['searches', projectId],
+    queryFn: () => apiRequest<SearchSource[]>(`/api/v1/projects/${projectId}/searches`),
+    enabled: Boolean(projectId),
+  })
+
+  const submit = useMutation({
     mutationFn: async (): Promise<ImportResult> => {
       if (!file) throw new Error('Choose a file')
+
+      const search = await apiRequest<SearchSource>(`/api/v1/projects/${projectId}/searches`, {
+        method: 'POST',
+        body: JSON.stringify({
+          sourceName,
+          query,
+          searchDate,
+          filters: filters.trim() || null,
+        }),
+      })
+
       const form = new FormData()
       form.append('file', file)
+      form.append('searchSourceId', search.id)
       const response = await fetch(`/api/v1/projects/${projectId}/imports`, {
         method: 'POST',
         credentials: 'include',
@@ -26,17 +59,60 @@ export function ImportPage() {
       }
       return response.json() as Promise<ImportResult>
     },
+    onSuccess: () => {
+      setSourceName('')
+      setQuery('')
+      setSearchDate('')
+      setFilters('')
+      setFile(null)
+      queryClient.invalidateQueries({ queryKey: ['searches', projectId] })
+    },
   })
 
   return (
     <main className="page">
       <h1>Import records</h1>
-      <label>Bibliographic export
-        <input type="file" accept=".csv,.tsv,.xlsx,.ris,.bib,.bibtex" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
-      </label>
-      <button type="button" onClick={() => upload.mutate()} disabled={!file || upload.isPending}>Upload</button>
-      {upload.error ? <p className="error" role="alert">{upload.error.message}</p> : null}
-      {upload.data ? <p>Import queued: {upload.data.jobId}</p> : null}
+
+      <section className="card">
+        <h2>Import an export file</h2>
+        <p className="muted">Record the database and search string used alongside the file, so it can be traced back for this import and reported in your PRISMA flow.</p>
+        {submit.error ? <p className="error" role="alert">{submit.error.message}</p> : null}
+        <form onSubmit={(event) => { event.preventDefault(); submit.mutate() }}>
+          <label>
+            Database
+            <input value={sourceName} onChange={(event) => setSourceName(event.target.value)} required />
+          </label>
+          <label>
+            Search string
+            <textarea value={query} onChange={(event) => setQuery(event.target.value)} rows={2} required />
+          </label>
+          <label>
+            Search date
+            <input type="date" value={searchDate} onChange={(event) => setSearchDate(event.target.value)} required />
+          </label>
+          <label>
+            Filters applied (optional)
+            <input value={filters} onChange={(event) => setFilters(event.target.value)} />
+          </label>
+          <label>Bibliographic export
+            <input type="file" accept=".csv,.tsv,.xlsx,.ris,.bib,.bibtex" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
+          </label>
+          <button type="submit" disabled={!file || submit.isPending}>Upload</button>
+        </form>
+        {submit.data ? <p>Import queued: {submit.data.jobId}</p> : null}
+        {searches.data?.length ? (
+          <>
+            <h3>Previously documented searches</h3>
+            <ul>
+              {searches.data.map((search) => (
+                <li key={search.id}>
+                  <strong>{search.sourceName}</strong>: {search.query} — {search.searchDate}
+                </li>
+              ))}
+            </ul>
+          </>
+        ) : null}
+      </section>
     </main>
   )
 }

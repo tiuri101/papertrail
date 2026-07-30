@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 from app.accounts.dependencies import require_admin_csrf
 from app.accounts.models import User
 from app.audit.service import record_audit
-from app.conflicts.schemas import FinalDecisionCreate, FinalDecisionResponse
+from app.conflicts.schemas import ConflictItem, FinalDecisionCreate, FinalDecisionResponse
 from app.conflicts.service import (
     add_resolution_reviewer,
     record_final_decision,
@@ -14,18 +14,29 @@ from app.conflicts.service import (
 from app.db.session import get_db
 from app.projects.models import ScreeningStage
 from app.projects.service import get_project
+from app.publications.models import Publication
+from app.screening.service import current_decisions
 
 router = APIRouter(tags=["conflict resolution"])
 
 
-@router.get("/projects/{project_id}/screening/{stage}/conflicts")
+@router.get("/projects/{project_id}/screening/{stage}/conflicts", response_model=list[ConflictItem])
 def list_conflicts(
     project_id: str,
     stage: ScreeningStage,
     _: User = Depends(require_admin_csrf),
     db: Session = Depends(get_db),
 ):
-    return {"publicationIds": unresolved_publication_ids(db, project_id, stage)}
+    items = []
+    for publication_id in unresolved_publication_ids(db, project_id, stage):
+        publication = db.get(Publication, publication_id)
+        assert publication is not None
+        items.append({
+            "publication_id": publication_id,
+            "publication": publication,
+            "decisions": current_decisions(db, publication_id, stage),
+        })
+    return items
 
 
 @router.post(

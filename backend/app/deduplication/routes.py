@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, status
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.accounts.dependencies import require_admin_csrf
 from app.accounts.models import User
-from app.api.errors import NotFoundError
+from app.api.errors import DomainError, NotFoundError
 from app.audit.service import record_audit
 from app.db.session import get_db
 from app.deduplication.models import DuplicateCandidate, PublicationMerge
@@ -19,6 +19,8 @@ router = APIRouter(tags=["deduplication"])
 @router.post("/projects/{project_id}/ready", status_code=status.HTTP_202_ACCEPTED)
 def mark_project_ready(project_id: str, admin: User = Depends(require_admin_csrf), db: Session = Depends(get_db)):
     project = get_project(db, project_id)
+    if project.stage != ProjectStage.DRAFT:
+        raise DomainError("Only draft projects can be marked ready for duplicate review")
     project.configuration_ready = True
     project.stage = ProjectStage.DUPLICATE_REVIEW
     job = enqueue_job(db, "detect_duplicates", {"project_id": project.id}, project_id=project.id, created_by_id=admin.id)
@@ -28,7 +30,14 @@ def mark_project_ready(project_id: str, admin: User = Depends(require_admin_csrf
 
 @router.get("/projects/{project_id}/duplicates", response_model=list[CandidateResponse])
 def list_candidates(project_id: str, _: User = Depends(require_admin_csrf), db: Session = Depends(get_db)):
-    return list(db.scalars(select(DuplicateCandidate).where(DuplicateCandidate.project_id == project_id).order_by(DuplicateCandidate.confidence.desc())))
+    return list(
+        db.scalars(
+            select(DuplicateCandidate)
+            .options(joinedload(DuplicateCandidate.publication_a), joinedload(DuplicateCandidate.publication_b))
+            .where(DuplicateCandidate.project_id == project_id)
+            .order_by(DuplicateCandidate.confidence.desc())
+        )
+    )
 
 @router.post("/projects/{project_id}/duplicates/{candidate_id}/not-duplicate", response_model=CandidateResponse)
 def resolve_not_duplicate(project_id: str, candidate_id: str, payload: ResolutionNote, admin: User = Depends(require_admin_csrf), db: Session = Depends(get_db)):

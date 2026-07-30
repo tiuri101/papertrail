@@ -7,6 +7,43 @@ from app.publications.models import MetadataConflict, Publication, PublicationSo
 from app.publications.service import apply_enrichment, normalize_imported_records
 
 
+def login(client) -> str:
+    response = client.post("/api/v1/auth/login", json={"username": "admin", "password": "secret-password"})
+    return response.json()["csrfToken"]
+
+
+def test_delete_publication_soft_deletes_and_hides_it_from_the_list(client, db) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    project = Project(name="Review", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed")
+    db.add(project)
+    db.commit()
+    csrf = login(client)
+
+    created = client.post(
+        f"/api/v1/projects/{project.id}/publications",
+        json={"title": "Paper to remove"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert created.status_code == 201
+    publication_id = created.json()["id"]
+
+    deleted = client.delete(
+        f"/api/v1/projects/{project.id}/publications/{publication_id}",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert deleted.status_code == 204
+
+    listing = client.get(f"/api/v1/projects/{project.id}/publications")
+    assert listing.json() == []
+    assert client.get(f"/api/v1/projects/{project.id}/publications/{publication_id}").status_code == 200
+
+    again = client.delete(
+        f"/api/v1/projects/{project.id}/publications/{publication_id}",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert again.status_code == 404
+
+
 def project_and_batch(db):
     admin = create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
     project = Project(name="Review", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed")

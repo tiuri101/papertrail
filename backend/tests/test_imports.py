@@ -42,6 +42,82 @@ def test_adapters_parse_supported_formats() -> None:
     assert parse_xlsx(buffer.getvalue())[0]["Title"] == "Paper D"
 
 
+def test_documented_searches_are_listed_for_a_project(client, db) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    db.commit()
+    csrf = login(client)
+    project_id = create_project(client, csrf)
+
+    assert client.get(f"/api/v1/projects/{project_id}/searches").json() == []
+
+    created = client.post(
+        f"/api/v1/projects/{project_id}/searches",
+        json={
+            "sourceName": "IEEE Xplore",
+            "query": "virtual reality AND urban",
+            "searchDate": "2026-07-30",
+            "filters": "Journals and conferences",
+            "exportedResultCount": 1,
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert created.status_code == 201
+
+    listed = client.get(f"/api/v1/projects/{project_id}/searches")
+    assert listed.status_code == 200
+    assert len(listed.json()) == 1
+    assert listed.json()[0]["sourceName"] == "IEEE Xplore"
+    assert listed.json()[0]["query"] == "virtual reality AND urban"
+
+
+def test_documenting_a_search_no_longer_requires_an_exported_result_count(client, db) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    db.commit()
+    csrf = login(client)
+    project_id = create_project(client, csrf)
+
+    created = client.post(
+        f"/api/v1/projects/{project_id}/searches",
+        json={
+            "sourceName": "Scopus",
+            "query": "urban AND visualization",
+            "searchDate": "2026-07-30",
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert created.status_code == 201
+    assert created.json()["exportedResultCount"] == 0
+
+
+def test_project_jobs_are_listed_with_status(client, db, session_factory, tmp_path, monkeypatch) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    db.commit()
+    csrf = login(client)
+    project_id = create_project(client, csrf)
+
+    monkeypatch.setenv("PAPERTRAIL_IMPORT_DIR", str(tmp_path / "imports"))
+    from app.core.config import get_settings
+    get_settings.cache_clear()
+
+    response = client.post(
+        f"/api/v1/projects/{project_id}/imports",
+        files={"file": ("records.csv", b"Title,Authors\nPaper A,Doe\n", "text/csv")},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 202
+
+    jobs = client.get(f"/api/v1/projects/{project_id}/jobs")
+    assert jobs.status_code == 200
+    assert len(jobs.json()) == 1
+    assert jobs.json()[0]["jobType"] == "parse_import"
+    assert jobs.json()[0]["status"] == "queued"
+
+    assert execute_next_job(session_factory, worker_id="test-worker") is True
+    jobs_after = client.get(f"/api/v1/projects/{project_id}/jobs")
+    assert jobs_after.json()[0]["status"] == "completed"
+    assert jobs_after.json()[0]["completedAt"] is not None
+
+
 def test_csv_import_runs_through_persistent_job(client, db, session_factory, tmp_path, monkeypatch) -> None:
     create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
     db.commit()

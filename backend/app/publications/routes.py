@@ -51,6 +51,16 @@ def update_publication(project_id: str, publication_id: str, payload: Publicatio
     return publication
 
 
+@router.delete("/projects/{project_id}/publications/{publication_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_publication(project_id: str, publication_id: str, admin: User = Depends(require_admin_csrf), db: Session = Depends(get_db)):
+    publication = db.get(Publication, publication_id)
+    if publication is None or publication.project_id != project_id or not publication.is_active:
+        raise NotFoundError("Publication not found")
+    publication.is_active = False
+    record_audit(db, action="publication.deleted", entity_type="publication", entity_id=publication.id, project_id=project_id, actor_id=admin.id, summary=f"Deleted publication {publication.title}")
+    db.commit()
+
+
 @router.post("/projects/{project_id}/publications/{publication_id}/enrich", status_code=status.HTTP_202_ACCEPTED)
 def enrich_publication(project_id: str, publication_id: str, admin: User = Depends(require_admin_csrf), db: Session = Depends(get_db)):
     publication = db.get(Publication, publication_id)

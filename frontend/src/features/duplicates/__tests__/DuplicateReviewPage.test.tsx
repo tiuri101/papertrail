@@ -7,15 +7,29 @@ import { renderWithProviders } from '../../../test/render'
 
 const candidate = {
   id: 'candidate-1',
-  publicationAId: 'publication-a',
-  publicationBId: 'publication-b',
-  matchReasons: ['Exact DOI', 'Similar title'],
+  publicationA: {
+    id: 'publication-a',
+    title: 'A Study of Urban VR',
+    authors: 'Doe, Jane',
+    publicationYear: 2025,
+    venue: 'CHI',
+    doi: '10.1000/same',
+  },
+  publicationB: {
+    id: 'publication-b',
+    title: 'A study of urban VR',
+    authors: 'Doe, J.',
+    publicationYear: 2025,
+    venue: 'CHI Extended Abstracts',
+    doi: '10.1000/same',
+  },
+  matchReasons: ['exact_doi', 'similar_title_authors'],
   confidence: 0.98,
   status: 'unresolved',
 }
 
 describe('DuplicateReviewPage', () => {
-  it('shows duplicate evidence and resolves a candidate as distinct', async () => {
+  it('shows publication metadata and resolves a candidate as distinct', async () => {
     let resolved = false
     const fetchMock = mockFetch(async (_input, init) => {
       if (init?.method === 'POST') {
@@ -26,7 +40,18 @@ describe('DuplicateReviewPage', () => {
     })
     renderWithProviders(<DuplicateReviewPage />, { route: '/projects/p1/duplicates', path: '/projects/:projectId/duplicates' })
 
-    expect(await screen.findByText('Exact DOI, Similar title — 98% — unresolved')).toBeInTheDocument()
+    expect(await screen.findByText('A Study of Urban VR')).toBeInTheDocument()
+    expect(screen.getByText('A study of urban VR')).toBeInTheDocument()
+    expect(screen.getByText(/Doe, Jane/)).toHaveTextContent('2025')
+    expect(screen.getByText('CHI')).toBeInTheDocument()
+    expect(screen.getByText('CHI Extended Abstracts')).toBeInTheDocument()
+    const doiLinks = screen.getAllByRole('link', { name: 'DOI' })
+    expect(doiLinks).toHaveLength(2)
+    expect(doiLinks[0]).toHaveAttribute('href', 'https://doi.org/10.1000/same')
+    expect(doiLinks[0]).toHaveAttribute('target', '_blank')
+    expect(screen.getByText('Exact DOI, Similar title & authors — 98% match — unresolved')).toBeInTheDocument()
+    expect(screen.getByText('A Study of Urban VR').closest('ul')).toHaveClass('card-list')
+
     fireEvent.click(screen.getByRole('button', { name: 'Not a duplicate' }))
 
     await waitFor(() => expect(screen.getByText(/not_duplicate/)).toBeInTheDocument())
@@ -39,9 +64,12 @@ describe('DuplicateReviewPage', () => {
       ? jsonResponse({ ...candidate, status: 'merged' })
       : jsonResponse([candidate]))
     renderWithProviders(<DuplicateReviewPage />, { route: '/projects/p1/duplicates', path: '/projects/:projectId/duplicates' })
-    await screen.findByText(/publication-a ↔ publication-b/)
+    await screen.findByText('A Study of Urban VR')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Merge into B' }))
+    const keepButtons = screen.getAllByRole('button', { name: 'Keep this one' })
+    expect(keepButtons).toHaveLength(2)
+    fireEvent.click(keepButtons[1])
+
     await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(true))
     const postCall = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')
     expect(JSON.parse(String(postCall?.[1]?.body))).toEqual({ canonicalPublicationId: 'publication-b' })
