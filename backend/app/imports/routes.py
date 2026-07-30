@@ -1,0 +1,157 @@
+from __future__ import annotations
+
+from pathlib import Path
+from uuid import uuid4
+
+from fastapi import APIRouter, Depends, File, Form, UploadFile, status
+from sqlalchemy.orm import Session
+
+from app.accounts.dependencies import get_current_user, require_admin_csrf
+from app.accounts.models import User
+from app.api.errors import (
+    DomainError,
+    NotFoundError,
+    PayloadTooLargeError,
+    UnsupportedMediaError,
+)
+from app.audit.service import record_audit
+from app.core.config import get_settings
+from app.db.session import get_db
+from app.imports.models import ImportBatch, ImportStatus, SearchSource
+from app.imports.schemas import JobAccepted, SearchSourceCreate, SearchSourceResponse
+from app.jobs.service import enqueue_job
+from app.projects.service import get_project, require_project_access
+
+router = APIRouter(tags=["imports"])
+
+
+@router.post("/projects/{project_id}/searches", response_model=SearchSourceResponse, status_code=status.HTTP_201_CREATED)
+def add_search(project_id: str, payload: SearchSourceCreate, admin: User = Depends(require_admin_csrf), db: Session = Depends(get_db)):
+    get_project(db, project_id)
+    search = SearchSource(project_id=project_id, source_name=payload.source_name.strip(), query=payload.query, search_date=payload.search_date, filters=payload.filters, exported_result_count=payload.exported_result_count, created_by_id=admin.id)
+    db.add(search)
+    db.flush()
+    record_audit(db, action="search.created", entity_type="search_source", entity_id=search.id, project_id=project_id, actor_id=admin.id, summary=f"Documented search in {search.source_name}")
+    db.commit()
+    return search
+
+
+@router.post("/projects/{project_id}/imports", response_model=JobAccepted, status_code=status.HTTP_202_ACCEPTED)
+async def upload_import(
+    project_id: str,
+    search_source_id: str | None = Form(default=None, alias="searchSourceId"),
+    mapping_json: str | None = Form(default=None, alias="mappingJson"),
+    file: UploadFile = File(...),
+    admin: User = Depends(require_admin_csrf),
+    db: Session = Depends(get_db),
+):
+    get_project(db, project_id)
+    if search_source_id and db.get(SearchSource, search_source_id) is None:
+        raise NotFoundError("Search source not found")
+
+    safe_name = Path(file.filename or "import").name
+    suffix = Path(safe_name).suffix.lower()
+    supported = {".csv", ".tsv", ".xlsx", ".ris", ".bib", ".bibtex"}
+    if suffix not in supported:
+        raise UnsupportedMediaError("Unsupported import format")
+
+    mapping = None
+    if mapping_json:
+        import json
+
+        try:
+            mapping = json.loads(mapping_json)
+        except json.JSONDecodeError as exc:
+            raise DomainError("Invalid import field mapping") from exc
+        if not isinstance(mapping, dict):
+            raise DomainError("Import field mapping must be an object")
+
+    settings = get_settings()
+    project_dir = settings.import_dir / project_id
+    project_dir.mkdir(parents=True, exist_ok=True)
+    stored_path = project_dir / f"{uuid4()}{suffix}"
+    total_bytes = 0
+    try:
+        with stored_path.open("wb") as destination:
+            while chunk := await file.read(1024 * 1024):
+                total_bytes += len(chunk)
+                if total_bytes > settings.max_upload_bytes:
+                    raise PayloadTooLargeError(
+                        f"Import file exceeds the {settings.max_upload_bytes}-byte limit"
+                    )
+                destination.write(chunk)
+    except Exception:
+        stored_path.unlink(missing_ok=True)
+        raise
+    finally:
+        await file.close()
+
+    batch = ImportBatch(
+        project_id=project_id,
+        search_source_id=search_source_id,
+        original_filename=safe_name,
+        stored_path=str(stored_path),
+        file_type=suffix.lstrip("."),
+        status=ImportStatus.PENDING,
+        created_by_id=admin.id,
+        mapping=mapping,
+    )
+    db.add(batch)
+    db.flush()
+    job = enqueue_job(
+        db,
+        "parse_import",
+        {"import_batch_id": batch.id},
+        project_id=project_id,
+        created_by_id=admin.id,
+    )
+    record_audit(
+        db,
+        action="import.queued",
+        entity_type="import_batch",
+        entity_id=batch.id,
+        project_id=project_id,
+        actor_id=admin.id,
+        summary=f"Queued import {safe_name}",
+        metadata={"bytes": total_bytes},
+    )
+    db.commit()
+    return JobAccepted(job_id=job.id, import_batch_id=batch.id)
+
+@router.post("/projects/{project_id}/imports/preview")
+async def preview_import(
+    project_id: str,
+    file: UploadFile = File(...),
+    admin: User = Depends(require_admin_csrf),
+    db: Session = Depends(get_db),
+):
+    from app.imports.adapters import normalize_imported_row, parse_file
+
+    require_project_access(db, project_id, admin)
+    safe_name = Path(file.filename or "import").name
+    suffix = Path(safe_name).suffix.lower()
+    if suffix not in {".csv", ".tsv", ".xlsx", ".ris", ".bib", ".bibtex"}:
+        raise UnsupportedMediaError("Unsupported import format")
+    settings = get_settings()
+    chunks: list[bytes] = []
+    total = 0
+    try:
+        while chunk := await file.read(1024 * 1024):
+            total += len(chunk)
+            if total > settings.max_upload_bytes:
+                raise PayloadTooLargeError(
+                    f"Import file exceeds the {settings.max_upload_bytes}-byte limit"
+                )
+            chunks.append(chunk)
+    finally:
+        await file.close()
+    rows = parse_file(safe_name, b"".join(chunks))
+    fields = sorted({str(key) for row in rows for key in row})
+    normalized = [normalize_imported_row(row) for row in rows[:10]]
+    return {
+        "filename": safe_name,
+        "recordCount": len(rows),
+        "detectedFields": fields,
+        "previewRows": rows[:10],
+        "normalizedPreview": normalized,
+    }

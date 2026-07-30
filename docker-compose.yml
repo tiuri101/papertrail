@@ -1,0 +1,112 @@
+name: papertrail
+
+x-backend-environment: &backend-environment
+  PAPERTRAIL_ENV: ${PAPERTRAIL_ENV:-production}
+  PAPERTRAIL_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-papertrail}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/${POSTGRES_DB:-papertrail}
+  PAPERTRAIL_IMPORT_DIR: /data/imports
+  PAPERTRAIL_EXPORT_DIR: /data/exports
+  PAPERTRAIL_SESSION_COOKIE_SECURE: ${PAPERTRAIL_SESSION_COOKIE_SECURE:-false}
+  PAPERTRAIL_ALLOWED_HOSTS: ${PAPERTRAIL_ALLOWED_HOSTS:-localhost,127.0.0.1}
+  PAPERTRAIL_CORS_ORIGINS: ${PAPERTRAIL_CORS_ORIGINS:-http://localhost}
+  PAPERTRAIL_WORKER_THREADS: ${PAPERTRAIL_WORKER_THREADS:-4}
+  PAPERTRAIL_JOB_POLL_INTERVAL_SECONDS: ${PAPERTRAIL_JOB_POLL_INTERVAL_SECONDS:-1}
+  PAPERTRAIL_JOB_LEASE_SECONDS: ${PAPERTRAIL_JOB_LEASE_SECONDS:-300}
+
+services:
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-papertrail}
+      POSTGRES_USER: ${POSTGRES_USER:-papertrail}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change-me}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-papertrail} -d ${POSTGRES_DB:-papertrail}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  migrate:
+    build: ./backend
+    environment: *backend-environment
+    command: alembic upgrade head
+    volumes:
+      - papertrail_files:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    build: ./backend
+    restart: unless-stopped
+    environment: *backend-environment
+    command:
+      - uvicorn
+      - app.main:app
+      - --host
+      - 0.0.0.0
+      - --port
+      - "8000"
+      - --proxy-headers
+      - --forwarded-allow-ips=*
+    volumes:
+      - papertrail_files:/data
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=3)"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  worker:
+    build: ./backend
+    restart: unless-stopped
+    environment: *backend-environment
+    command: python -m app.jobs.worker
+    volumes:
+      - papertrail_files:/data
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      api:
+        condition: service_healthy
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+
+  gateway:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    environment:
+      PAPERTRAIL_SITE_ADDRESS: ${PAPERTRAIL_SITE_ADDRESS:-:80}
+    ports:
+      - "${PAPERTRAIL_HTTP_PORT:-80}:80"
+      - "${PAPERTRAIL_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./deployment/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      frontend:
+        condition: service_started
+      api:
+        condition: service_healthy
+
+volumes:
+  postgres_data:
+    name: papertrail_postgres_data
+  papertrail_files:
+    name: papertrail_files
+  caddy_data:
+    name: papertrail_caddy_data
+  caddy_config:
+    name: papertrail_caddy_config
