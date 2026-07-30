@@ -14,10 +14,8 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.db.base import Base
-from app.db import models as _models
 from app.db.session import get_db
 from app.main import create_app
-
 
 SQLITE_TEST_DATABASE_URL = "sqlite+pysqlite:///:memory:"
 

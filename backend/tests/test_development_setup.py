@@ -3,8 +3,6 @@ from __future__ import annotations
 import tomllib
 from pathlib import Path
 
-from app.core.config import Settings
-
 BACKEND_ROOT = Path(__file__).resolve().parents[1]
 PROJECT_ROOT = BACKEND_ROOT.parent
 
