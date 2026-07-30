@@ -34,9 +34,15 @@ def parse_xlsx(data: bytes) -> list[dict[str, Any]]:
     workbook = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
     sheet = workbook.active
     rows = sheet.iter_rows(values_only=True)
-    headers = [str(value).strip() if value is not None else "" for value in next(rows, ())]
+    headers = [
+        str(value).strip() if value is not None else "" for value in next(rows, ())
+    ]
     return [
-        {headers[index]: value for index, value in enumerate(row) if index < len(headers) and headers[index]}
+        {
+            headers[index]: value
+            for index, value in enumerate(row)
+            if index < len(headers) and headers[index]
+        }
         for row in rows
         if any(value is not None and str(value).strip() for value in row)
     ]
@@ -46,7 +52,18 @@ def parse_ris(data: bytes) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     current: dict[str, Any] = {}
     authors: list[str] = []
-    mapping = {"TI": "title", "T1": "title", "AB": "abstract", "DO": "doi", "PY": "year", "Y1": "year", "JO": "venue", "JF": "venue", "UR": "url", "KW": "keywords"}
+    mapping = {
+        "TI": "title",
+        "T1": "title",
+        "AB": "abstract",
+        "DO": "doi",
+        "PY": "year",
+        "Y1": "year",
+        "JO": "venue",
+        "JF": "venue",
+        "UR": "url",
+        "KW": "keywords",
+    }
     for raw_line in decode_text(data).splitlines():
         match = re.match(r"^([A-Z0-9]{2})  - ?(.*)$", raw_line)
         if not match:
@@ -99,7 +116,7 @@ def _split_bibtex_entries(text: str) -> list[tuple[str, str, str]]:
             elif text[pos] == "}":
                 depth -= 1
             pos += 1
-        entries.append((entry_type, key, text[body_start:pos - 1]))
+        entries.append((entry_type, key, text[body_start : pos - 1]))
         index = pos
     return entries
 
@@ -107,12 +124,25 @@ def _split_bibtex_entries(text: str) -> list[tuple[str, str, str]]:
 def parse_bibtex(data: bytes) -> list[dict[str, Any]]:
     records: list[dict[str, Any]] = []
     for entry_type, key, body in _split_bibtex_entries(decode_text(data)):
-        record: dict[str, Any] = {"publication_type": entry_type.lower(), "source_key": key}
-        field_pattern = re.compile(r"(\w+)\s*=\s*(?:\{((?:[^{}]|\{[^{}]*\})*)\}|\"([^\"]*)\"|([^,]+))\s*,?", re.S)
+        record: dict[str, Any] = {
+            "publication_type": entry_type.lower(),
+            "source_key": key,
+        }
+        field_pattern = re.compile(
+            r"(\w+)\s*=\s*(?:\{((?:[^{}]|\{[^{}]*\})*)\}|\"([^\"]*)\"|([^,]+))\s*,?",
+            re.S,
+        )
         for match in field_pattern.finditer(body):
             name = match.group(1).lower()
-            value = next(group for group in match.groups()[1:] if group is not None).strip()
-            mapped = {"author": "authors", "journal": "venue", "booktitle": "venue", "url": "url"}.get(name, name)
+            value = next(
+                group for group in match.groups()[1:] if group is not None
+            ).strip()
+            mapped = {
+                "author": "authors",
+                "journal": "venue",
+                "booktitle": "venue",
+                "url": "url",
+            }.get(name, name)
             record[mapped] = re.sub(r"\s+", " ", value)
         records.append(record)
     return records
@@ -133,7 +163,9 @@ ALIASES: dict[str, tuple[str, ...]] = {
 }
 
 
-def normalize_imported_row(row: dict[str, Any], explicit_mapping: dict[str, str] | None = None) -> dict[str, Any]:
+def normalize_imported_row(
+    row: dict[str, Any], explicit_mapping: dict[str, str] | None = None
+) -> dict[str, Any]:
     normalized_keys = {str(key).strip().lower(): value for key, value in row.items()}
     parsed: dict[str, Any] = {}
     if explicit_mapping:

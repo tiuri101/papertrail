@@ -13,18 +13,19 @@ from app.screening.models import ScreeningOutcome
 
 def bibtex_escape(value: str) -> str:
     return (
-        value.replace("\\", "\\textbackslash{}")
-        .replace("{", "\\{")
-        .replace("}", "\\}")
+        value.replace("\\", "\\textbackslash{}").replace("{", "\\{").replace("}", "\\}")
     )
 
 
 def citation_key(publication: Publication, used: set[str]) -> str:
-    author = re.sub(
-        r"[^A-Za-z0-9]",
-        "",
-        (publication.authors or "paper").split(",")[0].split(";")[0],
-    ) or "paper"
+    author = (
+        re.sub(
+            r"[^A-Za-z0-9]",
+            "",
+            (publication.authors or "paper").split(",")[0].split(";")[0],
+        )
+        or "paper"
+    )
     year = str(publication.publication_year or "nd")
     first_word = publication.title.split()[0] if publication.title else "work"
     word = re.sub(r"[^A-Za-z0-9]", "", first_word)

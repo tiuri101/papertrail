@@ -1,22 +1,63 @@
 from fastapi import APIRouter, Depends
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.accounts.dependencies import require_admin_csrf, require_csrf
+from app.accounts.dependencies import require_admin, require_admin_csrf, require_csrf
 from app.accounts.models import User, UserSession
 from app.api.errors import NotFoundError
 from app.audit.service import record_audit
 from app.db.session import get_db
 from app.projects.service import get_project, require_project_access
+from app.publications.models import Publication
 from app.quality.models import QualityConfig, QualityWorkItem
 from app.quality.schemas import (
+    QualityConfigResponse,
     QualityConfigUpdate,
     QualityItemResponse,
     QualityResponseModel,
     QualitySubmit,
 )
-from app.quality.service import claim_next_quality, submit_quality
+from app.quality.service import (
+    active_fields,
+    claim_next_quality,
+    quality_form,
+    submit_quality,
+)
 
 router = APIRouter(tags=["quality assessment"])
+
+
+def quality_item_payload(db: Session, item: QualityWorkItem) -> dict:
+    form = quality_form(db, item.project_id)
+    return {
+        "id": item.id,
+        "publication_id": item.publication_id,
+        "status": item.status,
+        "draft": item.draft,
+        "publication": db.get(Publication, item.publication_id),
+        "fields": active_fields(db, form) if form else [],
+    }
+
+
+@router.get(
+    "/projects/{project_id}/quality-config", response_model=QualityConfigResponse
+)
+def get_quality_config(
+    project_id: str,
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    get_project(db, project_id)
+    config = db.scalar(
+        select(QualityConfig).where(QualityConfig.project_id == project_id)
+    )
+    if config is None:
+        return {"enabled": False, "mode": "both", "aggregation": "sum"}
+    return {
+        "enabled": config.enabled,
+        "mode": config.mode,
+        "aggregation": config.aggregation,
+    }
 
 
 @router.put("/projects/{project_id}/quality-config")
@@ -52,7 +93,9 @@ def configure_quality(
     }
 
 
-@router.post("/projects/{project_id}/quality/next", response_model=QualityItemResponse | None)
+@router.post(
+    "/projects/{project_id}/quality/next", response_model=QualityItemResponse | None
+)
 def next_quality(
     project_id: str,
     session: UserSession = Depends(require_csrf),
@@ -61,7 +104,7 @@ def next_quality(
     require_project_access(db, project_id, session.user)
     item = claim_next_quality(db, project_id, session.user.id)
     db.commit()
-    return item
+    return quality_item_payload(db, item) if item else None
 
 
 @router.post(

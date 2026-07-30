@@ -87,6 +87,7 @@ export function DuplicateReviewPage() {
       <h1>Duplicate review</h1>
       {candidates.error ? <p className="error" role="alert">{candidates.error.message}</p> : null}
       {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
+      {candidates.data && candidates.data.length === 0 ? <p className="muted">No duplicates found.</p> : null}
       <ul className="card-list">
         {candidates.data?.map((candidate) => (
           <li className="card" key={candidate.id}>

@@ -41,12 +41,16 @@ def build_parser() -> argparse.ArgumentParser:
         "create-admin",
         help="Create the installation administrator if it does not exist.",
     )
-    create_admin.add_argument("--username", default=os.getenv("PAPERTRAIL_ADMIN_USERNAME", "admin"))
+    create_admin.add_argument(
+        "--username", default=os.getenv("PAPERTRAIL_ADMIN_USERNAME", "admin")
+    )
     create_admin.add_argument(
         "--display-name",
         default=os.getenv("PAPERTRAIL_ADMIN_DISPLAY_NAME", "Papertrail Administrator"),
     )
-    create_admin.add_argument("--password", default=os.getenv("PAPERTRAIL_ADMIN_PASSWORD"))
+    create_admin.add_argument(
+        "--password", default=os.getenv("PAPERTRAIL_ADMIN_PASSWORD")
+    )
     return parser
 
 

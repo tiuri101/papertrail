@@ -66,7 +66,6 @@ def test_project_completes_and_can_be_reopened_without_deleting_work(db) -> None
 def test_integrity_check_detects_missing_downstream_work(db) -> None:
     _, project, publication = create_included_project(db)
     issues = project_integrity_issues(db, project)
-    assert {
-        (issue["code"], issue["entityId"])
-        for issue in issues
-    } == {("missing_extraction_item", publication.id)}
+    assert {(issue["code"], issue["entityId"]) for issue in issues} == {
+        ("missing_extraction_item", publication.id)
+    }

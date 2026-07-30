@@ -12,7 +12,14 @@ from app.audit.service import record_audit
 from app.db.session import get_db
 from app.imports.schemas import JobResponse
 from app.jobs.models import BackgroundJob
-from app.projects.models import Criterion, ExclusionReason, Project, ResearchQuestion, ScreeningConfig, ScreeningStage
+from app.projects.models import (
+    Criterion,
+    ExclusionReason,
+    Project,
+    ResearchQuestion,
+    ScreeningConfig,
+    ScreeningStage,
+)
 from app.projects.schemas import (
     CriterionCreate,
     CriterionResponse,
@@ -45,20 +52,38 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 
 
 @router.get("", response_model=list[ProjectSummary])
-def list_projects(user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> list[Project]:
+def list_projects(
+    user: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> list[Project]:
     return list_projects_for_user(db, user)
 
 
 @router.post("", response_model=ProjectSummary, status_code=status.HTTP_201_CREATED)
-def add_project(payload: ProjectCreate, admin: User = Depends(require_admin_csrf), db: Session = Depends(get_db)) -> Project:
+def add_project(
+    payload: ProjectCreate,
+    admin: User = Depends(require_admin_csrf),
+    db: Session = Depends(get_db),
+) -> Project:
     project = create_project(db, payload.name, payload.description, payload.review_type)
-    record_audit(db, action="project.created", entity_type="project", entity_id=project.id, project_id=project.id, actor_id=admin.id, summary=f"Created project {project.name}")
+    record_audit(
+        db,
+        action="project.created",
+        entity_type="project",
+        entity_id=project.id,
+        project_id=project.id,
+        actor_id=admin.id,
+        summary=f"Created project {project.name}",
+    )
     db.commit()
     return project
 
 
 @router.get("/{project_id}", response_model=ProjectDetail)
-def project_detail(project_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> ProjectDetail:
+def project_detail(
+    project_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ProjectDetail:
     project = require_project_access(db, project_id, user)
     return ProjectDetail(
         id=project.id,
@@ -67,7 +92,9 @@ def project_detail(project_id: str, user: User = Depends(get_current_user), db: 
         review_type=project.review_type,
         stage=project.stage,
         memberships=project.memberships,
-        research_questions=[item for item in project.research_questions if item.is_active],
+        research_questions=[
+            item for item in project.research_questions if item.is_active
+        ],
         criteria=[item for item in project.criteria if item.is_active],
         screening_configs=project.screening_configs,
         exclusion_reasons=project.exclusion_reasons,
@@ -75,15 +102,28 @@ def project_detail(project_id: str, user: User = Depends(get_current_user), db: 
 
 
 @router.get("/{project_id}/checklist", response_model=ProjectChecklist)
-def project_checklist_endpoint(project_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def project_checklist_endpoint(
+    project_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     from app.projects.checklist import project_checklist
 
     project = require_project_access(db, project_id, user)
     return project_checklist(db, project)
 
 
-@router.post("/{project_id}/members", response_model=MembershipResponse, status_code=status.HTTP_201_CREATED)
-def add_project_member(project_id: str, payload: MembershipCreate, _: User = Depends(require_admin_csrf), db: Session = Depends(get_db)):
+@router.post(
+    "/{project_id}/members",
+    response_model=MembershipResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def add_project_member(
+    project_id: str,
+    payload: MembershipCreate,
+    _: User = Depends(require_admin_csrf),
+    db: Session = Depends(get_db),
+):
     project = get_project(db, project_id)
     user = get_user_or_raise(db, payload.user_id)
     membership = add_membership(
@@ -96,103 +136,269 @@ def add_project_member(project_id: str, payload: MembershipCreate, _: User = Dep
         can_assess_quality=payload.can_assess_quality,
         can_adjudicate=payload.can_adjudicate,
     )
-    record_audit(db, action="membership.created", entity_type="project_membership", entity_id=membership.id, project_id=project.id, actor_id=_.id, summary=f"Added reviewer {user.username} to project")
+    record_audit(
+        db,
+        action="membership.created",
+        entity_type="project_membership",
+        entity_id=membership.id,
+        project_id=project.id,
+        actor_id=_.id,
+        summary=f"Added reviewer {user.username} to project",
+    )
     db.commit()
     return membership
 
 
-@router.post("/{project_id}/research-questions", response_model=ResearchQuestionResponse, status_code=status.HTTP_201_CREATED)
-def add_research_question(project_id: str, payload: OrderedTextCreate, admin: User = Depends(require_admin_csrf), db: Session = Depends(get_db)):
+@router.post(
+    "/{project_id}/research-questions",
+    response_model=ResearchQuestionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def add_research_question(
+    project_id: str,
+    payload: OrderedTextCreate,
+    admin: User = Depends(require_admin_csrf),
+    db: Session = Depends(get_db),
+):
     get_project(db, project_id)
-    item = ResearchQuestion(project_id=project_id, text=payload.text.strip(), position=payload.position if payload.position is not None else next_position(db, ResearchQuestion, project_id))
+    item = ResearchQuestion(
+        project_id=project_id,
+        text=payload.text.strip(),
+        position=payload.position
+        if payload.position is not None
+        else next_position(db, ResearchQuestion, project_id),
+    )
     db.add(item)
     db.flush()
-    record_audit(db, action="research_question.created", entity_type="research_question", entity_id=item.id, project_id=project_id, actor_id=admin.id, summary="Added research question")
+    record_audit(
+        db,
+        action="research_question.created",
+        entity_type="research_question",
+        entity_id=item.id,
+        project_id=project_id,
+        actor_id=admin.id,
+        summary="Added research question",
+    )
     db.commit()
     return item
 
 
-@router.patch("/{project_id}/research-questions/{item_id}", response_model=ResearchQuestionResponse)
-def update_research_question(project_id: str, item_id: str, payload: ResearchQuestionUpdate, admin: User = Depends(require_admin_csrf), db: Session = Depends(get_db)):
+@router.patch(
+    "/{project_id}/research-questions/{item_id}",
+    response_model=ResearchQuestionResponse,
+)
+def update_research_question(
+    project_id: str,
+    item_id: str,
+    payload: ResearchQuestionUpdate,
+    admin: User = Depends(require_admin_csrf),
+    db: Session = Depends(get_db),
+):
     item = db.get(ResearchQuestion, item_id)
     if item is None or item.project_id != project_id or not item.is_active:
         raise NotFoundError("Research question not found")
     item.text = payload.text.strip()
-    record_audit(db, action="research_question.updated", entity_type="research_question", entity_id=item.id, project_id=project_id, actor_id=admin.id, summary="Updated research question")
+    record_audit(
+        db,
+        action="research_question.updated",
+        entity_type="research_question",
+        entity_id=item.id,
+        project_id=project_id,
+        actor_id=admin.id,
+        summary="Updated research question",
+    )
     db.commit()
     return item
 
 
-@router.delete("/{project_id}/research-questions/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_research_question(project_id: str, item_id: str, admin: User = Depends(require_admin_csrf), db: Session = Depends(get_db)):
+@router.delete(
+    "/{project_id}/research-questions/{item_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+def delete_research_question(
+    project_id: str,
+    item_id: str,
+    admin: User = Depends(require_admin_csrf),
+    db: Session = Depends(get_db),
+):
     item = db.get(ResearchQuestion, item_id)
     if item is None or item.project_id != project_id or not item.is_active:
         raise NotFoundError("Research question not found")
     item.is_active = False
-    record_audit(db, action="research_question.deleted", entity_type="research_question", entity_id=item.id, project_id=project_id, actor_id=admin.id, summary="Removed research question")
+    record_audit(
+        db,
+        action="research_question.deleted",
+        entity_type="research_question",
+        entity_id=item.id,
+        project_id=project_id,
+        actor_id=admin.id,
+        summary="Removed research question",
+    )
     db.commit()
 
 
-@router.post("/{project_id}/criteria", response_model=CriterionResponse, status_code=status.HTTP_201_CREATED)
-def add_criterion(project_id: str, payload: CriterionCreate, admin: User = Depends(require_admin_csrf), db: Session = Depends(get_db)):
+@router.post(
+    "/{project_id}/criteria",
+    response_model=CriterionResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def add_criterion(
+    project_id: str,
+    payload: CriterionCreate,
+    admin: User = Depends(require_admin_csrf),
+    db: Session = Depends(get_db),
+):
     get_project(db, project_id)
-    item = Criterion(project_id=project_id, kind=payload.kind, text=payload.text.strip(), position=payload.position if payload.position is not None else next_position(db, Criterion, project_id))
+    item = Criterion(
+        project_id=project_id,
+        kind=payload.kind,
+        text=payload.text.strip(),
+        position=payload.position
+        if payload.position is not None
+        else next_position(db, Criterion, project_id),
+    )
     db.add(item)
     db.flush()
-    record_audit(db, action="criterion.created", entity_type="criterion", entity_id=item.id, project_id=project_id, actor_id=admin.id, summary=f"Added {payload.kind} criterion")
+    record_audit(
+        db,
+        action="criterion.created",
+        entity_type="criterion",
+        entity_id=item.id,
+        project_id=project_id,
+        actor_id=admin.id,
+        summary=f"Added {payload.kind} criterion",
+    )
     db.commit()
     return item
 
 
 @router.patch("/{project_id}/criteria/{item_id}", response_model=CriterionResponse)
-def update_criterion(project_id: str, item_id: str, payload: CriterionUpdate, admin: User = Depends(require_admin_csrf), db: Session = Depends(get_db)):
+def update_criterion(
+    project_id: str,
+    item_id: str,
+    payload: CriterionUpdate,
+    admin: User = Depends(require_admin_csrf),
+    db: Session = Depends(get_db),
+):
     item = db.get(Criterion, item_id)
     if item is None or item.project_id != project_id or not item.is_active:
         raise NotFoundError("Criterion not found")
     item.text = payload.text.strip()
     if payload.kind is not None:
         item.kind = payload.kind
-    record_audit(db, action="criterion.updated", entity_type="criterion", entity_id=item.id, project_id=project_id, actor_id=admin.id, summary="Updated criterion")
+    record_audit(
+        db,
+        action="criterion.updated",
+        entity_type="criterion",
+        entity_id=item.id,
+        project_id=project_id,
+        actor_id=admin.id,
+        summary="Updated criterion",
+    )
     db.commit()
     return item
 
 
-@router.delete("/{project_id}/criteria/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_criterion(project_id: str, item_id: str, admin: User = Depends(require_admin_csrf), db: Session = Depends(get_db)):
+@router.delete(
+    "/{project_id}/criteria/{item_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+def delete_criterion(
+    project_id: str,
+    item_id: str,
+    admin: User = Depends(require_admin_csrf),
+    db: Session = Depends(get_db),
+):
     item = db.get(Criterion, item_id)
     if item is None or item.project_id != project_id or not item.is_active:
         raise NotFoundError("Criterion not found")
     item.is_active = False
-    record_audit(db, action="criterion.deleted", entity_type="criterion", entity_id=item.id, project_id=project_id, actor_id=admin.id, summary="Removed criterion")
+    record_audit(
+        db,
+        action="criterion.deleted",
+        entity_type="criterion",
+        entity_id=item.id,
+        project_id=project_id,
+        actor_id=admin.id,
+        summary="Removed criterion",
+    )
     db.commit()
 
 
-@router.put("/{project_id}/screening-config/{stage}", response_model=ScreeningConfigResponse)
-def set_screening_config(project_id: str, stage: ScreeningStage, payload: ScreeningConfigUpdate, admin: User = Depends(require_admin_csrf), db: Session = Depends(get_db)):
+@router.put(
+    "/{project_id}/screening-config/{stage}", response_model=ScreeningConfigResponse
+)
+def set_screening_config(
+    project_id: str,
+    stage: ScreeningStage,
+    payload: ScreeningConfigUpdate,
+    admin: User = Depends(require_admin_csrf),
+    db: Session = Depends(get_db),
+):
     get_project(db, project_id)
-    config = db.scalar(select(ScreeningConfig).where(ScreeningConfig.project_id == project_id, ScreeningConfig.stage == stage))
+    config = db.scalar(
+        select(ScreeningConfig).where(
+            ScreeningConfig.project_id == project_id, ScreeningConfig.stage == stage
+        )
+    )
     assert config is not None
     config.required_reviewers = payload.required_reviewers
     config.allocation_mode = payload.allocation_mode
     config.conflict_resolution = payload.conflict_resolution
     config.uncertain_resolution = payload.uncertain_resolution
-    record_audit(db, action="screening_config.updated", entity_type="screening_config", entity_id=config.id, project_id=project_id, actor_id=admin.id, summary=f"Updated {stage.value} screening configuration")
+    record_audit(
+        db,
+        action="screening_config.updated",
+        entity_type="screening_config",
+        entity_id=config.id,
+        project_id=project_id,
+        actor_id=admin.id,
+        summary=f"Updated {stage.value} screening configuration",
+    )
     db.commit()
     return config
 
 
-@router.post("/{project_id}/exclusion-reasons/{stage}", response_model=ExclusionReasonResponse, status_code=status.HTTP_201_CREATED)
-def add_exclusion_reason(project_id: str, stage: ScreeningStage, payload: ExclusionReasonCreate, admin: User = Depends(require_admin_csrf), db: Session = Depends(get_db)):
+@router.post(
+    "/{project_id}/exclusion-reasons/{stage}",
+    response_model=ExclusionReasonResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def add_exclusion_reason(
+    project_id: str,
+    stage: ScreeningStage,
+    payload: ExclusionReasonCreate,
+    admin: User = Depends(require_admin_csrf),
+    db: Session = Depends(get_db),
+):
     get_project(db, project_id)
-    item = ExclusionReason(project_id=project_id, stage=stage, label=payload.label.strip(), position=payload.position if payload.position is not None else next_position(db, ExclusionReason, project_id, stage=stage))
+    item = ExclusionReason(
+        project_id=project_id,
+        stage=stage,
+        label=payload.label.strip(),
+        position=payload.position
+        if payload.position is not None
+        else next_position(db, ExclusionReason, project_id, stage=stage),
+    )
     db.add(item)
     db.flush()
-    record_audit(db, action="exclusion_reason.created", entity_type="exclusion_reason", entity_id=item.id, project_id=project_id, actor_id=admin.id, summary=f"Added {stage.value} exclusion reason")
+    record_audit(
+        db,
+        action="exclusion_reason.created",
+        entity_type="exclusion_reason",
+        entity_id=item.id,
+        project_id=project_id,
+        actor_id=admin.id,
+        summary=f"Added {stage.value} exclusion reason",
+    )
     db.commit()
     return item
 
+
 @router.get("/{project_id}/jobs", response_model=list[JobResponse])
-def list_project_jobs(project_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def list_project_jobs(
+    project_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     require_project_access(db, project_id, user)
     return list(
         db.scalars(

@@ -1,12 +1,17 @@
 from pydantic import BaseModel, ConfigDict, Field
 
+
 class ApiModel(BaseModel):
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True, use_enum_values=True)
+    model_config = ConfigDict(
+        from_attributes=True, populate_by_name=True, use_enum_values=True
+    )
+
 
 class FormCreate(ApiModel):
     name: str
     kind: str
     template_id: str | None = Field(default=None, alias="templateId")
+
 
 class FieldCreate(ApiModel):
     label: str
@@ -14,6 +19,7 @@ class FieldCreate(ApiModel):
     required: bool = False
     options: list = []
     scoring: dict = {}
+
 
 class FieldResponse(ApiModel):
     id: str
@@ -26,6 +32,7 @@ class FieldResponse(ApiModel):
     scoring: dict
     is_archived: bool = Field(serialization_alias="isArchived")
 
+
 class FormResponse(ApiModel):
     id: str
     project_id: str | None = Field(serialization_alias="projectId")
@@ -33,6 +40,7 @@ class FormResponse(ApiModel):
     kind: str
     is_template: bool = Field(serialization_alias="isTemplate")
     active_version_id: str | None = Field(serialization_alias="activeVersionId")
+
 
 class FieldUpdate(ApiModel):
     label: str | None = None

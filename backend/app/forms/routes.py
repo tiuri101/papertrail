@@ -8,7 +8,13 @@ from app.api.errors import DomainError, NotFoundError
 from app.audit.service import record_audit
 from app.db.session import get_db
 from app.forms.models import FormField, FormKind, ReviewForm
-from app.forms.schemas import FieldCreate, FieldResponse, FieldUpdate, FormCreate, FormResponse
+from app.forms.schemas import (
+    FieldCreate,
+    FieldResponse,
+    FieldUpdate,
+    FormCreate,
+    FormResponse,
+)
 from app.forms.service import (
     add_field,
     archive_field,
@@ -20,18 +26,50 @@ from app.projects.service import get_project
 
 router = APIRouter(tags=["forms"])
 
+
 @router.get("/form-templates", response_model=list[FormResponse])
 def list_templates(_: User = Depends(require_admin), db: Session = Depends(get_db)):
-    return list(db.scalars(select(ReviewForm).where(ReviewForm.is_template.is_(True)).order_by(ReviewForm.name)))
+    return list(
+        db.scalars(
+            select(ReviewForm)
+            .where(ReviewForm.is_template.is_(True))
+            .order_by(ReviewForm.name)
+        )
+    )
 
-@router.post("/form-templates", response_model=FormResponse, status_code=status.HTTP_201_CREATED)
-def add_template(payload: FormCreate, admin: User = Depends(require_admin_csrf), db: Session = Depends(get_db)):
+
+@router.post(
+    "/form-templates", response_model=FormResponse, status_code=status.HTTP_201_CREATED
+)
+def add_template(
+    payload: FormCreate,
+    admin: User = Depends(require_admin_csrf),
+    db: Session = Depends(get_db),
+):
     form = create_form(db, payload.name, FormKind(payload.kind), is_template=True)
-    record_audit(db, action="form_template.created", entity_type="review_form", entity_id=form.id, actor_id=admin.id, summary=f"Created {form.kind.value} form template")
-    db.commit(); return form
+    record_audit(
+        db,
+        action="form_template.created",
+        entity_type="review_form",
+        entity_id=form.id,
+        actor_id=admin.id,
+        summary=f"Created {form.kind.value} form template",
+    )
+    db.commit()
+    return form
 
-@router.post("/projects/{project_id}/forms", response_model=FormResponse, status_code=status.HTTP_201_CREATED)
-def add_project_form(project_id: str, payload: FormCreate, admin: User = Depends(require_admin_csrf), db: Session = Depends(get_db)):
+
+@router.post(
+    "/projects/{project_id}/forms",
+    response_model=FormResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def add_project_form(
+    project_id: str,
+    payload: FormCreate,
+    admin: User = Depends(require_admin_csrf),
+    db: Session = Depends(get_db),
+):
     get_project(db, project_id)
     if payload.template_id:
         template = db.get(ReviewForm, payload.template_id)
@@ -39,17 +77,56 @@ def add_project_form(project_id: str, payload: FormCreate, admin: User = Depends
             raise NotFoundError("Template not found")
         form = copy_template_to_project(db, template, project_id, payload.name)
     else:
-        form = create_form(db, payload.name, FormKind(payload.kind), project_id=project_id)
-    record_audit(db, action="project_form.created", entity_type="review_form", entity_id=form.id, project_id=project_id, actor_id=admin.id, summary=f"Created project {form.kind.value} form")
-    db.commit(); return form
+        form = create_form(
+            db, payload.name, FormKind(payload.kind), project_id=project_id
+        )
+    record_audit(
+        db,
+        action="project_form.created",
+        entity_type="review_form",
+        entity_id=form.id,
+        project_id=project_id,
+        actor_id=admin.id,
+        summary=f"Created project {form.kind.value} form",
+    )
+    db.commit()
+    return form
 
-@router.post("/forms/{form_id}/fields", response_model=FieldResponse, status_code=status.HTTP_201_CREATED)
-def add_form_field(form_id: str, payload: FieldCreate, admin: User = Depends(require_admin_csrf), db: Session = Depends(get_db)):
+
+@router.post(
+    "/forms/{form_id}/fields",
+    response_model=FieldResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def add_form_field(
+    form_id: str,
+    payload: FieldCreate,
+    admin: User = Depends(require_admin_csrf),
+    db: Session = Depends(get_db),
+):
     form = db.get(ReviewForm, form_id)
-    if form is None: raise NotFoundError("Form not found")
-    field = add_field(db, form, payload.label, payload.field_type, required=payload.required, options=payload.options, scoring=payload.scoring)
-    record_audit(db, action="form_field.added", entity_type="form_field", entity_id=field.id, project_id=form.project_id, actor_id=admin.id, summary=f"Added field to {form.name}")
-    db.commit(); return field
+    if form is None:
+        raise NotFoundError("Form not found")
+    field = add_field(
+        db,
+        form,
+        payload.label,
+        payload.field_type,
+        required=payload.required,
+        options=payload.options,
+        scoring=payload.scoring,
+    )
+    record_audit(
+        db,
+        action="form_field.added",
+        entity_type="form_field",
+        entity_id=field.id,
+        project_id=form.project_id,
+        actor_id=admin.id,
+        summary=f"Added field to {form.name}",
+    )
+    db.commit()
+    return field
 
 
 @router.get("/projects/{project_id}/forms", response_model=list[FormResponse])

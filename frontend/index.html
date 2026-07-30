@@ -3,6 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#090e1a" />
+    <script>
+      try {
+        const storedTheme = localStorage.getItem('papertrail-theme')
+        const theme = storedTheme === 'light' ? 'light' : 'dark'
+        document.documentElement.dataset.theme = theme
+        document.documentElement.style.colorScheme = theme
+        document.querySelector('meta[name="theme-color"]').content = theme === 'dark' ? '#090e1a' : '#f4f6fb'
+      } catch {
+        document.documentElement.dataset.theme = 'dark'
+      }
+    </script>
     <title>Papertrail</title>
   </head>
   <body>

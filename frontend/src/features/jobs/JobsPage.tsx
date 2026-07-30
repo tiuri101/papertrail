@@ -2,25 +2,15 @@ import { useQuery } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
-
-interface Job {
-  id: string
-  jobType: string
-  status: string
-  progressCurrent: number
-  progressTotal: number
-  progressMessage: string | null
-  errorMessage: string | null
-  createdAt: string
-  completedAt: string | null
-}
+import { BackgroundJob, hasActiveJob } from './jobStatus'
 
 export function JobsPage() {
   const { projectId = '' } = useParams()
   const jobs = useQuery({
     queryKey: ['jobs', projectId],
-    queryFn: () => apiRequest<Job[]>(`/api/v1/projects/${projectId}/jobs`),
+    queryFn: () => apiRequest<BackgroundJob[]>(`/api/v1/projects/${projectId}/jobs`),
     enabled: Boolean(projectId),
+    refetchInterval: (query) => (hasActiveJob(query.state.data) ? 3000 : false),
   })
 
   return (

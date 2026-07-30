@@ -6,14 +6,15 @@ interface ConfirmButtonProps {
   warning: string
   onConfirm: () => void
   disabled?: boolean
+  variant?: 'default' | 'danger'
 }
 
-export function ConfirmButton({ label, confirmLabel = 'Confirm', warning, onConfirm, disabled }: ConfirmButtonProps) {
+export function ConfirmButton({ label, confirmLabel = 'Confirm', warning, onConfirm, disabled, variant = 'default' }: ConfirmButtonProps) {
   const [confirming, setConfirming] = useState(false)
 
   if (!confirming) {
     return (
-      <button type="button" onClick={() => setConfirming(true)} disabled={disabled}>
+      <button className={variant === 'danger' ? 'button-danger' : undefined} type="button" onClick={() => setConfirming(true)} disabled={disabled}>
         {label}
       </button>
     )
@@ -23,6 +24,7 @@ export function ConfirmButton({ label, confirmLabel = 'Confirm', warning, onConf
     <span className="toolbar" role="alertdialog" aria-label={`Confirm: ${label}`}>
       <span className="error" role="alert">{warning}</span>
       <button
+        className={variant === 'danger' ? 'button-danger' : undefined}
         type="button"
         onClick={() => {
           setConfirming(false)
@@ -32,7 +34,7 @@ export function ConfirmButton({ label, confirmLabel = 'Confirm', warning, onConf
       >
         {confirmLabel}
       </button>
-      <button type="button" onClick={() => setConfirming(false)} disabled={disabled}>
+      <button className="button-secondary" type="button" onClick={() => setConfirming(false)} disabled={disabled}>
         Cancel
       </button>
     </span>

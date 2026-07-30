@@ -26,8 +26,14 @@ from app.projects.service import get_project, require_project_access
 router = APIRouter(tags=["imports"])
 
 
-@router.get("/projects/{project_id}/searches", response_model=list[SearchSourceResponse])
-def list_searches(project_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+@router.get(
+    "/projects/{project_id}/searches", response_model=list[SearchSourceResponse]
+)
+def list_searches(
+    project_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
     require_project_access(db, project_id, user)
     return list(
         db.scalars(
@@ -38,18 +44,47 @@ def list_searches(project_id: str, user: User = Depends(get_current_user), db: S
     )
 
 
-@router.post("/projects/{project_id}/searches", response_model=SearchSourceResponse, status_code=status.HTTP_201_CREATED)
-def add_search(project_id: str, payload: SearchSourceCreate, admin: User = Depends(require_admin_csrf), db: Session = Depends(get_db)):
+@router.post(
+    "/projects/{project_id}/searches",
+    response_model=SearchSourceResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def add_search(
+    project_id: str,
+    payload: SearchSourceCreate,
+    admin: User = Depends(require_admin_csrf),
+    db: Session = Depends(get_db),
+):
     get_project(db, project_id)
-    search = SearchSource(project_id=project_id, source_name=payload.source_name.strip(), query=payload.query, search_date=payload.search_date, filters=payload.filters, exported_result_count=payload.exported_result_count, created_by_id=admin.id)
+    search = SearchSource(
+        project_id=project_id,
+        source_name=payload.source_name.strip(),
+        query=payload.query,
+        search_date=payload.search_date,
+        filters=payload.filters,
+        exported_result_count=payload.exported_result_count,
+        created_by_id=admin.id,
+    )
     db.add(search)
     db.flush()
-    record_audit(db, action="search.created", entity_type="search_source", entity_id=search.id, project_id=project_id, actor_id=admin.id, summary=f"Documented search in {search.source_name}")
+    record_audit(
+        db,
+        action="search.created",
+        entity_type="search_source",
+        entity_id=search.id,
+        project_id=project_id,
+        actor_id=admin.id,
+        summary=f"Documented search in {search.source_name}",
+    )
     db.commit()
     return search
 
 
-@router.post("/projects/{project_id}/imports", response_model=JobAccepted, status_code=status.HTTP_202_ACCEPTED)
+@router.post(
+    "/projects/{project_id}/imports",
+    response_model=JobAccepted,
+    status_code=status.HTTP_202_ACCEPTED,
+)
 async def upload_import(
     project_id: str,
     search_source_id: str | None = Form(default=None, alias="searchSourceId"),
@@ -130,6 +165,7 @@ async def upload_import(
     )
     db.commit()
     return JobAccepted(job_id=job.id, import_batch_id=batch.id)
+
 
 @router.post("/projects/{project_id}/imports/preview")
 async def preview_import(

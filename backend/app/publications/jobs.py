@@ -14,7 +14,10 @@ def enrich_publication_job(db: Session, job: BackgroundJob) -> dict:
         return {"publicationId": publication.id, "status": "no-doi"}
     conflicts = 0
     completed = []
-    for name, client in (("crossref", CrossrefClient()), ("semantic_scholar", SemanticScholarClient())):
+    for name, client in (
+        ("crossref", CrossrefClient()),
+        ("semantic_scholar", SemanticScholarClient()),
+    ):
         try:
             data = client.lookup_doi(publication.doi)
         except Exception:
@@ -22,4 +25,8 @@ def enrich_publication_job(db: Session, job: BackgroundJob) -> dict:
         conflicts += apply_enrichment(db, publication, data, name)
         completed.append(name)
     db.commit()
-    return {"publicationId": publication.id, "providers": completed, "conflicts": conflicts}
+    return {
+        "publicationId": publication.id,
+        "providers": completed,
+        "conflicts": conflicts,
+    }

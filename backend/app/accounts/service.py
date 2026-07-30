@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import secrets
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
@@ -18,7 +18,7 @@ password_hasher = PasswordHasher()
 
 
 def utcnow() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def hash_token(token: str) -> str:
@@ -96,7 +96,7 @@ def find_active_session(db: Session, raw_token: str | None) -> UserSession | Non
         return None
     expires_at = session.expires_at
     if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=timezone.utc)
+        expires_at = expires_at.replace(tzinfo=UTC)
     if expires_at <= utcnow() or not session.user.is_active:
         return None
     return session
@@ -114,7 +114,7 @@ def get_user_or_raise(db: Session, user_id: str) -> User:
 
 
 def login_identity_hash(username: str, client_address: str) -> str:
-    value = f"{username.strip().lower()}:{client_address}".encode("utf-8")
+    value = f"{username.strip().lower()}:{client_address}".encode()
     return hashlib.sha256(value).hexdigest()
 
 
@@ -123,12 +123,14 @@ def ensure_login_allowed(db: Session, username: str, client_address: str) -> Non
     from app.api.errors import RateLimitError
 
     identity = login_identity_hash(username, client_address)
-    throttle = db.scalar(select(LoginThrottle).where(LoginThrottle.identity_hash == identity))
+    throttle = db.scalar(
+        select(LoginThrottle).where(LoginThrottle.identity_hash == identity)
+    )
     if throttle is None or throttle.blocked_until is None:
         return
     blocked_until = throttle.blocked_until
     if blocked_until.tzinfo is None:
-        blocked_until = blocked_until.replace(tzinfo=timezone.utc)
+        blocked_until = blocked_until.replace(tzinfo=UTC)
     if blocked_until > utcnow():
         raise RateLimitError("Too many failed login attempts. Try again later.")
 
@@ -139,7 +141,9 @@ def record_login_failure(db: Session, username: str, client_address: str) -> Non
     settings = get_settings()
     now = utcnow()
     identity = login_identity_hash(username, client_address)
-    throttle = db.scalar(select(LoginThrottle).where(LoginThrottle.identity_hash == identity))
+    throttle = db.scalar(
+        select(LoginThrottle).where(LoginThrottle.identity_hash == identity)
+    )
     if throttle is None:
         throttle = LoginThrottle(
             identity_hash=identity,
@@ -150,7 +154,7 @@ def record_login_failure(db: Session, username: str, client_address: str) -> Non
         db.flush()
     window_started_at = throttle.window_started_at
     if window_started_at.tzinfo is None:
-        window_started_at = window_started_at.replace(tzinfo=timezone.utc)
+        window_started_at = window_started_at.replace(tzinfo=UTC)
     if now - window_started_at > timedelta(seconds=settings.login_window_seconds):
         throttle.attempts = 0
         throttle.window_started_at = now
@@ -165,7 +169,9 @@ def clear_login_failures(db: Session, username: str, client_address: str) -> Non
     from app.accounts.models import LoginThrottle
 
     identity = login_identity_hash(username, client_address)
-    throttle = db.scalar(select(LoginThrottle).where(LoginThrottle.identity_hash == identity))
+    throttle = db.scalar(
+        select(LoginThrottle).where(LoginThrottle.identity_hash == identity)
+    )
     if throttle is not None:
         db.delete(throttle)
         db.flush()

@@ -1,7 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { BackgroundJob, findJob, hasActiveJob, isJobActive } from '../jobs/jobStatus'
 
 interface ExportArtifact {
   id: string
@@ -13,6 +15,7 @@ interface ExportArtifact {
 export function ReportingPage() {
   const { projectId = '' } = useParams()
   const queryClient = useQueryClient()
+  const [pendingJobId, setPendingJobId] = useState<string | null>(null)
   const prisma = useQuery({
     queryKey: ['prisma', projectId],
     queryFn: () => apiRequest<Record<string, unknown>>(
@@ -25,17 +28,32 @@ export function ReportingPage() {
       `/api/v1/projects/${projectId}/exports`,
     ),
   })
+  const jobs = useQuery({
+    queryKey: ['jobs', projectId],
+    queryFn: () => apiRequest<BackgroundJob[]>(`/api/v1/projects/${projectId}/jobs`),
+    enabled: Boolean(projectId) && Boolean(pendingJobId),
+    refetchInterval: (query) => (hasActiveJob(query.state.data) ? 2000 : false),
+  })
+  const pendingJob = pendingJobId ? findJob(jobs.data, pendingJobId) : undefined
+
+  useEffect(() => {
+    if (pendingJob && !isJobActive(pendingJob.status)) {
+      queryClient.invalidateQueries({ queryKey: ['exports', projectId] })
+    }
+  }, [pendingJob, projectId, queryClient])
+
   const createExport = useMutation({
-    mutationFn: (exportType: string) => apiRequest(
+    mutationFn: (exportType: string) => apiRequest<{ jobId: string }>(
       `/api/v1/projects/${projectId}/exports`,
       {
         method: 'POST',
         body: JSON.stringify({ exportType, scope: 'included' }),
       },
     ),
-    onSuccess: () => queryClient.invalidateQueries({
-      queryKey: ['exports', projectId],
-    }),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ['exports', projectId] })
+      if (result?.jobId) setPendingJobId(result.jobId)
+    },
   })
 
   const queryError = prisma.error ?? exportsQuery.error
@@ -45,6 +63,12 @@ export function ReportingPage() {
       <h1>Reporting and exports</h1>
       {queryError ? <p className="error" role="alert">{queryError.message}</p> : null}
       {createExport.error ? <p className="error" role="alert">{createExport.error.message}</p> : null}
+      {pendingJob && isJobActive(pendingJob.status) ? <p className="muted">Generating export…</p> : null}
+      {pendingJob && pendingJob.status === 'failed' ? (
+        <p className="error" role="alert">
+          Export failed{pendingJob.errorMessage ? `: ${pendingJob.errorMessage}` : ''}
+        </p>
+      ) : null}
       <section className="card">
         <h2>PRISMA 2020 counts</h2>
         <pre>{JSON.stringify(prisma.data, null, 2)}</pre>

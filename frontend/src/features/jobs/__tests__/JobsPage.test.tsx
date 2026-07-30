@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import { JobsPage } from '../JobsPage'
@@ -47,5 +47,33 @@ describe('JobsPage', () => {
     renderWithProviders(<JobsPage />, { route: '/projects/p1/jobs', path: '/projects/:projectId/jobs' })
 
     expect(await screen.findByText('No background jobs have run for this project yet.')).toBeInTheDocument()
+  })
+
+  it('reflects a job finishing once fresh data arrives, as background polling would deliver', async () => {
+    let status = 'running'
+    const fetchMock = mockFetch(() => jsonResponse([
+      {
+        id: 'job-1',
+        jobType: 'detect_duplicates',
+        status,
+        progressCurrent: 0,
+        progressTotal: 0,
+        progressMessage: null,
+        errorMessage: null,
+        createdAt: '2026-07-30T10:00:00Z',
+        completedAt: null,
+      },
+    ]))
+    const { queryClient } = renderWithProviders(<JobsPage />, { route: '/projects/p1/jobs', path: '/projects/:projectId/jobs' })
+
+    expect((await screen.findByText('detect_duplicates')).closest('li')).toHaveTextContent('running')
+
+    status = 'completed'
+    await queryClient.invalidateQueries({ queryKey: ['jobs', 'p1'] })
+
+    await waitFor(() => {
+      expect(screen.getByText('detect_duplicates').closest('li')).toHaveTextContent('completed')
+    })
+    expect(fetchMock).toHaveBeenCalledTimes(2)
   })
 })

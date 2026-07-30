@@ -77,7 +77,7 @@ export function FullTextPage() {
         return (
           <div key={statusValue}>
             <h2>{formatStatus(statusValue)} ({items.length})</h2>
-            <ul className="card-list">
+            <ul className="card-list stacked">
               {items.map((retrieval) => (
                 <RetrievalRow
                   key={retrieval.id}

@@ -4,12 +4,16 @@ from sqlalchemy.orm import Session
 from app.accounts.dependencies import require_admin_csrf
 from app.accounts.models import User
 from app.audit.service import record_audit
-from app.conflicts.schemas import ConflictItem, FinalDecisionCreate, FinalDecisionResponse
+from app.conflicts.schemas import (
+    ConflictItem,
+    FinalDecisionCreate,
+    FinalDecisionResponse,
+)
 from app.conflicts.service import (
     add_resolution_reviewer,
+    conflicted_publication_ids,
     record_final_decision,
     transition_if_screening_complete,
-    unresolved_publication_ids,
 )
 from app.db.session import get_db
 from app.projects.models import ScreeningStage
@@ -20,7 +24,10 @@ from app.screening.service import current_decisions
 router = APIRouter(tags=["conflict resolution"])
 
 
-@router.get("/projects/{project_id}/screening/{stage}/conflicts", response_model=list[ConflictItem])
+@router.get(
+    "/projects/{project_id}/screening/{stage}/conflicts",
+    response_model=list[ConflictItem],
+)
 def list_conflicts(
     project_id: str,
     stage: ScreeningStage,
@@ -28,14 +35,16 @@ def list_conflicts(
     db: Session = Depends(get_db),
 ):
     items = []
-    for publication_id in unresolved_publication_ids(db, project_id, stage):
+    for publication_id in conflicted_publication_ids(db, project_id, stage):
         publication = db.get(Publication, publication_id)
         assert publication is not None
-        items.append({
-            "publication_id": publication_id,
-            "publication": publication,
-            "decisions": current_decisions(db, publication_id, stage),
-        })
+        items.append(
+            {
+                "publication_id": publication_id,
+                "publication": publication,
+                "decisions": current_decisions(db, publication_id, stage),
+            }
+        )
     return items
 
 
@@ -61,7 +70,19 @@ def resolve_conflict(
         payload.note,
     )
     transition_if_screening_complete(db, get_project(db, project_id), stage)
-    record_audit(db, action="screening.consensus_recorded", entity_type="final_decision", entity_id=final.id, project_id=project_id, actor_id=admin.id, summary=f"Recorded final {stage.value} decision", metadata={"outcome": final.outcome.value, "resolutionMethod": final.resolution_method})
+    record_audit(
+        db,
+        action="screening.consensus_recorded",
+        entity_type="final_decision",
+        entity_id=final.id,
+        project_id=project_id,
+        actor_id=admin.id,
+        summary=f"Recorded final {stage.value} decision",
+        metadata={
+            "outcome": final.outcome.value,
+            "resolutionMethod": final.resolution_method,
+        },
+    )
     db.commit()
     return final
 
@@ -78,6 +99,14 @@ def create_additional_review(
     db: Session = Depends(get_db),
 ):
     item = add_resolution_reviewer(db, publication_id, stage)
-    record_audit(db, action="screening.additional_reviewer_added", entity_type="screening_work_item", entity_id=item.id, project_id=project_id, actor_id=admin.id, summary=f"Added resolution reviewer for {stage.value}")
+    record_audit(
+        db,
+        action="screening.additional_reviewer_added",
+        entity_type="screening_work_item",
+        entity_id=item.id,
+        project_id=project_id,
+        actor_id=admin.id,
+        summary=f"Added resolution reviewer for {stage.value}",
+    )
     db.commit()
     return {"workItemId": item.id, "assignedReviewerId": item.assigned_reviewer_id}

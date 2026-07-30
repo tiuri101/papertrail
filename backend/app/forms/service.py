@@ -16,11 +16,17 @@ def create_form(
     project_id: str | None = None,
 ) -> ReviewForm:
     if is_template and project_id is not None:
-        raise ConflictError("A form cannot be both a global template and project-specific")
-    form = ReviewForm(name=name.strip(), kind=kind, is_template=is_template, project_id=project_id)
+        raise ConflictError(
+            "A form cannot be both a global template and project-specific"
+        )
+    form = ReviewForm(
+        name=name.strip(), kind=kind, is_template=is_template, project_id=project_id
+    )
     db.add(form)
     db.flush()
-    version = FormVersion(form_id=form.id, version_number=1, change_summary="Initial form")
+    version = FormVersion(
+        form_id=form.id, version_number=1, change_summary="Initial form"
+    )
     db.add(version)
     db.flush()
     form.active_version_id = version.id
@@ -39,10 +45,20 @@ def active_version(db: Session, form: ReviewForm) -> FormVersion:
 
 def fork_version(db: Session, form: ReviewForm, summary: str) -> FormVersion:
     current = active_version(db, form)
-    next_number = int(
-        db.scalar(select(func.max(FormVersion.version_number)).where(FormVersion.form_id == form.id)) or 0
-    ) + 1
-    new_version = FormVersion(form_id=form.id, version_number=next_number, change_summary=summary)
+    next_number = (
+        int(
+            db.scalar(
+                select(func.max(FormVersion.version_number)).where(
+                    FormVersion.form_id == form.id
+                )
+            )
+            or 0
+        )
+        + 1
+    )
+    new_version = FormVersion(
+        form_id=form.id, version_number=next_number, change_summary=summary
+    )
     db.add(new_version)
     db.flush()
     for field in list(
@@ -72,9 +88,14 @@ def fork_version(db: Session, form: ReviewForm, summary: str) -> FormVersion:
 
 def editable_version(db: Session, form: ReviewForm, summary: str) -> FormVersion:
     current = active_version(db, form)
-    has_fields = db.scalar(
-        select(func.count()).select_from(FormField).where(FormField.form_version_id == current.id)
-    ) or 0
+    has_fields = (
+        db.scalar(
+            select(func.count())
+            .select_from(FormField)
+            .where(FormField.form_version_id == current.id)
+        )
+        or 0
+    )
     return fork_version(db, form, summary) if has_fields else current
 
 
@@ -94,7 +115,8 @@ def add_field(
             select(func.coalesce(func.max(FormField.position), -1) + 1).where(
                 FormField.form_version_id == version.id
             )
-        ) or 0
+        )
+        or 0
     )
     field = FormField(
         form_version_id=version.id,
@@ -110,10 +132,14 @@ def add_field(
     if required and form.project_id is not None:
         if form.kind == FormKind.EXTRACTION:
             from app.extraction.service import reopen_for_required_field
+
             reopen_for_required_field(db, form.project_id)
         elif form.kind == FormKind.QUALITY:
             try:
-                from app.quality.service import reopen_for_required_field as reopen_quality
+                from app.quality.service import (
+                    reopen_for_required_field as reopen_quality,
+                )
+
                 reopen_quality(db, form.project_id)
             except ImportError:
                 pass
@@ -132,7 +158,9 @@ def find_field(db: Session, version: FormVersion, stable_key: str) -> FormField:
     return field
 
 
-def rename_field(db: Session, form: ReviewForm, stable_key: str, label: str) -> FormField:
+def rename_field(
+    db: Session, form: ReviewForm, stable_key: str, label: str
+) -> FormField:
     version = fork_version(db, form, f"Renamed field to: {label}")
     field = find_field(db, version, stable_key)
     field.label = label.strip()

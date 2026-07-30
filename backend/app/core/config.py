@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from functools import lru_cache
+from os import getenv
 from pathlib import Path
 from typing import Annotated
 
@@ -26,7 +27,11 @@ class Settings(BaseSettings):
     login_max_attempts: int = 5
     login_window_seconds: int = 900
     login_block_seconds: int = 900
-    allowed_hosts: Annotated[list[str], NoDecode] = ["localhost", "127.0.0.1", "testserver"]
+    allowed_hosts: Annotated[list[str], NoDecode] = [
+        "localhost",
+        "127.0.0.1",
+        "testserver",
+    ]
     max_upload_bytes: int = 25 * 1024 * 1024
     import_dir: Path = Path("./data/imports")
     export_dir: Path = Path("./data/exports")
@@ -48,4 +53,7 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
+    if getenv("PAPERTRAIL_ENV") == "test":
+        return Settings(_env_file=None)
+
     return Settings()
