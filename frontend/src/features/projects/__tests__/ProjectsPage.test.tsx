@@ -7,7 +7,15 @@ import { renderWithProviders } from '../../../test/render'
 
 describe('ProjectsPage', () => {
   it('lists projects and creates a new project', async () => {
-    const projects = [{ id: 'p1', name: 'Existing review', reviewType: 'systematic_review', stage: 'draft' }]
+    const projects = [
+      {
+        id: 'p1',
+        name: 'Existing review',
+        reviewType: 'systematic_review',
+        stage: 'draft',
+      },
+    ]
+
     mockFetch(async (_input, init) => {
       if (init?.method === 'POST') {
         const body = JSON.parse(String(init.body))
@@ -15,30 +23,71 @@ describe('ProjectsPage', () => {
         projects.push(project)
         return jsonResponse(project, 201)
       }
+
       return jsonResponse(projects)
     })
 
     renderWithProviders(<ProjectsPage />)
-    expect(await screen.findByRole('link', { name: 'Existing review' })).toHaveAttribute('href', '/projects/p1')
 
-    fireEvent.change(screen.getByLabelText('Project name'), { target: { value: 'Urban VR review' } })
-    fireEvent.change(screen.getByLabelText('Review type'), { target: { value: 'systematic_mapping' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    expect(
+        await screen.findByRole('link', { name: 'Existing review' }),
+    ).toHaveAttribute('href', '/projects/p1')
 
-    expect(await screen.findByRole('link', { name: 'Urban VR review' })).toHaveAttribute('href', '/projects/p2')
-    expect(screen.getByLabelText('Project name')).toHaveValue('')
+    fireEvent.click(
+        screen.getByRole('button', { name: 'New project' }),
+    )
+
+    fireEvent.change(screen.getByLabelText('Project name'), {
+      target: { value: 'Urban VR review' },
+    })
+
+    fireEvent.change(screen.getByLabelText('Review type'), {
+      target: { value: 'systematic_mapping' },
+    })
+
+    fireEvent.click(
+        screen.getByRole('button', { name: 'Create' }),
+    )
+
+    expect(
+        await screen.findByRole('link', { name: 'Urban VR review' }),
+    ).toHaveAttribute('href', '/projects/p2')
+
+    expect(
+        screen.queryByLabelText('Project name'),
+    ).not.toBeInTheDocument()
   })
 
   it('shows project creation errors', async () => {
-    mockFetch(async (_input, init) => init?.method === 'POST'
-      ? jsonResponse({ error: { message: 'Project name is already used' } }, 409)
-      : jsonResponse([]))
+    mockFetch(async (_input, init) =>
+        init?.method === 'POST'
+            ? jsonResponse(
+                { error: { message: 'Project name is already used' } },
+                409,
+            )
+            : jsonResponse([]),
+    )
+
     renderWithProviders(<ProjectsPage />)
+
     await screen.findByRole('heading', { name: 'Projects' })
 
-    fireEvent.change(screen.getByLabelText('Project name'), { target: { value: 'Duplicate' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Create' }))
+    fireEvent.click(
+        screen.getByRole('button', { name: 'New project' }),
+    )
 
-    await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Project name is already used'))
+    fireEvent.change(screen.getByLabelText('Project name'), {
+      target: { value: 'Duplicate' },
+    })
+
+    fireEvent.click(
+        screen.getByRole('button', { name: 'Create' }),
+    )
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toHaveTextContent(
+          'Project name is already used',
+      )
+    })
   })
 })

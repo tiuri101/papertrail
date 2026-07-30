@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from io import BytesIO
 
 from openpyxl import Workbook
@@ -29,7 +29,7 @@ from app.screening.models import ScreeningDecision, ScreeningOutcome, ScreeningW
 
 def safe_cell(value):
     if isinstance(value, datetime) and value.utcoffset() is not None:
-        return value.astimezone(timezone.utc).replace(tzinfo=None)
+        return value.astimezone(UTC).replace(tzinfo=None)
 
     if isinstance(value, str) and value.startswith(("=", "+", "-", "@")):
         return "'" + value
