@@ -83,6 +83,36 @@ def test_submission_requires_all_criteria_and_hides_decisions_until_complete(db)
     assert decision1.version == 1 and decision2.version == 1
 
 
+def test_next_endpoint_returns_a_claimable_work_item_over_http(client, db) -> None:
+    project, publication, reviewer1, _, _, _ = setup_screening(db)
+    create_screening_work_items(db, project, ScreeningStage.TITLE_ABSTRACT)
+    db.commit()
+
+    login = client.post("/api/v1/auth/login", json={"username": "reviewer1", "password": "password-1"})
+    assert login.status_code == 200
+    csrf = login.json()["csrfToken"]
+
+    response = client.post(
+        f"/api/v1/projects/{project.id}/screening/title_abstract/next",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body is not None
+    assert body["projectId"] == project.id
+    assert body["stage"] == "title_abstract"
+    assert body["slotNumber"] in (1, 2)
+    assert body["publication"]["title"] == publication.title
+    assert {criterion["kind"] for criterion in body["criteria"]} == {"inclusion", "exclusion"}
+
+    empty = client.post(
+        f"/api/v1/projects/{project.id}/screening/title_abstract/next",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert empty.status_code == 200
+    assert empty.json() is None
+
+
 def test_revising_decision_preserves_previous_revision(db) -> None:
     project, _, reviewer1, _, criteria, _ = setup_screening(db)
     create_screening_work_items(db, project, ScreeningStage.TITLE_ABSTRACT)

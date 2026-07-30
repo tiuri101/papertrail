@@ -12,6 +12,8 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from app.audit.service import record_audit
 from app.core.config import get_settings
+from app.core.logging import configure_logging
+from app.db import models as _models  # noqa: F401  # registers all SQLAlchemy models
 from app.db.session import SessionFactory
 from app.deduplication.jobs import detect_duplicates_job
 from app.imports.service import process_import_job
@@ -49,13 +51,19 @@ def maintain_lease(
 
 def execute_next_job(session_factory: sessionmaker, worker_id: str) -> bool:
     settings = get_settings()
-    with session_factory() as claim_session:
-        job = claim_job(claim_session, worker_id, settings.job_lease_seconds)
-        if job is None:
-            claim_session.rollback()
-            return False
-        job_id = job.id
-        claim_session.commit()
+    try:
+        with session_factory() as claim_session:
+            job = claim_job(claim_session, worker_id, settings.job_lease_seconds)
+            if job is None:
+                claim_session.rollback()
+                return False
+            job_id = job.id
+            job_type = job.job_type
+            claim_session.commit()
+    except Exception:
+        logger.exception("Failed to claim a background job")
+        return False
+    logger.info("Claimed background job %s (%s)", job_id, job_type)
 
     lease_stop = Event()
     heartbeat = Thread(
@@ -76,6 +84,7 @@ def execute_next_job(session_factory: sessionmaker, worker_id: str) -> bool:
             job = db.get(BackgroundJob, job_id)
             assert job is not None
             try:
+                logger.info("Starting background job %s (%s)", job_id, job_type)
                 handler = HANDLERS[job.job_type]
                 result = handler(db, job)
                 job.status = JobStatus.COMPLETED
@@ -92,6 +101,7 @@ def execute_next_job(session_factory: sessionmaker, worker_id: str) -> bool:
                     summary=f"Completed background job {job.job_type}",
                 )
                 db.commit()
+                logger.info("Finished background job %s (%s)", job_id, job_type)
             except Exception as exc:
                 db.rollback()
                 job = db.get(BackgroundJob, job_id)
@@ -122,11 +132,18 @@ def execute_next_job(session_factory: sessionmaker, worker_id: str) -> bool:
 
 
 def run_worker() -> None:
+    configure_logging()
     settings = get_settings()
     stop = Event()
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     signal.signal(signal.SIGINT, lambda *_: stop.set())
     worker_id = f"worker-{id(stop)}"
+    logger.info(
+        "Papertrail worker starting (worker_id=%s, threads=%d, poll_interval=%ss)",
+        worker_id,
+        settings.worker_threads,
+        settings.job_poll_interval_seconds,
+    )
     with ThreadPoolExecutor(
         max_workers=settings.worker_threads,
         thread_name_prefix="papertrail",

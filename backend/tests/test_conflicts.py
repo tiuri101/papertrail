@@ -78,3 +78,26 @@ def test_revision_invalidates_existing_consensus(db) -> None:
     db.refresh(final)
     assert final.is_valid is False
     assert final.invalidated_at is not None
+
+
+def test_list_conflicts_includes_publication_and_reviewer_decisions(client, db) -> None:
+    _, project, publication, *_ = setup_conflict(db)
+
+    csrf = client.post(
+        "/api/v1/auth/login", json={"username": "admin", "password": "secret-password"},
+    ).json()["csrfToken"]
+    response = client.get(
+        f"/api/v1/projects/{project.id}/screening/title_abstract/conflicts",
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    assert response.status_code == 200
+    [conflict] = response.json()
+    assert conflict["publicationId"] == publication.id
+    assert conflict["publication"]["title"] == "Paper"
+
+    decisions_by_reviewer = {decision["reviewer"]["displayName"]: decision for decision in conflict["decisions"]}
+    assert decisions_by_reviewer["R1"]["outcome"] == "include"
+    assert decisions_by_reviewer["R1"]["exclusionReasonText"] is None
+    assert decisions_by_reviewer["R2"]["outcome"] == "exclude"
+    assert decisions_by_reviewer["R2"]["exclusionReasonText"] == "Wrong topic"

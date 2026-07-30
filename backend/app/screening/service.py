@@ -4,7 +4,7 @@ import hashlib
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import and_, func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.accounts.models import User
 from app.api.errors import ConflictError, DomainError, ForbiddenError, NotFoundError
@@ -274,6 +274,7 @@ def current_decisions(db: Session, publication_id: str, stage: ScreeningStage) -
         db.scalars(
             select(ScreeningDecision)
             .join(ScreeningWorkItem)
+            .options(joinedload(ScreeningDecision.reviewer))
             .where(
                 ScreeningWorkItem.publication_id == publication_id,
                 ScreeningWorkItem.stage == stage,

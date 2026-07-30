@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
@@ -21,6 +21,18 @@ interface ProjectDetail {
 }
 
 type CriterionAnswer = boolean | null
+
+function capitalize(text: string): string {
+  return text.charAt(0).toUpperCase() + text.slice(1)
+}
+
+function sortedByKind(criteria: WorkItem['criteria']): WorkItem['criteria'] {
+  return [...criteria].sort((a, b) => (a.kind === b.kind ? 0 : a.kind === 'inclusion' ? -1 : 1))
+}
+
+function defaultAnswerForKind(kind: string): boolean {
+  return kind === 'inclusion'
+}
 
 export function ScreeningPage() {
   const { projectId = '', stage = 'title_abstract' } = useParams()
@@ -66,8 +78,18 @@ export function ScreeningPage() {
       setOutcome('include')
       setReasonId('')
       setNotes('')
+      next.mutate()
     },
   })
+
+  const autoFetchKey = useRef<string | null>(null)
+  useEffect(() => {
+    const key = `${projectId}:${stage}`
+    if (autoFetchKey.current !== key) {
+      autoFetchKey.current = key
+      next.mutate()
+    }
+  }, [projectId, stage, next])
 
   useEffect(() => {
     if (item) {
@@ -78,7 +100,7 @@ export function ScreeningPage() {
       const initial = Object.fromEntries(
         item.criteria.map((criterion) => [
           criterion.id,
-          existing[criterion.id] ?? null,
+          existing[criterion.id] ?? defaultAnswerForKind(criterion.kind),
         ]),
       )
       setAnswers(initial)
@@ -103,14 +125,8 @@ export function ScreeningPage() {
       </h1>
       {!item ? (
         <>
-          <button
-            type="button"
-            onClick={() => next.mutate()}
-            disabled={next.isPending}
-          >
-            Get next publication
-          </button>
-          {queueEmpty ? <p>No publications are currently available.</p> : null}
+          {next.isPending ? <p>Loading the next publication…</p> : null}
+          {queueEmpty && !next.isPending ? <p>No publications are currently available.</p> : null}
           {next.error ? (
             <p className="error" role="alert">{next.error.message}</p>
           ) : null}
@@ -141,31 +157,44 @@ export function ScreeningPage() {
             ) : null}
           </div>
           <h3>Criteria</h3>
-          <div className="grid">
-            {item.criteria.map((criterion) => (
-              <label key={criterion.id}>{criterion.kind}: {criterion.text}
-                <select
-                  aria-label={`${criterion.kind}: ${criterion.text}`}
-                  value={
-                    answers[criterion.id] === null
-                    || answers[criterion.id] === undefined
-                      ? ''
-                      : String(answers[criterion.id])
-                  }
-                  onChange={(event) => setAnswers((current) => ({
-                    ...current,
-                    [criterion.id]: event.target.value === ''
-                      ? null
-                      : event.target.value === 'true',
-                  }))}
-                >
-                  <option value="">Select an answer</option>
-                  <option value="false">No</option>
-                  <option value="true">Yes</option>
-                </select>
-              </label>
-            ))}
-          </div>
+          <table className="criteria-table">
+            <thead>
+              <tr>
+                <th scope="col">Criterion</th>
+                <th scope="col">Fulfilled</th>
+                <th scope="col">Not fulfilled</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sortedByKind(item.criteria).map((criterion) => (
+                <tr key={criterion.id}>
+                  <th scope="row">{capitalize(criterion.kind)}: {criterion.text}</th>
+                  <td>
+                    <input
+                      type="checkbox"
+                      aria-label={`${capitalize(criterion.kind)}: ${criterion.text} — Fulfilled`}
+                      checked={answers[criterion.id] === true}
+                      onChange={(event) => setAnswers((current) => ({
+                        ...current,
+                        [criterion.id]: event.target.checked ? true : null,
+                      }))}
+                    />
+                  </td>
+                  <td>
+                    <input
+                      type="checkbox"
+                      aria-label={`${capitalize(criterion.kind)}: ${criterion.text} — Not fulfilled`}
+                      checked={answers[criterion.id] === false}
+                      onChange={(event) => setAnswers((current) => ({
+                        ...current,
+                        [criterion.id]: event.target.checked ? false : null,
+                      }))}
+                    />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
           <label>
             Decision
             <select

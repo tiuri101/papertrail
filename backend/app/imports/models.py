@@ -25,7 +25,7 @@ class SearchSource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     query: Mapped[str] = mapped_column(Text, nullable=False)
     search_date: Mapped[date] = mapped_column(Date, nullable=False)
     filters: Mapped[str | None] = mapped_column(Text)
-    exported_result_count: Mapped[int] = mapped_column(Integer, nullable=False)
+    exported_result_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     created_by_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
 
     import_batches: Mapped[list[ImportBatch]] = relationship(back_populates="search_source")

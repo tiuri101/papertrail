@@ -24,6 +24,7 @@ def parse_csv(data: bytes) -> list[dict[str, Any]]:
     sample = text[:4096]
     try:
         dialect = csv.Sniffer().sniff(sample, delimiters=",;\t|")
+        dialect.doublequote = True
     except csv.Error:
         dialect = csv.excel
     return [dict(row) for row in csv.DictReader(io.StringIO(text), dialect=dialect)]

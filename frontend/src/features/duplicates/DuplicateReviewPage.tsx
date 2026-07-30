@@ -3,13 +3,49 @@ import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 
+interface CandidatePublication {
+  id: string
+  title: string
+  authors: string | null
+  publicationYear: number | null
+  venue: string | null
+  doi: string | null
+}
+
 interface Candidate {
   id: string
-  publicationAId: string
-  publicationBId: string
+  publicationA: CandidatePublication
+  publicationB: CandidatePublication
   matchReasons: string[]
   confidence: number
   status: string
+}
+
+const MATCH_REASON_LABELS: Record<string, string> = {
+  exact_doi: 'Exact DOI',
+  exact_title: 'Exact title match',
+  similar_title: 'Similar title',
+  similar_title_authors: 'Similar title & authors',
+}
+
+function humanizeMatchReason(reason: string): string {
+  return MATCH_REASON_LABELS[reason] ?? reason.replace(/_/g, ' ')
+}
+
+function PublicationSummary({ publication }: { publication: CandidatePublication }) {
+  return (
+    <div>
+      <p><strong>{publication.title}</strong></p>
+      <p className="muted">
+        {publication.authors ?? 'Unknown authors'}
+        {publication.publicationYear ? ` — ${publication.publicationYear}` : ''}
+      </p>
+      {publication.venue ? <p className="muted">{publication.venue}</p> : null}
+      {publication.doi ? (
+        <p><a href={`https://doi.org/${publication.doi}`} target="_blank" rel="noopener noreferrer">DOI</a></p>
+      ) : null}
+    </div>
+  )
 }
 
 export function DuplicateReviewPage() {
@@ -44,48 +80,54 @@ export function DuplicateReviewPage() {
   })
 
   const mutationError = notDuplicate.error ?? merge.error
+  const pending = notDuplicate.isPending || merge.isPending
 
   return (
     <main className="page">
       <h1>Duplicate review</h1>
       {candidates.error ? <p className="error" role="alert">{candidates.error.message}</p> : null}
       {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
-      <ul>
+      <ul className="card-list">
         {candidates.data?.map((candidate) => (
           <li className="card" key={candidate.id}>
-            <p>{candidate.publicationAId} ↔ {candidate.publicationBId}</p>
-            <p>
-              {candidate.matchReasons.join(', ')} — {Math.round(candidate.confidence * 100)}%
+            <p className="muted">
+              {candidate.matchReasons.map(humanizeMatchReason).join(', ')} — {Math.round(candidate.confidence * 100)}% match
               {' — '}{candidate.status}
             </p>
+            <div className="compare-columns">
+              <div>
+                <PublicationSummary publication={candidate.publicationA} />
+                {candidate.status === 'unresolved' ? (
+                  <button
+                    type="button"
+                    onClick={() => merge.mutate({ id: candidate.id, canonical: candidate.publicationA.id })}
+                    disabled={pending}
+                  >
+                    Keep this one
+                  </button>
+                ) : null}
+              </div>
+              <div>
+                <PublicationSummary publication={candidate.publicationB} />
+                {candidate.status === 'unresolved' ? (
+                  <button
+                    type="button"
+                    onClick={() => merge.mutate({ id: candidate.id, canonical: candidate.publicationB.id })}
+                    disabled={pending}
+                  >
+                    Keep this one
+                  </button>
+                ) : null}
+              </div>
+            </div>
             {candidate.status === 'unresolved' ? (
               <div className="toolbar">
                 <button
                   type="button"
                   onClick={() => notDuplicate.mutate(candidate.id)}
-                  disabled={notDuplicate.isPending || merge.isPending}
+                  disabled={pending}
                 >
                   Not a duplicate
-                </button>
-                <button
-                  type="button"
-                  onClick={() => merge.mutate({
-                    id: candidate.id,
-                    canonical: candidate.publicationAId,
-                  })}
-                  disabled={notDuplicate.isPending || merge.isPending}
-                >
-                  Merge into A
-                </button>
-                <button
-                  type="button"
-                  onClick={() => merge.mutate({
-                    id: candidate.id,
-                    canonical: candidate.publicationBId,
-                  })}
-                  disabled={notDuplicate.isPending || merge.isPending}
-                >
-                  Merge into B
                 </button>
               </div>
             ) : null}

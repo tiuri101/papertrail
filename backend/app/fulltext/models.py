@@ -3,7 +3,7 @@ from __future__ import annotations
 import enum
 
 from sqlalchemy import ForeignKey, String, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
@@ -25,3 +25,5 @@ class FullTextRetrieval(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     status: Mapped[RetrievalStatus] = mapped_column(default=RetrievalStatus.NOT_YET_SOUGHT, index=True, nullable=False)
     note: Mapped[str | None] = mapped_column(String(500))
     updated_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+
+    publication = relationship("Publication", foreign_keys=[publication_id])

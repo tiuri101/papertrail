@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -12,7 +12,7 @@ class SearchSourceCreate(ApiModel):
     query: str = Field(min_length=1)
     search_date: date = Field(alias="searchDate")
     filters: str | None = None
-    exported_result_count: int = Field(alias="exportedResultCount", ge=0)
+    exported_result_count: int = Field(default=0, alias="exportedResultCount", ge=0)
 
 
 class SearchSourceResponse(ApiModel):
@@ -38,3 +38,5 @@ class JobResponse(ApiModel):
     progress_message: str | None = Field(serialization_alias="progressMessage")
     error_message: str | None = Field(serialization_alias="errorMessage")
     result: dict | None
+    created_at: datetime = Field(serialization_alias="createdAt")
+    completed_at: datetime | None = Field(serialization_alias="completedAt")

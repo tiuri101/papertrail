@@ -7,22 +7,28 @@ from sqlalchemy.orm import Session
 from app.accounts.dependencies import get_current_user, require_admin_csrf
 from app.accounts.models import User
 from app.accounts.service import get_user_or_raise
+from app.api.errors import NotFoundError
 from app.audit.service import record_audit
 from app.db.session import get_db
+from app.imports.schemas import JobResponse
+from app.jobs.models import BackgroundJob
 from app.projects.models import Criterion, ExclusionReason, Project, ResearchQuestion, ScreeningConfig, ScreeningStage
 from app.projects.schemas import (
     CriterionCreate,
     CriterionResponse,
+    CriterionUpdate,
     ExclusionReasonCreate,
     ExclusionReasonResponse,
     MembershipCreate,
     MembershipResponse,
     OrderedTextCreate,
+    ProjectChecklist,
     ProjectCreate,
     ProjectDetail,
     ProjectReopen,
     ProjectSummary,
     ResearchQuestionResponse,
+    ResearchQuestionUpdate,
     ScreeningConfigResponse,
     ScreeningConfigUpdate,
 )
@@ -52,8 +58,28 @@ def add_project(payload: ProjectCreate, admin: User = Depends(require_admin_csrf
 
 
 @router.get("/{project_id}", response_model=ProjectDetail)
-def project_detail(project_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> Project:
-    return require_project_access(db, project_id, user)
+def project_detail(project_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)) -> ProjectDetail:
+    project = require_project_access(db, project_id, user)
+    return ProjectDetail(
+        id=project.id,
+        name=project.name,
+        description=project.description,
+        review_type=project.review_type,
+        stage=project.stage,
+        memberships=project.memberships,
+        research_questions=[item for item in project.research_questions if item.is_active],
+        criteria=[item for item in project.criteria if item.is_active],
+        screening_configs=project.screening_configs,
+        exclusion_reasons=project.exclusion_reasons,
+    )
+
+
+@router.get("/{project_id}/checklist", response_model=ProjectChecklist)
+def project_checklist_endpoint(project_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    from app.projects.checklist import project_checklist
+
+    project = require_project_access(db, project_id, user)
+    return project_checklist(db, project)
 
 
 @router.post("/{project_id}/members", response_model=MembershipResponse, status_code=status.HTTP_201_CREATED)
@@ -86,6 +112,27 @@ def add_research_question(project_id: str, payload: OrderedTextCreate, admin: Us
     return item
 
 
+@router.patch("/{project_id}/research-questions/{item_id}", response_model=ResearchQuestionResponse)
+def update_research_question(project_id: str, item_id: str, payload: ResearchQuestionUpdate, admin: User = Depends(require_admin_csrf), db: Session = Depends(get_db)):
+    item = db.get(ResearchQuestion, item_id)
+    if item is None or item.project_id != project_id or not item.is_active:
+        raise NotFoundError("Research question not found")
+    item.text = payload.text.strip()
+    record_audit(db, action="research_question.updated", entity_type="research_question", entity_id=item.id, project_id=project_id, actor_id=admin.id, summary="Updated research question")
+    db.commit()
+    return item
+
+
+@router.delete("/{project_id}/research-questions/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_research_question(project_id: str, item_id: str, admin: User = Depends(require_admin_csrf), db: Session = Depends(get_db)):
+    item = db.get(ResearchQuestion, item_id)
+    if item is None or item.project_id != project_id or not item.is_active:
+        raise NotFoundError("Research question not found")
+    item.is_active = False
+    record_audit(db, action="research_question.deleted", entity_type="research_question", entity_id=item.id, project_id=project_id, actor_id=admin.id, summary="Removed research question")
+    db.commit()
+
+
 @router.post("/{project_id}/criteria", response_model=CriterionResponse, status_code=status.HTTP_201_CREATED)
 def add_criterion(project_id: str, payload: CriterionCreate, admin: User = Depends(require_admin_csrf), db: Session = Depends(get_db)):
     get_project(db, project_id)
@@ -95,6 +142,29 @@ def add_criterion(project_id: str, payload: CriterionCreate, admin: User = Depen
     record_audit(db, action="criterion.created", entity_type="criterion", entity_id=item.id, project_id=project_id, actor_id=admin.id, summary=f"Added {payload.kind} criterion")
     db.commit()
     return item
+
+
+@router.patch("/{project_id}/criteria/{item_id}", response_model=CriterionResponse)
+def update_criterion(project_id: str, item_id: str, payload: CriterionUpdate, admin: User = Depends(require_admin_csrf), db: Session = Depends(get_db)):
+    item = db.get(Criterion, item_id)
+    if item is None or item.project_id != project_id or not item.is_active:
+        raise NotFoundError("Criterion not found")
+    item.text = payload.text.strip()
+    if payload.kind is not None:
+        item.kind = payload.kind
+    record_audit(db, action="criterion.updated", entity_type="criterion", entity_id=item.id, project_id=project_id, actor_id=admin.id, summary="Updated criterion")
+    db.commit()
+    return item
+
+
+@router.delete("/{project_id}/criteria/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_criterion(project_id: str, item_id: str, admin: User = Depends(require_admin_csrf), db: Session = Depends(get_db)):
+    item = db.get(Criterion, item_id)
+    if item is None or item.project_id != project_id or not item.is_active:
+        raise NotFoundError("Criterion not found")
+    item.is_active = False
+    record_audit(db, action="criterion.deleted", entity_type="criterion", entity_id=item.id, project_id=project_id, actor_id=admin.id, summary="Removed criterion")
+    db.commit()
 
 
 @router.put("/{project_id}/screening-config/{stage}", response_model=ScreeningConfigResponse)
@@ -120,6 +190,18 @@ def add_exclusion_reason(project_id: str, stage: ScreeningStage, payload: Exclus
     record_audit(db, action="exclusion_reason.created", entity_type="exclusion_reason", entity_id=item.id, project_id=project_id, actor_id=admin.id, summary=f"Added {stage.value} exclusion reason")
     db.commit()
     return item
+
+@router.get("/{project_id}/jobs", response_model=list[JobResponse])
+def list_project_jobs(project_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    require_project_access(db, project_id, user)
+    return list(
+        db.scalars(
+            select(BackgroundJob)
+            .where(BackgroundJob.project_id == project_id)
+            .order_by(BackgroundJob.created_at.desc())
+        )
+    )
+
 
 @router.get("/{project_id}/integrity")
 def project_integrity(
@@ -150,3 +232,30 @@ def reopen_completed_project(
         raise DomainError(str(exc)) from exc
     db.commit()
     return project
+
+
+@router.post("/{project_id}/reset", response_model=ProjectSummary)
+def reset_project_endpoint(
+    project_id: str,
+    admin: User = Depends(require_admin_csrf),
+    db: Session = Depends(get_db),
+):
+    from app.projects.lifecycle import reset_project
+
+    project = get_project(db, project_id)
+    reset_project(db, project, admin.id)
+    db.commit()
+    return project
+
+
+@router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_project_endpoint(
+    project_id: str,
+    admin: User = Depends(require_admin_csrf),
+    db: Session = Depends(get_db),
+):
+    from app.projects.lifecycle import delete_project
+
+    project = get_project(db, project_id)
+    delete_project(db, project, admin.id)
+    db.commit()

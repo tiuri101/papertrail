@@ -2,17 +2,24 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from app.audit.models import AuditEvent
 from app.audit.service import record_audit
 from app.conflicts.models import FinalDecision
-from app.extraction.models import ExtractionStatus, ExtractionWorkItem
-from app.forms.models import FormField, ReviewForm
+from app.deduplication.models import DuplicateCandidate, PublicationMerge
+from app.extraction.models import ExtractionResponse, ExtractionStatus, ExtractionWorkItem
+from app.forms.models import FormField, FormVersion, ReviewForm
+from app.fulltext.models import FullTextRetrieval
 from app.fulltext.service import initialize_full_text_stage
+from app.imports.models import ImportBatch, ImportedRecord, SearchSource
+from app.jobs.models import BackgroundJob
 from app.projects.models import Project, ProjectStage, ScreeningStage
-from app.quality.models import QualityConfig, QualityStatus, QualityWorkItem
-from app.screening.models import ScreeningOutcome, ScreeningWorkItem
+from app.publications.models import MetadataConflict, Publication, PublicationSource
+from app.quality.models import QualityConfig, QualityResponse, QualityStatus, QualityWorkItem
+from app.reporting.models import ExportArtifact
+from app.screening.models import ScreeningDecision, ScreeningOutcome, ScreeningWorkItem
 
 
 def utcnow() -> datetime:
@@ -212,3 +219,92 @@ def project_integrity_issues(db: Session, project: Project) -> list[dict[str, st
             )
 
     return issues
+
+
+def wipe_workflow_data(db: Session, project_id: str) -> None:
+    """Delete every publication, import, and workflow-progress record for a project.
+
+    Leaves the project's configuration (research questions, criteria, screening
+    configs, exclusion reasons, forms, members) untouched so callers can decide
+    separately whether to keep it (reset) or remove it too (delete).
+    """
+    extraction_item_ids = select(ExtractionWorkItem.id).where(ExtractionWorkItem.project_id == project_id)
+    quality_item_ids = select(QualityWorkItem.id).where(QualityWorkItem.project_id == project_id)
+    screening_item_ids = select(ScreeningWorkItem.id).where(ScreeningWorkItem.project_id == project_id)
+    publication_ids = select(Publication.id).where(Publication.project_id == project_id)
+    import_batch_ids = select(ImportBatch.id).where(ImportBatch.project_id == project_id)
+
+    db.execute(delete(ExtractionResponse).where(ExtractionResponse.work_item_id.in_(extraction_item_ids)))
+    db.execute(delete(QualityResponse).where(QualityResponse.work_item_id.in_(quality_item_ids)))
+    db.execute(delete(ScreeningDecision).where(ScreeningDecision.work_item_id.in_(screening_item_ids)))
+    db.execute(delete(ExtractionWorkItem).where(ExtractionWorkItem.project_id == project_id))
+    db.execute(delete(QualityWorkItem).where(QualityWorkItem.project_id == project_id))
+    db.execute(delete(ScreeningWorkItem).where(ScreeningWorkItem.project_id == project_id))
+    db.execute(delete(FinalDecision).where(FinalDecision.project_id == project_id))
+    db.execute(delete(FullTextRetrieval).where(FullTextRetrieval.project_id == project_id))
+    db.execute(delete(PublicationMerge).where(PublicationMerge.project_id == project_id))
+    db.execute(delete(DuplicateCandidate).where(DuplicateCandidate.project_id == project_id))
+    db.execute(delete(MetadataConflict).where(MetadataConflict.publication_id.in_(publication_ids)))
+    db.execute(delete(PublicationSource).where(PublicationSource.publication_id.in_(publication_ids)))
+    db.execute(delete(Publication).where(Publication.project_id == project_id))
+    db.execute(delete(ImportedRecord).where(ImportedRecord.import_batch_id.in_(import_batch_ids)))
+    db.execute(delete(ImportBatch).where(ImportBatch.project_id == project_id))
+    db.execute(delete(SearchSource).where(SearchSource.project_id == project_id))
+    db.execute(delete(ExportArtifact).where(ExportArtifact.project_id == project_id))
+    db.execute(delete(BackgroundJob).where(BackgroundJob.project_id == project_id))
+    db.flush()
+
+
+def reset_project(db: Session, project: Project, actor_id: str) -> Project:
+    """Wipe all publications and workflow progress, returning the project to draft.
+
+    Research questions, criteria, screening configuration, exclusion reasons,
+    forms, and project membership are preserved.
+    """
+    previous_stage = project.stage
+    wipe_workflow_data(db, project.id)
+    project.stage = ProjectStage.DRAFT
+    project.completed_at = None
+    project.reopened_at = None
+    record_audit(
+        db,
+        action="project.reset",
+        entity_type="project",
+        entity_id=project.id,
+        project_id=project.id,
+        actor_id=actor_id,
+        summary=f"Reset project {project.name} to draft",
+        metadata={"previousStage": previous_stage.value},
+    )
+    db.flush()
+    return project
+
+
+def delete_project(db: Session, project: Project, actor_id: str) -> None:
+    """Permanently delete a project and all of its data, including configuration."""
+    wipe_workflow_data(db, project.id)
+
+    form_ids = select(ReviewForm.id).where(ReviewForm.project_id == project.id)
+    version_ids = select(FormVersion.id).where(FormVersion.form_id.in_(form_ids))
+    db.execute(delete(FormField).where(FormField.form_version_id.in_(version_ids)))
+    db.execute(delete(FormVersion).where(FormVersion.form_id.in_(form_ids)))
+    db.execute(delete(ReviewForm).where(ReviewForm.project_id == project.id))
+    db.execute(delete(QualityConfig).where(QualityConfig.project_id == project.id))
+    db.execute(delete(AuditEvent).where(AuditEvent.project_id == project.id))
+
+    project_id = project.id
+    project_name = project.name
+    db.delete(project)
+    db.flush()
+
+    record_audit(
+        db,
+        action="project.deleted",
+        entity_type="project",
+        entity_id=project_id,
+        project_id=None,
+        actor_id=actor_id,
+        summary=f"Deleted project {project_name}",
+        metadata={"name": project_name},
+    )
+    db.flush()

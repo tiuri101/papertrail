@@ -4,6 +4,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile, status
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.accounts.dependencies import get_current_user, require_admin_csrf
@@ -23,6 +24,18 @@ from app.jobs.service import enqueue_job
 from app.projects.service import get_project, require_project_access
 
 router = APIRouter(tags=["imports"])
+
+
+@router.get("/projects/{project_id}/searches", response_model=list[SearchSourceResponse])
+def list_searches(project_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    require_project_access(db, project_id, user)
+    return list(
+        db.scalars(
+            select(SearchSource)
+            .where(SearchSource.project_id == project_id)
+            .order_by(SearchSource.search_date.desc(), SearchSource.created_at.desc())
+        )
+    )
 
 
 @router.post("/projects/{project_id}/searches", response_model=SearchSourceResponse, status_code=status.HTTP_201_CREATED)
