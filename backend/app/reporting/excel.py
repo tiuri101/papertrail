@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime, timezone
 from io import BytesIO
 
 from openpyxl import Workbook
@@ -27,10 +28,15 @@ from app.screening.models import ScreeningDecision, ScreeningOutcome, ScreeningW
 
 
 def safe_cell(value):
+    if isinstance(value, datetime) and value.utcoffset() is not None:
+        return value.astimezone(timezone.utc).replace(tzinfo=None)
+
     if isinstance(value, str) and value.startswith(("=", "+", "-", "@")):
         return "'" + value
+
     if isinstance(value, (dict, list)):
         return json.dumps(value, ensure_ascii=False)
+
     return value
 
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { ApiError, api, apiRequest } from '../client'
+import { api, apiRequest } from '../client'
 import { setCsrfToken } from '../../features/auth/session'
 import { emptyResponse, jsonResponse, mockFetch } from '../../test/http'
 
