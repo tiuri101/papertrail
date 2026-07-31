@@ -78,7 +78,7 @@ describe('ConflictResolutionPage', () => {
     })
 
     await screen.findByRole('heading', { name: 'Urban Data in VR' })
-    fireEvent.click(screen.getByRole('button', { name: 'Add another reviewer' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add Another Reviewer' }))
 
     await waitFor(() => {
       const postCall = fetchMock.mock.calls.find(([input, init]) => init?.method === 'POST' && String(input).endsWith('/additional-reviewer'))

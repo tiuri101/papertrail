@@ -104,7 +104,7 @@ export function ExtractionPage() {
 
   return (
     <main className="page">
-      <h1>Data extraction</h1>
+      <h1>Data Extraction</h1>
       {!item ? (
         <>
           {loadingNext ? <p>Loading the next extraction…</p> : null}
@@ -144,7 +144,7 @@ export function ExtractionPage() {
             ) : null}
             {submit.error ? <p className="error" role="alert">{submit.error.message}</p> : null}
             <button type="submit" disabled={submit.isPending || missingRequired}>
-              Submit extraction
+              Submit Extraction
             </button>
           </form>
         </article>

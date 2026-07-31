@@ -24,11 +24,11 @@ describe('DangerZonePanel', () => {
     })
     renderPanel()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Reset project' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Reset Project' }))
     expect(screen.getByRole('alert')).toHaveTextContent(/deletes every imported publication/)
     expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Reset project' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Reset Project' }))
     await waitFor(() => {
       const call = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')
       expect(String(call?.[0])).toBe('/api/v1/projects/p1/reset')
@@ -42,10 +42,10 @@ describe('DangerZonePanel', () => {
     })
     renderPanel()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Delete project' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Project' }))
     expect(screen.getByRole('alert')).toHaveTextContent(/permanently deletes the entire project/)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Permanently delete' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Permanently Delete' }))
     await waitFor(() => {
       const call = fetchMock.mock.calls.find(([, init]) => init?.method === 'DELETE')
       expect(String(call?.[0])).toBe('/api/v1/projects/p1')

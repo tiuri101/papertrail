@@ -52,11 +52,11 @@ describe('ExtractionPage', () => {
     renderWithProviders(<ExtractionPage />, { route: '/projects/p1/extraction', path: '/projects/:projectId/extraction' })
 
     await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
-    expect(screen.getByRole('button', { name: 'Submit extraction' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Submit Extraction' })).toBeDisabled()
     expect(screen.getByText('Answer every required field before submitting.')).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('Main finding *'), { target: { value: 'Uses VR for analytics' } })
-    expect(screen.getByRole('button', { name: 'Submit extraction' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Submit Extraction' })).toBeEnabled()
   })
 
   it('submits the answers and automatically fetches the next extraction', async () => {
@@ -71,7 +71,7 @@ describe('ExtractionPage', () => {
     await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
     fireEvent.change(screen.getByLabelText('Main finding *'), { target: { value: 'Uses VR for analytics' } })
     fireEvent.change(screen.getByLabelText('Sample size'), { target: { value: '24' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Submit extraction' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Extraction' }))
 
     await waitFor(() => {
       const submitCall = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/extraction/extraction-1'))

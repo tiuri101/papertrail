@@ -57,14 +57,14 @@ describe('ScreeningPage', () => {
     expect(screen.getByRole('checkbox', { name: 'Exclusion: Is an editorial — Not fulfilled' })).toBeChecked()
     expect(screen.getByRole('checkbox', { name: 'Exclusion: Is an editorial — Fulfilled' })).not.toBeChecked()
 
-    expect(screen.getByRole('button', { name: 'Submit decision' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Submit Decision' })).toBeEnabled()
   })
 
   it('requires re-answering a criterion after its default is unchecked', async () => {
     renderScreening(async (input) => String(input).endsWith('/next') ? jsonResponse(workItem) : jsonResponse({}))
     await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
 
-    const submit = screen.getByRole('button', { name: 'Submit decision' })
+    const submit = screen.getByRole('button', { name: 'Submit Decision' })
     expect(submit).toBeEnabled()
 
     fireEvent.click(screen.getByRole('checkbox', { name: 'Inclusion: Uses virtual reality — Fulfilled' }))
@@ -133,10 +133,10 @@ describe('ScreeningPage', () => {
     fireEvent.change(screen.getByLabelText('Decision'), { target: { value: 'exclude' } })
 
     expect(screen.queryByLabelText('Exclusion reason')).not.toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Submit decision' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Submit Decision' })).toBeEnabled()
 
     fireEvent.change(screen.getByLabelText('Notes'), { target: { value: 'Outside the review scope.' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Submit decision' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Decision' }))
 
     await waitFor(() => expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith('/decision'))).toBe(true))
     const decisionCall = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/decision'))
@@ -182,7 +182,7 @@ describe('ScreeningPage', () => {
     })
 
     await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
-    fireEvent.click(screen.getByRole('button', { name: 'Submit decision' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Decision' }))
 
     await waitFor(() => {
       const nextCalls = fetchMock.mock.calls.filter(([input, init]) => String(input).endsWith('/next') && init?.method === 'POST')
@@ -222,15 +222,15 @@ describe('ScreeningPage', () => {
       return jsonResponse({})
     }, 'full_text')
 
-    expect(screen.getByRole('heading', { name: 'Full-text screening' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Full-Text Screening' })).toBeInTheDocument()
     await screen.findByText(workItem.publication.abstract)
     fireEvent.change(screen.getByLabelText('Decision'), { target: { value: 'exclude' } })
 
-    expect(screen.getByRole('button', { name: 'Submit decision' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Submit Decision' })).toBeEnabled()
     expect(screen.queryByLabelText('Exclusion reason')).not.toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('Notes'), { target: { value: 'Outside the review scope.' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Submit decision' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Decision' }))
 
     await waitFor(() => expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith('/decision'))).toBe(true))
     const decisionCall = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/decision'))

@@ -52,7 +52,7 @@ describe('DuplicateReviewPage', () => {
     expect(screen.getByText('Exact DOI, Similar title & authors — 98% match — unresolved')).toBeInTheDocument()
     expect(screen.getByText('A Study of Urban VR').closest('ul')).toHaveClass('card-list')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Not a duplicate' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Not a Duplicate' }))
 
     await waitFor(() => expect(screen.getByText(/not_duplicate/)).toBeInTheDocument())
     const postCall = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')
@@ -66,7 +66,7 @@ describe('DuplicateReviewPage', () => {
     renderWithProviders(<DuplicateReviewPage />, { route: '/projects/p1/duplicates', path: '/projects/:projectId/duplicates' })
     await screen.findByText('A Study of Urban VR')
 
-    const keepButtons = screen.getAllByRole('button', { name: 'Keep this one' })
+    const keepButtons = screen.getAllByRole('button', { name: 'Keep This One' })
     expect(keepButtons).toHaveLength(2)
     fireEvent.click(keepButtons[1])
 

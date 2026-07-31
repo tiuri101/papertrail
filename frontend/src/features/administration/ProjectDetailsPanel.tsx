@@ -42,7 +42,7 @@ export function ProjectDetailsPanel({ projectId }: { projectId: string }) {
 
   return (
     <section className="card">
-      <h2>Project details</h2>
+      <h2>Project Details</h2>
       {project.error ? <p className="error" role="alert">{project.error.message}</p> : null}
       <form onSubmit={(event) => { event.preventDefault(); save.mutate() }}>
         <label>
@@ -66,7 +66,7 @@ export function ProjectDetailsPanel({ projectId }: { projectId: string }) {
         {save.error ? <p className="error" role="alert">{save.error.message}</p> : null}
         {save.isSuccess ? <p>Project details saved.</p> : null}
         <button type="submit" disabled={save.isPending || name.trim().length === 0}>
-          Save changes
+          Save Changes
         </button>
       </form>
     </section>

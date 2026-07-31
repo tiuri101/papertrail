@@ -84,7 +84,7 @@ export function DuplicateReviewPage() {
 
   return (
     <main className="page">
-      <h1>Duplicate review</h1>
+      <h1>Duplicate Review</h1>
       {candidates.error ? <p className="error" role="alert">{candidates.error.message}</p> : null}
       {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
       {candidates.data && candidates.data.length === 0 ? <p className="muted">No duplicates found.</p> : null}
@@ -104,7 +104,7 @@ export function DuplicateReviewPage() {
                     onClick={() => merge.mutate({ id: candidate.id, canonical: candidate.publicationA.id })}
                     disabled={pending}
                   >
-                    Keep this one
+                    Keep This One
                   </button>
                 ) : null}
               </div>
@@ -116,7 +116,7 @@ export function DuplicateReviewPage() {
                     onClick={() => merge.mutate({ id: candidate.id, canonical: candidate.publicationB.id })}
                     disabled={pending}
                   >
-                    Keep this one
+                    Keep This One
                   </button>
                 ) : null}
               </div>
@@ -128,7 +128,7 @@ export function DuplicateReviewPage() {
                   onClick={() => notDuplicate.mutate(candidate.id)}
                   disabled={pending}
                 >
-                  Not a duplicate
+                  Not a Duplicate
                 </button>
               </div>
             ) : null}

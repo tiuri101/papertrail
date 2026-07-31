@@ -1,9 +1,9 @@
-const STAGES = [
+export const STAGES = [
   { value: 'draft', label: 'Draft', color: '#2a78d6' },
-  { value: 'duplicate_review', label: 'Duplicate review', color: '#eb6834' },
-  { value: 'title_abstract_screening', label: 'Title/abstract screening', color: '#1baf7a' },
-  { value: 'full_text_screening', label: 'Full-text screening', color: '#eda100' },
-  { value: 'extraction_quality', label: 'Extraction & quality', color: '#e87ba4' },
+  { value: 'duplicate_review', label: 'Duplicate Review', color: '#eb6834' },
+  { value: 'title_abstract_screening', label: 'Title/Abstract Screening', color: '#1baf7a' },
+  { value: 'full_text_screening', label: 'Full-Text Screening', color: '#eda100' },
+  { value: 'extraction_quality', label: 'Extraction & Quality', color: '#e87ba4' },
   { value: 'completed', label: 'Completed', color: '#008300' },
 ] as const
 

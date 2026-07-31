@@ -56,3 +56,16 @@ class DecisionResponse(ApiModel):
     criteria_answers: dict[str, bool] = Field(serialization_alias="criteriaAnswers")
     notes: str | None
     version: int
+
+
+class MyDecisionItem(ApiModel):
+    work_item_id: str = Field(serialization_alias="workItemId")
+    submitted_at: str | None = Field(serialization_alias="submittedAt")
+    publication: PublicationItem
+    decision: DecisionResponse
+
+
+class MyDecisionsResponse(ApiModel):
+    stage_completed: bool = Field(serialization_alias="stageCompleted")
+    criteria: list[CriterionItem]
+    items: list[MyDecisionItem]

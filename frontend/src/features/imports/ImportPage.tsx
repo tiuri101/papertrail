@@ -88,10 +88,10 @@ export function ImportPage() {
 
   return (
     <main className="page">
-      <h1>Import records</h1>
+      <h1>Import Records</h1>
 
       <section className="card">
-        <h2>Import an export file</h2>
+        <h2>Import an Export File</h2>
         <p className="muted">Record the database and search string used alongside the file, so it can be traced back for this import and reported in your PRISMA flow.</p>
         {submit.error ? <p className="error" role="alert">{submit.error.message}</p> : null}
         <form onSubmit={(event) => { event.preventDefault(); submit.mutate() }}>
@@ -130,7 +130,7 @@ export function ImportPage() {
         ) : null}
         {searches.data?.length ? (
           <>
-            <h3>Previously documented searches</h3>
+            <h3>Previously Documented Searches</h3>
             <ul>
               {searches.data.map((search) => (
                 <li key={search.id}>

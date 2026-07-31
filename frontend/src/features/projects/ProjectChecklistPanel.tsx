@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { STAGES } from './StageProgress'
 
 interface ChecklistItem {
   key: string
@@ -64,14 +65,19 @@ export function ProjectChecklistPanel({ projectId }: { projectId: string }) {
   if (checklist.isLoading) return <p>Loading checklist…</p>
   if (checklist.isError || !checklist.data) return <p className="error" role="alert">Checklist could not be loaded.</p>
 
-  const currentStage = checklist.data.stages.find((stage) => stage.isCurrent)
+  const currentStageIndex = checklist.data.stages.findIndex((stage) => stage.isCurrent)
+  const currentStage = checklist.data.stages[currentStageIndex]
   if (!currentStage) return null
 
   const allItemsDone = currentStage.items.every((item) => item.done)
+  const nextStage = checklist.data.stages[currentStageIndex + 1]
+  const nextStageLabel = nextStage
+    ? STAGES.find((stage) => stage.value === nextStage.stage)?.label ?? nextStage.label
+    : null
 
   return (
     <section className="card">
-      <h2>What&apos;s next: {currentStage.label}</h2>
+      <h2>What&apos;s Next: {currentStage.label}</h2>
       {markReady.error ? <p className="error" role="alert">{markReady.error.message}</p> : null}
       {currentStage.items.length ? (
         <ul className="checklist-items">
@@ -93,7 +99,7 @@ export function ProjectChecklistPanel({ projectId }: { projectId: string }) {
           onClick={() => markReady.mutate()}
           disabled={markReady.isPending || !allItemsDone}
         >
-          Mark project ready
+          {nextStageLabel ? `Move Project to ${nextStageLabel}` : 'Mark Project Ready'}
         </button>
       ) : null}
       {currentStage.autoAdvances ? (

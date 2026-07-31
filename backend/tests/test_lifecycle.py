@@ -2,6 +2,7 @@ import pytest
 
 from app.accounts.service import create_user
 from app.audit.models import AuditEvent
+from app.conflicts.models import FinalDecision
 from app.conflicts.service import record_final_decision
 from app.extraction.models import ExtractionStatus, ExtractionWorkItem
 from app.projects.lifecycle import (
@@ -66,7 +67,7 @@ def test_project_completes_and_can_be_reopened_without_deleting_work(db) -> None
     }
 
 
-def test_move_project_back_preserves_downstream_data(db) -> None:
+def test_move_project_back_deletes_downstream_data_and_resets_target_stage(db) -> None:
     admin, project, publication = create_included_project(db)
     work_item = ExtractionWorkItem(
         project_id=project.id,
@@ -82,8 +83,14 @@ def test_move_project_back_preserves_downstream_data(db) -> None:
     db.commit()
 
     assert project.stage == ProjectStage.TITLE_ABSTRACT
-    # Downstream extraction work must still exist -- moving back is not a wipe.
-    assert db.get(ExtractionWorkItem, work_item.id) is not None
+    # Downstream extraction work and the full-text final decision are wiped.
+    assert db.get(ExtractionWorkItem, work_item.id) is None
+    assert (
+        db.query(FinalDecision)
+        .filter(FinalDecision.stage == ScreeningStage.FULL_TEXT)
+        .first()
+        is None
+    )
     assert "project.moved_back" in {event.action for event in db.query(AuditEvent)}
 
 

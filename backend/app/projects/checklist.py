@@ -8,7 +8,13 @@ from app.deduplication.models import DuplicateCandidate
 from app.extraction.models import ExtractionStatus, ExtractionWorkItem
 from app.fulltext.models import FullTextRetrieval, RetrievalStatus
 from app.jobs.models import BackgroundJob, JobStatus
-from app.projects.models import CriterionKind, Project, ProjectStage, ScreeningStage
+from app.projects.models import (
+    CriterionKind,
+    Project,
+    ProjectMembership,
+    ProjectStage,
+    ScreeningStage,
+)
 from app.publications.models import Publication
 from app.quality.models import QualityConfig, QualityStatus, QualityWorkItem
 
@@ -22,11 +28,11 @@ STAGE_ORDER = [
 ]
 
 STAGE_LABELS = {
-    ProjectStage.DRAFT: "Set up the project",
-    ProjectStage.DUPLICATE_REVIEW: "Resolve duplicates",
-    ProjectStage.TITLE_ABSTRACT: "Title/abstract screening",
-    ProjectStage.FULL_TEXT: "Full-text retrieval and screening",
-    ProjectStage.EXTRACTION: "Data extraction and quality assessment",
+    ProjectStage.DRAFT: "Set Up the Project",
+    ProjectStage.DUPLICATE_REVIEW: "Resolve Duplicates",
+    ProjectStage.TITLE_ABSTRACT: "Title/Abstract Screening",
+    ProjectStage.FULL_TEXT: "Full-Text Retrieval and Screening",
+    ProjectStage.EXTRACTION: "Data Extraction and Quality Assessment",
     ProjectStage.COMPLETED: "Completed",
 }
 
@@ -65,6 +71,14 @@ def _draft_items(db: Session, project: Project) -> list[dict]:
     publication_count = _count(
         db, Publication.project_id == project.id, Publication.is_active.is_(True)
     )
+    reviewer_count = (
+        db.scalar(
+            select(func.count())
+            .select_from(ProjectMembership)
+            .where(ProjectMembership.project_id == project.id)
+        )
+        or 0
+    )
     return [
         _item(
             "research_questions",
@@ -83,6 +97,12 @@ def _draft_items(db: Session, project: Project) -> list[dict]:
             "Import publications to review",
             publication_count > 0,
             f"{publication_count} imported",
+        ),
+        _item(
+            "reviewers",
+            "Assign at least one reviewer",
+            reviewer_count > 0,
+            f"{reviewer_count} assigned",
         ),
     ]
 
@@ -156,6 +176,8 @@ def _title_abstract_items(db: Session, project: Project) -> list[dict]:
 
 
 def _full_text_items(db: Session, project: Project) -> list[dict]:
+    from app.extraction.service import project_form
+
     retrievals = list(
         db.scalars(
             select(FullTextRetrieval).where(FullTextRetrieval.project_id == project.id)
@@ -179,6 +201,7 @@ def _full_text_items(db: Session, project: Project) -> list[dict]:
         if valid_final_decision(db, retrieval.publication_id, ScreeningStage.FULL_TEXT)
         is not None
     )
+    has_extraction_form = project_form(db, project.id) is not None
     return [
         _item(
             "full_text_retrieval",
@@ -191,6 +214,12 @@ def _full_text_items(db: Session, project: Project) -> list[dict]:
             "Screen every retrieved full text",
             decided == len(available),
             f"{decided} of {len(available)} screened",
+        ),
+        _item(
+            "extraction_form",
+            "Create the data extraction form",
+            has_extraction_form,
+            "Extraction form created" if has_extraction_form else "Not created yet",
         ),
     ]
 

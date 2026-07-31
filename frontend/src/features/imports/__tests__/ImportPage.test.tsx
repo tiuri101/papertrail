@@ -142,7 +142,7 @@ describe('ImportPage', () => {
     ]))
     renderWithProviders(<ImportPage />, { route: '/projects/project-1/imports', path: '/projects/:projectId/imports' })
 
-    expect(await screen.findByText('Previously documented searches')).toBeInTheDocument()
+    expect(await screen.findByText('Previously Documented Searches')).toBeInTheDocument()
     expect(screen.getByText(/IEEE Xplore/)).toBeInTheDocument()
   })
 })

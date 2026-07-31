@@ -29,7 +29,7 @@ describe('AccountSettingsPage', () => {
 
     expect(screen.getByLabelText('Display name')).toHaveValue('Reviewer One')
     fireEvent.change(screen.getByLabelText('Display name'), { target: { value: 'New Name' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save display name' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save Display Name' }))
 
     await waitFor(() => expect(screen.getByText('Display name updated.')).toBeInTheDocument())
     const call = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/auth/me'))
@@ -45,7 +45,7 @@ describe('AccountSettingsPage', () => {
     fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: 'different-password' } })
 
     expect(screen.getByText('New passwords do not match.')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Change password' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Change Password' })).toBeDisabled()
   })
 
   it('submits a password change with the current and new password', async () => {
@@ -60,7 +60,7 @@ describe('AccountSettingsPage', () => {
     fireEvent.change(screen.getByLabelText('Current password'), { target: { value: 'old-password' } })
     fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'new-password-1' } })
     fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: 'new-password-1' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Change password' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Change Password' }))
 
     await waitFor(() => expect(screen.getByText('Password updated.')).toBeInTheDocument())
     const call = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/auth/me'))

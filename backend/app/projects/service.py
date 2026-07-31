@@ -97,6 +97,32 @@ def add_membership(
     return membership
 
 
+def get_membership(db: Session, project_id: str, member_id: str) -> ProjectMembership:
+    membership = db.scalar(
+        select(ProjectMembership).where(
+            ProjectMembership.id == member_id,
+            ProjectMembership.project_id == project_id,
+        )
+    )
+    if membership is None:
+        raise NotFoundError("Project member not found")
+    return membership
+
+
+def update_membership(
+    db: Session, membership: ProjectMembership, **eligibility: bool
+) -> ProjectMembership:
+    for field, value in eligibility.items():
+        setattr(membership, field, value)
+    db.flush()
+    return membership
+
+
+def remove_membership(db: Session, membership: ProjectMembership) -> None:
+    db.delete(membership)
+    db.flush()
+
+
 def parse_highlight_keywords(raw: str) -> list[str]:
     seen: dict[str, None] = {}
     for line in raw.splitlines():

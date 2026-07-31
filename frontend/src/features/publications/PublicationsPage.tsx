@@ -232,7 +232,7 @@ function PublicationRow({
       <div className="toolbar">
         <button type="button" onClick={() => setEditing(true)}>Edit</button>
         <button type="button" onClick={() => enrich.mutate()} disabled={enrich.isPending || !publication.doi}>
-          Enrich metadata
+          Enrich Metadata
         </button>
         <ConfirmButton
           label="Delete"
@@ -272,7 +272,7 @@ function MetadataConflictsPanel({ projectId }: { projectId: string }) {
 
   return (
     <section className="card">
-      <h2>Metadata conflicts</h2>
+      <h2>Metadata Conflicts</h2>
       <p className="muted">Enrichment or a duplicate merge proposed a different value for a field that already had one. Review each side by side and choose which value to keep.</p>
       {conflicts.error ? <p className="error" role="alert">{conflicts.error.message}</p> : null}
       {resolve.error ? <p className="error" role="alert">{resolve.error.message}</p> : null}
@@ -300,14 +300,14 @@ function MetadataConflictsPanel({ projectId }: { projectId: string }) {
                 disabled={resolve.isPending}
                 onClick={() => resolve.mutate({ conflictId: conflict.id, acceptProposed: true })}
               >
-                Use proposed value
+                Use Proposed Value
               </button>
               <button
                 type="button"
                 disabled={resolve.isPending}
                 onClick={() => resolve.mutate({ conflictId: conflict.id, acceptProposed: false })}
               >
-                Keep current value
+                Keep Current Value
               </button>
             </div>
           </li>
@@ -361,7 +361,7 @@ export function PublicationsPage() {
       ) : null}
       {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
       <section className="card">
-        <h2>Metadata enrichment</h2>
+        <h2>Metadata Enrichment</h2>
         <p className="muted">Fill in missing metadata from Crossref and Semantic Scholar for one record, a selection, or every record missing metadata.</p>
         {bulkEnrich.error ? <p className="error" role="alert">{bulkEnrich.error.message}</p> : null}
         {bulkEnrich.isSuccess ? <p>Enrichment queued for {bulkEnrich.data.jobIds.length} publication{bulkEnrich.data.jobIds.length === 1 ? '' : 's'}.</p> : null}
@@ -371,14 +371,14 @@ export function PublicationsPage() {
             disabled={bulkEnrich.isPending || selectedIds.size === 0}
             onClick={() => bulkEnrich.mutate({ publicationIds: Array.from(selectedIds), missingOnly: false })}
           >
-            Enrich selected ({selectedIds.size})
+            Enrich Selected ({selectedIds.size})
           </button>
           <button
             type="button"
             disabled={bulkEnrich.isPending}
             onClick={() => bulkEnrich.mutate({ missingOnly: true })}
           >
-            Enrich all records with missing metadata
+            Enrich All Records with Missing Metadata
           </button>
         </div>
       </section>

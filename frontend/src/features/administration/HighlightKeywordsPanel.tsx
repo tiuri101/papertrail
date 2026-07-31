@@ -41,7 +41,7 @@ export function HighlightKeywordsPanel({ projectId }: { projectId: string }) {
 
   return (
     <section className="card">
-      <h2>Highlighted keywords</h2>
+      <h2>Highlighted Keywords</h2>
       <p className="muted">Keywords entered here are highlighted wherever reviewers see publication titles and abstracts, one keyword per line.</p>
       {keywords.error ? <p className="error" role="alert">{keywords.error.message}</p> : null}
       <form onSubmit={(event) => { event.preventDefault(); save.mutate() }}>
@@ -55,7 +55,7 @@ export function HighlightKeywordsPanel({ projectId }: { projectId: string }) {
         </label>
         {save.error ? <p className="error" role="alert">{save.error.message}</p> : null}
         {save.isSuccess ? <p>Keywords saved.</p> : null}
-        <button type="submit" disabled={save.isPending}>Save keywords</button>
+        <button type="submit" disabled={save.isPending}>Save Keywords</button>
       </form>
     </section>
   )

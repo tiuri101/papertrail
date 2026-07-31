@@ -5,11 +5,15 @@ from sqlalchemy.orm import Session
 
 from app.api.errors import DomainError
 from app.conflicts.models import FinalDecision
-from app.conflicts.service import valid_final_decision
+from app.conflicts.service import refresh_automatic_final_decision, valid_final_decision
 from app.fulltext.models import FullTextRetrieval, RetrievalStatus
 from app.projects.models import Project, ProjectStage, ScreeningStage
-from app.screening.models import ScreeningOutcome, ScreeningWorkItem
-from app.screening.service import create_screening_work_items
+from app.screening.models import ScreeningDecision, ScreeningOutcome, ScreeningWorkItem
+from app.screening.service import (
+    claim_next_work_item,
+    create_screening_work_items,
+    submit_decision,
+)
 
 
 def title_abstract_included_ids(db: Session, project_id: str) -> list[str]:
@@ -76,6 +80,49 @@ def set_retrieval_status(
     db.flush()
 
 
+def resolve_retrieval(
+    db: Session,
+    retrieval: FullTextRetrieval,
+    status: RetrievalStatus,
+    *,
+    note: str | None = None,
+    user_id: str,
+    decision_outcome: str | None = None,
+    decision_criteria_answers: dict[str, bool] | None = None,
+    decision_notes: str | None = None,
+) -> ScreeningDecision | None:
+    """Save a retrieval status and, in the same action, submit the reviewer's
+    full-text screening decision if the report was just marked available.
+    Returns None when no decision was submitted (status isn't available, or
+    the current user has no screening work item for this publication)."""
+    set_retrieval_status(db, retrieval, status, note=note, user_id=user_id)
+    if decision_outcome is None:
+        return None
+    if status != RetrievalStatus.AVAILABLE:
+        raise DomainError(
+            "A screening decision can only be submitted when the full text is available"
+        )
+    item = claim_next_work_item(
+        db,
+        retrieval.project_id,
+        ScreeningStage.FULL_TEXT,
+        user_id,
+        publication_id=retrieval.publication_id,
+    )
+    if item is None:
+        return None
+    decision = submit_decision(
+        db,
+        item,
+        user_id,
+        decision_outcome,
+        decision_criteria_answers or {},
+        decision_notes,
+    )
+    refresh_automatic_final_decision(db, retrieval.publication_id, ScreeningStage.FULL_TEXT)
+    return decision
+
+
 def transition_if_full_text_complete(db: Session, project: Project) -> bool:
     retrievals = list(
         db.scalars(
@@ -97,8 +144,13 @@ def transition_if_full_text_complete(db: Session, project: Project) -> bool:
             )
             if final is None:
                 return False
+
+    from app.extraction.service import initialize_extraction, project_form
+
+    if project_form(db, project.id) is None:
+        return False
+
     project.stage = ProjectStage.EXTRACTION
-    from app.extraction.service import initialize_extraction
 
     initialize_extraction(db, project)
     try:

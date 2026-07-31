@@ -1,5 +1,8 @@
 from app.accounts.service import create_user
 from app.deduplication.models import DuplicateCandidate
+from app.forms.models import FormKind
+from app.forms.service import create_form
+from app.fulltext.models import FullTextRetrieval, RetrievalStatus
 from app.jobs.models import BackgroundJob, JobStatus
 from app.projects.checklist import project_checklist
 from app.projects.models import (
@@ -10,7 +13,7 @@ from app.projects.models import (
     ResearchQuestion,
     ReviewType,
 )
-from app.projects.service import get_project
+from app.projects.service import add_membership, get_project
 from app.publications.models import Publication
 
 
@@ -41,6 +44,7 @@ def test_draft_checklist_reflects_missing_setup_items(db) -> None:
         "research_questions": False,
         "criteria": False,
         "publications": False,
+        "reviewers": False,
     }
 
     duplicate_review = next(
@@ -53,6 +57,7 @@ def test_draft_checklist_reflects_missing_setup_items(db) -> None:
 
 
 def test_draft_checklist_completes_as_setup_items_are_added(db) -> None:
+    reviewer = create_user(db, "reviewer", "Reviewer", "secret-password")
     project = Project(
         name="Review", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed"
     )
@@ -78,6 +83,7 @@ def test_draft_checklist_completes_as_setup_items_are_added(db) -> None:
         )
     )
     db.add(Publication(project_id=project.id, title="A paper"))
+    add_membership(db, project, reviewer, can_title_abstract_screen=True)
     db.commit()
 
     project = get_project(db, project.id)
@@ -89,6 +95,7 @@ def test_draft_checklist_completes_as_setup_items_are_added(db) -> None:
         "research_questions": True,
         "criteria": True,
         "publications": True,
+        "reviewers": True,
     }
 
 
@@ -145,6 +152,43 @@ def test_duplicate_review_checklist_tracks_detection_job_and_resolution(db) -> N
     )
     items = {item["key"]: item["done"] for item in stage["items"]}
     assert items == {"detection": True, "resolve_duplicates": True}
+
+
+def test_full_text_checklist_requires_extraction_form_before_extraction(db) -> None:
+    project = Project(
+        name="Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.FULL_TEXT,
+    )
+    db.add(project)
+    db.flush()
+    publication = Publication(project_id=project.id, title="A Study")
+    db.add(publication)
+    db.flush()
+    db.add(
+        FullTextRetrieval(
+            project_id=project.id,
+            publication_id=publication.id,
+            status=RetrievalStatus.NOT_FOUND,
+        )
+    )
+    db.commit()
+
+    project = get_project(db, project.id)
+    checklist = project_checklist(db, project)
+    stage = next(s for s in checklist["stages"] if s["stage"] == ProjectStage.FULL_TEXT)
+    items = {item["key"]: item["done"] for item in stage["items"]}
+    assert items["extraction_form"] is False
+
+    create_form(db, "Extraction form", FormKind.EXTRACTION, project_id=project.id)
+    db.commit()
+
+    project = get_project(db, project.id)
+    checklist = project_checklist(db, project)
+    stage = next(s for s in checklist["stages"] if s["stage"] == ProjectStage.FULL_TEXT)
+    items = {item["key"]: item["done"] for item in stage["items"]}
+    assert items["extraction_form"] is True
 
 
 def test_checklist_endpoint_is_reachable_over_http(client, db) -> None:

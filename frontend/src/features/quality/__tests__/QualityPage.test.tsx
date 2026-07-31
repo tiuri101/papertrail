@@ -41,12 +41,12 @@ describe('QualityPage', () => {
     renderWithProviders(<QualityPage />, { route: '/projects/p1/quality', path: '/projects/:projectId/quality' })
 
     await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
-    expect(screen.getByRole('button', { name: 'Submit assessment' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Submit Assessment' })).toBeDisabled()
 
     fireEvent.change(screen.getByLabelText('Study design *'), { target: { value: 'Strong' } })
-    expect(screen.getByRole('button', { name: 'Submit assessment' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Submit Assessment' })).toBeDisabled()
     fireEvent.change(screen.getByLabelText('Reporting *'), { target: { value: '4' } })
-    expect(screen.getByRole('button', { name: 'Submit assessment' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Submit Assessment' })).toBeEnabled()
   })
 
   it('submits the answers, shows the returned total score, and fetches the next assessment', async () => {
@@ -61,7 +61,7 @@ describe('QualityPage', () => {
     await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
     fireEvent.change(screen.getByLabelText('Study design *'), { target: { value: 'Strong' } })
     fireEvent.change(screen.getByLabelText('Reporting *'), { target: { value: '4' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Submit assessment' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Assessment' }))
 
     await waitFor(() => {
       const submitCall = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/quality/quality-1'))

@@ -56,7 +56,6 @@ See [Installation](docs/installation.md) for production configuration.
 
 - [Local development](docs/local-development.md)
 - [Architecture](docs/architecture.md)
-- [Implementation status](docs/implementation-status.md)
 - [Administrator guide](docs/administrator-guide.md)
 - [Reviewer guide](docs/user-guide.md)
 - [Developer guide](docs/developer-guide.md)

@@ -4,7 +4,7 @@ Reviewers only see projects in which they are members and activities for which t
 
 ## Screening
 
-Open the active screening queue, inspect the publication metadata, complete every inclusion and exclusion criterion, and select include, exclude, uncertain, or duplicate. Exclusion requires one configured reason. Notes are optional. Draft work is autosaved, and a reserved item remains assigned for up to one day unless released.
+Open the active screening queue, inspect the publication metadata, complete every inclusion and exclusion criterion, and select include, exclude, uncertain, or duplicate. Notes are optional for every decision. Draft work is autosaved, and a reserved item remains assigned for up to one day unless released.
 
 In independent screening, other reviewers' answers remain hidden until all required decisions have been submitted. A submitted decision can be revised; any existing consensus is then invalidated and must be resolved again.
 

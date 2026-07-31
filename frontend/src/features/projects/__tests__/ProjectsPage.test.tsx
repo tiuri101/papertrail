@@ -34,7 +34,7 @@ describe('ProjectsPage', () => {
     ).toHaveAttribute('href', '/projects/p1')
 
     fireEvent.click(
-        screen.getByRole('button', { name: 'New project' }),
+        screen.getByRole('button', { name: 'New Project' }),
     )
 
     fireEvent.change(screen.getByLabelText('Project name'), {
@@ -73,7 +73,7 @@ describe('ProjectsPage', () => {
     await screen.findByRole('heading', { name: 'Projects' })
 
     fireEvent.click(
-        screen.getByRole('button', { name: 'New project' }),
+        screen.getByRole('button', { name: 'New Project' }),
     )
 
     fireEvent.change(screen.getByLabelText('Project name'), {

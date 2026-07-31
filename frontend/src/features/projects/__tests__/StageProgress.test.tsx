@@ -11,15 +11,15 @@ describe('StageProgress', () => {
     expect(steps).toHaveLength(6)
     expect(steps.map((step) => step.textContent)).toEqual([
       'Draft',
-      'Duplicate review',
-      'Title/abstract screening',
-      'Full-text screening',
-      'Extraction & quality',
+      'Duplicate Review',
+      'Title/Abstract Screening',
+      'Full-Text Screening',
+      'Extraction & Quality',
       'Completed',
     ])
 
     const current = screen.getByRole('listitem', { current: 'step' })
-    expect(current).toHaveTextContent('Full-text screening')
+    expect(current).toHaveTextContent('Full-Text Screening')
     expect(steps.filter((step) => step !== current)).toSatisfy((rest: HTMLElement[]) =>
       rest.every((step) => !step.hasAttribute('aria-current')),
     )
