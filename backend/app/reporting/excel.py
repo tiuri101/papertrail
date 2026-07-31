@@ -8,10 +8,12 @@ from openpyxl import Workbook
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.accounts.models import User
 from app.audit.models import AuditEvent
 from app.conflicts.models import FinalDecision
 from app.deduplication.models import DuplicateCandidate
 from app.extraction.models import ExtractionResponse, ExtractionWorkItem
+from app.forms.models import FormField, FormVersion, ReviewForm
 from app.fulltext.models import FullTextRetrieval
 from app.imports.models import ImportBatch, SearchSource
 from app.projects.models import (
@@ -62,7 +64,44 @@ def add_sheet(
         )
 
 
-def publication_rows(publications: list[Publication]) -> list[list]:
+def _user_names(db: Session) -> dict[str, str]:
+    return dict(db.execute(select(User.id, User.display_name)).all())
+
+
+def _criterion_texts(db: Session, project_id: str) -> dict[str, str]:
+    return dict(
+        db.execute(
+            select(Criterion.id, Criterion.text).where(Criterion.project_id == project_id)
+        ).all()
+    )
+
+
+def _form_version_labels(db: Session) -> dict[str, str]:
+    rows = db.execute(
+        select(FormVersion.id, FormVersion.version_number, ReviewForm.name).join(
+            ReviewForm, ReviewForm.id == FormVersion.form_id
+        )
+    ).all()
+    return {
+        version_id: f"{name} v{version_number}"
+        for version_id, version_number, name in rows
+    }
+
+
+def _form_field_labels(db: Session) -> dict[str, dict[str, str]]:
+    labels: dict[str, dict[str, str]] = {}
+    for field in db.scalars(select(FormField)):
+        labels.setdefault(field.form_version_id, {})[field.stable_key] = field.label
+    return labels
+
+
+def _readable_answers(answers: dict, field_labels: dict[str, str]) -> dict:
+    return {field_labels.get(key, key): value for key, value in answers.items()}
+
+
+def publication_rows(
+    publications: list[Publication], titles: dict[str, str]
+) -> list[list]:
     return [
         [
             publication.id,
@@ -75,7 +114,7 @@ def publication_rows(publications: list[Publication]) -> list[list]:
             publication.publisher_url,
             publication.keywords,
             publication.is_active,
-            publication.merged_into_id,
+            titles.get(publication.merged_into_id, publication.merged_into_id),
         ]
         for publication in publications
     ]
@@ -84,13 +123,21 @@ def publication_rows(publications: list[Publication]) -> list[list]:
 def _screening_rows(
     decisions: list[ScreeningDecision],
     stage: ScreeningStage,
+    titles: dict[str, str],
+    user_names: dict[str, str],
+    criterion_texts: dict[str, str],
 ) -> list[list]:
     return [
         [
-            decision.work_item.publication_id,
-            decision.reviewer_id,
+            titles.get(
+                decision.work_item.publication_id, decision.work_item.publication_id
+            ),
+            user_names.get(decision.reviewer_id, decision.reviewer_id),
             decision.outcome.value,
-            decision.criteria_answers,
+            {
+                criterion_texts.get(key, key): value
+                for key, value in decision.criteria_answers.items()
+            },
             decision.notes,
             decision.version,
         ]
@@ -118,9 +165,14 @@ def build_excel(db: Session, project_id: str) -> bytes:
             *[[key, value] for key, value in counts.items()],
         ],
     )
+    user_names = _user_names(db)
     _add_configuration_sheets(db, workbook, project_id)
     publications = _add_record_sheets(db, workbook, project_id)
-    included_ids = _add_screening_sheets(db, workbook, project_id)
+    titles = {publication.id: publication.title for publication in publications}
+    criterion_texts = _criterion_texts(db, project_id)
+    included_ids = _add_screening_sheets(
+        db, workbook, project_id, titles, user_names, criterion_texts
+    )
     publication_headers = [
         "ID",
         "Title",
@@ -143,11 +195,12 @@ def build_excel(db: Session, project_id: str) -> bytes:
                 publication
                 for publication in publications
                 if publication.id in included_ids
-            ]
+            ],
+            titles,
         ),
     )
-    _add_evidence_sheets(db, workbook, project_id)
-    _add_audit_sheet(db, workbook, project_id)
+    _add_evidence_sheets(db, workbook, project_id, titles, user_names)
+    _add_audit_sheet(db, workbook, project_id, user_names)
     buffer = BytesIO()
     workbook.save(buffer)
     return buffer.getvalue()
@@ -252,7 +305,10 @@ def _add_record_sheets(
         "Active",
         "Merged into",
     ]
-    add_sheet(workbook, "Normalized records", headers, publication_rows(publications))
+    titles = {publication.id: publication.title for publication in publications}
+    add_sheet(
+        workbook, "Normalized records", headers, publication_rows(publications, titles)
+    )
     candidates = list(
         db.scalars(
             select(DuplicateCandidate).where(
@@ -267,8 +323,8 @@ def _add_record_sheets(
         [
             [
                 item.id,
-                item.publication_a_id,
-                item.publication_b_id,
+                titles.get(item.publication_a_id, item.publication_a_id),
+                titles.get(item.publication_b_id, item.publication_b_id),
                 item.match_reasons,
                 item.confidence,
                 item.status,
@@ -279,7 +335,14 @@ def _add_record_sheets(
     return publications
 
 
-def _add_screening_sheets(db: Session, workbook: Workbook, project_id: str) -> set[str]:
+def _add_screening_sheets(
+    db: Session,
+    workbook: Workbook,
+    project_id: str,
+    titles: dict[str, str],
+    user_names: dict[str, str],
+    criterion_texts: dict[str, str],
+) -> set[str]:
     decisions = list(
         db.scalars(
             select(ScreeningDecision)
@@ -291,8 +354,8 @@ def _add_screening_sheets(db: Session, workbook: Workbook, project_id: str) -> s
         )
     )
     headers = [
-        "Publication ID",
-        "Reviewer ID",
+        "Publication",
+        "Reviewer",
         "Outcome",
         "Criteria",
         "Notes",
@@ -302,7 +365,9 @@ def _add_screening_sheets(db: Session, workbook: Workbook, project_id: str) -> s
         workbook,
         "Title abstract screening",
         headers,
-        _screening_rows(decisions, ScreeningStage.TITLE_ABSTRACT),
+        _screening_rows(
+            decisions, ScreeningStage.TITLE_ABSTRACT, titles, user_names, criterion_texts
+        ),
     )
     retrievals = list(
         db.scalars(
@@ -312,14 +377,23 @@ def _add_screening_sheets(db: Session, workbook: Workbook, project_id: str) -> s
     add_sheet(
         workbook,
         "Full text retrieval",
-        ["Publication ID", "Status", "Note"],
-        [[item.publication_id, item.status.value, item.note] for item in retrievals],
+        ["Publication", "Status", "Note"],
+        [
+            [
+                titles.get(item.publication_id, item.publication_id),
+                item.status.value,
+                item.note,
+            ]
+            for item in retrievals
+        ],
     )
     add_sheet(
         workbook,
         "Full text screening",
         headers,
-        _screening_rows(decisions, ScreeningStage.FULL_TEXT),
+        _screening_rows(
+            decisions, ScreeningStage.FULL_TEXT, titles, user_names, criterion_texts
+        ),
     )
     finals = list(
         db.scalars(
@@ -332,10 +406,10 @@ def _add_screening_sheets(db: Session, workbook: Workbook, project_id: str) -> s
     add_sheet(
         workbook,
         "Exclusions",
-        ["Publication ID", "Stage", "Outcome", "Resolution", "Note"],
+        ["Publication", "Stage", "Outcome", "Resolution", "Note"],
         [
             [
-                item.publication_id,
+                titles.get(item.publication_id, item.publication_id),
                 item.stage.value,
                 item.outcome.value,
                 item.resolution_method,
@@ -353,7 +427,15 @@ def _add_screening_sheets(db: Session, workbook: Workbook, project_id: str) -> s
     }
 
 
-def _add_evidence_sheets(db: Session, workbook: Workbook, project_id: str) -> None:
+def _add_evidence_sheets(
+    db: Session,
+    workbook: Workbook,
+    project_id: str,
+    titles: dict[str, str],
+    user_names: dict[str, str],
+) -> None:
+    form_version_labels = _form_version_labels(db)
+    field_labels = _form_field_labels(db)
     extraction = list(
         db.scalars(
             select(ExtractionResponse)
@@ -367,13 +449,17 @@ def _add_evidence_sheets(db: Session, workbook: Workbook, project_id: str) -> No
     add_sheet(
         workbook,
         "Extraction",
-        ["Publication ID", "Reviewer ID", "Form version", "Answers"],
+        ["Publication", "Reviewer", "Form version", "Answers"],
         [
             [
-                item.work_item.publication_id,
-                item.reviewer_id,
-                item.form_version_id,
-                item.answers,
+                titles.get(
+                    item.work_item.publication_id, item.work_item.publication_id
+                ),
+                user_names.get(item.reviewer_id, item.reviewer_id),
+                form_version_labels.get(item.form_version_id, item.form_version_id),
+                _readable_answers(
+                    item.answers, field_labels.get(item.form_version_id, {})
+                ),
             ]
             for item in extraction
         ],
@@ -391,13 +477,17 @@ def _add_evidence_sheets(db: Session, workbook: Workbook, project_id: str) -> No
     add_sheet(
         workbook,
         "Quality assessment",
-        ["Publication ID", "Reviewer ID", "Form version", "Answers", "Total score"],
+        ["Publication", "Reviewer", "Form version", "Answers", "Total score"],
         [
             [
-                item.work_item.publication_id,
-                item.reviewer_id,
-                item.form_version_id,
-                item.answers,
+                titles.get(
+                    item.work_item.publication_id, item.work_item.publication_id
+                ),
+                user_names.get(item.reviewer_id, item.reviewer_id),
+                form_version_labels.get(item.form_version_id, item.form_version_id),
+                _readable_answers(
+                    item.answers, field_labels.get(item.form_version_id, {})
+                ),
                 item.total_score,
             ]
             for item in quality
@@ -429,7 +519,9 @@ def build_prisma_tables(db: Session, project_id: str) -> bytes:
     return buffer.getvalue()
 
 
-def _add_audit_sheet(db: Session, workbook: Workbook, project_id: str) -> None:
+def _add_audit_sheet(
+    db: Session, workbook: Workbook, project_id: str, user_names: dict[str, str]
+) -> None:
     events = list(
         db.scalars(
             select(AuditEvent)
@@ -444,7 +536,7 @@ def _add_audit_sheet(db: Session, workbook: Workbook, project_id: str) -> None:
         [
             [
                 event.created_at,
-                event.actor_id,
+                user_names.get(event.actor_id, event.actor_id),
                 event.action,
                 event.entity_type,
                 event.entity_id,

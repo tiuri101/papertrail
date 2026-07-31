@@ -33,7 +33,7 @@ describe('FormBuilderPage', () => {
     fireEvent.change(screen.getByLabelText('Kind'), { target: { value: 'extraction' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create form' }))
 
-    await waitFor(() => expect(screen.getByLabelText('Active form')).toHaveValue('form-1'))
+    await waitFor(() => expect(screen.getByLabelText('Form to edit')).toHaveValue('form-1'))
     fireEvent.change(screen.getByLabelText('Label'), { target: { value: 'Main finding' } })
     fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'long_text' } })
     fireEvent.click(screen.getByLabelText('Required'))
@@ -69,7 +69,7 @@ describe('FormBuilderPage', () => {
     renderWithProviders(<FormBuilderPage />, { route: '/projects/p1/forms', path: '/projects/:projectId/forms' })
 
     await screen.findByRole('option', { name: 'Extraction (extraction)' })
-    fireEvent.change(screen.getByLabelText('Active form'), { target: { value: 'form-1' } })
+    fireEvent.change(screen.getByLabelText('Form to edit'), { target: { value: 'form-1' } })
     fireEvent.change(await screen.findByLabelText('Label'), { target: { value: 'Study design' } })
     fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'single_select' } })
     fireEvent.change(screen.getByLabelText('Options (one per line)'), { target: { value: 'Experimental\nObservational' } })
@@ -105,7 +105,7 @@ describe('FormBuilderPage', () => {
     renderWithProviders(<FormBuilderPage />, { route: '/projects/p1/forms', path: '/projects/:projectId/forms' })
 
     await screen.findByRole('option', { name: 'Quality (quality)' })
-    fireEvent.change(screen.getByLabelText('Active form'), { target: { value: 'form-1' } })
+    fireEvent.change(screen.getByLabelText('Form to edit'), { target: { value: 'form-1' } })
     fireEvent.change(await screen.findByLabelText('Label'), { target: { value: 'Study design' } })
     fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'single_select' } })
     fireEvent.change(screen.getByLabelText('Options (one per line)'), { target: { value: 'Strong\nWeak' } })
@@ -139,7 +139,7 @@ describe('FormBuilderPage', () => {
     renderWithProviders(<FormBuilderPage />, { route: '/projects/p1/forms', path: '/projects/:projectId/forms' })
 
     await screen.findByRole('option', { name: 'Extraction (extraction)' })
-    fireEvent.change(screen.getByLabelText('Active form'), { target: { value: 'form-1' } })
+    fireEvent.change(screen.getByLabelText('Form to edit'), { target: { value: 'form-1' } })
 
     await screen.findByText('Preview')
     expect(screen.getByLabelText('Main finding *')).toBeInTheDocument()
@@ -163,7 +163,7 @@ describe('FormBuilderPage', () => {
     renderWithProviders(<FormBuilderPage />, { route: '/projects/p1/forms', path: '/projects/:projectId/forms' })
 
     await screen.findByRole('option', { name: 'Extraction (extraction)' })
-    fireEvent.change(screen.getByLabelText('Active form'), { target: { value: 'form-1' } })
+    fireEvent.change(screen.getByLabelText('Form to edit'), { target: { value: 'form-1' } })
 
     fireEvent.click(await screen.findByRole('button', { name: 'Edit' }))
     fireEvent.change(screen.getByLabelText('Edit label for Main finding'), { target: { value: 'Primary outcome' } })
@@ -195,7 +195,7 @@ describe('FormBuilderPage', () => {
     renderWithProviders(<FormBuilderPage />, { route: '/projects/p1/forms', path: '/projects/:projectId/forms' })
 
     await screen.findByRole('option', { name: 'Extraction (extraction)' })
-    fireEvent.change(screen.getByLabelText('Active form'), { target: { value: 'form-1' } })
+    fireEvent.change(screen.getByLabelText('Form to edit'), { target: { value: 'form-1' } })
 
     fireEvent.click(await screen.findByRole('button', { name: 'Archive' }))
 
@@ -229,7 +229,7 @@ describe('FormBuilderPage', () => {
     renderWithProviders(<FormBuilderPage />, { route: '/projects/p1/forms', path: '/projects/:projectId/forms' })
 
     await screen.findByRole('option', { name: 'Extraction (extraction)' })
-    fireEvent.change(screen.getByLabelText('Active form'), { target: { value: 'form-1' } })
+    fireEvent.change(screen.getByLabelText('Form to edit'), { target: { value: 'form-1' } })
 
     fireEvent.click(await screen.findByRole('button', { name: 'Change type…' }))
     fireEvent.change(screen.getByLabelText('New type for Sample size'), { target: { value: 'number' } })
@@ -279,7 +279,7 @@ describe('FormBuilderPage', () => {
       expect(JSON.parse(String(createCall?.[1]?.body)).templateId).toBe('template-1')
     })
 
-    await waitFor(() => expect(screen.getByLabelText('Active form')).toHaveValue('form-1'))
+    await waitFor(() => expect(screen.getByLabelText('Form to edit')).toHaveValue('form-1'))
     fireEvent.click(screen.getByRole('button', { name: 'Save as template' }))
 
     await waitFor(() => {

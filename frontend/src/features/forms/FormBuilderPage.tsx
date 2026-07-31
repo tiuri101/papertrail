@@ -140,6 +140,7 @@ export function FormBuilderPage() {
   }, [qualityConfig.data])
 
   const templatesForKind = templates.data?.filter((template) => template.kind === kind) ?? []
+  const existingFormOfKind = forms.data?.find((form) => !form.isTemplate && form.kind === kind)
 
   const createForm = useMutation({
     mutationFn: () => apiRequest<ReviewForm>(
@@ -295,36 +296,51 @@ export function FormBuilderPage() {
       </section>
       <section className="card">
         <h2>Create project form</h2>
-        <form onSubmit={(event) => { event.preventDefault(); createForm.mutate() }}>
-          <label>
-            Name
-            <input value={name} onChange={(event) => setName(event.target.value)} />
-          </label>
-          <label>
-            Kind
-            <select
-              value={kind}
-              onChange={(event) => { setKind(event.target.value); setTemplateId('') }}
-            >
-              <option value="extraction">Extraction</option>
-              <option value="quality">Quality assessment</option>
-            </select>
-          </label>
-          <label>
-            Start from template (optional)
-            <select value={templateId} onChange={(event) => setTemplateId(event.target.value)}>
-              <option value="">From scratch</option>
-              {templatesForKind.map((template) => (
-                <option key={template.id} value={template.id}>{template.name}</option>
-              ))}
-            </select>
-          </label>
-          {templates.error ? <p className="error" role="alert">{templates.error.message}</p> : null}
-          <button type="submit" disabled={createForm.isPending}>Create form</button>
-        </form>
+        <p className="muted">
+          Each project has one extraction form and one quality form. These are the forms used
+          when reviewers extract data or assess quality — there's no separate "active" form to
+          pick, so once a kind has a form here, edit that one instead of creating another.
+        </p>
+        {existingFormOfKind ? (
+          <p>
+            This project already has a {kind === 'quality' ? 'quality assessment' : kind} form:{' '}
+            <strong>{existingFormOfKind.name}</strong>.{' '}
+            <button type="button" onClick={() => setSelectedForm(existingFormOfKind.id)}>
+              Edit it below
+            </button>
+          </p>
+        ) : (
+          <form onSubmit={(event) => { event.preventDefault(); createForm.mutate() }}>
+            <label>
+              Name
+              <input value={name} onChange={(event) => setName(event.target.value)} />
+            </label>
+            <label>
+              Kind
+              <select
+                value={kind}
+                onChange={(event) => { setKind(event.target.value); setTemplateId('') }}
+              >
+                <option value="extraction">Extraction</option>
+                <option value="quality">Quality assessment</option>
+              </select>
+            </label>
+            <label>
+              Start from template (optional)
+              <select value={templateId} onChange={(event) => setTemplateId(event.target.value)}>
+                <option value="">From scratch</option>
+                {templatesForKind.map((template) => (
+                  <option key={template.id} value={template.id}>{template.name}</option>
+                ))}
+              </select>
+            </label>
+            {templates.error ? <p className="error" role="alert">{templates.error.message}</p> : null}
+            <button type="submit" disabled={createForm.isPending}>Create form</button>
+          </form>
+        )}
       </section>
       <label>
-        Active form
+        Form to edit
         <select
           value={selectedForm}
           onChange={(event) => setSelectedForm(event.target.value)}

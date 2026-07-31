@@ -159,6 +159,52 @@ def test_research_questions_and_criteria_support_edit_and_delete(client, db) -> 
     assert details_after_delete["criteria"] == []
 
 
+def test_admin_renames_project_and_updates_description(client, db) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    reviewer = create_user(db, "reviewer", "Reviewer", "reviewer-password")
+    db.commit()
+    csrf = login(client, "admin", "secret-password")
+    project_id = client.post(
+        "/api/v1/projects",
+        json={"name": "Original Name", "reviewType": "scoping_review"},
+        headers={"X-CSRF-Token": csrf},
+    ).json()["id"]
+    client.post(
+        f"/api/v1/projects/{project_id}/members",
+        json={
+            "userId": reviewer.id,
+            "canTitleAbstractScreen": True,
+            "canFullTextScreen": False,
+            "canExtract": False,
+            "canAssessQuality": False,
+            "canAdjudicate": False,
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    renamed = client.patch(
+        f"/api/v1/projects/{project_id}",
+        json={"name": "Renamed Review", "description": "Updated description"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert renamed.status_code == 200
+    assert renamed.json()["name"] == "Renamed Review"
+    assert renamed.json()["description"] == "Updated description"
+
+    details = client.get(f"/api/v1/projects/{project_id}").json()
+    assert details["name"] == "Renamed Review"
+    assert details["description"] == "Updated description"
+
+    client.cookies.clear()
+    login(client, "reviewer", "reviewer-password")
+    forbidden = client.patch(
+        f"/api/v1/projects/{project_id}",
+        json={"name": "Should not work"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert forbidden.status_code in (401, 403)
+
+
 def test_reset_project_clears_publications_but_keeps_configuration(client, db) -> None:
     create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
     db.commit()

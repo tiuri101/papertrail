@@ -31,6 +31,7 @@ from app.projects.schemas import (
     ProjectChecklist,
     ProjectCreate,
     ProjectDetail,
+    ProjectDetailsUpdate,
     ProjectReopen,
     ProjectSummary,
     ResearchQuestionResponse,
@@ -79,13 +80,7 @@ def add_project(
     return project
 
 
-@router.get("/{project_id}", response_model=ProjectDetail)
-def project_detail(
-    project_id: str,
-    user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-) -> ProjectDetail:
-    project = require_project_access(db, project_id, user)
+def _serialize_project_detail(project: Project) -> ProjectDetail:
     return ProjectDetail(
         id=project.id,
         name=project.name,
@@ -99,6 +94,41 @@ def project_detail(
         criteria=[item for item in project.criteria if item.is_active],
         screening_configs=project.screening_configs,
     )
+
+
+@router.get("/{project_id}", response_model=ProjectDetail)
+def project_detail(
+    project_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ProjectDetail:
+    project = require_project_access(db, project_id, user)
+    return _serialize_project_detail(project)
+
+
+@router.patch("/{project_id}", response_model=ProjectDetail)
+def update_project_details(
+    project_id: str,
+    payload: ProjectDetailsUpdate,
+    admin: User = Depends(require_admin_csrf),
+    db: Session = Depends(get_db),
+) -> ProjectDetail:
+    project = get_project(db, project_id)
+    project.name = payload.name.strip()
+    project.description = (
+        payload.description.strip() if payload.description else None
+    )
+    record_audit(
+        db,
+        action="project.updated",
+        entity_type="project",
+        entity_id=project.id,
+        project_id=project.id,
+        actor_id=admin.id,
+        summary=f"Renamed project to {project.name}",
+    )
+    db.commit()
+    return _serialize_project_detail(project)
 
 
 @router.get("/{project_id}/checklist", response_model=ProjectChecklist)
