@@ -1,5 +1,7 @@
 # Local Development Update Validation
 
+> Historical snapshot from an earlier development phase. Counts below are frozen at that point in time and do not reflect the current codebase; see [Local development](local-development.md) for the current setup and CI for current results.
+
 ## Scope
 
 The local development environment was changed so that only PostgreSQL runs in Docker. FastAPI, the threaded worker, and React/Vite run directly on the host.

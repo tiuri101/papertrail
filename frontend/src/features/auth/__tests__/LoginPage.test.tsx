@@ -29,7 +29,7 @@ describe('LoginPage', () => {
 
     fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'admin' } })
     fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'correct horse battery staple' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Sign In' }))
 
     expect(await screen.findByText('Home destination')).toBeInTheDocument()
     expect(getCsrfToken()).toBe('csrf-login')
@@ -47,9 +47,9 @@ describe('LoginPage', () => {
 
     fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'admin' } })
     fireEvent.change(screen.getByLabelText('Password'), { target: { value: 'wrong-password' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Sign In' }))
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Invalid credentials'))
-    expect(screen.getByRole('heading', { name: 'Sign in to Papertrail' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Sign In to Papertrail' })).toBeInTheDocument()
   })
 })

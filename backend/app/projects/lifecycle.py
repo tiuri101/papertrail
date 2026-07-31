@@ -153,21 +153,88 @@ STAGE_ORDER = [
 ]
 
 
+def _reverse_duplicate_review(db: Session, project: Project, actor_id: str) -> None:
+    from app.deduplication.service import reverse_merge
+
+    merges = list(
+        db.scalars(
+            select(PublicationMerge).where(
+                PublicationMerge.project_id == project.id,
+                PublicationMerge.reversed_at.is_(None),
+            )
+        )
+    )
+    for merge in merges:
+        reverse_merge(db, merge, actor_id)
+    db.execute(delete(PublicationMerge).where(PublicationMerge.project_id == project.id))
+    db.execute(delete(DuplicateCandidate).where(DuplicateCandidate.project_id == project.id))
+    db.execute(
+        delete(MetadataConflict).where(
+            MetadataConflict.publication_id.in_(
+                select(Publication.id).where(Publication.project_id == project.id)
+            ),
+            MetadataConflict.source_name == "merge",
+        )
+    )
+
+
+def _wipe_screening_stage(db: Session, project_id: str, stage: ScreeningStage) -> None:
+    work_item_ids = select(ScreeningWorkItem.id).where(
+        ScreeningWorkItem.project_id == project_id, ScreeningWorkItem.stage == stage
+    )
+    db.execute(
+        delete(ScreeningDecision).where(ScreeningDecision.work_item_id.in_(work_item_ids))
+    )
+    db.execute(
+        delete(ScreeningWorkItem).where(
+            ScreeningWorkItem.project_id == project_id, ScreeningWorkItem.stage == stage
+        )
+    )
+    db.execute(
+        delete(FinalDecision).where(
+            FinalDecision.project_id == project_id, FinalDecision.stage == stage
+        )
+    )
+
+
+def _wipe_full_text_stage(db: Session, project_id: str) -> None:
+    _wipe_screening_stage(db, project_id, ScreeningStage.FULL_TEXT)
+    db.execute(delete(FullTextRetrieval).where(FullTextRetrieval.project_id == project_id))
+
+
+def _wipe_extraction_and_quality(db: Session, project_id: str) -> None:
+    extraction_item_ids = select(ExtractionWorkItem.id).where(
+        ExtractionWorkItem.project_id == project_id
+    )
+    quality_item_ids = select(QualityWorkItem.id).where(
+        QualityWorkItem.project_id == project_id
+    )
+    db.execute(
+        delete(ExtractionResponse).where(
+            ExtractionResponse.work_item_id.in_(extraction_item_ids)
+        )
+    )
+    db.execute(delete(QualityResponse).where(QualityResponse.work_item_id.in_(quality_item_ids)))
+    db.execute(delete(ExtractionWorkItem).where(ExtractionWorkItem.project_id == project_id))
+    db.execute(delete(QualityWorkItem).where(QualityWorkItem.project_id == project_id))
+
+
 def move_project_back(
     db: Session,
     project: Project,
     target_stage: ProjectStage,
     actor_id: str,
 ) -> Project:
-    """Move an active project to an earlier stage without deleting data.
+    """Move an active project to an earlier stage, resetting workflow data.
 
-    Unlike ``reset_project`` (which wipes all workflow progress) or
-    ``reopen_project`` (which only applies to completed projects), this is
-    the "move backward" path for a project that's still in progress: it only
-    reassigns the stage. Downstream data for stages beyond the new one stays
-    stored — it's simply excluded from active workflow counts and standard
-    outputs going forward, per the requirement that downstream data is
-    retained rather than deleted when a project moves backward.
+    Unlike ``reopen_project`` (which only applies to completed projects),
+    this is the "move backward" path for a project that's still in progress.
+    All work produced in stages after ``target_stage`` is deleted, and
+    ``target_stage`` itself is reset to a freshly-entered state — its own
+    decisions/candidates/retrievals are cleared and its work items
+    regenerated — so the project can be worked back through from that point.
+    Configuration (research questions, criteria, forms, members) and data
+    from stages before ``target_stage`` are left untouched.
     """
     if project.stage in (ProjectStage.DRAFT, ProjectStage.COMPLETED):
         raise ValueError(
@@ -179,6 +246,37 @@ def move_project_back(
         raise ValueError("Target stage must be earlier than the current stage")
 
     previous_stage = project.stage
+
+    if target_stage == ProjectStage.DRAFT:
+        wipe_workflow_data(db, project.id)
+    else:
+        stage_wipers = {
+            ProjectStage.DUPLICATE_REVIEW: lambda: _reverse_duplicate_review(
+                db, project, actor_id
+            ),
+            ProjectStage.TITLE_ABSTRACT: lambda: _wipe_screening_stage(
+                db, project.id, ScreeningStage.TITLE_ABSTRACT
+            ),
+            ProjectStage.FULL_TEXT: lambda: _wipe_full_text_stage(db, project.id),
+            ProjectStage.EXTRACTION: lambda: _wipe_extraction_and_quality(
+                db, project.id
+            ),
+        }
+        for stage in STAGE_ORDER:
+            if STAGE_ORDER.index(stage) >= target_index and stage in stage_wipers:
+                stage_wipers[stage]()
+
+        if target_stage == ProjectStage.DUPLICATE_REVIEW:
+            from app.deduplication.service import detect_duplicates
+
+            detect_duplicates(db, project.id)
+        elif target_stage == ProjectStage.TITLE_ABSTRACT:
+            from app.screening.service import create_screening_work_items
+
+            create_screening_work_items(db, project, ScreeningStage.TITLE_ABSTRACT)
+        elif target_stage == ProjectStage.FULL_TEXT:
+            initialize_full_text_stage(db, project)
+
     project.stage = target_stage
     record_audit(
         db,

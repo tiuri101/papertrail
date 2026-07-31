@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
+import { CriteriaAnswerFields } from '../screening/CriteriaAnswerFields'
 import { ScreeningItemCard } from '../screening/ScreeningItemCard'
+import type { CriterionAnswer, ScreeningCriterion } from '../screening/useScreeningQueue'
 import { useScreeningQueue } from '../screening/useScreeningQueue'
 
 interface RetrievalPublication {
@@ -24,6 +26,10 @@ interface Retrieval {
   note: string | null
 }
 
+interface ProjectCriteria {
+  criteria: ScreeningCriterion[]
+}
+
 const statusLabels: Record<string, string> = {
   not_yet_sought: 'Not yet sought',
   requested: 'Requested',
@@ -38,6 +44,16 @@ function formatStatus(status: string) {
 
 const retrievalStatusOptions = Object.keys(statusLabels)
 
+function defaultAnswerForKind(kind: string): boolean {
+  return kind === 'inclusion'
+}
+
+interface RetrievalDecision {
+  outcome: string
+  criteriaAnswers: Record<string, boolean>
+  notes: string | null
+}
+
 export function FullTextPage() {
   const { projectId = '' } = useParams()
   const queryClient = useQueryClient()
@@ -51,11 +67,21 @@ export function FullTextPage() {
     ),
   })
 
+  const criteria = useQuery({
+    queryKey: ['project', projectId],
+    queryFn: () => apiRequest<ProjectCriteria>(`/api/v1/projects/${projectId}`),
+  })
+
   const updateRetrieval = useMutation({
-    mutationFn: ({ id, status, note }: { id: string; status: string; note: string | null }) =>
-      apiRequest(`/api/v1/projects/${projectId}/full-text/${id}`, {
+    mutationFn: ({ id, status, note, decision }: {
+      id: string
+      status: string
+      note: string | null
+      decision: RetrievalDecision | null
+    }) =>
+      apiRequest<{ decisionSubmitted: boolean }>(`/api/v1/projects/${projectId}/full-text/${id}`, {
         method: 'PUT',
-        body: JSON.stringify({ status, note }),
+        body: JSON.stringify({ status, note, decision }),
       }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: ['fulltext', projectId] })
@@ -67,16 +93,21 @@ export function FullTextPage() {
   const pendingRetrieval = list.find((retrieval) => retrieval.status === 'not_yet_sought')
     ?? list.find((retrieval) => retrieval.status === 'requested')
 
-  const handleSaveRetrieval = async (retrieval: Retrieval, status: string, note: string | null) => {
-    await updateRetrieval.mutateAsync({ id: retrieval.id, status, note })
-    if (status === 'available') queue.fetchNext()
+  const handleSubmit = async (
+    retrieval: Retrieval,
+    status: string,
+    note: string | null,
+    decision: RetrievalDecision | null,
+  ) => {
+    const result = await updateRetrieval.mutateAsync({ id: retrieval.id, status, note, decision })
+    if (status === 'available' && !result.decisionSubmitted) queue.fetchNext()
   }
 
   const isLoading = retrievals.isLoading || queue.loadingNext
 
   return (
     <main className="page">
-      <h1>Full-text</h1>
+      <h1>Full-Text</h1>
       {retrievals.error ? <p className="error" role="alert">{retrievals.error.message}</p> : null}
       {updateRetrieval.error ? <p className="error" role="alert">{updateRetrieval.error.message}</p> : null}
       {queue.nextError ? <p className="error" role="alert">{queue.nextError}</p> : null}
@@ -92,8 +123,9 @@ export function FullTextPage() {
       ) : pendingRetrieval ? (
         <RetrievalCard
           retrieval={pendingRetrieval}
+          criteria={criteria.data?.criteria ?? []}
           saving={updateRetrieval.isPending}
-          onSave={(status, note) => handleSaveRetrieval(pendingRetrieval, status, note)}
+          onSubmit={(status, note, decision) => handleSubmit(pendingRetrieval, status, note, decision)}
         />
       ) : (
         <p className="muted">No full-text work is currently available for you.</p>
@@ -102,15 +134,61 @@ export function FullTextPage() {
   )
 }
 
-function RetrievalCard({ retrieval, saving, onSave }: {
+function RetrievalCard({ retrieval, criteria, saving, onSubmit }: {
   retrieval: Retrieval
+  criteria: ScreeningCriterion[]
   saving: boolean
-  onSave: (status: string, note: string | null) => void
+  onSubmit: (status: string, note: string | null, decision: RetrievalDecision | null) => void
 }) {
   const [status, setStatus] = useState(retrieval.status)
   const [note, setNote] = useState(retrieval.note ?? '')
+  const [answers, setAnswers] = useState<Record<string, CriterionAnswer>>({})
+  const [outcome, setOutcome] = useState('include')
+  const [notes, setNotes] = useState('')
   const publication = retrieval.publication
   const link = publication.doi ? `https://doi.org/${publication.doi}` : publication.publisherUrl
+  const isAvailable = status === 'available'
+
+  useEffect(() => {
+    if (!isAvailable) return
+    setAnswers((current) => {
+      const next = { ...current }
+      let changed = false
+      criteria.forEach((criterion) => {
+        if (!(criterion.id in next)) {
+          next[criterion.id] = defaultAnswerForKind(criterion.kind)
+          changed = true
+        }
+      })
+      return changed ? next : current
+    })
+  }, [isAvailable, criteria])
+
+  useEffect(() => {
+    const shouldExclude = criteria.some((criterion) => (
+      (criterion.kind === 'inclusion' && answers[criterion.id] === false)
+      || (criterion.kind === 'exclusion' && answers[criterion.id] === true)
+    ))
+    if (shouldExclude) setOutcome('exclude')
+  }, [answers, criteria])
+
+  const criteriaComplete = criteria.every(
+    (criterion) => answers[criterion.id] !== null && answers[criterion.id] !== undefined,
+  )
+
+  const handleSubmit = () => {
+    if (isAvailable) {
+      onSubmit(status, note || null, {
+        outcome,
+        criteriaAnswers: Object.fromEntries(
+          criteria.map((criterion) => [criterion.id, answers[criterion.id] === true]),
+        ),
+        notes: notes || null,
+      })
+    } else {
+      onSubmit(status, note || null, null)
+    }
+  }
 
   return (
     <article className="card">
@@ -135,8 +213,28 @@ function RetrievalCard({ retrieval, saving, onSave }: {
         Note for {publication.title}
         <textarea value={note} onChange={(event) => setNote(event.target.value)} />
       </label>
-      <button type="button" onClick={() => onSave(status, note || null)} disabled={saving}>
-        Save
+      {isAvailable ? (
+        <>
+          <CriteriaAnswerFields
+            criteria={criteria}
+            answers={answers}
+            setAnswers={setAnswers}
+            outcome={outcome}
+            setOutcome={setOutcome}
+            notes={notes}
+            setNotes={setNotes}
+          />
+          {!criteriaComplete ? (
+            <p className="muted">Answer every criterion before submitting.</p>
+          ) : null}
+        </>
+      ) : null}
+      <button
+        type="button"
+        onClick={handleSubmit}
+        disabled={saving || (isAvailable && !criteriaComplete)}
+      >
+        Submit
       </button>
     </article>
   )

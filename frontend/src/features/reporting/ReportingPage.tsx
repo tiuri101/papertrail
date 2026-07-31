@@ -69,7 +69,7 @@ export function ReportingPage() {
 
   return (
     <main className="page">
-      <h1>Reporting and exports</h1>
+      <h1>Reporting and Exports</h1>
       {queryError ? <p className="error" role="alert">{queryError.message}</p> : null}
       {createExport.error ? <p className="error" role="alert">{createExport.error.message}</p> : null}
       {pendingJob && isJobActive(pendingJob.status) ? <p className="muted">Generating export…</p> : null}
@@ -79,7 +79,7 @@ export function ReportingPage() {
         </p>
       ) : null}
       <section className="card">
-        <h2>PRISMA 2020 counts</h2>
+        <h2>PRISMA 2020 Counts</h2>
         <pre>{JSON.stringify(prisma.data, null, 2)}</pre>
       </section>
       <div className="toolbar">
@@ -95,14 +95,14 @@ export function ReportingPage() {
           onClick={() => createExport.mutate('xlsx')}
           disabled={createExport.isPending}
         >
-          Generate Excel workbook
+          Generate Excel Workbook
         </button>
         <button
           type="button"
           onClick={() => createExport.mutate('prisma_tables')}
           disabled={createExport.isPending}
         >
-          Generate PRISMA supporting tables
+          Generate PRISMA Supporting Tables
         </button>
         <button
           type="button"
@@ -112,7 +112,7 @@ export function ReportingPage() {
           Generate BibTeX
         </button>
       </div>
-      <h2>Available exports</h2>
+      <h2>Available Exports</h2>
       <ul>
         {exportsQuery.data?.map((artifact) => (
           <li key={artifact.id}>
@@ -122,7 +122,7 @@ export function ReportingPage() {
             {' — '}{artifact.type}{' '}
             <ConfirmButton
               label="Delete"
-              confirmLabel="Delete export"
+              confirmLabel="Delete Export"
               warning={`Delete ${artifact.filename}? This cannot be undone.`}
               variant="danger"
               disabled={deleteExport.isPending}

@@ -22,6 +22,8 @@ from app.screening.service import (
     claim_next_work_item,
     create_screening_work_items,
     decisions_visible,
+    my_submitted_work_items,
+    stage_completed,
     submit_decision,
 )
 
@@ -217,3 +219,93 @@ def test_revising_decision_preserves_previous_revision(db) -> None:
     assert [decision.version for decision in decisions] == [1, 2]
     assert decisions[0].is_current is False
     assert revised.is_current is True
+
+
+def test_stage_completed_reflects_project_progress(db) -> None:
+    project, *_ = setup_screening(db)
+    assert stage_completed(project, ScreeningStage.TITLE_ABSTRACT) is False
+    project.stage = ProjectStage.FULL_TEXT
+    assert stage_completed(project, ScreeningStage.TITLE_ABSTRACT) is True
+    assert stage_completed(project, ScreeningStage.FULL_TEXT) is False
+
+
+def test_my_submitted_work_items_lists_only_own_submitted_decisions(db) -> None:
+    project, _, reviewer1, reviewer2, criteria = setup_screening(db)
+    create_screening_work_items(db, project, ScreeningStage.TITLE_ABSTRACT)
+    db.commit()
+    first = claim_next_work_item(
+        db, project.id, ScreeningStage.TITLE_ABSTRACT, reviewer1.id
+    )
+    claim_next_work_item(db, project.id, ScreeningStage.TITLE_ABSTRACT, reviewer2.id)
+    db.commit()
+
+    assert my_submitted_work_items(
+        db, project.id, ScreeningStage.TITLE_ABSTRACT, reviewer1.id
+    ) == []
+
+    submit_decision(
+        db, first, reviewer1.id, "include", {c.id: True for c in criteria}, None
+    )
+    db.commit()
+
+    mine = my_submitted_work_items(
+        db, project.id, ScreeningStage.TITLE_ABSTRACT, reviewer1.id
+    )
+    assert [item.id for item in mine] == [first.id]
+
+    # Not yet submitted by reviewer2, so it shouldn't show up for them either.
+    assert my_submitted_work_items(
+        db, project.id, ScreeningStage.TITLE_ABSTRACT, reviewer2.id
+    ) == []
+
+
+def test_reviewer_can_revise_decision_via_http_and_gets_flagged_after_completion(
+    client, db
+) -> None:
+    project, _, reviewer1, reviewer2, criteria = setup_screening(db)
+    create_screening_work_items(db, project, ScreeningStage.TITLE_ABSTRACT)
+    db.commit()
+    first = claim_next_work_item(
+        db, project.id, ScreeningStage.TITLE_ABSTRACT, reviewer1.id
+    )
+    second = claim_next_work_item(
+        db, project.id, ScreeningStage.TITLE_ABSTRACT, reviewer2.id
+    )
+    submit_decision(
+        db, first, reviewer1.id, "include", {c.id: True for c in criteria}, None
+    )
+    submit_decision(
+        db, second, reviewer2.id, "include", {c.id: True for c in criteria}, None
+    )
+    db.commit()
+    project.stage = ProjectStage.FULL_TEXT
+    db.commit()
+
+    login = client.post(
+        "/api/v1/auth/login", json={"username": "reviewer1", "password": "password-1"}
+    )
+    csrf = login.json()["csrfToken"]
+
+    listing = client.get(
+        f"/api/v1/projects/{project.id}/screening/title_abstract/my-decisions"
+    )
+    assert listing.status_code == 200
+    body = listing.json()
+    assert body["stageCompleted"] is True
+    assert len(body["items"]) == 1
+    assert body["items"][0]["workItemId"] == first.id
+    assert body["items"][0]["decision"]["outcome"] == "include"
+
+    revise = client.post(
+        f"/api/v1/projects/{project.id}/screening/work-items/{first.id}/decision",
+        headers={"X-CSRF-Token": csrf},
+        json={
+            "outcome": "exclude",
+            "criteriaAnswers": {c.id: False for c in criteria},
+            "notes": "changed my mind",
+        },
+    )
+    assert revise.status_code == 200
+    revised_body = revise.json()
+    assert revised_body["version"] == 2
+    assert revised_body["outcome"] == "exclude"

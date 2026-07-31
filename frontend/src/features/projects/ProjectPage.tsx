@@ -29,49 +29,58 @@ interface ProjectSectionGroup {
 
 const projectSectionGroups: ProjectSectionGroup[] = [
   {
-    heading: 'Setup & configuration',
+    heading: 'Setup & Configuration',
     stage: null,
     links: [
       ['admin', 'Administration'],
-      ['imports', 'Searches and imports'],
-      ['publications', 'Publications'],
-      ['forms', 'Forms and templates'],
+      ['research-agenda', 'Research Agenda'],
+      ['forms', 'Forms and Templates'],
       ['jobs', 'Jobs'],
+    ],
+  },
+  {
+    heading: 'Searches & Publications',
+    stage: null,
+    links: [
+      ['imports', 'Searches and Imports'],
+      ['publications', 'Publications'],
     ],
   },
   {
     heading: 'Deduplication',
     stage: 'duplicate_review',
-    links: [['duplicates', 'Duplicate review']],
+    links: [['duplicates', 'Duplicate Review']],
   },
   {
-    heading: 'Title/abstract screening',
+    heading: 'Title/Abstract Screening',
     stage: 'title_abstract_screening',
     links: [
-      ['screening/title_abstract', 'Title/abstract screening'],
-      ['conflicts/title_abstract', 'Title/abstract conflicts'],
+      ['screening/title_abstract', 'Title/Abstract Screening'],
+      ['screening/title_abstract/my-decisions', 'My Title/Abstract Decisions'],
+      ['conflicts/title_abstract', 'Title/Abstract Conflicts'],
     ],
   },
   {
-    heading: 'Full-text',
+    heading: 'Full-Text',
     stage: 'full_text_screening',
     links: [
-      ['full-text', 'Full-text'],
-      ['conflicts/full_text', 'Full-text conflicts'],
+      ['full-text', 'Full-Text'],
+      ['screening/full_text/my-decisions', 'My Full-Text Decisions'],
+      ['conflicts/full_text', 'Full-Text Conflicts'],
     ],
   },
   {
-    heading: 'Extraction & quality',
+    heading: 'Extraction & Quality',
     stage: 'extraction_quality',
     links: [
-      ['extraction', 'Data extraction'],
-      ['quality', 'Quality assessment'],
+      ['extraction', 'Data Extraction'],
+      ['quality', 'Quality Assessment'],
     ],
   },
   {
     heading: 'Reporting',
     stage: null,
-    links: [['reporting', 'Reporting and exports']],
+    links: [['reporting', 'Reporting and Exports']],
   },
 ]
 

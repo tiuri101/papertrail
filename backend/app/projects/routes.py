@@ -27,6 +27,7 @@ from app.projects.schemas import (
     HighlightKeywordsUpdate,
     MembershipCreate,
     MembershipResponse,
+    MembershipUpdate,
     OrderedTextCreate,
     ProjectChecklist,
     ProjectCreate,
@@ -42,12 +43,15 @@ from app.projects.schemas import (
 from app.projects.service import (
     add_membership,
     create_project,
+    get_membership,
     get_project,
     list_projects_for_user,
     next_position,
     parse_highlight_keywords,
+    remove_membership,
     require_project_access,
     serialize_highlight_keywords,
+    update_membership,
 )
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -177,6 +181,66 @@ def add_project_member(
     )
     db.commit()
     return membership
+
+
+@router.patch(
+    "/{project_id}/members/{member_id}",
+    response_model=MembershipResponse,
+)
+def update_project_member(
+    project_id: str,
+    member_id: str,
+    payload: MembershipUpdate,
+    admin: User = Depends(require_admin_csrf),
+    db: Session = Depends(get_db),
+):
+    get_project(db, project_id)
+    membership = get_membership(db, project_id, member_id)
+    membership = update_membership(
+        db,
+        membership,
+        can_title_abstract_screen=payload.can_title_abstract_screen,
+        can_full_text_screen=payload.can_full_text_screen,
+        can_extract=payload.can_extract,
+        can_assess_quality=payload.can_assess_quality,
+        can_adjudicate=payload.can_adjudicate,
+    )
+    record_audit(
+        db,
+        action="membership.updated",
+        entity_type="project_membership",
+        entity_id=membership.id,
+        project_id=project_id,
+        actor_id=admin.id,
+        summary="Updated reviewer stage assignments",
+    )
+    db.commit()
+    return membership
+
+
+@router.delete(
+    "/{project_id}/members/{member_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_project_member(
+    project_id: str,
+    member_id: str,
+    admin: User = Depends(require_admin_csrf),
+    db: Session = Depends(get_db),
+):
+    get_project(db, project_id)
+    membership = get_membership(db, project_id, member_id)
+    record_audit(
+        db,
+        action="membership.removed",
+        entity_type="project_membership",
+        entity_id=membership.id,
+        project_id=project_id,
+        actor_id=admin.id,
+        summary="Removed reviewer from project",
+    )
+    remove_membership(db, membership)
+    db.commit()
 
 
 @router.post(

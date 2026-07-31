@@ -31,13 +31,13 @@ describe('FormBuilderPage', () => {
 
     fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Urban review extraction' } })
     fireEvent.change(screen.getByLabelText('Kind'), { target: { value: 'extraction' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Create form' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create Form' }))
 
     await waitFor(() => expect(screen.getByLabelText('Form to edit')).toHaveValue('form-1'))
     fireEvent.change(screen.getByLabelText('Label'), { target: { value: 'Main finding' } })
     fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'long_text' } })
     fireEvent.click(screen.getByLabelText('Required'))
-    fireEvent.click(screen.getByRole('button', { name: 'Add field' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add Field' }))
 
     const row = (await screen.findByRole('cell', { name: 'Main finding' })).closest('tr')!
     expect(within(row).getByText('long_text')).toBeInTheDocument()
@@ -73,7 +73,7 @@ describe('FormBuilderPage', () => {
     fireEvent.change(await screen.findByLabelText('Label'), { target: { value: 'Study design' } })
     fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'single_select' } })
     fireEvent.change(screen.getByLabelText('Options (one per line)'), { target: { value: 'Experimental\nObservational' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Add field' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add Field' }))
 
     await waitFor(() => {
       const fieldCall = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/forms/form-1/fields') && init?.method === 'POST')
@@ -111,7 +111,7 @@ describe('FormBuilderPage', () => {
     fireEvent.change(screen.getByLabelText('Options (one per line)'), { target: { value: 'Strong\nWeak' } })
     fireEvent.change(screen.getByLabelText('Strong'), { target: { value: '2' } })
     fireEvent.change(screen.getByLabelText('Weak'), { target: { value: '0' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Add field' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add Field' }))
 
     await waitFor(() => {
       const fieldCall = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/forms/form-1/fields') && init?.method === 'POST')
@@ -231,7 +231,7 @@ describe('FormBuilderPage', () => {
     await screen.findByRole('option', { name: 'Extraction (extraction)' })
     fireEvent.change(screen.getByLabelText('Form to edit'), { target: { value: 'form-1' } })
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Change type…' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Change Type…' }))
     fireEvent.change(screen.getByLabelText('New type for Sample size'), { target: { value: 'number' } })
     fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
 
@@ -271,7 +271,7 @@ describe('FormBuilderPage', () => {
 
     await screen.findByRole('option', { name: 'General extraction' })
     fireEvent.change(screen.getByLabelText('Start from template (optional)'), { target: { value: 'template-1' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Create form' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Create Form' }))
 
     await waitFor(() => {
       const createCall = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/projects/p1/forms') && init?.method === 'POST')
@@ -280,7 +280,7 @@ describe('FormBuilderPage', () => {
     })
 
     await waitFor(() => expect(screen.getByLabelText('Form to edit')).toHaveValue('form-1'))
-    fireEvent.click(screen.getByRole('button', { name: 'Save as template' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save as Template' }))
 
     await waitFor(() => {
       const saveCall = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/forms/form-1/save-as-template') && init?.method === 'POST')
@@ -308,7 +308,7 @@ describe('FormBuilderPage', () => {
     fireEvent.click(enabledCheckbox)
     fireEvent.change(screen.getByLabelText('Mode'), { target: { value: 'numeric' } })
     fireEvent.change(screen.getByLabelText('Aggregation'), { target: { value: 'weighted_average' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save quality settings' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save Quality Settings' }))
 
     await waitFor(() => {
       const putCall = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/quality-config') && init?.method === 'PUT')

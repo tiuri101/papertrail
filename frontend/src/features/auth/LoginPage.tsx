@@ -41,7 +41,7 @@ export function LoginPage() {
         </div>
         <div className="login-heading">
           <p className="eyebrow">Academic review workspace</p>
-          <h1 id="login-title">Sign in to Papertrail</h1>
+          <h1 id="login-title">Sign In to Papertrail</h1>
           <p className="muted">Continue to your literature review projects.</p>
         </div>
         <form onSubmit={(event) => { event.preventDefault(); login.mutate() }}>
@@ -66,7 +66,7 @@ export function LoginPage() {
           </label>
           {login.error ? <p className="error alert" role="alert">{login.error.message}</p> : null}
           <button type="submit" disabled={login.isPending}>
-            {login.isPending ? 'Signing in…' : 'Sign in'}
+            {login.isPending ? 'Signing In…' : 'Sign In'}
           </button>
         </form>
       </section>

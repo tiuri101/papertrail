@@ -54,7 +54,7 @@ export function AppShell() {
               onClick={() => logout.mutate()}
               disabled={logout.isPending}
             >
-              Sign out
+              Sign Out
             </button>
           </div>
         </div>

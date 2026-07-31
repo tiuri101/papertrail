@@ -21,7 +21,7 @@ def login(client) -> str:
     return response.json()["csrfToken"]
 
 
-def complete_draft_setup(client, csrf: str, project_id: str) -> None:
+def complete_draft_setup(client, csrf: str, project_id: str, db) -> None:
     client.post(
         f"/api/v1/projects/{project_id}/research-questions",
         json={"text": "How is X studied?"},
@@ -42,6 +42,13 @@ def complete_draft_setup(client, csrf: str, project_id: str) -> None:
         json={"title": "A paper"},
         headers={"X-CSRF-Token": csrf},
     )
+    reviewer = create_user(db, "reviewer", "Reviewer", "secret-password")
+    db.commit()
+    client.post(
+        f"/api/v1/projects/{project_id}/members",
+        json={"userId": reviewer.id, "canTitleAbstractScreen": True},
+        headers={"X-CSRF-Token": csrf},
+    )
 
 
 def test_marking_a_draft_project_ready_queues_duplicate_detection(client, db) -> None:
@@ -53,7 +60,7 @@ def test_marking_a_draft_project_ready_queues_duplicate_detection(client, db) ->
         json={"name": "Review", "reviewType": "systematic_review"},
         headers={"X-CSRF-Token": csrf},
     ).json()["id"]
-    complete_draft_setup(client, csrf, project_id)
+    complete_draft_setup(client, csrf, project_id, db)
 
     ready = client.post(
         f"/api/v1/projects/{project_id}/ready", headers={"X-CSRF-Token": csrf}

@@ -21,7 +21,7 @@ describe('ResearchAgendaPanel', () => {
 
     expect(await screen.findByText('How is urban data visualized?')).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('New research question'), { target: { value: 'New question' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Add research question' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Add Research Question' }))
 
     await waitFor(() => {
       const call = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')

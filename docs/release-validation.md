@@ -1,5 +1,7 @@
 # Release Validation
 
+> Historical snapshot from an earlier development phase. Counts below (test totals, migration revision) are frozen at that point in time and do not reflect the current codebase; see CI for current results.
+
 ## Phase 16 validation
 
 - Backend automated tests: 42 passed

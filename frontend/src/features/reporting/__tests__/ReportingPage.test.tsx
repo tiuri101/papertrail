@@ -22,7 +22,7 @@ describe('ReportingPage', () => {
     renderWithProviders(<ReportingPage />, { route: '/projects/p1/reporting', path: '/projects/:projectId/reporting' })
 
     expect(await screen.findByText(/"recordsScreened": 120/)).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Generate Excel workbook' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Generate Excel Workbook' }))
 
     const link = await screen.findByRole('link', { name: 'papertrail.xlsx' })
     expect(link).toHaveAttribute('href', '/api/v1/projects/p1/exports/artifact-1/download')
@@ -63,9 +63,9 @@ describe('ReportingPage', () => {
       return jsonResponse([])
     })
     const { queryClient } = renderWithProviders(<ReportingPage />, { route: '/projects/p1/reporting', path: '/projects/:projectId/reporting' })
-    await screen.findByRole('heading', { name: 'Reporting and exports' })
+    await screen.findByRole('heading', { name: 'Reporting and Exports' })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Generate Excel workbook' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Generate Excel Workbook' }))
     expect(await screen.findByText('Generating export…')).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'papertrail.xlsx' })).not.toBeInTheDocument()
 
@@ -94,7 +94,7 @@ describe('ReportingPage', () => {
     expect(link).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Delete export' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Export' }))
 
     await waitForElementToBeRemoved(() => screen.queryByRole('link', { name: 'Review_2026-07-30.xlsx' }))
     const deleteCall = fetchMock.mock.calls.find(([, init]) => init?.method === 'DELETE')
@@ -104,11 +104,11 @@ describe('ReportingPage', () => {
   it('offers all required export families', async () => {
     mockFetch(async (input) => String(input).endsWith('/prisma') ? jsonResponse({}) : jsonResponse([]))
     renderWithProviders(<ReportingPage />, { route: '/projects/p1/reporting', path: '/projects/:projectId/reporting' })
-    await screen.findByRole('heading', { name: 'Reporting and exports' })
+    await screen.findByRole('heading', { name: 'Reporting and Exports' })
 
     expect(screen.getByRole('button', { name: 'Generate PRISMA SVG' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Generate Excel workbook' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Generate PRISMA supporting tables' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Generate Excel Workbook' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Generate PRISMA Supporting Tables' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Generate BibTeX' })).toBeInTheDocument()
   })
 })

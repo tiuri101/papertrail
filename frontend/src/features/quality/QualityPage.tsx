@@ -113,7 +113,7 @@ export function QualityPage() {
 
   return (
     <main className="page">
-      <h1>Quality assessment</h1>
+      <h1>Quality Assessment</h1>
       {lastScore !== null ? (
         <p>Submitted — total score: {lastScore}</p>
       ) : null}
@@ -156,7 +156,7 @@ export function QualityPage() {
             ) : null}
             {submit.error ? <p className="error" role="alert">{submit.error.message}</p> : null}
             <button type="submit" disabled={submit.isPending || missingRequired}>
-              Submit assessment
+              Submit Assessment
             </button>
           </form>
         </article>

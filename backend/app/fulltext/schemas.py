@@ -22,8 +22,18 @@ class RetrievalResponse(ApiModel):
     publication: RetrievalPublication
     status: str
     note: str | None
+    decision_submitted: bool = Field(
+        default=False, serialization_alias="decisionSubmitted"
+    )
+
+
+class RetrievalDecisionSubmit(ApiModel):
+    outcome: str
+    criteria_answers: dict[str, bool] = Field(alias="criteriaAnswers")
+    notes: str | None = None
 
 
 class RetrievalUpdate(ApiModel):
     status: str
     note: str | None = None
+    decision: RetrievalDecisionSubmit | None = None

@@ -6,7 +6,7 @@ The installation administrator creates all local user accounts and manages every
 
 1. Create reviewer accounts.
 2. Create a project and add eligible reviewers.
-3. Define research questions, criteria, screening settings, and exclusion reasons.
+3. Define research questions, criteria, and screening settings.
 4. Document each database search and import its export file.
 5. Review metadata and run enrichment where required.
 6. Resolve all duplicate candidates.

@@ -9,7 +9,7 @@ from app.audit.service import record_audit
 from app.db.session import get_db
 from app.fulltext.models import FullTextRetrieval, RetrievalStatus
 from app.fulltext.schemas import RetrievalResponse, RetrievalUpdate
-from app.fulltext.service import set_retrieval_status, transition_if_full_text_complete
+from app.fulltext.service import resolve_retrieval, transition_if_full_text_complete
 from app.projects.service import get_project, require_project_access
 
 router = APIRouter(tags=["full text"])
@@ -45,12 +45,17 @@ def update_retrieval(
     retrieval = db.get(FullTextRetrieval, retrieval_id)
     if retrieval is None or retrieval.project_id != project_id:
         raise NotFoundError("Full-text retrieval record not found")
-    set_retrieval_status(
+    decision = resolve_retrieval(
         db,
         retrieval,
         RetrievalStatus(payload.status),
         note=payload.note,
         user_id=session.user.id,
+        decision_outcome=payload.decision.outcome if payload.decision else None,
+        decision_criteria_answers=payload.decision.criteria_answers
+        if payload.decision
+        else None,
+        decision_notes=payload.decision.notes if payload.decision else None,
     )
     transition_if_full_text_complete(db, get_project(db, project_id))
     record_audit(
@@ -62,5 +67,21 @@ def update_retrieval(
         actor_id=session.user.id,
         summary=f"Set full-text retrieval status to {retrieval.status.value}",
     )
+    if decision is not None:
+        record_audit(
+            db,
+            action="screening.decision_submitted",
+            entity_type="screening_decision",
+            entity_id=decision.id,
+            project_id=project_id,
+            actor_id=session.user.id,
+            summary="Submitted full_text screening decision",
+            metadata={
+                "outcome": decision.outcome.value,
+                "version": decision.version,
+                "criteriaAnswers": decision.criteria_answers,
+            },
+        )
+    retrieval.decision_submitted = decision is not None
     db.commit()
     return retrieval

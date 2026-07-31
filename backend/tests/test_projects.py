@@ -49,6 +49,57 @@ def test_admin_creates_project_and_reviewer_only_sees_memberships(client, db) ->
     assert client.get("/api/v1/projects").json() == []
 
 
+def test_admin_updates_and_removes_project_membership(client, db) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    reviewer = create_user(db, "reviewer", "Reviewer", "reviewer-password")
+    db.commit()
+
+    csrf = login(client, "admin", "secret-password")
+    created = client.post(
+        "/api/v1/projects",
+        json={"name": "Urban VR Review", "reviewType": "systematic_review"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    project_id = created.json()["id"]
+
+    membership = client.post(
+        f"/api/v1/projects/{project_id}/members",
+        json={
+            "userId": reviewer.id,
+            "canTitleAbstractScreen": True,
+            "canFullTextScreen": False,
+            "canExtract": False,
+            "canAssessQuality": False,
+            "canAdjudicate": False,
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+    member_id = membership.json()["id"]
+
+    updated = client.patch(
+        f"/api/v1/projects/{project_id}/members/{member_id}",
+        json={
+            "canTitleAbstractScreen": True,
+            "canFullTextScreen": True,
+            "canExtract": False,
+            "canAssessQuality": False,
+            "canAdjudicate": False,
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["canFullTextScreen"] is True
+
+    removed = client.delete(
+        f"/api/v1/projects/{project_id}/members/{member_id}",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert removed.status_code == 204
+
+    detail = client.get(f"/api/v1/projects/{project_id}")
+    assert detail.json()["memberships"] == []
+
+
 def test_project_configuration_supports_questions_criteria_and_stage_settings(
     client, db
 ) -> None:

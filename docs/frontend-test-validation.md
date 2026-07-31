@@ -1,5 +1,7 @@
 # Frontend test validation report
 
+> Historical snapshot from an earlier development phase. Test counts and file counts below are frozen at that point in time and do not reflect the current suite; see [Frontend testing](frontend-testing.md) for the current test layout and CI for current results.
+
 ## Added test coverage
 
 The placeholder smoke test was removed and replaced by:

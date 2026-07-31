@@ -42,9 +42,9 @@ export function AccountSettingsPage() {
 
   return (
     <main className="page">
-      <h1>Account settings</h1>
+      <h1>Account Settings</h1>
       <section className="card">
-        <h2>Display name</h2>
+        <h2>Display Name</h2>
         <form onSubmit={(event) => { event.preventDefault(); updateProfile.mutate() }}>
           <label>
             Display name
@@ -57,7 +57,7 @@ export function AccountSettingsPage() {
           {updateProfile.error ? <p className="error" role="alert">{updateProfile.error.message}</p> : null}
           {updateProfile.isSuccess ? <p>Display name updated.</p> : null}
           <button type="submit" disabled={updateProfile.isPending || !displayName.trim()}>
-            Save display name
+            Save Display Name
           </button>
         </form>
       </section>
@@ -108,7 +108,7 @@ export function AccountSettingsPage() {
               || passwordsMismatch
             }
           >
-            Change password
+            Change Password
           </button>
         </form>
       </section>

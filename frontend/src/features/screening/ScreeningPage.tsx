@@ -1,4 +1,4 @@
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 import { ScreeningItemCard } from './ScreeningItemCard'
@@ -13,9 +13,10 @@ export function ScreeningPage() {
     <main className="page">
       <h1>
         {stage === 'full_text'
-          ? 'Full-text screening'
-          : 'Title and abstract screening'}
+          ? 'Full-Text Screening'
+          : 'Title and Abstract Screening'}
       </h1>
+      <p><Link to={`/projects/${projectId}/screening/${stage}/my-decisions`}>Review or change my past decisions</Link></p>
       {!queue.item ? (
         <>
           {queue.loadingNext ? <p>Loading the next publication…</p> : null}

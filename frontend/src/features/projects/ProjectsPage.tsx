@@ -21,10 +21,10 @@ const reviewTypeLabels: Record<string, string> = {
 
 const stageLabels: Record<string, string> = {
   draft: 'Draft',
-  duplicate_review: 'Duplicate review',
-  title_abstract_screening: 'Title & abstract screening',
-  full_text_screening: 'Full-text screening',
-  extraction_quality: 'Extraction & quality assessment',
+  duplicate_review: 'Duplicate Review',
+  title_abstract_screening: 'Title & Abstract Screening',
+  full_text_screening: 'Full-Text Screening',
+  extraction_quality: 'Extraction & Quality Assessment',
   completed: 'Completed',
 }
 
@@ -83,7 +83,7 @@ export function ProjectsPage() {
       </ul>
       {showForm ? (
         <section className="card">
-          <h2>Create project</h2>
+          <h2>Create Project</h2>
           <form onSubmit={(event) => { event.preventDefault(); create.mutate() }}>
             <label>
               Project name
@@ -111,7 +111,7 @@ export function ProjectsPage() {
           {create.error ? <p className="error" role="alert">{create.error.message}</p> : null}
         </section>
       ) : (
-        <button type="button" onClick={() => setShowForm(true)}>New project</button>
+        <button type="button" onClick={() => setShowForm(true)}>New Project</button>
       )}
     </main>
   )

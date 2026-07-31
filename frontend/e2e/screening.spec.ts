@@ -1,7 +1,7 @@
 import { expect, test } from '@playwright/test'
 
 test(
-    'reviewer completes every criterion and excludes a publication with a reason',
+    'reviewer completes every criterion and excludes a publication',
     async ({ page }) => {
       let submittedDecision: unknown = null
       let decisionSubmitted = false
@@ -29,15 +29,7 @@ test(
             await route.fulfill({
               status: 200,
               contentType: 'application/json',
-              body: JSON.stringify({
-                exclusionReasons: [
-                  {
-                    id: 'wrong-topic',
-                    stage: 'full_text',
-                    label: 'Wrong topic',
-                  },
-                ],
-              }),
+              body: JSON.stringify({}),
             })
           },
       )
@@ -114,11 +106,7 @@ test(
           .check()
 
       await expect(page.getByLabel('Decision')).toHaveValue('exclude')
-      await expect(submit).toBeDisabled()
-
-      await page
-          .getByLabel('Exclusion reason')
-          .selectOption('wrong-topic')
+      await expect(submit).toBeEnabled()
 
       await page
           .getByLabel('Notes')
@@ -137,7 +125,6 @@ test(
           'include-vr': false,
           'exclude-editorial': false,
         },
-        exclusionReasonId: 'wrong-topic',
         notes: 'Outside the intended scope.',
       })
     },

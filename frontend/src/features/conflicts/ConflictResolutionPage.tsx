@@ -79,7 +79,7 @@ export function ConflictResolutionPage() {
 
   return (
     <main className="page">
-      <h1>Conflict resolution</h1>
+      <h1>Conflict Resolution</h1>
       {conflicts.error ? <p className="error" role="alert">{conflicts.error.message}</p> : null}
       {resolve.error ? <p className="error" role="alert">{resolve.error.message}</p> : null}
       {addReviewer.error ? <p className="error" role="alert">{addReviewer.error.message}</p> : null}
@@ -117,7 +117,7 @@ function ConflictCard({ conflict, resolving, addingReviewer, onResolve, onAddRev
       <p className="muted">{publication.authors ?? 'Unknown authors'}</p>
       {publication.abstract ? <p>{publication.abstract}</p> : null}
       {link ? <p><a href={link} target="_blank" rel="noreferrer">View publication</a></p> : null}
-      <h3>Reviewer decisions</h3>
+      <h3>Reviewer Decisions</h3>
       <table>
         <thead>
           <tr>
@@ -152,7 +152,7 @@ function ConflictCard({ conflict, resolving, addingReviewer, onResolve, onAddRev
           </button>
         ))}
         <button type="button" onClick={onAddReviewer} disabled={addingReviewer}>
-          Add another reviewer
+          Add Another Reviewer
         </button>
       </div>
     </li>

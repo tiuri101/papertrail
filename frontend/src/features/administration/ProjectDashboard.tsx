@@ -17,7 +17,7 @@ export function ProjectDashboard({ projectId }: { projectId: string }) {
 
   return (
     <section className="card">
-      <h2>Project status</h2>
+      <h2>Project Status</h2>
       <table>
         <thead>
           <tr>

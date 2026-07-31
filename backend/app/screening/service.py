@@ -4,7 +4,7 @@ import hashlib
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import and_, func, or_, select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.accounts.models import User
 from app.api.errors import DomainError, ForbiddenError, NotFoundError
@@ -12,6 +12,7 @@ from app.projects.models import (
     Criterion,
     Project,
     ProjectMembership,
+    ProjectStage,
     ScreeningConfig,
     ScreeningStage,
 )
@@ -43,7 +44,7 @@ def eligible_reviewer_ids(
         if stage == ScreeningStage.TITLE_ABSTRACT
         else ProjectMembership.can_full_text_screen
     )
-    member_ids = list(
+    return list(
         db.scalars(
             select(User.id)
             .join(ProjectMembership, ProjectMembership.user_id == User.id)
@@ -55,14 +56,6 @@ def eligible_reviewer_ids(
             .order_by(User.username)
         )
     )
-    admin_ids = list(
-        db.scalars(
-            select(User.id)
-            .where(User.is_admin.is_(True), User.is_active.is_(True))
-            .order_by(User.username)
-        )
-    )
-    return list(dict.fromkeys(member_ids + admin_ids))
 
 
 def get_screening_config(
@@ -135,6 +128,7 @@ def claim_next_work_item(
     project_id: str,
     stage: ScreeningStage,
     reviewer_id: str,
+    publication_id: str | None = None,
 ) -> ScreeningWorkItem | None:
     now = utcnow()
     already_for_publication = select(ScreeningWorkItem.publication_id).where(
@@ -148,23 +142,26 @@ def claim_next_work_item(
             [WorkItemStatus.RESERVED, WorkItemStatus.SUBMITTED]
         ),
     )
+    filters = [
+        ScreeningWorkItem.project_id == project_id,
+        ScreeningWorkItem.stage == stage,
+        ScreeningWorkItem.assigned_reviewer_id == reviewer_id,
+        ScreeningWorkItem.status != WorkItemStatus.SUBMITTED,
+        or_(
+            ScreeningWorkItem.status == WorkItemStatus.AVAILABLE,
+            and_(
+                ScreeningWorkItem.status == WorkItemStatus.RESERVED,
+                ScreeningWorkItem.reserved_until < now,
+            ),
+            ScreeningWorkItem.reserved_by_id == reviewer_id,
+        ),
+        ~ScreeningWorkItem.publication_id.in_(already_for_publication),
+    ]
+    if publication_id is not None:
+        filters.append(ScreeningWorkItem.publication_id == publication_id)
     query = (
         select(ScreeningWorkItem)
-        .where(
-            ScreeningWorkItem.project_id == project_id,
-            ScreeningWorkItem.stage == stage,
-            ScreeningWorkItem.assigned_reviewer_id == reviewer_id,
-            ScreeningWorkItem.status != WorkItemStatus.SUBMITTED,
-            or_(
-                ScreeningWorkItem.status == WorkItemStatus.AVAILABLE,
-                and_(
-                    ScreeningWorkItem.status == WorkItemStatus.RESERVED,
-                    ScreeningWorkItem.reserved_until < now,
-                ),
-                ScreeningWorkItem.reserved_by_id == reviewer_id,
-            ),
-            ~ScreeningWorkItem.publication_id.in_(already_for_publication),
-        )
+        .where(*filters)
         .order_by(ScreeningWorkItem.random_rank, ScreeningWorkItem.slot_number)
         .limit(1)
     )
@@ -294,5 +291,47 @@ def current_decisions(
                 ScreeningDecision.is_current.is_(True),
             )
             .order_by(ScreeningWorkItem.slot_number)
+        )
+    )
+
+
+_PROJECT_STAGE_ORDER = [
+    ProjectStage.DRAFT,
+    ProjectStage.DUPLICATE_REVIEW,
+    ProjectStage.TITLE_ABSTRACT,
+    ProjectStage.FULL_TEXT,
+    ProjectStage.EXTRACTION,
+    ProjectStage.COMPLETED,
+]
+
+_PROJECT_STAGE_FOR_SCREENING_STAGE = {
+    ScreeningStage.TITLE_ABSTRACT: ProjectStage.TITLE_ABSTRACT,
+    ScreeningStage.FULL_TEXT: ProjectStage.FULL_TEXT,
+}
+
+
+def stage_completed(project: Project, stage: ScreeningStage) -> bool:
+    """Whether the project has already moved past the given screening stage."""
+    reached = _PROJECT_STAGE_FOR_SCREENING_STAGE[stage]
+    return _PROJECT_STAGE_ORDER.index(project.stage) > _PROJECT_STAGE_ORDER.index(
+        reached
+    )
+
+
+def my_submitted_work_items(
+    db: Session, project_id: str, stage: ScreeningStage, reviewer_id: str
+) -> list[ScreeningWorkItem]:
+    """A reviewer's own submitted work items for a stage, most recent first."""
+    return list(
+        db.scalars(
+            select(ScreeningWorkItem)
+            .options(selectinload(ScreeningWorkItem.decisions))
+            .where(
+                ScreeningWorkItem.project_id == project_id,
+                ScreeningWorkItem.stage == stage,
+                ScreeningWorkItem.assigned_reviewer_id == reviewer_id,
+                ScreeningWorkItem.status == WorkItemStatus.SUBMITTED,
+            )
+            .order_by(ScreeningWorkItem.submitted_at.desc())
         )
     )

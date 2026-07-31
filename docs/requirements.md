@@ -76,7 +76,6 @@ There is one installation-wide administrator. The administrator can:
 - Trigger metadata enrichment for one or multiple records.
 - Resolve metadata conflicts.
 - Configure screening procedures.
-- Create and edit exclusion reasons.
 - Create extraction and quality-assessment templates.
 - Create and edit project-specific forms.
 - Record final consensus decisions.
@@ -100,7 +99,7 @@ A reviewer can belong to multiple projects. Reviewer eligibility is configured i
 
 Reviewers can only access and perform activities for which they are eligible.
 
-Reviewers do not see extraction or quality-assessment data assigned to other reviewers. They may see other reviewers’ screening decisions, criterion selections, notes, and exclusion reasons after all required independent decisions have been submitted.
+Reviewers do not see extraction or quality-assessment data assigned to other reviewers. They may see other reviewers’ screening decisions, criterion selections, and notes after all required independent decisions have been submitted.
 
 ---
 
@@ -117,8 +116,6 @@ Each project contains:
 - Project members
 - Reviewer eligibility
 - Screening configuration
-- Title/abstract exclusion reasons
-- Full-text exclusion reasons
 - Search documentation
 - Imported publication records
 - Duplicate-resolution state
@@ -364,7 +361,6 @@ Each stage can independently configure:
 - Independent screening or divided screening
 - Conflict-resolution method
 - Handling of uncertain decisions
-- Exclusion reasons
 - Reviewer eligibility
 
 The number of required reviewers can differ between title/abstract and full-text screening.
@@ -378,9 +374,7 @@ Available decisions are:
 - Uncertain
 - Duplicate
 
-Exactly one exclusion reason is required when a publication is excluded.
-
-Screening notes are optional for all decisions.
+Screening notes are optional for all decisions, including exclusions.
 
 ### 12.2 Criteria checklists
 
@@ -425,7 +419,7 @@ When multiple independent reviewers are required:
 - Each publication has the configured number of reviewer slots.
 - A reviewer cannot fill more than one slot for the same publication.
 - Decisions remain hidden until all required reviewers have submitted.
-- After reveal, reviewers can see the other decisions, criteria, notes, and exclusion reasons.
+- After reveal, reviewers can see the other decisions, criteria, and notes.
 
 ---
 
@@ -500,10 +494,6 @@ Full-text screening uses the standard decisions:
 - Exclude
 - Uncertain
 - Duplicate
-
-An exclusion requires exactly one full-text exclusion reason.
-
-The full-text exclusion-reason list initially copies the title/abstract exclusion-reason list. The two lists can subsequently be edited independently.
 
 ---
 
@@ -644,7 +634,7 @@ The application records and calculates counts for at least:
 - Reports sought for retrieval
 - Reports not retrieved
 - Reports assessed for eligibility
-- Reports excluded at full-text stage, grouped by reason
+- Reports excluded at full-text stage
 - Publications included in the review
 
 Because Papertrail uses publications as review units and does not model multiple reports per underlying study, the included-publication count is also used as the final included-study count.
@@ -672,7 +662,6 @@ Papertrail generates one XLSX workbook with separate worksheets for at least:
 - Title/abstract screening
 - Full-text retrieval
 - Full-text screening
-- Exclusion reasons
 - Included publications
 - Extraction data
 - Quality-assessment data
@@ -686,7 +675,7 @@ Papertrail exports:
 
 - PRISMA 2020 flow counts
 - PRISMA supporting tables
-- Full-text exclusions with reasons
+- Full-text exclusions
 - SVG flow diagram
 
 ### 22.3 BibTeX export
@@ -774,7 +763,6 @@ The screening view should display at least:
 - Inclusion-criteria checklist
 - Exclusion-criteria checklist
 - Decision controls
-- Exclusion reason when applicable
 - Optional notes
 - Queue actions
 
@@ -790,7 +778,6 @@ Administrative views are required for:
 - Imports and column mapping
 - Metadata conflict resolution
 - Duplicate review
-- Exclusion-reason configuration
 - Screening configuration
 - Conflict resolution
 - Form and template editing
@@ -953,7 +940,7 @@ These extensions are not required for the initial implementation.
 Papertrail can be considered functionally complete for its first release when an administrator can:
 
 1. Create users and a review project.
-2. Define research questions, criteria, exclusion reasons, and reviewer rules.
+2. Define research questions, criteria, and reviewer rules.
 3. Document searches and import records from supported formats.
 4. Normalize records and enrich missing metadata.
 5. Resolve every duplicate suggestion and perform reversible merges.

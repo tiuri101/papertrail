@@ -31,7 +31,7 @@ describe('ProjectDetailsPanel', () => {
 
     const input = await screen.findByDisplayValue('Urban VR Review')
     fireEvent.change(input, { target: { value: 'Renamed Review' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save changes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
 
     await waitFor(() => {
       const call = fetchMock.mock.calls.find(([, init]) => init?.method === 'PATCH')

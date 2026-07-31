@@ -257,11 +257,11 @@ export function FormBuilderPage() {
 
   return (
     <main className="page">
-      <h1>Forms and templates</h1>
+      <h1>Forms and Templates</h1>
       {forms.error ? <p className="error" role="alert">{forms.error.message}</p> : null}
       {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
       <section className="card">
-        <h2>Quality assessment settings</h2>
+        <h2>Quality Assessment Settings</h2>
         {qualityConfig.error ? <p className="error" role="alert">{qualityConfig.error.message}</p> : null}
         {qualityConfig.isLoading ? <p>Loading…</p> : (
           <form onSubmit={(event) => { event.preventDefault(); saveQualityConfig.mutate() }}>
@@ -290,12 +290,12 @@ export function FormBuilderPage() {
               </select>
             </label>
             {saveQualityConfig.error ? <p className="error" role="alert">{saveQualityConfig.error.message}</p> : null}
-            <button type="submit" disabled={saveQualityConfig.isPending}>Save quality settings</button>
+            <button type="submit" disabled={saveQualityConfig.isPending}>Save Quality Settings</button>
           </form>
         )}
       </section>
       <section className="card">
-        <h2>Create project form</h2>
+        <h2>Create Project Form</h2>
         <p className="muted">
           Each project has one extraction form and one quality form. These are the forms used
           when reviewers extract data or assess quality — there's no separate "active" form to
@@ -306,7 +306,7 @@ export function FormBuilderPage() {
             This project already has a {kind === 'quality' ? 'quality assessment' : kind} form:{' '}
             <strong>{existingFormOfKind.name}</strong>.{' '}
             <button type="button" onClick={() => setSelectedForm(existingFormOfKind.id)}>
-              Edit it below
+              Edit It Below
             </button>
           </p>
         ) : (
@@ -335,7 +335,7 @@ export function FormBuilderPage() {
               </select>
             </label>
             {templates.error ? <p className="error" role="alert">{templates.error.message}</p> : null}
-            <button type="submit" disabled={createForm.isPending}>Create form</button>
+            <button type="submit" disabled={createForm.isPending}>Create Form</button>
           </form>
         )}
       </section>
@@ -355,7 +355,7 @@ export function FormBuilderPage() {
       </label>
       {selectedForm ? (
         <section className="card">
-          <h2>Add field</h2>
+          <h2>Add Field</h2>
           <form onSubmit={(event) => { event.preventDefault(); addField.mutate() }}>
             <label>
               Label
@@ -432,7 +432,7 @@ export function FormBuilderPage() {
                 </label>
               </>
             ) : null}
-            <button type="submit" disabled={addField.isPending}>Add field</button>
+            <button type="submit" disabled={addField.isPending}>Add Field</button>
           </form>
           <h3>Fields</h3>
           {fields.error ? <p className="error" role="alert">{fields.error.message}</p> : null}
@@ -529,7 +529,7 @@ export function FormBuilderPage() {
                               setReplaceType(field.fieldType)
                             }}
                           >
-                            Change type…
+                            Change Type…
                           </button>
                         )}
                       </div>
@@ -539,7 +539,7 @@ export function FormBuilderPage() {
               ))}
             </tbody>
           </table>
-          <h3>Save as reusable template</h3>
+          <h3>Save as Reusable Template</h3>
           <p className="muted">Saves the current fields as a new template. Later edits to this project form won't affect the template, or vice versa.</p>
           <form onSubmit={(event) => { event.preventDefault(); saveAsTemplate.mutate() }}>
             <label>
@@ -551,7 +551,7 @@ export function FormBuilderPage() {
               />
             </label>
             {saveAsTemplate.isSuccess ? <p>Template saved.</p> : null}
-            <button type="submit" disabled={saveAsTemplate.isPending}>Save as template</button>
+            <button type="submit" disabled={saveAsTemplate.isPending}>Save as Template</button>
           </form>
           {activeFields.length ? (
             <>

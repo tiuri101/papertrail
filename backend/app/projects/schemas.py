@@ -43,6 +43,16 @@ class MembershipCreate(ApiModel):
     can_adjudicate: bool = Field(default=False, alias="canAdjudicate")
 
 
+class MembershipUpdate(ApiModel):
+    can_title_abstract_screen: bool = Field(
+        default=False, alias="canTitleAbstractScreen"
+    )
+    can_full_text_screen: bool = Field(default=False, alias="canFullTextScreen")
+    can_extract: bool = Field(default=False, alias="canExtract")
+    can_assess_quality: bool = Field(default=False, alias="canAssessQuality")
+    can_adjudicate: bool = Field(default=False, alias="canAdjudicate")
+
+
 class MembershipResponse(ApiModel):
     id: str
     user_id: str = Field(serialization_alias="userId")

@@ -47,7 +47,7 @@ describe('AppShell', () => {
     const fetchMock = mockFetch(() => emptyResponse())
     const { queryClient } = renderShell(reviewerSession)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Sign Out' }))
 
     expect(await screen.findByText('Login page')).toBeInTheDocument()
     expect(queryClient.getQueryData(['session'])).toBeUndefined()
@@ -59,7 +59,7 @@ describe('AppShell', () => {
     mockFetch(() => jsonResponse({ error: { message: 'Logout failed' } }, 500))
     renderShell(reviewerSession)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Sign out' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Sign Out' }))
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Logout failed'))
     expect(screen.getByText('Dashboard')).toBeInTheDocument()

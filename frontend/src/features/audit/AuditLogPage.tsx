@@ -25,7 +25,7 @@ export function AuditLogPage() {
 
   return (
     <main className="page">
-      <h1>Audit log</h1>
+      <h1>Audit Log</h1>
       <p className="muted">A record of significant actions taken on this project, most recent first.</p>
       {events.error ? <p className="error" role="alert">{events.error.message}</p> : null}
       {events.isLoading ? <p>Loading…</p> : null}

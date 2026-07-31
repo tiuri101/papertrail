@@ -29,6 +29,23 @@
   --color-focus: rgba(143, 166, 255, 0.35);
   --color-overlay: rgba(3, 7, 18, 0.64);
 
+  --kw-0-fg: #f6c76c;
+  --kw-0-bg: rgba(246, 199, 108, 0.16);
+  --kw-1-fg: #7dd3fc;
+  --kw-1-bg: rgba(125, 211, 252, 0.16);
+  --kw-2-fg: #6ee7b7;
+  --kw-2-bg: rgba(110, 231, 183, 0.16);
+  --kw-3-fg: #fca5c5;
+  --kw-3-bg: rgba(252, 165, 197, 0.16);
+  --kw-4-fg: #c4b5fd;
+  --kw-4-bg: rgba(196, 181, 253, 0.16);
+  --kw-5-fg: #5eead4;
+  --kw-5-bg: rgba(94, 234, 212, 0.16);
+  --kw-6-fg: #fdba74;
+  --kw-6-bg: rgba(253, 186, 116, 0.16);
+  --kw-7-fg: #fca5a5;
+  --kw-7-bg: rgba(252, 165, 165, 0.16);
+
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.22);
   --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.22);
   --shadow-lg: 0 28px 80px rgba(0, 0, 0, 0.32);
@@ -84,6 +101,23 @@
   --color-danger-container: rgba(191, 63, 70, 0.09);
   --color-focus: rgba(83, 105, 216, 0.25);
   --color-overlay: rgba(21, 29, 43, 0.4);
+
+  --kw-0-fg: #9d6712;
+  --kw-0-bg: rgba(157, 103, 18, 0.14);
+  --kw-1-fg: #0369a1;
+  --kw-1-bg: rgba(3, 105, 161, 0.12);
+  --kw-2-fg: #15803d;
+  --kw-2-bg: rgba(21, 128, 61, 0.12);
+  --kw-3-fg: #be185d;
+  --kw-3-bg: rgba(190, 24, 93, 0.1);
+  --kw-4-fg: #6d28d9;
+  --kw-4-bg: rgba(109, 40, 217, 0.1);
+  --kw-5-fg: #0f766e;
+  --kw-5-bg: rgba(15, 118, 110, 0.1);
+  --kw-6-fg: #c2410c;
+  --kw-6-bg: rgba(194, 65, 12, 0.12);
+  --kw-7-fg: #b91c1c;
+  --kw-7-bg: rgba(185, 28, 28, 0.1);
 
   --shadow-sm: 0 1px 2px rgba(28, 39, 60, 0.08);
   --shadow-md: 0 12px 32px rgba(28, 39, 60, 0.09);
@@ -256,6 +290,30 @@ form > button:only-of-type {
 label {
   display: grid;
   gap: var(--space-2);
+  color: var(--color-text-secondary);
+  font-size: 0.9rem;
+  font-weight: 640;
+}
+
+label:where(:has(> input[type='checkbox'])),
+label:where(:has(> input[type='radio'])) {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+fieldset {
+  min-width: 0;
+  margin: 0;
+  border: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+legend {
+  padding: 0;
+  margin-bottom: var(--space-1);
   color: var(--color-text-secondary);
   font-size: 0.9rem;
   font-weight: 640;
@@ -606,6 +664,56 @@ form .toolbar,
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-5);
+}
+
+mark {
+  border-radius: 4px;
+  background: var(--kw-0-bg);
+  padding: 0.05em 0.2em;
+  color: var(--kw-0-fg);
+  font-weight: 650;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.mark-kw-0 {
+  background: var(--kw-0-bg);
+  color: var(--kw-0-fg);
+}
+
+.mark-kw-1 {
+  background: var(--kw-1-bg);
+  color: var(--kw-1-fg);
+}
+
+.mark-kw-2 {
+  background: var(--kw-2-bg);
+  color: var(--kw-2-fg);
+}
+
+.mark-kw-3 {
+  background: var(--kw-3-bg);
+  color: var(--kw-3-fg);
+}
+
+.mark-kw-4 {
+  background: var(--kw-4-bg);
+  color: var(--kw-4-fg);
+}
+
+.mark-kw-5 {
+  background: var(--kw-5-bg);
+  color: var(--kw-5-fg);
+}
+
+.mark-kw-6 {
+  background: var(--kw-6-bg);
+  color: var(--kw-6-fg);
+}
+
+.mark-kw-7 {
+  background: var(--kw-7-bg);
+  color: var(--kw-7-fg);
 }
 
 .error {

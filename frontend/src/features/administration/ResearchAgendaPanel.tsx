@@ -225,7 +225,7 @@ export function ResearchAgendaPanel({ projectId }: { projectId: string }) {
   return (
     <>
       <section className="card">
-        <h2>Research questions</h2>
+        <h2>Research Questions</h2>
         {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
         <table>
           <thead>
@@ -257,12 +257,12 @@ export function ResearchAgendaPanel({ projectId }: { projectId: string }) {
               required
             />
           </label>
-          <button type="submit" disabled={addQuestion.isPending}>Add research question</button>
+          <button type="submit" disabled={addQuestion.isPending}>Add Research Question</button>
         </form>
       </section>
 
       <section className="card">
-        <h2>Inclusion / exclusion criteria</h2>
+        <h2>Inclusion / Exclusion Criteria</h2>
         <table>
           <thead>
             <tr>
@@ -329,7 +329,7 @@ export function ResearchAgendaPanel({ projectId }: { projectId: string }) {
               required
             />
           </label>
-          <button type="submit" disabled={addCriterion.isPending}>Add criterion</button>
+          <button type="submit" disabled={addCriterion.isPending}>Add Criterion</button>
         </form>
       </section>
     </>

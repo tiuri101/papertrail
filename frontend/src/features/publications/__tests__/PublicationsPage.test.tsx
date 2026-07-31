@@ -124,14 +124,14 @@ describe('PublicationsPage', () => {
 
     await screen.findByText('Urban Data in VR')
     const card = screen.getByText('Urban Data in VR').closest('li') as HTMLElement
-    fireEvent.click(within(card).getByRole('button', { name: 'Enrich metadata' }))
+    fireEvent.click(within(card).getByRole('button', { name: 'Enrich Metadata' }))
 
     await waitFor(() => {
       expect(fetchMock.mock.calls.some(([input, init]) => String(input).endsWith('/publications/publication-1/enrich') && init?.method === 'POST')).toBe(true)
     })
 
     const noDoiCard = screen.getByText('Paper without DOI').closest('li') as HTMLElement
-    expect(within(noDoiCard).getByRole('button', { name: 'Enrich metadata' })).toBeDisabled()
+    expect(within(noDoiCard).getByRole('button', { name: 'Enrich Metadata' })).toBeDisabled()
   })
 
   it('enriches selected publications and all publications missing metadata', async () => {
@@ -146,10 +146,10 @@ describe('PublicationsPage', () => {
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
 
     await screen.findByText('Urban Data in VR')
-    expect(screen.getByRole('button', { name: 'Enrich selected (0)' })).toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Enrich Selected (0)' })).toBeDisabled()
 
     fireEvent.click(screen.getByLabelText('Select Urban Data in VR'))
-    fireEvent.click(screen.getByRole('button', { name: 'Enrich selected (1)' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Enrich Selected (1)' }))
 
     await waitFor(() => {
       const call = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/publications/enrich') && init?.method === 'POST')
@@ -157,7 +157,7 @@ describe('PublicationsPage', () => {
       expect(JSON.parse(String(call?.[1]?.body))).toEqual({ publicationIds: ['publication-1'], missingOnly: false })
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Enrich all records with missing metadata' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Enrich All Records with Missing Metadata' }))
     await waitFor(() => {
       const calls = fetchMock.mock.calls.filter(([input, init]) => String(input).endsWith('/publications/enrich') && init?.method === 'POST')
       expect(calls).toHaveLength(2)
@@ -187,13 +187,13 @@ describe('PublicationsPage', () => {
     })
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
 
-    const heading = await screen.findByRole('heading', { name: 'Metadata conflicts' })
+    const heading = await screen.findByRole('heading', { name: 'Metadata Conflicts' })
     const panel = heading.closest('section') as HTMLElement
     await within(panel).findByText('title')
     expect(within(panel).getByText('Urban Data in VR')).toBeInTheDocument()
     expect(within(panel).getByText('Urban Data in Virtual Reality')).toBeInTheDocument()
 
-    fireEvent.click(within(panel).getByRole('button', { name: 'Use proposed value' }))
+    fireEvent.click(within(panel).getByRole('button', { name: 'Use Proposed Value' }))
     await waitFor(() => {
       const call = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/metadata-conflicts/conflict-1/resolve') && init?.method === 'POST')
       expect(call).toBeTruthy()

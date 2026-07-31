@@ -20,7 +20,7 @@ describe('HighlightKeywordsPanel', () => {
     await waitFor(() => expect(textarea).toHaveValue('virtual reality\nurban analytics'))
 
     fireEvent.change(textarea, { target: { value: 'virtual reality\nurban analytics\nnew keyword' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save keywords' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save Keywords' }))
 
     await waitFor(() => expect(screen.getByText('Keywords saved.')).toBeInTheDocument())
     const putCall = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/highlight-keywords') && init?.method === 'PUT')
