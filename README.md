@@ -9,7 +9,7 @@ Papertrail is a self-hosted, multi-user web application for structured academic 
 - React and TypeScript with Vite
 - TanStack Query and React Hook Form
 - PostgreSQL-backed multithreaded worker
-- Docker Compose and Caddy for production deployment
+- Docker Compose production deployment
 
 Papertrail is a modular monolith. The API and worker share domain services and one authoritative database.
 
