@@ -16,7 +16,6 @@ interface ConflictPublication {
 interface ConflictDecision {
   reviewer: { id: string; displayName: string }
   outcome: string
-  exclusionReasonText: string | null
   notes: string | null
 }
 
@@ -124,7 +123,7 @@ function ConflictCard({ conflict, resolving, addingReviewer, onResolve, onAddRev
           <tr>
             <th scope="col">Reviewer</th>
             <th scope="col">Decision</th>
-            <th scope="col">Reason / notes</th>
+            <th scope="col">Notes</th>
           </tr>
         </thead>
         <tbody>
@@ -132,7 +131,7 @@ function ConflictCard({ conflict, resolving, addingReviewer, onResolve, onAddRev
             <tr key={decision.reviewer.id}>
               <th scope="row">{decision.reviewer.displayName}</th>
               <td>{formatOutcome(decision.outcome)}</td>
-              <td>{decision.exclusionReasonText ?? decision.notes ?? '—'}</td>
+              <td>{decision.notes ?? '—'}</td>
             </tr>
           ))}
         </tbody>

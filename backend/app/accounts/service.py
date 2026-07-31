@@ -47,6 +47,14 @@ def create_user(
     return user
 
 
+def verify_password(user: User, password: str) -> bool:
+    try:
+        password_hasher.verify(user.password_hash, password)
+    except VerifyMismatchError:
+        return False
+    return True
+
+
 def authenticate(db: Session, username: str, password: str) -> User | None:
     user = db.scalar(select(User).where(User.username == username.strip().lower()))
     if user is None or not user.is_active:

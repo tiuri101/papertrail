@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { api } from '../../api/client'
+import { ConfirmButton } from '../../components/ConfirmButton'
 
 const stages = [
   'draft',
@@ -10,9 +11,12 @@ const stages = [
   'extraction_quality',
 ]
 
+const activeStages = stages.filter((stage) => stage !== 'draft')
+
 export function ProjectLifecyclePanel({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient()
   const [targetStage, setTargetStage] = useState(stages[2])
+  const [moveBackTarget, setMoveBackTarget] = useState(stages[1])
   const project = useQuery({
     queryKey: ['project', projectId],
     queryFn: () => api<{ stage: string }>(`/projects/${projectId}`),
@@ -38,6 +42,26 @@ export function ProjectLifecyclePanel({ projectId }: { projectId: string }) {
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['project', projectId] }),
   })
+  const moveBack = useMutation({
+    mutationFn: () =>
+      api(`/projects/${projectId}/move-back`, {
+        method: 'POST',
+        body: JSON.stringify({ targetStage: moveBackTarget }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['project-dashboard', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['project-integrity', projectId] })
+    },
+  })
+  const currentStage = project.data?.stage
+  const currentIndex = currentStage ? stages.indexOf(currentStage) : -1
+  const isActiveStage = currentStage
+    ? currentStage !== 'draft' && currentStage !== 'completed'
+    : false
+  const moveBackOptions = activeStages.filter(
+    (stage) => stages.indexOf(stage) < currentIndex,
+  )
 
   return (
     <section className="card">
@@ -79,6 +103,29 @@ export function ProjectLifecyclePanel({ projectId }: { projectId: string }) {
       >
         Reopen project
       </button>
+      {isActiveStage && moveBackOptions.length ? (
+        <>
+          <h2>Move project back</h2>
+          <p>Move an in-progress project back to an earlier stage without deleting any screening, extraction, or quality-assessment data already recorded. That data is kept for traceability but excluded from active workflow counts until the project reaches that stage again.</p>
+          {moveBack.error ? <p className="error" role="alert">{moveBack.error.message}</p> : null}
+          <label>
+            Move back to
+            <select
+              value={moveBackTarget}
+              onChange={(event) => setMoveBackTarget(event.target.value)}
+            >
+              {moveBackOptions.map((stage) => <option key={stage} value={stage}>{stage}</option>)}
+            </select>
+          </label>
+          <ConfirmButton
+            label="Move project back"
+            confirmLabel="Move back"
+            warning="This moves the project to an earlier stage. Downstream data (screening decisions, extraction, quality assessment) is kept, not deleted, but will no longer count toward the active stage until the project advances again."
+            onConfirm={() => moveBack.mutate()}
+            disabled={moveBack.isPending}
+          />
+        </>
+      ) : null}
     </section>
   )
 }

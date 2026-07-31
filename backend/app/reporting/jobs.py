@@ -9,6 +9,7 @@ from app.reporting.service import (
     build_bibtex,
     build_excel,
     build_prisma_svg,
+    build_prisma_tables,
     calculate_prisma_counts,
 )
 
@@ -22,11 +23,15 @@ def generate_export_job(db: Session, job: BackgroundJob) -> dict:
         raise ValueError("Project not found")
     export_type = job.payload["export_type"]
     scope = job.payload.get("scope", "included")
+    status_filter = job.payload.get("status_filter")
     if export_type == "xlsx":
         data = build_excel(db, project.id)
         extension = "xlsx"
+    elif export_type == "prisma_tables":
+        data = build_prisma_tables(db, project.id)
+        extension = "xlsx"
     elif export_type == "bibtex":
-        data = build_bibtex(db, project.id, scope).encode()
+        data = build_bibtex(db, project.id, scope, status_filter).encode()
         extension = "bib"
     elif export_type == "prisma_svg":
         data = build_prisma_svg(

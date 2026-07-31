@@ -90,7 +90,6 @@ def _screening_rows(
             decision.work_item.publication_id,
             decision.reviewer_id,
             decision.outcome.value,
-            decision.exclusion_reason_text,
             decision.criteria_answers,
             decision.notes,
             decision.version,
@@ -209,7 +208,6 @@ def _add_configuration_sheets(db: Session, workbook: Workbook, project_id: str) 
         ],
     )
 
-
 def _add_record_sheets(
     db: Session,
     workbook: Workbook,
@@ -296,7 +294,6 @@ def _add_screening_sheets(db: Session, workbook: Workbook, project_id: str) -> s
         "Publication ID",
         "Reviewer ID",
         "Outcome",
-        "Exclusion reason",
         "Criteria",
         "Notes",
         "Version",
@@ -406,6 +403,30 @@ def _add_evidence_sheets(db: Session, workbook: Workbook, project_id: str) -> No
             for item in quality
         ],
     )
+
+
+def build_prisma_tables(db: Session, project_id: str) -> bytes:
+    """A standalone PRISMA counts + full-text exclusions workbook.
+
+    Distinct from the full "xlsx" project export (§22.1) -- this is the
+    "PRISMA supporting tables" export item (§22.2), for reviewers who only
+    need the PRISMA numbers without the rest of the project data.
+    """
+    project = db.get(Project, project_id)
+    if project is None:
+        raise ValueError("Project not found")
+    counts = calculate_prisma_counts(db, project_id)
+    workbook = Workbook()
+    workbook.remove(workbook.active)
+    add_sheet(
+        workbook,
+        "PRISMA counts",
+        ["Item", "Count"],
+        [[key, value] for key, value in counts.items()],
+    )
+    buffer = BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()
 
 
 def _add_audit_sheet(db: Session, workbook: Workbook, project_id: str) -> None:

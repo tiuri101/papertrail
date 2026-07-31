@@ -10,10 +10,12 @@ from app.db.session import get_db
 from app.forms.models import FormField, FormKind, ReviewForm
 from app.forms.schemas import (
     FieldCreate,
+    FieldReplace,
     FieldResponse,
     FieldUpdate,
     FormCreate,
     FormResponse,
+    SaveAsTemplateRequest,
 )
 from app.forms.service import (
     add_field,
@@ -21,6 +23,8 @@ from app.forms.service import (
     copy_template_to_project,
     create_form,
     rename_field,
+    replace_field,
+    save_form_as_template,
 )
 from app.projects.service import get_project
 
@@ -190,6 +194,71 @@ def update_form_field(
         project_id=form.project_id,
         actor_id=admin.id,
         summary=f"Updated field in {form.name}",
+    )
+    db.commit()
+    return field
+
+
+@router.post(
+    "/forms/{form_id}/save-as-template",
+    response_model=FormResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def save_form_as_template_endpoint(
+    form_id: str,
+    payload: SaveAsTemplateRequest,
+    admin: User = Depends(require_admin_csrf),
+    db: Session = Depends(get_db),
+):
+    form = db.get(ReviewForm, form_id)
+    if form is None:
+        raise NotFoundError("Form not found")
+    template = save_form_as_template(db, form, payload.name)
+    record_audit(
+        db,
+        action="form_template.created_from_form",
+        entity_type="review_form",
+        entity_id=template.id,
+        project_id=form.project_id,
+        actor_id=admin.id,
+        summary=f"Saved {form.name} as a reusable template",
+    )
+    db.commit()
+    return template
+
+
+@router.post(
+    "/forms/{form_id}/fields/{stable_key}/replace", response_model=FieldResponse
+)
+def replace_form_field(
+    form_id: str,
+    stable_key: str,
+    payload: FieldReplace,
+    admin: User = Depends(require_admin_csrf),
+    db: Session = Depends(get_db),
+):
+    form = db.get(ReviewForm, form_id)
+    if form is None:
+        raise NotFoundError("Form not found")
+    field = replace_field(
+        db,
+        form,
+        stable_key,
+        payload.field_type,
+        label=payload.label,
+        required=payload.required,
+        options=payload.options,
+        scoring=payload.scoring,
+    )
+    record_audit(
+        db,
+        action="form_field.replaced",
+        entity_type="form_field",
+        entity_id=field.id,
+        project_id=form.project_id,
+        actor_id=admin.id,
+        summary=f"Replaced field in {form.name}",
+        metadata={"replacedStableKey": stable_key},
     )
     db.commit()
     return field

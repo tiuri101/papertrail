@@ -89,13 +89,6 @@ def test_project_configuration_supports_questions_criteria_and_stage_settings(
     assert config.status_code == 200
     assert config.json()["requiredReviewers"] == 2
 
-    reason = client.post(
-        f"/api/v1/projects/{project_id}/exclusion-reasons/title_abstract",
-        json={"label": "Wrong context"},
-        headers={"X-CSRF-Token": csrf},
-    )
-    assert reason.status_code == 201
-
     details = client.get(f"/api/v1/projects/{project_id}")
     assert details.status_code == 200
     assert (
@@ -197,6 +190,54 @@ def test_reset_project_clears_publications_but_keeps_configuration(client, db) -
 
     publications = client.get(f"/api/v1/projects/{project_id}/publications")
     assert publications.json() == []
+
+
+def test_admin_sets_highlight_keywords_and_reviewer_can_read_them(client, db) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    reviewer = create_user(db, "reviewer", "Reviewer", "reviewer-password")
+    db.commit()
+    csrf = login(client, "admin", "secret-password")
+    project_id = client.post(
+        "/api/v1/projects",
+        json={"name": "Review", "reviewType": "scoping_review"},
+        headers={"X-CSRF-Token": csrf},
+    ).json()["id"]
+    client.post(
+        f"/api/v1/projects/{project_id}/members",
+        json={
+            "userId": reviewer.id,
+            "canTitleAbstractScreen": True,
+            "canFullTextScreen": False,
+            "canExtract": False,
+            "canAssessQuality": False,
+            "canAdjudicate": False,
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    empty = client.get(f"/api/v1/projects/{project_id}/highlight-keywords")
+    assert empty.status_code == 200
+    assert empty.json()["keywords"] == []
+
+    updated = client.put(
+        f"/api/v1/projects/{project_id}/highlight-keywords",
+        json={"keywords": ["virtual reality", " virtual reality ", "urban analytics", ""]},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["keywords"] == ["virtual reality", "urban analytics"]
+
+    client.post("/api/v1/auth/logout", headers={"X-CSRF-Token": csrf})
+    login(client, "reviewer", "reviewer-password")
+    as_reviewer = client.get(f"/api/v1/projects/{project_id}/highlight-keywords")
+    assert as_reviewer.status_code == 200
+    assert as_reviewer.json()["keywords"] == ["virtual reality", "urban analytics"]
+
+    forbidden = client.put(
+        f"/api/v1/projects/{project_id}/highlight-keywords",
+        json={"keywords": ["nope"]},
+    )
+    assert forbidden.status_code == 403
 
 
 def test_delete_project_removes_it_entirely(client, db) -> None:

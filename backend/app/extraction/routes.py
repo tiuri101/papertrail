@@ -8,6 +8,7 @@ from app.audit.service import record_audit
 from app.db.session import get_db
 from app.extraction.models import ExtractionWorkItem
 from app.extraction.schemas import (
+    ExtractionDraftUpdate,
     ExtractionItemResponse,
     ExtractionResponseModel,
     ExtractionSubmit,
@@ -16,6 +17,7 @@ from app.extraction.service import (
     active_fields,
     claim_next_extraction,
     project_form,
+    save_draft,
     submit_extraction,
 )
 from app.projects.service import require_project_access
@@ -50,6 +52,22 @@ def next_extraction(
     item = claim_next_extraction(db, project_id, session.user.id)
     db.commit()
     return extraction_item_payload(db, item) if item else None
+
+
+@router.put("/projects/{project_id}/extraction/{item_id}/draft")
+def update_extraction_draft(
+    project_id: str,
+    item_id: str,
+    payload: ExtractionDraftUpdate,
+    session: UserSession = Depends(require_csrf),
+    db: Session = Depends(get_db),
+):
+    item = db.get(ExtractionWorkItem, item_id)
+    if item is None or item.project_id != project_id:
+        raise NotFoundError("Extraction work item not found")
+    save_draft(item, session.user.id, payload.draft)
+    db.commit()
+    return {"status": "saved"}
 
 
 @router.post(

@@ -1,9 +1,12 @@
+import pytest
+
 from app.accounts.service import create_user
 from app.audit.models import AuditEvent
 from app.conflicts.service import record_final_decision
 from app.extraction.models import ExtractionStatus, ExtractionWorkItem
 from app.projects.lifecycle import (
     evaluate_project_completion,
+    move_project_back,
     project_integrity_issues,
     reopen_project,
 )
@@ -61,6 +64,49 @@ def test_project_completes_and_can_be_reopened_without_deleting_work(db) -> None
         "project.completed",
         "project.reopened",
     }
+
+
+def test_move_project_back_preserves_downstream_data(db) -> None:
+    admin, project, publication = create_included_project(db)
+    work_item = ExtractionWorkItem(
+        project_id=project.id,
+        publication_id=publication.id,
+        assigned_reviewer_id=admin.id,
+        random_rank="rank",
+        status=ExtractionStatus.COMPLETED,
+    )
+    db.add(work_item)
+    db.commit()
+
+    move_project_back(db, project, ProjectStage.TITLE_ABSTRACT, admin.id)
+    db.commit()
+
+    assert project.stage == ProjectStage.TITLE_ABSTRACT
+    # Downstream extraction work must still exist -- moving back is not a wipe.
+    assert db.get(ExtractionWorkItem, work_item.id) is not None
+    assert "project.moved_back" in {event.action for event in db.query(AuditEvent)}
+
+
+def test_move_project_back_rejects_draft_and_completed_projects(db) -> None:
+    admin, project, _publication = create_included_project(db)
+
+    project.stage = ProjectStage.DRAFT
+    with pytest.raises(ValueError):
+        move_project_back(db, project, ProjectStage.DRAFT, admin.id)
+
+    project.stage = ProjectStage.COMPLETED
+    with pytest.raises(ValueError):
+        move_project_back(db, project, ProjectStage.TITLE_ABSTRACT, admin.id)
+
+
+def test_move_project_back_rejects_a_later_or_equal_target_stage(db) -> None:
+    admin, project, _publication = create_included_project(db)
+    project.stage = ProjectStage.FULL_TEXT
+
+    with pytest.raises(ValueError):
+        move_project_back(db, project, ProjectStage.EXTRACTION, admin.id)
+    with pytest.raises(ValueError):
+        move_project_back(db, project, ProjectStage.FULL_TEXT, admin.id)
 
 
 def test_integrity_check_detects_missing_downstream_work(db) -> None:

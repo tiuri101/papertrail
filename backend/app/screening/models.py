@@ -86,10 +86,6 @@ class ScreeningDecision(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
     outcome: Mapped[ScreeningOutcome] = mapped_column(nullable=False, index=True)
-    exclusion_reason_id: Mapped[str | None] = mapped_column(
-        ForeignKey("exclusion_reasons.id", ondelete="SET NULL")
-    )
-    exclusion_reason_text: Mapped[str | None] = mapped_column(String(300))
     criteria_answers: Mapped[dict] = mapped_column(JSONType, nullable=False)
     notes: Mapped[str | None] = mapped_column(Text)
     version: Mapped[int] = mapped_column(Integer, nullable=False)

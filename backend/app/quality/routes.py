@@ -13,6 +13,7 @@ from app.quality.models import QualityConfig, QualityWorkItem
 from app.quality.schemas import (
     QualityConfigResponse,
     QualityConfigUpdate,
+    QualityDraftUpdate,
     QualityItemResponse,
     QualityResponseModel,
     QualitySubmit,
@@ -21,6 +22,7 @@ from app.quality.service import (
     active_fields,
     claim_next_quality,
     quality_form,
+    save_draft,
     submit_quality,
 )
 
@@ -105,6 +107,22 @@ def next_quality(
     item = claim_next_quality(db, project_id, session.user.id)
     db.commit()
     return quality_item_payload(db, item) if item else None
+
+
+@router.put("/projects/{project_id}/quality/{item_id}/draft")
+def update_quality_draft(
+    project_id: str,
+    item_id: str,
+    payload: QualityDraftUpdate,
+    session: UserSession = Depends(require_csrf),
+    db: Session = Depends(get_db),
+):
+    item = db.get(QualityWorkItem, item_id)
+    if item is None or item.project_id != project_id:
+        raise NotFoundError("Quality work item not found")
+    save_draft(item, session.user.id, payload.draft)
+    db.commit()
+    return {"status": "saved"}
 
 
 @router.post(

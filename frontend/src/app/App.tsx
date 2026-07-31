@@ -1,8 +1,11 @@
-import { Link, Navigate, Outlet, Route, Routes, useParams } from 'react-router-dom'
+import { Link, Navigate, Outlet, Route, Routes, useNavigate, useParams } from 'react-router-dom'
 
 import { AppShell } from './AppShell'
 import { DangerZonePanel } from '../features/administration/DangerZonePanel'
+import { HighlightKeywordsPanel } from '../features/administration/HighlightKeywordsPanel'
 import { ResearchAgendaPanel } from '../features/administration/ResearchAgendaPanel'
+import { AuditLogPage } from '../features/audit/AuditLogPage'
+import { AccountSettingsPage } from '../features/auth/AccountSettingsPage'
 import { AdminGate } from '../features/auth/AdminGate'
 import { AuthGate } from '../features/auth/AuthGate'
 import { LoginPage } from '../features/auth/LoginPage'
@@ -36,10 +39,21 @@ function ProjectSectionLayout() {
 
 function ProjectAdministrationPage() {
   const { projectId = '' } = useParams()
+  const navigate = useNavigate()
   return (
     <main className="page">
       <ResearchAgendaPanel projectId={projectId} />
+      <HighlightKeywordsPanel projectId={projectId} />
       <ProjectLifecyclePanel projectId={projectId} />
+      <section className="card">
+        <h2>Audit log</h2>
+        <p>Review a record of significant actions taken on this project.</p>
+        <div className="toolbar">
+          <button type="button" onClick={() => navigate(`/projects/${projectId}/audit`)}>
+            View audit log
+          </button>
+        </div>
+      </section>
       <DangerZonePanel projectId={projectId} />
     </main>
   )
@@ -52,6 +66,7 @@ export function App() {
       <Route element={<AuthGate />}>
         <Route element={<AppShell />}>
           <Route path="/" element={<ProjectsPage />} />
+          <Route path="/account" element={<AccountSettingsPage />} />
           <Route element={<AdminGate />}>
             <Route path="/users" element={<UsersPage />} />
           </Route>
@@ -59,6 +74,7 @@ export function App() {
           <Route path="/projects/:projectId" element={<ProjectPage />} />
           <Route element={<ProjectSectionLayout />}>
             <Route path="/projects/:projectId/admin" element={<ProjectAdministrationPage />} />
+            <Route path="/projects/:projectId/audit" element={<AuditLogPage />} />
             <Route path="/projects/:projectId/imports" element={<ImportPage />} />
             <Route path="/projects/:projectId/jobs" element={<JobsPage />} />
             <Route path="/projects/:projectId/publications" element={<PublicationsPage />} />

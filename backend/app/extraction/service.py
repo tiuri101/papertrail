@@ -127,6 +127,12 @@ def claim_next_extraction(
     return item
 
 
+def save_draft(item: ExtractionWorkItem, reviewer_id: str, draft: dict) -> None:
+    if item.assigned_reviewer_id != reviewer_id or item.status == ExtractionStatus.COMPLETED:
+        raise ForbiddenError("This extraction work item cannot be edited")
+    item.draft = draft
+
+
 def active_fields(db: Session, form: ReviewForm) -> list[FormField]:
     return list(
         db.scalars(

@@ -42,6 +42,9 @@ export function AppShell() {
                   Users
                 </NavLink>
               ) : null}
+              <NavLink to="/account" className={({ isActive }) => isActive ? 'nav-link nav-link--active' : 'nav-link'}>
+                Account
+              </NavLink>
             </nav>
             <div className="header-divider" aria-hidden="true" />
             <ThemeToggle />

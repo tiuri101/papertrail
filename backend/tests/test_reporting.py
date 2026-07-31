@@ -1,18 +1,24 @@
 from datetime import date
 from io import BytesIO
 
+import pytest
 from openpyxl import load_workbook
 
 from app.accounts.service import create_user
 from app.conflicts.service import record_final_decision
 from app.fulltext.models import FullTextRetrieval, RetrievalStatus
 from app.imports.models import ImportBatch, ImportedRecord, ImportStatus, SearchSource
-from app.projects.models import Project, ReviewType, ScreeningStage
+from app.projects.models import (
+    Project,
+    ReviewType,
+    ScreeningStage,
+)
 from app.publications.models import Publication
 from app.reporting.service import (
     build_bibtex,
     build_excel,
     build_prisma_svg,
+    build_prisma_tables,
     calculate_prisma_counts,
 )
 
@@ -137,3 +143,40 @@ def test_excel_and_bibtex_exports_are_valid_and_safe(db) -> None:
     assert "@article" in bibtex
     assert "10.1/include" in bibtex
     assert included.title in bibtex
+
+
+def test_bibtex_custom_scope_filters_by_status(db) -> None:
+    project, _included = setup_report(db)
+
+    bibtex = build_bibtex(
+        db,
+        project.id,
+        scope="custom",
+        status_filter={"outcome": "exclude", "stage": "title_abstract"},
+    )
+    assert "Excluded" in bibtex
+    assert "=Dangerous title" not in bibtex
+
+
+def test_bibtex_custom_scope_without_outcome_is_rejected(db) -> None:
+    project, _included = setup_report(db)
+    with pytest.raises(ValueError):
+        build_bibtex(db, project.id, scope="custom", status_filter={})
+
+
+def test_bibtex_unrecognized_scope_is_rejected_rather_than_returning_everything(
+    db,
+) -> None:
+    project, _included = setup_report(db)
+    with pytest.raises(ValueError):
+        build_bibtex(db, project.id, scope="not_a_real_scope")
+
+
+def test_prisma_tables_export_is_a_standalone_workbook(db) -> None:
+    project, _included = setup_report(db)
+
+    workbook = load_workbook(BytesIO(build_prisma_tables(db, project.id)))
+    assert workbook.sheetnames == ["PRISMA counts"]
+    counts_sheet = workbook["PRISMA counts"]
+    keys = [row[0].value for row in counts_sheet.iter_rows(min_row=2)]
+    assert "recordsExcluded" in keys

@@ -1,5 +1,5 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { describe, expect, it, vi } from 'vitest'
 
 import { FormBuilderPage } from '../FormBuilderPage'
 import { jsonResponse, mockFetch } from '../../../test/http'
@@ -39,7 +39,9 @@ describe('FormBuilderPage', () => {
     fireEvent.click(screen.getByLabelText('Required'))
     fireEvent.click(screen.getByRole('button', { name: 'Add field' }))
 
-    expect(await screen.findByText('Main finding — long_text — required')).toBeInTheDocument()
+    const row = (await screen.findByRole('cell', { name: 'Main finding' })).closest('tr')!
+    expect(within(row).getByText('long_text')).toBeInTheDocument()
+    expect(within(row).getByText('Required')).toBeInTheDocument()
     const fieldCall = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/forms/form-1/fields') && init?.method === 'POST')
     expect(JSON.parse(String(fieldCall?.[1]?.body))).toEqual({
       label: 'Main finding',
@@ -122,6 +124,169 @@ describe('FormBuilderPage', () => {
         scoring: { values: { Strong: 2, Weak: 0 } },
       })
     })
+  })
+
+  it('renders a live preview of the active fields', async () => {
+    const fields = [
+      { id: 'field-1', stableKey: 'stable-1', label: 'Main finding', fieldType: 'short_text', required: true, isArchived: false, options: [] },
+    ]
+    mockFetch(async (input) => {
+      const path = String(input)
+      if (path.endsWith('/forms/form-1/fields')) return jsonResponse(fields)
+      if (path.endsWith('/quality-config')) return jsonResponse({ enabled: false, mode: 'both', aggregation: 'sum' })
+      return jsonResponse([{ id: 'form-1', name: 'Extraction', kind: 'extraction', activeVersionId: 'v1' }])
+    })
+    renderWithProviders(<FormBuilderPage />, { route: '/projects/p1/forms', path: '/projects/:projectId/forms' })
+
+    await screen.findByRole('option', { name: 'Extraction (extraction)' })
+    fireEvent.change(screen.getByLabelText('Active form'), { target: { value: 'form-1' } })
+
+    await screen.findByText('Preview')
+    expect(screen.getByLabelText('Main finding *')).toBeInTheDocument()
+  })
+
+  it('edits a field label', async () => {
+    const fields = [
+      { id: 'field-1', stableKey: 'stable-1', label: 'Main finding', fieldType: 'short_text', required: false, isArchived: false, options: [] },
+    ]
+    const fetchMock = mockFetch(async (input, init) => {
+      const path = String(input)
+      if (path.endsWith('/forms/form-1/fields/stable-1') && init?.method === 'PATCH') {
+        const body = JSON.parse(String(init.body))
+        fields[0] = { ...fields[0], ...body }
+        return jsonResponse(fields[0])
+      }
+      if (path.endsWith('/forms/form-1/fields')) return jsonResponse(fields)
+      if (path.endsWith('/quality-config')) return jsonResponse({ enabled: false, mode: 'both', aggregation: 'sum' })
+      return jsonResponse([{ id: 'form-1', name: 'Extraction', kind: 'extraction', activeVersionId: 'v1' }])
+    })
+    renderWithProviders(<FormBuilderPage />, { route: '/projects/p1/forms', path: '/projects/:projectId/forms' })
+
+    await screen.findByRole('option', { name: 'Extraction (extraction)' })
+    fireEvent.change(screen.getByLabelText('Active form'), { target: { value: 'form-1' } })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+    fireEvent.change(screen.getByLabelText('Edit label for Main finding'), { target: { value: 'Primary outcome' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      const patchCall = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/forms/form-1/fields/stable-1') && init?.method === 'PATCH')
+      expect(patchCall).toBeTruthy()
+      expect(JSON.parse(String(patchCall?.[1]?.body))).toEqual({ label: 'Primary outcome' })
+    })
+  })
+
+  it('archives a field after confirmation', async () => {
+    const fields = [
+      { id: 'field-1', stableKey: 'stable-1', label: 'Main finding', fieldType: 'short_text', required: false, isArchived: false, options: [] },
+    ]
+    const fetchMock = mockFetch(async (input, init) => {
+      const path = String(input)
+      if (path.endsWith('/forms/form-1/fields/stable-1') && init?.method === 'PATCH') {
+        const body = JSON.parse(String(init.body))
+        fields[0] = { ...fields[0], ...body, isArchived: true }
+        return jsonResponse(fields[0])
+      }
+      if (path.endsWith('/forms/form-1/fields')) return jsonResponse(fields)
+      if (path.endsWith('/quality-config')) return jsonResponse({ enabled: false, mode: 'both', aggregation: 'sum' })
+      return jsonResponse([{ id: 'form-1', name: 'Extraction', kind: 'extraction', activeVersionId: 'v1' }])
+    })
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    renderWithProviders(<FormBuilderPage />, { route: '/projects/p1/forms', path: '/projects/:projectId/forms' })
+
+    await screen.findByRole('option', { name: 'Extraction (extraction)' })
+    fireEvent.change(screen.getByLabelText('Active form'), { target: { value: 'form-1' } })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Archive' }))
+
+    await waitFor(() => {
+      const patchCall = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/forms/form-1/fields/stable-1') && init?.method === 'PATCH')
+      expect(patchCall).toBeTruthy()
+      expect(JSON.parse(String(patchCall?.[1]?.body))).toEqual({ archive: true })
+    })
+    const row = (await screen.findByRole('cell', { name: 'Main finding' })).closest('tr')!
+    await waitFor(() => expect(within(row).getByText('Archived')).toBeInTheDocument())
+  })
+
+  it('replaces a field type after confirmation', async () => {
+    const fields = [
+      { id: 'field-1', stableKey: 'stable-1', label: 'Sample size', fieldType: 'short_text', required: true, isArchived: false, options: [] },
+    ]
+    const fetchMock = mockFetch(async (input, init) => {
+      const path = String(input)
+      if (path.endsWith('/forms/form-1/fields/stable-1/replace') && init?.method === 'POST') {
+        const body = JSON.parse(String(init.body))
+        const replacement = { id: 'field-2', stableKey: 'stable-2', label: body.label, fieldType: body.fieldType, required: body.required, isArchived: false, options: [] }
+        fields[0] = { ...fields[0], isArchived: true }
+        fields.push(replacement)
+        return jsonResponse(replacement, 201)
+      }
+      if (path.endsWith('/forms/form-1/fields')) return jsonResponse(fields)
+      if (path.endsWith('/quality-config')) return jsonResponse({ enabled: false, mode: 'both', aggregation: 'sum' })
+      return jsonResponse([{ id: 'form-1', name: 'Extraction', kind: 'extraction', activeVersionId: 'v1' }])
+    })
+    vi.spyOn(window, 'confirm').mockReturnValue(true)
+    renderWithProviders(<FormBuilderPage />, { route: '/projects/p1/forms', path: '/projects/:projectId/forms' })
+
+    await screen.findByRole('option', { name: 'Extraction (extraction)' })
+    fireEvent.change(screen.getByLabelText('Active form'), { target: { value: 'form-1' } })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Change type…' }))
+    fireEvent.change(screen.getByLabelText('New type for Sample size'), { target: { value: 'number' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+
+    await waitFor(() => {
+      const replaceCall = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/forms/form-1/fields/stable-1/replace') && init?.method === 'POST')
+      expect(replaceCall).toBeTruthy()
+      expect(JSON.parse(String(replaceCall?.[1]?.body))).toEqual({ fieldType: 'number', label: 'Sample size', required: true })
+    })
+    await waitFor(() => {
+      const rows = screen.getAllByRole('cell', { name: 'Sample size' }).map((cell) => cell.closest('tr')!)
+      const activeRow = rows.find((candidate) => within(candidate).queryByText('number'))
+      expect(activeRow).toBeTruthy()
+      expect(within(activeRow!).getByText('Required')).toBeInTheDocument()
+    })
+  })
+
+  it('starts a new form from a template and saves a form as a template', async () => {
+    const forms: Array<{ id: string; name: string; kind: string; activeVersionId: string | null }> = []
+    const templates = [{ id: 'template-1', name: 'General extraction', kind: 'extraction', isTemplate: true, activeVersionId: 'v1' }]
+    const fetchMock = mockFetch(async (input, init) => {
+      const path = String(input)
+      if (path.endsWith('/form-templates') && (!init || init.method === undefined)) return jsonResponse(templates)
+      if (path.endsWith('/projects/p1/forms') && init?.method === 'POST') {
+        const body = JSON.parse(String(init.body))
+        const form = { id: 'form-1', ...body, activeVersionId: 'v1' }
+        forms.push(form)
+        return jsonResponse(form, 201)
+      }
+      if (path.endsWith('/forms/form-1/save-as-template') && init?.method === 'POST') {
+        return jsonResponse({ id: 'template-2', name: 'Saved template', kind: 'extraction', isTemplate: true, activeVersionId: 'v1' }, 201)
+      }
+      if (path.endsWith('/forms/form-1/fields')) return jsonResponse([])
+      if (path.endsWith('/quality-config')) return jsonResponse({ enabled: false, mode: 'both', aggregation: 'sum' })
+      return jsonResponse(forms)
+    })
+    renderWithProviders(<FormBuilderPage />, { route: '/projects/p1/forms', path: '/projects/:projectId/forms' })
+
+    await screen.findByRole('option', { name: 'General extraction' })
+    fireEvent.change(screen.getByLabelText('Start from template (optional)'), { target: { value: 'template-1' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Create form' }))
+
+    await waitFor(() => {
+      const createCall = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/projects/p1/forms') && init?.method === 'POST')
+      expect(createCall).toBeTruthy()
+      expect(JSON.parse(String(createCall?.[1]?.body)).templateId).toBe('template-1')
+    })
+
+    await waitFor(() => expect(screen.getByLabelText('Active form')).toHaveValue('form-1'))
+    fireEvent.click(screen.getByRole('button', { name: 'Save as template' }))
+
+    await waitFor(() => {
+      const saveCall = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/forms/form-1/save-as-template') && init?.method === 'POST')
+      expect(saveCall).toBeTruthy()
+    })
+    await screen.findByText('Template saved.')
   })
 
   it('reads and saves quality assessment settings', async () => {

@@ -122,7 +122,6 @@ def decide(
         session.user.id,
         payload.outcome,
         payload.criteria_answers,
-        payload.exclusion_reason_id,
         payload.notes,
     )
     from app.conflicts.service import (
@@ -141,7 +140,11 @@ def decide(
         project_id=project_id,
         actor_id=session.user.id,
         summary=f"Submitted {item.stage.value} screening decision",
-        metadata={"outcome": decision.outcome.value, "version": decision.version},
+        metadata={
+            "outcome": decision.outcome.value,
+            "version": decision.version,
+            "criteriaAnswers": decision.criteria_answers,
+        },
     )
     db.commit()
     return decision

@@ -10,7 +10,6 @@ from app.accounts.models import User
 from app.api.errors import DomainError, ForbiddenError, NotFoundError
 from app.projects.models import (
     Criterion,
-    ExclusionReason,
     Project,
     ProjectMembership,
     ScreeningConfig,
@@ -211,7 +210,6 @@ def submit_decision(
     reviewer_id: str,
     outcome: str | ScreeningOutcome,
     criteria_answers: dict[str, bool],
-    exclusion_reason_id: str | None,
     notes: str | None,
 ) -> ScreeningDecision:
     if item.assigned_reviewer_id != reviewer_id:
@@ -224,22 +222,6 @@ def submit_decision(
             "Every active inclusion and exclusion criterion must be explicitly answered"
         )
     parsed_outcome = ScreeningOutcome(outcome)
-    exclusion_reason_text = None
-    if parsed_outcome == ScreeningOutcome.EXCLUDE:
-        if exclusion_reason_id:
-            reason = db.get(ExclusionReason, exclusion_reason_id)
-            if (
-                reason is None
-                or reason.project_id != item.project_id
-                or reason.stage != item.stage
-                or not reason.is_active
-            ):
-                raise DomainError(
-                    "The selected exclusion reason is not valid for this stage"
-                )
-            exclusion_reason_text = reason.label
-        elif item.stage == ScreeningStage.FULL_TEXT:
-            raise DomainError("An exclusion reason is required")
     current = db.scalar(
         select(ScreeningDecision).where(
             ScreeningDecision.work_item_id == item.id,
@@ -254,8 +236,6 @@ def submit_decision(
         work_item_id=item.id,
         reviewer_id=reviewer_id,
         outcome=parsed_outcome,
-        exclusion_reason_id=exclusion_reason_id,
-        exclusion_reason_text=exclusion_reason_text,
         criteria_answers=criteria_answers,
         notes=notes,
         version=version,

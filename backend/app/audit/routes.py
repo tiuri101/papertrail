@@ -22,8 +22,9 @@ def list_audit_events(
     db: Session = Depends(get_db),
 ):
     require_project_access(db, project_id, admin)
-    events = db.scalars(
-        select(AuditEvent)
+    rows = db.execute(
+        select(AuditEvent, User.username)
+        .outerjoin(User, User.id == AuditEvent.actor_id)
         .where(AuditEvent.project_id == project_id)
         .order_by(AuditEvent.created_at.desc())
         .limit(limit)
@@ -32,14 +33,14 @@ def list_audit_events(
         {
             "id": event.id,
             "createdAt": event.created_at,
-            "actorId": event.actor_id,
+            "actorUsername": actor_username,
             "action": event.action,
             "entityType": event.entity_type,
             "entityId": event.entity_id,
             "summary": event.summary,
             "metadata": event.event_metadata,
         }
-        for event in events
+        for event, actor_username in rows
     ]
 
 

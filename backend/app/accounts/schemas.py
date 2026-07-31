@@ -39,4 +39,16 @@ class UserUpdate(ApiModel):
     password: str | None = Field(default=None, min_length=8, max_length=256)
 
 
+class SelfUpdate(ApiModel):
+    display_name: str | None = Field(
+        default=None, alias="displayName", min_length=1, max_length=200
+    )
+    current_password: str | None = Field(
+        default=None, alias="currentPassword", min_length=8, max_length=256
+    )
+    new_password: str | None = Field(
+        default=None, alias="newPassword", min_length=8, max_length=256
+    )
+
+
 LoginResponse.model_rebuild()

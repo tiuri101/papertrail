@@ -2,12 +2,13 @@ import pytest
 from sqlalchemy import select
 
 from app.accounts.service import create_user
-from app.api.errors import DomainError
+from app.api.errors import DomainError, ForbiddenError
 from app.conflicts.service import record_final_decision
 from app.extraction.models import ExtractionResponse, ExtractionWorkItem
 from app.extraction.service import (
     claim_next_extraction,
     initialize_extraction,
+    save_draft,
     submit_extraction,
 )
 from app.forms.models import FormKind
@@ -116,6 +117,27 @@ def test_extraction_validates_required_fields_and_preserves_revisions(db) -> Non
     assert [response.version for response in responses] == [1, 2]
     assert first.is_current is False
     assert second.is_current is True
+
+
+def test_save_draft_persists_in_progress_answers(db) -> None:
+    project, _, required, _, _, r1, r2 = setup_extraction(db)
+    initialize_extraction(db, project)
+    db.commit()
+    item = claim_next_extraction(db, project.id, r1.id)
+    assert item is not None
+
+    save_draft(item, r1.id, {required.stable_key: "Draft finding"})
+    db.commit()
+    db.refresh(item)
+    assert item.draft == {required.stable_key: "Draft finding"}
+
+    with pytest.raises(ForbiddenError):
+        save_draft(item, r2.id, {required.stable_key: "Not my item"})
+
+    submit_extraction(db, item, r1.id, {required.stable_key: "Final finding"})
+    db.commit()
+    with pytest.raises(ForbiddenError):
+        save_draft(item, r1.id, {required.stable_key: "Too late"})
 
 
 def test_new_required_field_reopens_completed_extractions(db) -> None:

@@ -11,7 +11,10 @@ from sqlalchemy.orm import Session
 from app.api.errors import ConflictError, NotFoundError
 from app.deduplication.models import DuplicateCandidate, PublicationMerge
 from app.projects.models import Project, ProjectStage
-from app.publications.models import Publication, PublicationSource
+from app.publications.models import MetadataConflict, Publication, PublicationSource
+from app.publications.service import IMPORTANT_FIELDS
+
+OTHER_IDENTIFIER_FIELDS = ("isbn", "issn", "pubmed_id", "arxiv_id")
 
 MERGE_FIELDS = (
     "title",
@@ -86,11 +89,18 @@ def detect_duplicates(db: Session, project_id: str) -> int:
             reasons.append("similar_title")
         if title_score >= 90 and author_score is not None and author_score >= 80:
             reasons.append("similar_title_authors")
+        if 80 <= title_score < 92 and year_agreement is True:
+            reasons.append("similar_title_year")
+        if any(
+            getattr(left, field) and getattr(left, field) == getattr(right, field)
+            for field in OTHER_IDENTIFIER_FIELDS
+        ):
+            reasons.append("other_identifier")
         if not reasons:
             continue
         confidence = (
             1.0
-            if "exact_doi" in reasons
+            if "exact_doi" in reasons or "other_identifier" in reasons
             else min(0.99, (title_score + (author_score or title_score)) / 200)
         )
         db.add(
@@ -138,11 +148,41 @@ def merge_publications(
         raise NotFoundError("Publication not found")
     canonical_before = snapshot(canonical)
     merged_before = snapshot(duplicate)
+    conflicts_created = 0
     for field in MERGE_FIELDS:
-        if getattr(canonical, field) in (None, "", {}) and getattr(
-            duplicate, field
-        ) not in (None, "", {}):
-            setattr(canonical, field, getattr(duplicate, field))
+        canonical_value = getattr(canonical, field)
+        duplicate_value = getattr(duplicate, field)
+        if canonical_value in (None, "", {}) and duplicate_value not in (
+            None,
+            "",
+            {},
+        ):
+            setattr(canonical, field, duplicate_value)
+        elif (
+            field in IMPORTANT_FIELDS
+            and canonical_value not in (None, "", {})
+            and duplicate_value not in (None, "", {})
+            and str(canonical_value).strip() != str(duplicate_value).strip()
+        ):
+            already = db.scalar(
+                select(MetadataConflict.id).where(
+                    MetadataConflict.publication_id == canonical.id,
+                    MetadataConflict.field_name == field,
+                    MetadataConflict.proposed_value == str(duplicate_value),
+                    MetadataConflict.status == "open",
+                )
+            )
+            if not already:
+                db.add(
+                    MetadataConflict(
+                        publication_id=canonical.id,
+                        field_name=field,
+                        current_value=str(canonical_value),
+                        proposed_value=str(duplicate_value),
+                        source_name="merge",
+                    )
+                )
+                conflicts_created += 1
     sources = list(
         db.scalars(
             select(PublicationSource).where(
@@ -186,6 +226,22 @@ def reverse_merge(
         setattr(canonical, field, value)
     for field, value in merge.merged_before.items():
         setattr(duplicate, field, value)
+    # Clean up any still-open conflicts this merge created, so an undone
+    # merge doesn't leave a dangling "proposed value" pointing at a
+    # publication that's no longer merged in.
+    open_merge_conflicts = list(
+        db.scalars(
+            select(MetadataConflict).where(
+                MetadataConflict.publication_id == canonical.id,
+                MetadataConflict.source_name == "merge",
+                MetadataConflict.status == "open",
+            )
+        )
+    )
+    for conflict in open_merge_conflicts:
+        merged_value = merge.merged_before.get(conflict.field_name)
+        if merged_value is not None and str(merged_value) == conflict.proposed_value:
+            db.delete(conflict)
     for source_id in merge.moved_source_ids:
         source = db.get(PublicationSource, source_id)
         if source:

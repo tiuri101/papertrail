@@ -9,7 +9,6 @@ from app.projects.models import (
     AllocationMode,
     Criterion,
     CriterionKind,
-    ExclusionReason,
     Project,
     ProjectMembership,
     ProjectStage,
@@ -57,13 +56,7 @@ def setup_conflict(db, second_outcome: str = "exclude"):
         project_id=project.id, kind=CriterionKind.INCLUSION, text="Relevant", position=0
     )
     publication = Publication(project_id=project.id, title="Paper")
-    reason = ExclusionReason(
-        project_id=project.id,
-        stage=ScreeningStage.TITLE_ABSTRACT,
-        label="Wrong topic",
-        position=0,
-    )
-    db.add_all([criterion, publication, reason])
+    db.add_all([criterion, publication])
     db.flush()
     create_screening_work_items(db, project, ScreeningStage.TITLE_ABSTRACT)
     db.commit()
@@ -73,14 +66,13 @@ def setup_conflict(db, second_outcome: str = "exclude"):
             db, project.id, ScreeningStage.TITLE_ABSTRACT, reviewer.id
         )
         items.append(item)
-    submit_decision(db, items[0], r1.id, "include", {criterion.id: True}, None, None)
+    submit_decision(db, items[0], r1.id, "include", {criterion.id: True}, None)
     submit_decision(
         db,
         items[1],
         r2.id,
         second_outcome,
         {criterion.id: True},
-        reason.id if second_outcome == "exclude" else None,
         None,
     )
     db.commit()
@@ -141,7 +133,7 @@ def test_revision_invalidates_existing_consensus(db) -> None:
     )
     db.commit()
     submit_decision(
-        db, items[0], r1.id, "uncertain", {criterion.id: True}, None, "changed"
+        db, items[0], r1.id, "uncertain", {criterion.id: True}, "changed"
     )
     db.commit()
     db.refresh(final)
@@ -171,9 +163,7 @@ def test_list_conflicts_includes_publication_and_reviewer_decisions(client, db) 
         for decision in conflict["decisions"]
     }
     assert decisions_by_reviewer["R1"]["outcome"] == "include"
-    assert decisions_by_reviewer["R1"]["exclusionReasonText"] is None
     assert decisions_by_reviewer["R2"]["outcome"] == "exclude"
-    assert decisions_by_reviewer["R2"]["exclusionReasonText"] == "Wrong topic"
 
 
 def test_list_conflicts_excludes_publications_still_awaiting_decisions(

@@ -87,6 +87,17 @@ export function ExtractionPage() {
     },
   })
 
+  useEffect(() => {
+    if (!item) return
+    const timer = setTimeout(() => {
+      apiRequest(
+        `/api/v1/projects/${projectId}/extraction/${item.id}/draft`,
+        { method: 'PUT', body: JSON.stringify({ draft: answers }) },
+      ).catch(() => {})
+    }, 1000)
+    return () => clearTimeout(timer)
+  }, [item, projectId, answers])
+
   const missingRequired = item?.fields.some(
     (field) => field.required && !isAnswered(answers[field.stableKey]),
   ) ?? false

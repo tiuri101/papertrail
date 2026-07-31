@@ -46,7 +46,6 @@ class DraftUpdate(ApiModel):
 class DecisionSubmit(ApiModel):
     outcome: str
     criteria_answers: dict[str, bool] = Field(alias="criteriaAnswers")
-    exclusion_reason_id: str | None = Field(default=None, alias="exclusionReasonId")
     notes: str | None = None
 
 
@@ -54,7 +53,6 @@ class DecisionResponse(ApiModel):
     id: str
     reviewer_id: str = Field(serialization_alias="reviewerId")
     outcome: str
-    exclusion_reason_id: str | None = Field(serialization_alias="exclusionReasonId")
     criteria_answers: dict[str, bool] = Field(serialization_alias="criteriaAnswers")
     notes: str | None
     version: int

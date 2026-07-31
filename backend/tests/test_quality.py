@@ -2,6 +2,7 @@ import pytest
 from sqlalchemy import select
 
 from app.accounts.service import create_user
+from app.api.errors import ForbiddenError
 from app.conflicts.service import record_final_decision
 from app.forms.models import FormKind
 from app.forms.service import add_field, create_form
@@ -14,7 +15,12 @@ from app.projects.models import (
 )
 from app.publications.models import Publication
 from app.quality.models import QualityConfig, QualityResponse, QualityWorkItem
-from app.quality.service import claim_next_quality, initialize_quality, submit_quality
+from app.quality.service import (
+    claim_next_quality,
+    initialize_quality,
+    save_draft,
+    submit_quality,
+)
 
 
 def setup_quality(db, enabled=True):
@@ -81,6 +87,29 @@ def test_quality_assignment_and_weighted_score(db) -> None:
     db.commit()
     assert response.total_score == pytest.approx((2 * 2 + 4 * 1) / 3)
     assert item.status == "completed"
+
+
+def test_quality_save_draft_persists_and_locks_after_submission(db) -> None:
+    project, _, design, reporting, reviewer, _ = setup_quality(db)
+    other_reviewer = create_user(db, "other", "Other", "other-password")
+    initialize_quality(db, project)
+    db.commit()
+    item = claim_next_quality(db, project.id, reviewer.id)
+
+    save_draft(item, reviewer.id, {design.stable_key: "strong"})
+    db.commit()
+    db.refresh(item)
+    assert item.draft == {design.stable_key: "strong"}
+
+    with pytest.raises(ForbiddenError):
+        save_draft(item, other_reviewer.id, {design.stable_key: "weak"})
+
+    submit_quality(
+        db, item, reviewer.id, {design.stable_key: "strong", reporting.stable_key: 4}
+    )
+    db.commit()
+    with pytest.raises(ForbiddenError):
+        save_draft(item, reviewer.id, {design.stable_key: "weak"})
 
 
 def test_quality_revision_preserves_old_response(db) -> None:

@@ -106,18 +106,6 @@ class ScreeningConfigResponse(ApiModel):
     )
 
 
-class ExclusionReasonCreate(ApiModel):
-    label: str = Field(min_length=1, max_length=300)
-    position: int | None = Field(default=None, ge=0)
-
-
-class ExclusionReasonResponse(ApiModel):
-    id: str
-    stage: ScreeningStage
-    label: str
-    position: int
-
-
 class ProjectDetail(ProjectSummary):
     memberships: list[MembershipResponse]
     research_questions: list[ResearchQuestionResponse] = Field(
@@ -127,9 +115,14 @@ class ProjectDetail(ProjectSummary):
     screening_configs: list[ScreeningConfigResponse] = Field(
         serialization_alias="screeningConfigs"
     )
-    exclusion_reasons: list[ExclusionReasonResponse] = Field(
-        serialization_alias="exclusionReasons"
-    )
+
+
+class HighlightKeywordsUpdate(ApiModel):
+    keywords: list[str] = Field(default_factory=list)
+
+
+class HighlightKeywordsResponse(ApiModel):
+    keywords: list[str]
 
 
 class ProjectReopen(BaseModel):

@@ -41,7 +41,6 @@ class ConflictReviewer(ApiModel):
 class ConflictDecision(ApiModel):
     reviewer: ConflictReviewer
     outcome: str
-    exclusion_reason_text: str | None = Field(serialization_alias="exclusionReasonText")
     notes: str | None
 
 
