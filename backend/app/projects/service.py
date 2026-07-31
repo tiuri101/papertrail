@@ -50,7 +50,6 @@ def project_query():
         selectinload(Project.research_questions),
         selectinload(Project.criteria),
         selectinload(Project.screening_configs),
-        selectinload(Project.exclusion_reasons),
     )
 
 
@@ -96,6 +95,19 @@ def add_membership(
     db.add(membership)
     db.flush()
     return membership
+
+
+def parse_highlight_keywords(raw: str) -> list[str]:
+    seen: dict[str, None] = {}
+    for line in raw.splitlines():
+        keyword = line.strip()
+        if keyword:
+            seen.setdefault(keyword, None)
+    return list(seen)
+
+
+def serialize_highlight_keywords(keywords: list[str]) -> str:
+    return "\n".join(keyword.strip() for keyword in keywords if keyword.strip())
 
 
 def next_position(

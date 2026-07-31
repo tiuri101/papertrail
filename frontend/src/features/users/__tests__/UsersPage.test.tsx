@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import { UsersPage } from '../UsersPage'
@@ -6,7 +6,7 @@ import { jsonResponse, mockFetch } from '../../../test/http'
 import { renderWithProviders } from '../../../test/render'
 
 describe('UsersPage', () => {
-  it('lists users and creates a reviewer', async () => {
+  it('lists users in a table and creates a reviewer via the create-reviewer form', async () => {
     const users = [
       { id: 'admin', username: 'admin', displayName: 'Administrator', isAdmin: true, isActive: true },
     ]
@@ -21,21 +21,26 @@ describe('UsersPage', () => {
     })
 
     renderWithProviders(<UsersPage />)
-    expect(await screen.findByText(/Administrator \(admin\)/)).toBeInTheDocument()
+    const table = await screen.findByRole('table')
+    expect(within(table).getByText('Administrator')).toBeInTheDocument()
+    expect(within(table).getByText('admin')).toBeInTheDocument()
+
+    expect(screen.queryByLabelText('Username')).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Add reviewer' }))
 
     fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'reviewer' } })
     fireEvent.change(screen.getByLabelText('Display name'), { target: { value: 'Review User' } })
     fireEvent.change(screen.getByLabelText('Temporary password'), { target: { value: 'temporary-password' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create reviewer' }))
 
-    expect(await screen.findByText(/Review User \(reviewer\)/)).toBeInTheDocument()
+    await waitFor(() => expect(within(screen.getByRole('table')).getByText('Review User')).toBeInTheDocument())
     const postCall = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')
     expect(JSON.parse(String(postCall?.[1]?.body))).toEqual({
       username: 'reviewer',
       displayName: 'Review User',
       password: 'temporary-password',
     })
-    expect(screen.getByLabelText('Username')).toHaveValue('')
+    expect(screen.queryByLabelText('Username')).not.toBeInTheDocument()
   })
 
   it('shows a user-creation failure', async () => {
@@ -45,6 +50,7 @@ describe('UsersPage', () => {
     renderWithProviders(<UsersPage />)
     await screen.findByRole('heading', { name: 'Users' })
 
+    fireEvent.click(screen.getByRole('button', { name: 'Add reviewer' }))
     fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'existing' } })
     fireEvent.change(screen.getByLabelText('Display name'), { target: { value: 'Existing' } })
     fireEvent.change(screen.getByLabelText('Temporary password'), { target: { value: 'temporary-password' } })

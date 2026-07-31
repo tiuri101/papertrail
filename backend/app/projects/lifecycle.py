@@ -143,6 +143,60 @@ def reopen_project(
     return project
 
 
+STAGE_ORDER = [
+    ProjectStage.DRAFT,
+    ProjectStage.DUPLICATE_REVIEW,
+    ProjectStage.TITLE_ABSTRACT,
+    ProjectStage.FULL_TEXT,
+    ProjectStage.EXTRACTION,
+    ProjectStage.COMPLETED,
+]
+
+
+def move_project_back(
+    db: Session,
+    project: Project,
+    target_stage: ProjectStage,
+    actor_id: str,
+) -> Project:
+    """Move an active project to an earlier stage without deleting data.
+
+    Unlike ``reset_project`` (which wipes all workflow progress) or
+    ``reopen_project`` (which only applies to completed projects), this is
+    the "move backward" path for a project that's still in progress: it only
+    reassigns the stage. Downstream data for stages beyond the new one stays
+    stored — it's simply excluded from active workflow counts and standard
+    outputs going forward, per the requirement that downstream data is
+    retained rather than deleted when a project moves backward.
+    """
+    if project.stage in (ProjectStage.DRAFT, ProjectStage.COMPLETED):
+        raise ValueError(
+            "Only an active, in-progress project can be moved back a stage"
+        )
+    current_index = STAGE_ORDER.index(project.stage)
+    target_index = STAGE_ORDER.index(target_stage)
+    if target_index >= current_index:
+        raise ValueError("Target stage must be earlier than the current stage")
+
+    previous_stage = project.stage
+    project.stage = target_stage
+    record_audit(
+        db,
+        action="project.moved_back",
+        entity_type="project",
+        entity_id=project.id,
+        project_id=project.id,
+        actor_id=actor_id,
+        summary=f"Moved project back to {target_stage.value}",
+        metadata={
+            "previousStage": previous_stage.value,
+            "targetStage": target_stage.value,
+        },
+    )
+    db.flush()
+    return project
+
+
 def project_integrity_issues(db: Session, project: Project) -> list[dict[str, str]]:
     issues: list[dict[str, str]] = []
     included_ids = included_publication_ids(db, project.id)
@@ -238,8 +292,8 @@ def wipe_workflow_data(db: Session, project_id: str) -> None:
     """Delete every publication, import, and workflow-progress record for a project.
 
     Leaves the project's configuration (research questions, criteria, screening
-    configs, exclusion reasons, forms, members) untouched so callers can decide
-    separately whether to keep it (reset) or remove it too (delete).
+    configs, forms, members) untouched so callers can decide separately whether
+    to keep it (reset) or remove it too (delete).
     """
     extraction_item_ids = select(ExtractionWorkItem.id).where(
         ExtractionWorkItem.project_id == project_id
@@ -313,8 +367,8 @@ def wipe_workflow_data(db: Session, project_id: str) -> None:
 def reset_project(db: Session, project: Project, actor_id: str) -> Project:
     """Wipe all publications and workflow progress, returning the project to draft.
 
-    Research questions, criteria, screening configuration, exclusion reasons,
-    forms, and project membership are preserved.
+    Research questions, criteria, screening configuration, forms, and project
+    membership are preserved.
     """
     previous_stage = project.stage
     wipe_workflow_data(db, project.id)

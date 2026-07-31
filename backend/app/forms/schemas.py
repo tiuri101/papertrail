@@ -45,3 +45,15 @@ class FormResponse(ApiModel):
 class FieldUpdate(ApiModel):
     label: str | None = None
     archive: bool = False
+
+
+class SaveAsTemplateRequest(ApiModel):
+    name: str | None = None
+
+
+class FieldReplace(ApiModel):
+    field_type: str = Field(alias="fieldType")
+    label: str | None = None
+    required: bool = False
+    options: list = []
+    scoring: dict = {}

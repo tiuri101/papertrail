@@ -24,6 +24,10 @@ class QualitySubmit(ApiModel):
     answers: dict
 
 
+class QualityDraftUpdate(ApiModel):
+    draft: dict
+
+
 class QualityItemResponse(ApiModel):
     id: str
     publication_id: str = Field(serialization_alias="publicationId")

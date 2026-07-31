@@ -138,7 +138,7 @@ def test_submitting_the_last_full_text_decision_transitions_to_extraction(db) ->
         )
     )
 
-    submit_decision(db, item, reviewer.id, "include", {}, None, None)
+    submit_decision(db, item, reviewer.id, "include", {}, None)
     refresh_automatic_final_decision(db, included.id, ScreeningStage.FULL_TEXT)
     db.commit()
 

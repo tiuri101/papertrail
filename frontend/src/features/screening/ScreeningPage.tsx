@@ -1,8 +1,10 @@
-import { useMutation, useQuery } from '@tanstack/react-query'
+import { useMutation } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { HighlightedText } from '../../components/HighlightedText'
+import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 
 interface WorkItem {
   id: string
@@ -15,9 +17,6 @@ interface WorkItem {
   }
   criteria: Array<{ id: string; kind: string; text: string }>
   draft: Record<string, unknown>
-}
-interface ProjectDetail {
-  exclusionReasons: Array<{ id: string; stage: string; label: string }>
 }
 
 type CriterionAnswer = boolean | null
@@ -48,18 +47,14 @@ function defaultAnswerForKind(kind: string): boolean {
 
 export function ScreeningPage() {
   const { projectId = '', stage = 'title_abstract' } = useParams()
+  const highlightKeywords = useHighlightKeywords(projectId)
   const [item, setItem] = useState<WorkItem | null>(null)
   const [answers, setAnswers] = useState<Record<string, CriterionAnswer>>({})
   const [outcome, setOutcome] = useState('include')
-  const [reasonId, setReasonId] = useState('')
   const [notes, setNotes] = useState('')
   const [queueEmpty, setQueueEmpty] = useState(false)
   const [loadingNext, setLoadingNext] = useState(true)
   const [nextError, setNextError] = useState<string | null>(null)
-  const project = useQuery({
-    queryKey: ['project', projectId],
-    queryFn: () => apiRequest<ProjectDetail>(`/api/v1/projects/${projectId}`),
-  })
   const next = useMutation({
     mutationFn: () => apiRequest<WorkItem | null>(
       `/api/v1/projects/${projectId}/screening/${stage}/next`,
@@ -97,7 +92,6 @@ export function ScreeningPage() {
         body: JSON.stringify({
           outcome,
           criteriaAnswers: answers,
-          exclusionReasonId: outcome === 'exclude' && stage === 'full_text' ? reasonId : null,
           notes: notes || null,
         }),
         },
@@ -107,7 +101,6 @@ export function ScreeningPage() {
       setItem(null)
       setAnswers({})
       setOutcome('include')
-      setReasonId('')
       setNotes('')
       fetchNext()
     },
@@ -153,6 +146,8 @@ export function ScreeningPage() {
         ]),
       )
       setAnswers(initial)
+      if (typeof item.draft.outcome === 'string') setOutcome(item.draft.outcome)
+      if (typeof item.draft.notes === 'string') setNotes(item.draft.notes)
     }
   }, [item])
 
@@ -165,15 +160,26 @@ export function ScreeningPage() {
     if (shouldExclude) setOutcome('exclude')
   }, [answers, item])
 
-  const reasons = project.data?.exclusionReasons.filter(
-    (reason) => reason.stage === stage,
-  ) ?? []
+  useEffect(() => {
+    if (!item) return
+    const timer = setTimeout(() => {
+      apiRequest(
+        `/api/v1/projects/${projectId}/screening/work-items/${item.id}/draft`,
+        {
+          method: 'PUT',
+          body: JSON.stringify({
+            draft: { criteriaAnswers: answers, outcome, notes },
+          }),
+        },
+      ).catch(() => {})
+    }, 1000)
+    return () => clearTimeout(timer)
+  }, [item, projectId, answers, outcome, notes])
+
   const criteriaComplete = item?.criteria.every(
     (criterion) => answers[criterion.id] !== null
       && answers[criterion.id] !== undefined,
   ) ?? false
-  const reasonRequired = outcome === 'exclude' && stage === 'full_text'
-  const canSubmit = criteriaComplete && (!reasonRequired || Boolean(reasonId))
   const numbers = item ? criterionNumbers(item.criteria) : {}
 
   return (
@@ -193,9 +199,13 @@ export function ScreeningPage() {
         </>
       ) : (
         <article className="card">
-          <h2>{item.publication.title}</h2>
+          <h2><HighlightedText text={item.publication.title} keywords={highlightKeywords} /></h2>
           <p>{item.publication.authors ?? 'Unknown authors'}</p>
-          <p>{item.publication.abstract ?? 'No abstract available.'}</p>
+          <p>
+            {item.publication.abstract
+              ? <HighlightedText text={item.publication.abstract} keywords={highlightKeywords} />
+              : 'No abstract available.'}
+          </p>
           <div className="toolbar">
             {item.publication.doi ? (
               <a
@@ -267,21 +277,6 @@ export function ScreeningPage() {
               <option value="duplicate">Duplicate</option>
             </select>
           </label>
-          {outcome === 'exclude' && stage === 'full_text' ? (
-            <label>
-              Exclusion reason
-              <select
-                value={reasonId}
-                onChange={(event) => setReasonId(event.target.value)}
-                required
-              >
-                <option value="">Select a reason</option>
-                {reasons.map((reason) => (
-                  <option value={reason.id} key={reason.id}>{reason.label}</option>
-                ))}
-              </select>
-            </label>
-          ) : null}
           <label>
             Notes
             <textarea
@@ -298,7 +293,7 @@ export function ScreeningPage() {
           <button
             type="button"
             onClick={() => submit.mutate()}
-            disabled={submit.isPending || !canSubmit}
+            disabled={submit.isPending || !criteriaComplete}
           >
             Submit decision
           </button>

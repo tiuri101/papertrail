@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from collections import Counter
 from xml.sax.saxutils import escape as xml_escape
 
 from sqlalchemy import func, select
@@ -12,13 +11,13 @@ from app.fulltext.models import FullTextRetrieval, RetrievalStatus
 from app.imports.models import ImportBatch, ImportedRecord
 from app.projects.models import ScreeningStage
 from app.publications.models import Publication, PublicationSource
-from app.screening.models import ScreeningDecision, ScreeningOutcome, ScreeningWorkItem
+from app.screening.models import ScreeningOutcome
 
 
 def calculate_prisma_counts(
     db: Session,
     project_id: str,
-) -> dict[str, int | dict[str, int]]:
+) -> dict[str, int]:
     database_records = (
         db.scalar(
             select(func.count())
@@ -82,7 +81,6 @@ def calculate_prisma_counts(
             select(FullTextRetrieval).where(FullTextRetrieval.project_id == project_id)
         )
     )
-    reasons = _full_text_exclusion_reasons(db, full_finals)
     return {
         "recordsIdentifiedDatabases": int(database_records),
         "recordsIdentifiedOtherSources": int(other_records),
@@ -99,42 +97,10 @@ def calculate_prisma_counts(
             for item in retrievals
         ),
         "reportsAssessed": len(full_finals),
-        "fullTextExclusions": dict(reasons),
         "includedPublications": sum(
             item.outcome == ScreeningOutcome.INCLUDE for item in full_finals
         ),
     }
-
-
-def _full_text_exclusion_reasons(
-    db: Session,
-    final_decisions: list[FinalDecision],
-) -> Counter[str]:
-    reasons: Counter[str] = Counter()
-    excluded_ids = {
-        item.publication_id
-        for item in final_decisions
-        if item.outcome == ScreeningOutcome.EXCLUDE
-    }
-    for publication_id in excluded_ids:
-        decision = db.scalar(
-            select(ScreeningDecision)
-            .join(ScreeningWorkItem)
-            .where(
-                ScreeningWorkItem.publication_id == publication_id,
-                ScreeningWorkItem.stage == ScreeningStage.FULL_TEXT,
-                ScreeningDecision.is_current.is_(True),
-                ScreeningDecision.outcome == ScreeningOutcome.EXCLUDE,
-            )
-            .order_by(ScreeningDecision.created_at)
-        )
-        label = (
-            decision.exclusion_reason_text
-            if decision and decision.exclusion_reason_text
-            else "Other"
-        )
-        reasons[label] += 1
-    return reasons
 
 
 def build_prisma_svg(project_name: str, counts: dict) -> str:

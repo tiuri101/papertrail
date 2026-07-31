@@ -15,6 +15,7 @@ from app.accounts.models import User, UserSession
 from app.accounts.schemas import (
     LoginRequest,
     LoginResponse,
+    SelfUpdate,
     UserCreate,
     UserResponse,
     UserUpdate,
@@ -29,8 +30,10 @@ from app.accounts.service import (
     password_hasher,
     record_login_failure,
     revoke_session,
+    verify_password,
 )
 from app.api.errors import DomainError
+from app.audit.service import record_audit
 from app.core.config import get_settings
 from app.db.session import get_db
 
@@ -88,6 +91,41 @@ def me(user: User = Depends(get_current_user)) -> User:
     return user
 
 
+@auth_router.patch("/me", response_model=UserResponse)
+def update_me(
+    payload: SelfUpdate,
+    session: UserSession = Depends(require_csrf),
+    db: Session = Depends(get_db),
+) -> User:
+    user = session.user
+    changed_fields: list[str] = []
+    if payload.display_name is not None:
+        user.display_name = payload.display_name.strip()
+        changed_fields.append("display_name")
+    if payload.new_password is not None:
+        if not payload.current_password:
+            raise DomainError("Current password is required to set a new password")
+        if not verify_password(user, payload.current_password):
+            raise DomainError("Current password is incorrect")
+        user.password_hash = password_hasher.hash(payload.new_password)
+        changed_fields.append("password")
+        for other_session in user.sessions:
+            if other_session.revoked_at is None and other_session.id != session.id:
+                revoke_session(other_session)
+    if changed_fields:
+        record_audit(
+            db,
+            action="user.self_updated",
+            entity_type="user",
+            entity_id=user.id,
+            actor_id=user.id,
+            summary=f"{user.username} updated their account",
+            metadata={"fields": changed_fields},
+        )
+    db.commit()
+    return user
+
+
 @auth_router.get("/session", response_model=LoginResponse)
 def browser_session(
     session: UserSession = Depends(get_current_session),
@@ -105,10 +143,18 @@ def list_users(
 @users_router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
 def add_user(
     payload: UserCreate,
-    _: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_admin_csrf),
     db: Session = Depends(get_db),
 ) -> User:
     user = create_user(db, payload.username, payload.display_name, payload.password)
+    record_audit(
+        db,
+        action="user.created",
+        entity_type="user",
+        entity_id=user.id,
+        actor_id=admin.id,
+        summary=f"Created user {user.username}",
+    )
     db.commit()
     return user
 
@@ -121,23 +167,37 @@ def update_user(
     db: Session = Depends(get_db),
 ) -> User:
     user = get_user_or_raise(db, user_id)
+    changed_fields: list[str] = []
     if payload.display_name is not None:
         user.display_name = payload.display_name.strip()
+        changed_fields.append("display_name")
     if payload.is_active is not None:
         if user.id == admin.id and not payload.is_active:
             raise DomainError(
                 "The active administrator cannot disable their own account"
             )
         user.is_active = payload.is_active
+        changed_fields.append("is_active")
         if not user.is_active:
             for session in user.sessions:
                 if session.revoked_at is None:
                     revoke_session(session)
     if payload.password is not None:
         user.password_hash = password_hasher.hash(payload.password)
+        changed_fields.append("password")
         for session in user.sessions:
             if session.revoked_at is None:
                 revoke_session(session)
+    if changed_fields:
+        record_audit(
+            db,
+            action="user.updated",
+            entity_type="user",
+            entity_id=user.id,
+            actor_id=admin.id,
+            summary=f"Updated user {user.username}",
+            metadata={"fields": changed_fields, "isActive": user.is_active},
+        )
     db.commit()
     return user
 

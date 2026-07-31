@@ -83,6 +83,7 @@ describe('ReportingPage', () => {
 
     expect(screen.getByRole('button', { name: 'Generate PRISMA SVG' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Generate Excel workbook' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Generate PRISMA supporting tables' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Generate BibTeX' })).toBeInTheDocument()
   })
 })

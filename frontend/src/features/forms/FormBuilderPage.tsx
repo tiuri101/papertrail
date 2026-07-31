@@ -3,11 +3,13 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { DynamicForm } from './DynamicForm'
 
 interface ReviewForm {
   id: string
   name: string
   kind: string
+  isTemplate: boolean
   activeVersionId: string | null
 }
 
@@ -18,6 +20,7 @@ interface FormField {
   fieldType: string
   required: boolean
   isArchived: boolean
+  options: string[]
 }
 
 interface QualityConfig {
@@ -80,6 +83,8 @@ export function FormBuilderPage() {
   const queryClient = useQueryClient()
   const [name, setName] = useState('Extraction form')
   const [kind, setKind] = useState('extraction')
+  const [templateId, setTemplateId] = useState('')
+  const [templateName, setTemplateName] = useState('')
   const [selectedForm, setSelectedForm] = useState('')
   const [fieldLabel, setFieldLabel] = useState('')
   const [fieldType, setFieldType] = useState('long_text')
@@ -94,11 +99,21 @@ export function FormBuilderPage() {
   const [qcMode, setQcMode] = useState('both')
   const [qcAggregation, setQcAggregation] = useState('sum')
 
+  const [editingKey, setEditingKey] = useState<string | null>(null)
+  const [editingLabel, setEditingLabel] = useState('')
+  const [replacingKey, setReplacingKey] = useState<string | null>(null)
+  const [replaceType, setReplaceType] = useState('short_text')
+  const [previewAnswers, setPreviewAnswers] = useState<Record<string, unknown>>({})
+
   const forms = useQuery({
     queryKey: ['forms', projectId],
     queryFn: () => apiRequest<ReviewForm[]>(
       `/api/v1/projects/${projectId}/forms`,
     ),
+  })
+  const templates = useQuery({
+    queryKey: ['form-templates'],
+    queryFn: () => apiRequest<ReviewForm[]>('/api/v1/form-templates'),
   })
   const fields = useQuery({
     queryKey: ['form-fields', selectedForm],
@@ -124,16 +139,19 @@ export function FormBuilderPage() {
     }
   }, [qualityConfig.data])
 
+  const templatesForKind = templates.data?.filter((template) => template.kind === kind) ?? []
+
   const createForm = useMutation({
     mutationFn: () => apiRequest<ReviewForm>(
       `/api/v1/projects/${projectId}/forms`,
       {
         method: 'POST',
-        body: JSON.stringify({ name, kind }),
+        body: JSON.stringify({ name, kind, templateId: templateId || undefined }),
       },
     ),
     onSuccess: (form) => {
       setSelectedForm(form.id)
+      setTemplateId('')
       queryClient.invalidateQueries({ queryKey: ['forms', projectId] })
     },
   })
@@ -168,6 +186,59 @@ export function FormBuilderPage() {
       })
     },
   })
+  const renameField = useMutation({
+    mutationFn: (variables: { stableKey: string; label: string }) => apiRequest<FormField>(
+      `/api/v1/forms/${selectedForm}/fields/${variables.stableKey}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ label: variables.label }),
+      },
+    ),
+    onSuccess: () => {
+      setEditingKey(null)
+      queryClient.invalidateQueries({ queryKey: ['form-fields', selectedForm] })
+    },
+  })
+  const deleteField = useMutation({
+    mutationFn: (stableKey: string) => apiRequest<FormField>(
+      `/api/v1/forms/${selectedForm}/fields/${stableKey}`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ archive: true }),
+      },
+    ),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['form-fields', selectedForm] }),
+  })
+  const replaceField = useMutation({
+    mutationFn: (variables: { stableKey: string; fieldType: string; label: string; required: boolean }) => apiRequest<FormField>(
+      `/api/v1/forms/${selectedForm}/fields/${variables.stableKey}/replace`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          fieldType: variables.fieldType,
+          label: variables.label,
+          required: variables.required,
+        }),
+      },
+    ),
+    onSuccess: () => {
+      setReplacingKey(null)
+      queryClient.invalidateQueries({ queryKey: ['form-fields', selectedForm] })
+    },
+  })
+  const saveAsTemplate = useMutation({
+    mutationFn: () => apiRequest<ReviewForm>(
+      `/api/v1/forms/${selectedForm}/save-as-template`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ name: templateName || undefined }),
+      },
+    ),
+    onSuccess: () => {
+      setTemplateName('')
+      queryClient.invalidateQueries({ queryKey: ['form-templates'] })
+    },
+  })
   const saveQualityConfig = useMutation({
     mutationFn: () => apiRequest(
       `/api/v1/projects/${projectId}/quality-config`,
@@ -179,7 +250,9 @@ export function FormBuilderPage() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['quality-config', projectId] }),
   })
 
-  const mutationError = createForm.error ?? addField.error
+  const mutationError = createForm.error ?? addField.error ?? renameField.error
+    ?? deleteField.error ?? replaceField.error ?? saveAsTemplate.error
+  const activeFields = fields.data?.filter((field) => !field.isArchived) ?? []
 
   return (
     <main className="page">
@@ -229,11 +302,24 @@ export function FormBuilderPage() {
           </label>
           <label>
             Kind
-            <select value={kind} onChange={(event) => setKind(event.target.value)}>
+            <select
+              value={kind}
+              onChange={(event) => { setKind(event.target.value); setTemplateId('') }}
+            >
               <option value="extraction">Extraction</option>
               <option value="quality">Quality assessment</option>
             </select>
           </label>
+          <label>
+            Start from template (optional)
+            <select value={templateId} onChange={(event) => setTemplateId(event.target.value)}>
+              <option value="">From scratch</option>
+              {templatesForKind.map((template) => (
+                <option key={template.id} value={template.id}>{template.name}</option>
+              ))}
+            </select>
+          </label>
+          {templates.error ? <p className="error" role="alert">{templates.error.message}</p> : null}
           <button type="submit" disabled={createForm.isPending}>Create form</button>
         </form>
       </section>
@@ -334,15 +420,141 @@ export function FormBuilderPage() {
           </form>
           <h3>Fields</h3>
           {fields.error ? <p className="error" role="alert">{fields.error.message}</p> : null}
-          <ul>
-            {fields.data?.map((field) => (
-              <li key={field.id}>
-                {field.label} — {field.fieldType}
-                {field.required ? ' — required' : ''}
-                {field.isArchived ? ' — archived' : ''}
-              </li>
-            ))}
-          </ul>
+          <table>
+            <thead>
+              <tr>
+                <th>Label</th>
+                <th>Type</th>
+                <th>Required</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {fields.data?.map((field) => (
+                <tr key={field.id}>
+                  <td>
+                    {editingKey === field.stableKey ? (
+                      <input
+                        aria-label={`Edit label for ${field.label}`}
+                        value={editingLabel}
+                        onChange={(event) => setEditingLabel(event.target.value)}
+                      />
+                    ) : field.label}
+                  </td>
+                  <td>{field.fieldType}</td>
+                  <td>{field.required ? 'Required' : '—'}</td>
+                  <td>{field.isArchived ? 'Archived' : 'Active'}</td>
+                  <td>
+                    {editingKey === field.stableKey ? (
+                      <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+                        <button
+                          type="button"
+                          disabled={renameField.isPending}
+                          onClick={() => renameField.mutate({ stableKey: field.stableKey, label: editingLabel })}
+                        >
+                          Save
+                        </button>
+                        <button type="button" onClick={() => setEditingKey(null)}>Cancel</button>
+                      </div>
+                    ) : !field.isArchived ? (
+                      <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingKey(field.stableKey)
+                            setEditingLabel(field.label)
+                          }}
+                        >
+                          Edit
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (window.confirm(`Archive field "${field.label}"? It will be removed from new submissions, but every value already recorded for it is kept and can still be included in exports.`)) {
+                              deleteField.mutate(field.stableKey)
+                            }
+                          }}
+                        >
+                          Archive
+                        </button>
+                        {replacingKey === field.stableKey ? (
+                          <>
+                            <select
+                              aria-label={`New type for ${field.label}`}
+                              value={replaceType}
+                              onChange={(event) => setReplaceType(event.target.value)}
+                            >
+                              {fieldTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+                            </select>
+                            <button
+                              type="button"
+                              disabled={replaceField.isPending}
+                              onClick={() => {
+                                if (window.confirm(`Change the type of "${field.label}"? This isn't done in place: the current field is archived (its recorded values stay attached to it) and a new field with the new type is added instead.`)) {
+                                  replaceField.mutate({
+                                    stableKey: field.stableKey,
+                                    fieldType: replaceType,
+                                    label: field.label,
+                                    required: field.required,
+                                  })
+                                }
+                              }}
+                            >
+                              Confirm
+                            </button>
+                            <button type="button" onClick={() => setReplacingKey(null)}>Cancel</button>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setReplacingKey(field.stableKey)
+                              setReplaceType(field.fieldType)
+                            }}
+                          >
+                            Change type…
+                          </button>
+                        )}
+                      </div>
+                    ) : null}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <h3>Save as reusable template</h3>
+          <p className="muted">Saves the current fields as a new template. Later edits to this project form won't affect the template, or vice versa.</p>
+          <form onSubmit={(event) => { event.preventDefault(); saveAsTemplate.mutate() }}>
+            <label>
+              Template name
+              <input
+                value={templateName}
+                onChange={(event) => setTemplateName(event.target.value)}
+                placeholder={forms.data?.find((form) => form.id === selectedForm)?.name ?? ''}
+              />
+            </label>
+            {saveAsTemplate.isSuccess ? <p>Template saved.</p> : null}
+            <button type="submit" disabled={saveAsTemplate.isPending}>Save as template</button>
+          </form>
+          {activeFields.length ? (
+            <>
+              <h3>Preview</h3>
+              <div className="card">
+                <DynamicForm
+                  fields={activeFields.map((field) => ({
+                    stableKey: field.stableKey,
+                    label: field.label,
+                    fieldType: field.fieldType,
+                    required: field.required,
+                    options: field.options,
+                  }))}
+                  value={previewAnswers}
+                  onChange={(key, value) => setPreviewAnswers((current) => ({ ...current, [key]: value }))}
+                />
+              </div>
+            </>
+          ) : null}
         </section>
       ) : null}
     </main>

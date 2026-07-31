@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { ExtractionPage } from '../ExtractionPage'
 import { jsonResponse, mockFetch } from '../../../test/http'
@@ -101,5 +101,27 @@ describe('ExtractionPage', () => {
     renderWithProviders(<ExtractionPage />, { route: '/projects/p1/extraction', path: '/projects/:projectId/extraction' })
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Something went wrong')
+  })
+
+  it('autosaves draft answers shortly after editing', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const fetchMock = mockFetch(async (input) => String(input).endsWith('/next') ? jsonResponse(workItem) : jsonResponse({}))
+      renderWithProviders(<ExtractionPage />, { route: '/projects/p1/extraction', path: '/projects/:projectId/extraction' })
+
+      await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
+      fireEvent.change(screen.getByLabelText('Main finding *'), { target: { value: 'Draft in progress' } })
+
+      expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith('/extraction-1/draft'))).toBe(false)
+      await vi.advanceTimersByTimeAsync(1000)
+
+      await waitFor(() => {
+        const draftCall = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/extraction-1/draft'))
+        expect(draftCall).toBeTruthy()
+        expect(JSON.parse(String(draftCall?.[1]?.body))).toEqual({ draft: { finding: 'Draft in progress' } })
+      })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

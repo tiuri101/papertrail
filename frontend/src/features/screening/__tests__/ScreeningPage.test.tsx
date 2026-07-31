@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { ScreeningPage } from '../ScreeningPage'
 import { jsonResponse, mockFetch } from '../../../test/http'
@@ -30,21 +30,12 @@ function renderScreening(handler: Parameters<typeof mockFetch>[0], stage = 'titl
   return fetchMock
 }
 
-function projectResponse(stage = 'title_abstract') {
-  return jsonResponse({
-    exclusionReasons: [
-      { id: 'reason-wrong-topic', stage, label: 'Wrong topic' },
-      { id: 'reason-other-stage', stage: stage === 'title_abstract' ? 'full_text' : 'title_abstract', label: 'Other stage' },
-    ],
-  })
-}
-
 describe('ScreeningPage', () => {
   it('fetches the next publication automatically on load, without clicking a button', async () => {
     const fetchMock = renderScreening(async (input, init) => {
       const path = String(input)
       if (path.endsWith('/next') && init?.method === 'POST') return jsonResponse(workItem)
-      return projectResponse()
+      return jsonResponse({})
     })
 
     expect(await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })).toBeInTheDocument()
@@ -56,7 +47,7 @@ describe('ScreeningPage', () => {
     renderScreening(async (input, init) => {
       const path = String(input)
       if (path.endsWith('/next') && init?.method === 'POST') return jsonResponse(workItem)
-      return projectResponse()
+      return jsonResponse({})
     })
 
     expect(await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })).toBeInTheDocument()
@@ -70,7 +61,7 @@ describe('ScreeningPage', () => {
   })
 
   it('requires re-answering a criterion after its default is unchecked', async () => {
-    renderScreening(async (input) => String(input).endsWith('/next') ? jsonResponse(workItem) : projectResponse())
+    renderScreening(async (input) => String(input).endsWith('/next') ? jsonResponse(workItem) : jsonResponse({}))
     await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
 
     const submit = screen.getByRole('button', { name: 'Submit decision' })
@@ -82,7 +73,7 @@ describe('ScreeningPage', () => {
   })
 
   it('checking one answer for a criterion unchecks the other', async () => {
-    renderScreening(async (input) => String(input).endsWith('/next') ? jsonResponse(workItem) : projectResponse())
+    renderScreening(async (input) => String(input).endsWith('/next') ? jsonResponse(workItem) : jsonResponse({}))
     await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
 
     const fulfilled = screen.getByRole('checkbox', { name: 'Inclusion: Uses virtual reality — Fulfilled' })
@@ -102,7 +93,7 @@ describe('ScreeningPage', () => {
         { id: 'criterion-1', kind: 'inclusion', text: 'Uses virtual reality' },
       ],
     }
-    renderScreening(async (input) => String(input).endsWith('/next') ? jsonResponse(reordered) : projectResponse())
+    renderScreening(async (input) => String(input).endsWith('/next') ? jsonResponse(reordered) : jsonResponse({}))
     await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
 
     const rowHeaders = screen.getAllByRole('rowheader').map((cell) => cell.textContent)
@@ -113,7 +104,7 @@ describe('ScreeningPage', () => {
   })
 
   it('switches the decision to Exclude when an inclusion criterion is marked not fulfilled', async () => {
-    renderScreening(async (input) => String(input).endsWith('/next') ? jsonResponse(workItem) : projectResponse())
+    renderScreening(async (input) => String(input).endsWith('/next') ? jsonResponse(workItem) : jsonResponse({}))
     await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
 
     expect(screen.getByLabelText('Decision')).toHaveValue('include')
@@ -122,7 +113,7 @@ describe('ScreeningPage', () => {
   })
 
   it('switches the decision to Exclude when an exclusion criterion is marked fulfilled', async () => {
-    renderScreening(async (input) => String(input).endsWith('/next') ? jsonResponse(workItem) : projectResponse())
+    renderScreening(async (input) => String(input).endsWith('/next') ? jsonResponse(workItem) : jsonResponse({}))
     await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
 
     expect(screen.getByLabelText('Decision')).toHaveValue('include')
@@ -130,12 +121,12 @@ describe('ScreeningPage', () => {
     expect(screen.getByLabelText('Decision')).toHaveValue('exclude')
   })
 
-  it('excludes without an exclusion reason at the title/abstract stage', async () => {
+  it('submits an exclude decision at the title/abstract stage without requiring a reason', async () => {
     const fetchMock = renderScreening(async (input, init) => {
       const path = String(input)
       if (path.endsWith('/next')) return jsonResponse(workItem)
       if (path.endsWith('/decision') && init?.method === 'POST') return jsonResponse({ id: 'decision-1' }, 201)
-      return projectResponse()
+      return jsonResponse({})
     })
 
     await screen.findByText('A study of urban data in virtual reality.')
@@ -152,7 +143,6 @@ describe('ScreeningPage', () => {
     expect(JSON.parse(String(decisionCall?.[1]?.body))).toEqual({
       outcome: 'exclude',
       criteriaAnswers: { 'criterion-1': true, 'criterion-2': false },
-      exclusionReasonId: null,
       notes: 'Outside the review scope.',
     })
   })
@@ -160,7 +150,7 @@ describe('ScreeningPage', () => {
   it('restores saved criterion answers from the work-item draft, overriding the default', async () => {
     renderScreening(async (input) => String(input).endsWith('/next')
       ? jsonResponse({ ...workItem, draft: { criteriaAnswers: { 'criterion-1': false } } })
-      : projectResponse())
+      : jsonResponse({}))
 
     await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
 
@@ -171,14 +161,14 @@ describe('ScreeningPage', () => {
   })
 
   it('reports that the queue has no available work, with no button to retry', async () => {
-    renderScreening(async (input) => String(input).endsWith('/next') ? jsonResponse(null) : projectResponse())
+    renderScreening(async (input) => String(input).endsWith('/next') ? jsonResponse(null) : jsonResponse({}))
     expect(await screen.findByText('No publications are currently available.')).toBeInTheDocument()
     expect(screen.queryByText('Loading the next publication…')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Get next publication' })).not.toBeInTheDocument()
   })
 
   it('reports that the full-text queue has no available work', async () => {
-    renderScreening(async (input) => String(input).endsWith('/next') ? jsonResponse(null) : projectResponse('full_text'), 'full_text')
+    renderScreening(async (input) => String(input).endsWith('/next') ? jsonResponse(null) : jsonResponse({}), 'full_text')
     expect(await screen.findByText('No publications are currently available.')).toBeInTheDocument()
     expect(screen.queryByText('Loading the next publication…')).not.toBeInTheDocument()
   })
@@ -188,7 +178,7 @@ describe('ScreeningPage', () => {
       const path = String(input)
       if (path.endsWith('/next') && init?.method === 'POST') return jsonResponse(workItem)
       if (path.endsWith('/decision') && init?.method === 'POST') return jsonResponse({ id: 'decision-1' }, 201)
-      return projectResponse()
+      return jsonResponse({})
     })
 
     await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
@@ -207,7 +197,7 @@ describe('ScreeningPage', () => {
       const path = String(input)
       if (path.endsWith('/next') && init?.method === 'POST') return jsonResponse(workItem)
       if (path.endsWith('/release') && init?.method === 'POST') return jsonResponse({ status: 'released' })
-      return projectResponse()
+      return jsonResponse({})
     })
     const { unmount } = renderWithProviders(<ScreeningPage />, {
       route: '/projects/project-1/screening/title_abstract',
@@ -224,23 +214,21 @@ describe('ScreeningPage', () => {
     })
   })
 
-  it('requires a full-text exclusion reason and submits the completed decision', async () => {
+  it('submits an exclude decision at the full-text stage without requiring a reason', async () => {
     const fetchMock = renderScreening(async (input, init) => {
       const path = String(input)
       if (path.endsWith('/next')) return jsonResponse(workItem)
       if (path.endsWith('/decision') && init?.method === 'POST') return jsonResponse({ id: 'decision-1' }, 201)
-      return projectResponse('full_text')
+      return jsonResponse({})
     }, 'full_text')
 
     expect(screen.getByRole('heading', { name: 'Full-text screening' })).toBeInTheDocument()
     await screen.findByText(workItem.publication.abstract)
     fireEvent.change(screen.getByLabelText('Decision'), { target: { value: 'exclude' } })
 
-    expect(screen.getByRole('button', { name: 'Submit decision' })).toBeDisabled()
-    expect(screen.getByRole('option', { name: 'Wrong topic' })).toBeInTheDocument()
-    expect(screen.queryByRole('option', { name: 'Other stage' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Submit decision' })).toBeEnabled()
+    expect(screen.queryByLabelText('Exclusion reason')).not.toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText('Exclusion reason'), { target: { value: 'reason-wrong-topic' } })
     fireEvent.change(screen.getByLabelText('Notes'), { target: { value: 'Outside the review scope.' } })
     fireEvent.click(screen.getByRole('button', { name: 'Submit decision' }))
 
@@ -249,8 +237,38 @@ describe('ScreeningPage', () => {
     expect(JSON.parse(String(decisionCall?.[1]?.body))).toEqual({
       outcome: 'exclude',
       criteriaAnswers: { 'criterion-1': true, 'criterion-2': false },
-      exclusionReasonId: 'reason-wrong-topic',
       notes: 'Outside the review scope.',
     })
+  })
+
+  it('autosaves draft content shortly after the reviewer edits it', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const fetchMock = renderScreening(async (input) => {
+        const path = String(input)
+        if (path.endsWith('/next')) return jsonResponse(workItem)
+        return jsonResponse({})
+      })
+
+      await screen.findByText('A study of urban data in virtual reality.')
+      fireEvent.change(screen.getByLabelText('Notes'), { target: { value: 'Still reading this one.' } })
+
+      expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith('/work-items/work-1/draft'))).toBe(false)
+      await vi.advanceTimersByTimeAsync(1000)
+
+      await waitFor(() => {
+        const draftCall = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/work-items/work-1/draft'))
+        expect(draftCall).toBeTruthy()
+        expect(JSON.parse(String(draftCall?.[1]?.body))).toEqual({
+          draft: {
+            criteriaAnswers: { 'criterion-1': true, 'criterion-2': false },
+            outcome: 'include',
+            notes: 'Still reading this one.',
+          },
+        })
+      })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

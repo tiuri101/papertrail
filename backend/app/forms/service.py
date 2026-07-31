@@ -176,6 +176,96 @@ def archive_field(db: Session, form: ReviewForm, stable_key: str) -> FormField:
     return field
 
 
+def replace_field(
+    db: Session,
+    form: ReviewForm,
+    stable_key: str,
+    field_type: str | FieldType,
+    *,
+    label: str | None = None,
+    required: bool = False,
+    options: list | None = None,
+    scoring: dict | None = None,
+) -> FormField:
+    """Archive a field and add its replacement in a single new version.
+
+    Per the spec, changing a field's type after values exist requires an
+    explicit migration or replacement field rather than an in-place type
+    mutation -- so this creates a distinct field with a new stable_key,
+    leaving historical responses keyed to the old stable_key intact and
+    interpretable under their original type.
+    """
+    version = fork_version(db, form, "Replaced field")
+    old_field = find_field(db, version, stable_key)
+    old_field.is_archived = True
+    new_field = FormField(
+        form_version_id=version.id,
+        label=(label or old_field.label).strip(),
+        field_type=FieldType(field_type),
+        required=required,
+        position=old_field.position,
+        options=options or [],
+        scoring=scoring or {},
+    )
+    db.add(new_field)
+    db.flush()
+    if required and form.project_id is not None:
+        if form.kind == FormKind.EXTRACTION:
+            from app.extraction.service import reopen_for_required_field
+
+            reopen_for_required_field(db, form.project_id)
+        elif form.kind == FormKind.QUALITY:
+            try:
+                from app.quality.service import (
+                    reopen_for_required_field as reopen_quality,
+                )
+
+                reopen_quality(db, form.project_id)
+            except ImportError:
+                pass
+    return new_field
+
+
+def save_form_as_template(
+    db: Session,
+    form: ReviewForm,
+    name: str | None = None,
+) -> ReviewForm:
+    """Save a project form's active fields as a new reusable template.
+
+    Deep-copies fields into a brand-new template form, independent of the
+    source project form from that point on -- mirrors
+    ``copy_template_to_project`` in the opposite direction.
+    """
+    if form.is_template:
+        raise ConflictError("Form is already a template")
+    template = create_form(db, name or form.name, form.kind, is_template=True)
+    version = active_version(db, template)
+    source = active_version(db, form)
+    for field in list(
+        db.scalars(
+            select(FormField)
+            .where(FormField.form_version_id == source.id, FormField.is_archived.is_(False))
+            .order_by(FormField.position)
+        )
+    ):
+        db.add(
+            FormField(
+                form_version_id=version.id,
+                stable_key=field.stable_key,
+                label=field.label,
+                field_type=field.field_type,
+                required=field.required,
+                position=field.position,
+                options=list(field.options),
+                scoring=dict(field.scoring),
+                is_archived=False,
+            )
+        )
+    db.flush()
+    return template
+
+
 def copy_template_to_project(
     db: Session,
     template: ReviewForm,

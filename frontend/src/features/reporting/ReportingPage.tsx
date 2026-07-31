@@ -90,6 +90,13 @@ export function ReportingPage() {
         </button>
         <button
           type="button"
+          onClick={() => createExport.mutate('prisma_tables')}
+          disabled={createExport.isPending}
+        >
+          Generate PRISMA supporting tables
+        </button>
+        <button
+          type="button"
           onClick={() => createExport.mutate('bibtex')}
           disabled={createExport.isPending}
         >

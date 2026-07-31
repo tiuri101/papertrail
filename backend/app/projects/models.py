@@ -72,6 +72,9 @@ class Project(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     reopened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    highlight_keywords_raw: Mapped[str] = mapped_column(
+        Text, default="", server_default="", nullable=False
+    )
 
     memberships: Mapped[list[ProjectMembership]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
@@ -88,11 +91,6 @@ class Project(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     screening_configs: Mapped[list[ScreeningConfig]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
-    )
-    exclusion_reasons: Mapped[list[ExclusionReason]] = relationship(
-        back_populates="project",
-        cascade="all, delete-orphan",
-        order_by="ExclusionReason.position",
     )
 
 
@@ -172,17 +170,3 @@ class ScreeningConfig(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
 
     project: Mapped[Project] = relationship(back_populates="screening_configs")
-
-
-class ExclusionReason(UUIDPrimaryKeyMixin, TimestampMixin, Base):
-    __tablename__ = "exclusion_reasons"
-
-    project_id: Mapped[str] = mapped_column(
-        ForeignKey("projects.id", ondelete="CASCADE"), index=True
-    )
-    stage: Mapped[ScreeningStage] = mapped_column(Enum(ScreeningStage), nullable=False)
-    label: Mapped[str] = mapped_column(String(300), nullable=False)
-    position: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-
-    project: Mapped[Project] = relationship(back_populates="exclusion_reasons")

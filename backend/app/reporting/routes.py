@@ -22,6 +22,7 @@ router = APIRouter(tags=["reporting"])
 class ExportRequest(BaseModel):
     exportType: str
     scope: str = "included"
+    statusFilter: dict | None = None
 
 
 @router.get("/projects/{project_id}/prisma")
@@ -45,7 +46,11 @@ def create_export(
     job = enqueue_job(
         db,
         "generate_export",
-        {"export_type": payload.exportType, "scope": payload.scope},
+        {
+            "export_type": payload.exportType,
+            "scope": payload.scope,
+            "status_filter": payload.statusFilter,
+        },
         project_id=project_id,
         created_by_id=admin.id,
     )

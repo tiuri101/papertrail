@@ -1,12 +1,14 @@
 from sqlalchemy import select
 
-from app.forms.models import FormField, FormKind
+from app.forms.models import FieldType, FormField, FormKind
 from app.forms.service import (
     add_field,
     archive_field,
     copy_template_to_project,
     create_form,
     rename_field,
+    replace_field,
+    save_form_as_template,
 )
 from app.projects.models import Project, ReviewType
 
@@ -82,3 +84,56 @@ def test_editing_published_form_creates_new_version_and_archives_fields(db) -> N
         )
     )
     assert archived.is_archived is True
+
+
+def test_save_form_as_template_is_independent_of_the_source_project_form(db) -> None:
+    project = Project(
+        name="Review", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed"
+    )
+    db.add(project)
+    db.flush()
+    project_form = create_form(
+        db, "Project extraction", FormKind.EXTRACTION, project_id=project.id
+    )
+    field = add_field(db, project_form, "Main findings", "long_text", required=True)
+    db.commit()
+
+    template = save_form_as_template(db, project_form, "Reusable extraction")
+    db.commit()
+    assert template.is_template is True
+    assert template.project_id is None
+    copied = db.scalar(
+        select(FormField).where(FormField.form_version_id == template.active_version_id)
+    )
+    assert copied.stable_key == field.stable_key
+    assert copied.label == "Main findings"
+
+    rename_field(db, project_form, field.stable_key, "Renamed in project")
+    db.commit()
+    template_field = db.scalar(
+        select(FormField).where(FormField.form_version_id == template.active_version_id)
+    )
+    assert template_field.label == "Main findings"
+
+
+def test_replace_field_archives_old_field_and_creates_a_new_typed_field(db) -> None:
+    form = create_form(db, "Extraction", FormKind.EXTRACTION, is_template=True)
+    original = add_field(db, form, "Sample size", "short_text", required=True)
+    db.commit()
+
+    replacement = replace_field(
+        db, form, original.stable_key, FieldType.NUMBER, label="Sample size"
+    )
+    db.commit()
+
+    assert replacement.stable_key != original.stable_key
+    assert replacement.field_type == FieldType.NUMBER
+    current_fields = list(
+        db.scalars(
+            select(FormField).where(FormField.form_version_id == form.active_version_id)
+        )
+    )
+    fields_by_key = {field.stable_key: field for field in current_fields}
+    assert fields_by_key[original.stable_key].is_archived is True
+    assert fields_by_key[original.stable_key].field_type == FieldType.SHORT_TEXT
+    assert fields_by_key[replacement.stable_key].is_archived is False

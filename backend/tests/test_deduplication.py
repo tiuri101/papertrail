@@ -11,7 +11,7 @@ from app.deduplication.service import (
 )
 from app.imports.models import ImportBatch, ImportedRecord, ImportStatus
 from app.projects.models import Project, ProjectStage, ReviewType
-from app.publications.models import Publication, PublicationSource
+from app.publications.models import MetadataConflict, Publication, PublicationSource
 
 
 def login(client) -> str:
@@ -208,6 +208,181 @@ def test_detect_merge_and_reverse_duplicate(db) -> None:
     assert publications[1].merged_into_id is None
     assert len(publications[0].sources) == 1
     assert merge.reversed_at is not None
+
+
+def test_detect_duplicates_matches_similar_title_with_year_agreement(db) -> None:
+    project = Project(
+        name="Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.DUPLICATE_REVIEW,
+    )
+    db.add(project)
+    db.flush()
+    pub_a = Publication(
+        project_id=project.id,
+        title="Systematic review of mobile health interventions for diabetes",
+        publication_year=2022,
+    )
+    pub_b = Publication(
+        project_id=project.id,
+        title="A systematic review on mobile health apps for diabetes care",
+        publication_year=2022,
+    )
+    db.add_all([pub_a, pub_b])
+    db.commit()
+
+    assert detect_duplicates(db, project.id) == 1
+    candidate = db.scalar(
+        select(DuplicateCandidate).where(DuplicateCandidate.project_id == project.id)
+    )
+    assert candidate is not None
+    assert "similar_title_year" in candidate.match_reasons
+    assert candidate.year_agreement is True
+
+
+def test_detect_duplicates_matches_other_shared_identifiers(db) -> None:
+    project = Project(
+        name="Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.DUPLICATE_REVIEW,
+    )
+    db.add(project)
+    db.flush()
+    pub_a = Publication(
+        project_id=project.id,
+        title="Completely different title one",
+        pubmed_id="PMID12345",
+    )
+    pub_b = Publication(
+        project_id=project.id,
+        title="Completely different title two",
+        pubmed_id="PMID12345",
+    )
+    db.add_all([pub_a, pub_b])
+    db.commit()
+
+    assert detect_duplicates(db, project.id) == 1
+    candidate = db.scalar(
+        select(DuplicateCandidate).where(DuplicateCandidate.project_id == project.id)
+    )
+    assert candidate is not None
+    assert "other_identifier" in candidate.match_reasons
+    assert candidate.confidence == 1.0
+
+
+def test_merge_flags_conflicting_important_fields_instead_of_dropping_them(db) -> None:
+    project = Project(
+        name="Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.DUPLICATE_REVIEW,
+    )
+    db.add(project)
+    db.flush()
+    canonical = Publication(
+        project_id=project.id,
+        title="A Study of Urban VR",
+        authors="Doe, Jane",
+        doi="10.1000/same",
+        publisher_url=None,
+    )
+    duplicate = Publication(
+        project_id=project.id,
+        title="A Study of Urban VR (preprint)",
+        authors="Doe, Jane",
+        doi="10.1000/same",
+        publisher_url="https://example.com/duplicate",
+    )
+    db.add_all([canonical, duplicate])
+    db.commit()
+    candidate = DuplicateCandidate(
+        project_id=project.id,
+        publication_a_id=canonical.id,
+        publication_b_id=duplicate.id,
+        match_reasons=["exact_doi"],
+        confidence=1.0,
+    )
+    db.add(candidate)
+    db.commit()
+
+    merge_publications(db, candidate, canonical.id)
+    db.commit()
+
+    # A non-important field that's empty on canonical is still filled from
+    # the duplicate (existing "prefer most complete metadata" behavior).
+    assert canonical.publisher_url == "https://example.com/duplicate"
+    # The conflicting important field (title) must NOT be silently
+    # overwritten — it should surface as a conflict for manual resolution.
+    assert canonical.title == "A Study of Urban VR"
+    conflict = db.scalar(
+        select(MetadataConflict).where(
+            MetadataConflict.publication_id == canonical.id,
+            MetadataConflict.field_name == "title",
+        )
+    )
+    assert conflict is not None
+    assert conflict.source_name == "merge"
+    assert conflict.current_value == "A Study of Urban VR"
+    assert conflict.proposed_value == "A Study of Urban VR (preprint)"
+    assert conflict.status == "open"
+
+
+def test_reversing_a_merge_clears_the_conflicts_it_created(db) -> None:
+    project = Project(
+        name="Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.DUPLICATE_REVIEW,
+    )
+    db.add(project)
+    db.flush()
+    canonical = Publication(
+        project_id=project.id,
+        title="Canonical title",
+        doi="10.1000/same",
+    )
+    duplicate = Publication(
+        project_id=project.id,
+        title="Different title",
+        doi="10.1000/same",
+    )
+    db.add_all([canonical, duplicate])
+    db.commit()
+    candidate = DuplicateCandidate(
+        project_id=project.id,
+        publication_a_id=canonical.id,
+        publication_b_id=duplicate.id,
+        match_reasons=["exact_doi"],
+        confidence=1.0,
+    )
+    db.add(candidate)
+    db.commit()
+
+    merge = merge_publications(db, candidate, canonical.id)
+    db.commit()
+    assert (
+        db.scalar(
+            select(MetadataConflict).where(
+                MetadataConflict.publication_id == canonical.id,
+                MetadataConflict.status == "open",
+            )
+        )
+        is not None
+    )
+
+    reverse_merge(db, merge)
+    db.commit()
+    assert (
+        db.scalar(
+            select(MetadataConflict).where(
+                MetadataConflict.publication_id == canonical.id,
+                MetadataConflict.status == "open",
+            )
+        )
+        is None
+    )
 
 
 def test_duplicate_review_only_transitions_when_all_candidates_resolved(db) -> None:

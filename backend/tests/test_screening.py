@@ -9,7 +9,6 @@ from app.projects.models import (
     AllocationMode,
     Criterion,
     CriterionKind,
-    ExclusionReason,
     Project,
     ProjectMembership,
     ProjectStage,
@@ -66,19 +65,13 @@ def setup_screening(db):
         position=1,
     )
     publication = Publication(project_id=project.id, title="Paper", abstract="Abstract")
-    reason = ExclusionReason(
-        project_id=project.id,
-        stage=ScreeningStage.TITLE_ABSTRACT,
-        label="Wrong publication type",
-        position=0,
-    )
-    db.add_all([criterion1, criterion2, publication, reason])
+    db.add_all([criterion1, criterion2, publication])
     db.commit()
-    return project, publication, reviewer1, reviewer2, [criterion1, criterion2], reason
+    return project, publication, reviewer1, reviewer2, [criterion1, criterion2]
 
 
 def test_queue_claims_independent_slots_and_uses_deterministic_rank(db) -> None:
-    project, publication, reviewer1, reviewer2, _, _ = setup_screening(db)
+    project, publication, reviewer1, reviewer2, _ = setup_screening(db)
     assert create_screening_work_items(db, project, ScreeningStage.TITLE_ABSTRACT) == 2
     db.commit()
     items = list(
@@ -110,7 +103,7 @@ def test_queue_claims_independent_slots_and_uses_deterministic_rank(db) -> None:
 def test_submission_requires_all_criteria_and_hides_decisions_until_complete(
     db,
 ) -> None:
-    project, _, reviewer1, reviewer2, criteria, reason = setup_screening(db)
+    project, _, reviewer1, reviewer2, criteria = setup_screening(db)
     create_screening_work_items(db, project, ScreeningStage.TITLE_ABSTRACT)
     db.commit()
     first = claim_next_work_item(
@@ -123,7 +116,7 @@ def test_submission_requires_all_criteria_and_hides_decisions_until_complete(
 
     with pytest.raises(DomainError):
         submit_decision(
-            db, first, reviewer1.id, "include", {criteria[0].id: True}, None, None
+            db, first, reviewer1.id, "include", {criteria[0].id: True}, None
         )
     decision1 = submit_decision(
         db,
@@ -131,7 +124,6 @@ def test_submission_requires_all_criteria_and_hides_decisions_until_complete(
         reviewer1.id,
         "include",
         {criteria[0].id: True, criteria[1].id: False},
-        None,
         None,
     )
     db.commit()
@@ -146,7 +138,6 @@ def test_submission_requires_all_criteria_and_hides_decisions_until_complete(
         reviewer2.id,
         "exclude",
         {criteria[0].id: False, criteria[1].id: True},
-        reason.id,
         None,
     )
     db.commit()
@@ -157,66 +148,8 @@ def test_submission_requires_all_criteria_and_hides_decisions_until_complete(
     assert decision1.version == 1 and decision2.version == 1
 
 
-def test_title_abstract_exclusion_does_not_require_a_reason(db) -> None:
-    project, _, reviewer1, reviewer2, criteria, _ = setup_screening(db)
-    create_screening_work_items(db, project, ScreeningStage.TITLE_ABSTRACT)
-    db.commit()
-    first = claim_next_work_item(
-        db, project.id, ScreeningStage.TITLE_ABSTRACT, reviewer1.id
-    )
-    db.commit()
-
-    decision = submit_decision(
-        db,
-        first,
-        reviewer1.id,
-        "exclude",
-        {criteria[0].id: False, criteria[1].id: True},
-        None,
-        "not relevant",
-    )
-    db.commit()
-    assert decision.exclusion_reason_id is None
-    assert decision.exclusion_reason_text is None
-
-
-def test_full_text_exclusion_still_requires_a_reason(db) -> None:
-    project, publication, reviewer1, _, criteria, _ = setup_screening(db)
-    project.stage = ProjectStage.FULL_TEXT
-    config = ScreeningConfig(
-        project_id=project.id,
-        stage=ScreeningStage.FULL_TEXT,
-        required_reviewers=1,
-        allocation_mode=AllocationMode.INDEPENDENT,
-    )
-    membership = db.scalar(
-        select(ProjectMembership).where(
-            ProjectMembership.project_id == project.id,
-            ProjectMembership.user_id == reviewer1.id,
-        )
-    )
-    membership.can_full_text_screen = True
-    db.add(config)
-    db.commit()
-    create_screening_work_items(db, project, ScreeningStage.FULL_TEXT)
-    db.commit()
-    item = claim_next_work_item(db, project.id, ScreeningStage.FULL_TEXT, reviewer1.id)
-    db.commit()
-
-    with pytest.raises(DomainError):
-        submit_decision(
-            db,
-            item,
-            reviewer1.id,
-            "exclude",
-            {criteria[0].id: False, criteria[1].id: True},
-            None,
-            None,
-        )
-
-
 def test_next_endpoint_returns_a_claimable_work_item_over_http(client, db) -> None:
-    project, publication, reviewer1, _, _, _ = setup_screening(db)
+    project, publication, reviewer1, _, _ = setup_screening(db)
     create_screening_work_items(db, project, ScreeningStage.TITLE_ABSTRACT)
     db.commit()
 
@@ -251,7 +184,7 @@ def test_next_endpoint_returns_a_claimable_work_item_over_http(client, db) -> No
 
 
 def test_revising_decision_preserves_previous_revision(db) -> None:
-    project, _, reviewer1, _, criteria, _ = setup_screening(db)
+    project, _, reviewer1, _, criteria = setup_screening(db)
     create_screening_work_items(db, project, ScreeningStage.TITLE_ABSTRACT)
     db.commit()
     item = claim_next_work_item(
@@ -263,7 +196,6 @@ def test_revising_decision_preserves_previous_revision(db) -> None:
         reviewer1.id,
         "include",
         {criterion.id: False for criterion in criteria},
-        None,
         "first",
     )
     revised = submit_decision(
@@ -272,7 +204,6 @@ def test_revising_decision_preserves_previous_revision(db) -> None:
         reviewer1.id,
         "uncertain",
         {criterion.id: True for criterion in criteria},
-        None,
         "revised",
     )
     db.commit()

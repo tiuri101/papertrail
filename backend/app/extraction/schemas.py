@@ -12,6 +12,10 @@ class ExtractionSubmit(ApiModel):
     answers: dict
 
 
+class ExtractionDraftUpdate(ApiModel):
+    draft: dict
+
+
 class ExtractionItemResponse(ApiModel):
     id: str
     publication_id: str = Field(serialization_alias="publicationId")

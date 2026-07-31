@@ -136,7 +136,6 @@ def test_complete_review_workflow_produces_exports(db, tmp_path) -> None:
         "include",
         {criterion.id: True},
         None,
-        None,
     )
     assert (
         refresh_automatic_final_decision(
@@ -180,7 +179,6 @@ def test_complete_review_workflow_produces_exports(db, tmp_path) -> None:
         reviewer.id,
         "include",
         {criterion.id: True},
-        None,
         None,
     )
     assert (

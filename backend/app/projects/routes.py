@@ -14,7 +14,6 @@ from app.imports.schemas import JobResponse
 from app.jobs.models import BackgroundJob
 from app.projects.models import (
     Criterion,
-    ExclusionReason,
     Project,
     ResearchQuestion,
     ScreeningConfig,
@@ -24,8 +23,8 @@ from app.projects.schemas import (
     CriterionCreate,
     CriterionResponse,
     CriterionUpdate,
-    ExclusionReasonCreate,
-    ExclusionReasonResponse,
+    HighlightKeywordsResponse,
+    HighlightKeywordsUpdate,
     MembershipCreate,
     MembershipResponse,
     OrderedTextCreate,
@@ -45,7 +44,9 @@ from app.projects.service import (
     get_project,
     list_projects_for_user,
     next_position,
+    parse_highlight_keywords,
     require_project_access,
+    serialize_highlight_keywords,
 )
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -97,7 +98,6 @@ def project_detail(
         ],
         criteria=[item for item in project.criteria if item.is_active],
         screening_configs=project.screening_configs,
-        exclusion_reasons=project.exclusion_reasons,
     )
 
 
@@ -357,40 +357,46 @@ def set_screening_config(
     return config
 
 
-@router.post(
-    "/{project_id}/exclusion-reasons/{stage}",
-    response_model=ExclusionReasonResponse,
-    status_code=status.HTTP_201_CREATED,
+@router.get(
+    "/{project_id}/highlight-keywords", response_model=HighlightKeywordsResponse
 )
-def add_exclusion_reason(
+def get_highlight_keywords(
     project_id: str,
-    stage: ScreeningStage,
-    payload: ExclusionReasonCreate,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    project = require_project_access(db, project_id, user)
+    return HighlightKeywordsResponse(
+        keywords=parse_highlight_keywords(project.highlight_keywords_raw)
+    )
+
+
+@router.put(
+    "/{project_id}/highlight-keywords", response_model=HighlightKeywordsResponse
+)
+def set_highlight_keywords(
+    project_id: str,
+    payload: HighlightKeywordsUpdate,
     admin: User = Depends(require_admin_csrf),
     db: Session = Depends(get_db),
 ):
-    get_project(db, project_id)
-    item = ExclusionReason(
-        project_id=project_id,
-        stage=stage,
-        label=payload.label.strip(),
-        position=payload.position
-        if payload.position is not None
-        else next_position(db, ExclusionReason, project_id, stage=stage),
+    project = get_project(db, project_id)
+    keywords = parse_highlight_keywords(
+        serialize_highlight_keywords(payload.keywords)
     )
-    db.add(item)
-    db.flush()
+    project.highlight_keywords_raw = serialize_highlight_keywords(keywords)
     record_audit(
         db,
-        action="exclusion_reason.created",
-        entity_type="exclusion_reason",
-        entity_id=item.id,
+        action="project.highlight_keywords_updated",
+        entity_type="project",
+        entity_id=project.id,
         project_id=project_id,
         actor_id=admin.id,
-        summary=f"Added {stage.value} exclusion reason",
+        summary="Updated highlighted keywords",
+        metadata={"count": len(keywords)},
     )
     db.commit()
-    return item
+    return HighlightKeywordsResponse(keywords=keywords)
 
 
 @router.get("/{project_id}/jobs", response_model=list[JobResponse])
@@ -434,6 +440,25 @@ def reopen_completed_project(
     project = get_project(db, project_id)
     try:
         reopen_project(db, project, payload.target_stage, admin.id)
+    except ValueError as exc:
+        raise DomainError(str(exc)) from exc
+    db.commit()
+    return project
+
+
+@router.post("/{project_id}/move-back", response_model=ProjectSummary)
+def move_project_back_endpoint(
+    project_id: str,
+    payload: ProjectReopen,
+    admin: User = Depends(require_admin_csrf),
+    db: Session = Depends(get_db),
+):
+    from app.api.errors import DomainError
+    from app.projects.lifecycle import move_project_back
+
+    project = get_project(db, project_id)
+    try:
+        move_project_back(db, project, payload.target_stage, admin.id)
     except ValueError as exc:
         raise DomainError(str(exc)) from exc
     db.commit()

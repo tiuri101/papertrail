@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { QualityPage } from '../QualityPage'
 import { jsonResponse, mockFetch } from '../../../test/http'
@@ -86,5 +86,27 @@ describe('QualityPage', () => {
     renderWithProviders(<QualityPage />, { route: '/projects/p1/quality', path: '/projects/:projectId/quality' })
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Something went wrong')
+  })
+
+  it('autosaves draft answers shortly after editing', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      const fetchMock = mockFetch(async (input) => String(input).endsWith('/next') ? jsonResponse(workItem) : jsonResponse({}))
+      renderWithProviders(<QualityPage />, { route: '/projects/p1/quality', path: '/projects/:projectId/quality' })
+
+      await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
+      fireEvent.change(screen.getByLabelText('Study design *'), { target: { value: 'Strong' } })
+
+      expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith('/quality-1/draft'))).toBe(false)
+      await vi.advanceTimersByTimeAsync(1000)
+
+      await waitFor(() => {
+        const draftCall = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/quality-1/draft'))
+        expect(draftCall).toBeTruthy()
+        expect(JSON.parse(String(draftCall?.[1]?.body))).toEqual({ draft: { design: 'Strong' } })
+      })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

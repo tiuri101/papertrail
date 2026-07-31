@@ -16,13 +16,13 @@ const conflict = {
     publisherUrl: null,
   },
   decisions: [
-    { reviewer: { id: 'r1', displayName: 'Reviewer One' }, outcome: 'include', exclusionReasonText: null, notes: null },
-    { reviewer: { id: 'r2', displayName: 'Reviewer Two' }, outcome: 'exclude', exclusionReasonText: 'Wrong topic', notes: 'Seems off-topic' },
+    { reviewer: { id: 'r1', displayName: 'Reviewer One' }, outcome: 'include', notes: null },
+    { reviewer: { id: 'r2', displayName: 'Reviewer Two' }, outcome: 'exclude', notes: 'Seems off-topic' },
   ],
 }
 
 describe('ConflictResolutionPage', () => {
-  it("shows each reviewer's decision and reason for a conflicted publication", async () => {
+  it("shows each reviewer's decision and notes for a conflicted publication", async () => {
     mockFetch(async () => jsonResponse([conflict]))
     renderWithProviders(<ConflictResolutionPage />, {
       route: '/projects/p1/conflicts/title_abstract',
@@ -34,7 +34,7 @@ describe('ConflictResolutionPage', () => {
     expect(screen.getByRole('link', { name: 'View publication' })).toHaveAttribute('href', 'https://doi.org/10.1/vr')
     expect(screen.getByText('Reviewer One')).toBeInTheDocument()
     expect(screen.getByText('Reviewer Two')).toBeInTheDocument()
-    expect(screen.getByText('Wrong topic')).toBeInTheDocument()
+    expect(screen.getByText('Seems off-topic')).toBeInTheDocument()
   })
 
   it('records a separate administrator consensus decision with a note', async () => {
