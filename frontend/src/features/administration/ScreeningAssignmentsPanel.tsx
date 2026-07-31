@@ -195,10 +195,13 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
 
   const usersById = new Map((users.data ?? []).map((user) => [user.id, user]))
   const eligibleReviewers = (project.data?.memberships ?? [])
-    .filter((membership) => membership[activeStage.roleKey])
-    .map((membership) => usersById.get(membership.userId))
-    .filter((user): user is User => Boolean(user) && user.isActive)
-    .map((user) => ({ id: user.id, displayName: user.displayName }))
+      .filter((membership) => membership[activeStage.roleKey])
+      .map((membership) => usersById.get(membership.userId))
+      .filter((user): user is User => user !== undefined && user.isActive)
+      .map((user) => ({
+        id: user.id,
+        displayName: user.displayName,
+      }));
 
   const handleSort = (key: string) => {
     if (sort === key) {
