@@ -56,8 +56,7 @@ const projectSectionGroups: ProjectSectionGroup[] = [
     heading: 'Full-text',
     stage: 'full_text_screening',
     links: [
-      ['full-text', 'Full-text retrieval'],
-      ['screening/full_text', 'Full-text screening'],
+      ['full-text', 'Full-text'],
       ['conflicts/full_text', 'Full-text conflicts'],
     ],
   },

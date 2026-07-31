@@ -1,5 +1,6 @@
 from sqlalchemy import select
 
+from app.accounts.service import create_user
 from app.forms.models import FieldType, FormField, FormKind
 from app.forms.service import (
     add_field,
@@ -11,6 +12,14 @@ from app.forms.service import (
     save_form_as_template,
 )
 from app.projects.models import Project, ReviewType
+
+
+def login(client, username: str, password: str) -> str:
+    response = client.post(
+        "/api/v1/auth/login", json={"username": username, "password": password}
+    )
+    assert response.status_code == 200
+    return response.json()["csrfToken"]
 
 
 def test_template_copy_is_independent_and_preserves_field_identity(db) -> None:
@@ -137,3 +146,37 @@ def test_replace_field_archives_old_field_and_creates_a_new_typed_field(db) -> N
     assert fields_by_key[original.stable_key].is_archived is True
     assert fields_by_key[original.stable_key].field_type == FieldType.SHORT_TEXT
     assert fields_by_key[replacement.stable_key].is_archived is False
+
+
+def test_project_form_creation_rejects_a_second_form_of_the_same_kind(client, db) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    db.commit()
+    csrf = login(client, "admin", "secret-password")
+    project = client.post(
+        "/api/v1/projects",
+        json={"name": "Review", "reviewType": "systematic_review"},
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+    project_id = project["id"]
+
+    first = client.post(
+        f"/api/v1/projects/{project_id}/forms",
+        json={"name": "Extraction", "kind": "extraction"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert first.status_code == 201
+
+    second = client.post(
+        f"/api/v1/projects/{project_id}/forms",
+        json={"name": "Another extraction form", "kind": "extraction"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert second.status_code == 409
+    assert "extraction" in second.json()["error"]["message"]
+
+    other_kind = client.post(
+        f"/api/v1/projects/{project_id}/forms",
+        json={"name": "Quality", "kind": "quality"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert other_kind.status_code == 201

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { ConfirmButton } from '../../components/ConfirmButton'
 import { BackgroundJob, findJob, hasActiveJob, isJobActive } from '../jobs/jobStatus'
 
 interface ExportArtifact {
@@ -56,7 +57,15 @@ export function ReportingPage() {
     },
   })
 
-  const queryError = prisma.error ?? exportsQuery.error
+  const deleteExport = useMutation({
+    mutationFn: (artifactId: string) => apiRequest<void>(
+      `/api/v1/projects/${projectId}/exports/${artifactId}`,
+      { method: 'DELETE' },
+    ),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['exports', projectId] }),
+  })
+
+  const queryError = prisma.error ?? exportsQuery.error ?? deleteExport.error
 
   return (
     <main className="page">
@@ -110,7 +119,15 @@ export function ReportingPage() {
             <a href={`/api/v1/projects/${projectId}/exports/${artifact.id}/download`}>
               {artifact.filename}
             </a>
-            {' — '}{artifact.type}
+            {' — '}{artifact.type}{' '}
+            <ConfirmButton
+              label="Delete"
+              confirmLabel="Delete export"
+              warning={`Delete ${artifact.filename}? This cannot be undone.`}
+              variant="danger"
+              disabled={deleteExport.isPending}
+              onConfirm={() => deleteExport.mutate(artifact.id)}
+            />
           </li>
         ))}
       </ul>

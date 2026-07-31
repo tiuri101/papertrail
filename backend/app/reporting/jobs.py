@@ -1,3 +1,6 @@
+import re
+from datetime import UTC, datetime
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -12,6 +15,22 @@ from app.reporting.service import (
     build_prisma_tables,
     calculate_prisma_counts,
 )
+
+_TYPES_WITHOUT_SUFFIX = {"xlsx", "bibtex"}
+
+
+def _slugify_project_name(name: str) -> str:
+    slug = re.sub(r'[\\/:*?"<>|]+', "", name).strip()
+    slug = re.sub(r"\s+", "_", slug)
+    return slug or "project"
+
+
+def _export_filename(project_name: str, export_type: str, extension: str) -> str:
+    date_str = datetime.now(UTC).strftime("%Y-%m-%d")
+    safe_name = _slugify_project_name(project_name)
+    if export_type in _TYPES_WITHOUT_SUFFIX:
+        return f"{safe_name}_{date_str}.{extension}"
+    return f"{safe_name}_{export_type}_{date_str}.{extension}"
 
 
 def generate_export_job(db: Session, job: BackgroundJob) -> dict:
@@ -42,9 +61,9 @@ def generate_export_job(db: Session, job: BackgroundJob) -> dict:
         raise ValueError("Unsupported export type")
     directory = get_settings().export_dir / project.id
     directory.mkdir(parents=True, exist_ok=True)
-    filename = f"papertrail_{project.id}_{export_type}.{extension}"
-    path = directory / filename
+    path = directory / f"{job.id}.{extension}"
     path.write_bytes(data)
+    filename = _export_filename(project.name, export_type, extension)
     artifact = ExportArtifact(
         project_id=project.id,
         job_id=job.id,

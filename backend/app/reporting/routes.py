@@ -105,3 +105,34 @@ def download_export(
     ):
         raise NotFoundError("Export not found")
     return FileResponse(artifact.stored_path, filename=artifact.filename)
+
+
+@router.delete(
+    "/projects/{project_id}/exports/{artifact_id}", status_code=status.HTTP_204_NO_CONTENT
+)
+def delete_export(
+    project_id: str,
+    artifact_id: str,
+    admin: User = Depends(require_admin_csrf),
+    db: Session = Depends(get_db),
+):
+    require_project_access(db, project_id, admin)
+    artifact = db.get(ExportArtifact, artifact_id)
+    if artifact is None or artifact.project_id != project_id:
+        raise NotFoundError("Export not found")
+    filename = artifact.filename
+    stored_path = Path(artifact.stored_path)
+    db.delete(artifact)
+    record_audit(
+        db,
+        action="export.deleted",
+        entity_type="export_artifact",
+        entity_id=artifact_id,
+        project_id=project_id,
+        actor_id=admin.id,
+        summary=f"Deleted export {filename}",
+    )
+    db.commit()
+    if stored_path.is_file():
+        stored_path.unlink(missing_ok=True)
+    return None

@@ -129,6 +129,11 @@ class ProjectReopen(BaseModel):
     target_stage: ProjectStage = Field(alias="targetStage")
 
 
+class ProjectDetailsUpdate(ApiModel):
+    name: str = Field(min_length=1, max_length=250)
+    description: str | None = None
+
+
 class ChecklistItem(ApiModel):
     key: str
     label: str

@@ -1,4 +1,4 @@
-import { fireEvent, screen } from '@testing-library/react'
+import { fireEvent, screen, waitForElementToBeRemoved } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import { ReportingPage } from '../ReportingPage'
@@ -74,6 +74,31 @@ describe('ReportingPage', () => {
 
     expect(await screen.findByRole('link', { name: 'papertrail.xlsx' })).toBeInTheDocument()
     expect(screen.queryByText('Generating export…')).not.toBeInTheDocument()
+  })
+
+  it('deletes an export after confirmation', async () => {
+    let artifacts = [{ id: 'artifact-1', type: 'xlsx', filename: 'Review_2026-07-30.xlsx', createdAt: '2026-07-30T08:00:00Z' }]
+    const fetchMock = mockFetch(async (input, init) => {
+      const path = String(input)
+      if (path.endsWith('/prisma')) return jsonResponse({})
+      if (path.endsWith('/artifact-1') && init?.method === 'DELETE') {
+        artifacts = []
+        return jsonResponse(undefined, 204)
+      }
+      if (path.endsWith('/exports')) return jsonResponse(artifacts)
+      return jsonResponse([])
+    })
+    renderWithProviders(<ReportingPage />, { route: '/projects/p1/reporting', path: '/projects/:projectId/reporting' })
+
+    const link = await screen.findByRole('link', { name: 'Review_2026-07-30.xlsx' })
+    expect(link).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete export' }))
+
+    await waitForElementToBeRemoved(() => screen.queryByRole('link', { name: 'Review_2026-07-30.xlsx' }))
+    const deleteCall = fetchMock.mock.calls.find(([, init]) => init?.method === 'DELETE')
+    expect(String(deleteCall?.[0])).toBe('/api/v1/projects/p1/exports/artifact-1')
   })
 
   it('offers all required export families', async () => {

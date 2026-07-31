@@ -3,6 +3,7 @@ import { Link, Navigate, Outlet, Route, Routes, useNavigate, useParams } from 'r
 import { AppShell } from './AppShell'
 import { DangerZonePanel } from '../features/administration/DangerZonePanel'
 import { HighlightKeywordsPanel } from '../features/administration/HighlightKeywordsPanel'
+import { ProjectDetailsPanel } from '../features/administration/ProjectDetailsPanel'
 import { ResearchAgendaPanel } from '../features/administration/ResearchAgendaPanel'
 import { AuditLogPage } from '../features/audit/AuditLogPage'
 import { AccountSettingsPage } from '../features/auth/AccountSettingsPage'
@@ -42,6 +43,7 @@ function ProjectAdministrationPage() {
   const navigate = useNavigate()
   return (
     <main className="page">
+      <ProjectDetailsPanel projectId={projectId} />
       <ResearchAgendaPanel projectId={projectId} />
       <HighlightKeywordsPanel projectId={projectId} />
       <ProjectLifecyclePanel projectId={projectId} />

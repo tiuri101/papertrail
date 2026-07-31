@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from app.accounts.dependencies import require_admin, require_admin_csrf
 from app.accounts.models import User
-from app.api.errors import DomainError, NotFoundError
+from app.api.errors import ConflictError, DomainError, NotFoundError
 from app.audit.service import record_audit
 from app.db.session import get_db
 from app.forms.models import FormField, FormKind, ReviewForm
@@ -75,15 +75,24 @@ def add_project_form(
     db: Session = Depends(get_db),
 ):
     get_project(db, project_id)
+    kind = FormKind(payload.kind)
+    existing = db.scalar(
+        select(ReviewForm).where(
+            ReviewForm.project_id == project_id, ReviewForm.kind == kind
+        )
+    )
+    if existing is not None:
+        raise ConflictError(
+            f"Project already has a {kind.value} form ('{existing.name}'). "
+            "Edit that form instead of creating another one of the same kind."
+        )
     if payload.template_id:
         template = db.get(ReviewForm, payload.template_id)
         if template is None:
             raise NotFoundError("Template not found")
         form = copy_template_to_project(db, template, project_id, payload.name)
     else:
-        form = create_form(
-            db, payload.name, FormKind(payload.kind), project_id=project_id
-        )
+        form = create_form(db, payload.name, kind, project_id=project_id)
     record_audit(
         db,
         action="project_form.created",
