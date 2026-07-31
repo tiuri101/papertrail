@@ -166,8 +166,12 @@ def _reverse_duplicate_review(db: Session, project: Project, actor_id: str) -> N
     )
     for merge in merges:
         reverse_merge(db, merge, actor_id)
-    db.execute(delete(PublicationMerge).where(PublicationMerge.project_id == project.id))
-    db.execute(delete(DuplicateCandidate).where(DuplicateCandidate.project_id == project.id))
+    db.execute(
+        delete(PublicationMerge).where(PublicationMerge.project_id == project.id)
+    )
+    db.execute(
+        delete(DuplicateCandidate).where(DuplicateCandidate.project_id == project.id)
+    )
     db.execute(
         delete(MetadataConflict).where(
             MetadataConflict.publication_id.in_(
@@ -183,7 +187,9 @@ def _wipe_screening_stage(db: Session, project_id: str, stage: ScreeningStage) -
         ScreeningWorkItem.project_id == project_id, ScreeningWorkItem.stage == stage
     )
     db.execute(
-        delete(ScreeningDecision).where(ScreeningDecision.work_item_id.in_(work_item_ids))
+        delete(ScreeningDecision).where(
+            ScreeningDecision.work_item_id.in_(work_item_ids)
+        )
     )
     db.execute(
         delete(ScreeningWorkItem).where(
@@ -199,7 +205,9 @@ def _wipe_screening_stage(db: Session, project_id: str, stage: ScreeningStage) -
 
 def _wipe_full_text_stage(db: Session, project_id: str) -> None:
     _wipe_screening_stage(db, project_id, ScreeningStage.FULL_TEXT)
-    db.execute(delete(FullTextRetrieval).where(FullTextRetrieval.project_id == project_id))
+    db.execute(
+        delete(FullTextRetrieval).where(FullTextRetrieval.project_id == project_id)
+    )
 
 
 def _wipe_extraction_and_quality(db: Session, project_id: str) -> None:
@@ -214,8 +222,14 @@ def _wipe_extraction_and_quality(db: Session, project_id: str) -> None:
             ExtractionResponse.work_item_id.in_(extraction_item_ids)
         )
     )
-    db.execute(delete(QualityResponse).where(QualityResponse.work_item_id.in_(quality_item_ids)))
-    db.execute(delete(ExtractionWorkItem).where(ExtractionWorkItem.project_id == project_id))
+    db.execute(
+        delete(QualityResponse).where(
+            QualityResponse.work_item_id.in_(quality_item_ids)
+        )
+    )
+    db.execute(
+        delete(ExtractionWorkItem).where(ExtractionWorkItem.project_id == project_id)
+    )
     db.execute(delete(QualityWorkItem).where(QualityWorkItem.project_id == project_id))
 
 

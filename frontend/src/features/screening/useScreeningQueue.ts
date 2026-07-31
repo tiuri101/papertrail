@@ -1,7 +1,12 @@
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+
+export interface ScreeningProgress {
+  assigned: number
+  completed: number
+}
 
 export interface ScreeningCriterion {
   id: string
@@ -35,6 +40,16 @@ function defaultAnswerForKind(kind: string): boolean {
 // loading/error state ourselves from those callbacks instead of reading it
 // off the mutation object.
 export function useScreeningQueue(projectId: string, stage: string) {
+  const queryClient = useQueryClient()
+  const progressQueryKey = ['screening-progress', projectId, stage]
+  const progress = useQuery({
+    queryKey: progressQueryKey,
+    queryFn: () => apiRequest<ScreeningProgress>(
+      `/api/v1/projects/${projectId}/screening/${stage}/progress`,
+    ),
+    enabled: Boolean(projectId),
+  })
+
   const [item, setItem] = useState<ScreeningWorkItem | null>(null)
   const [answers, setAnswers] = useState<Record<string, CriterionAnswer>>({})
   const [outcome, setOutcome] = useState('include')
@@ -86,6 +101,7 @@ export function useScreeningQueue(projectId: string, stage: string) {
       setOutcome('include')
       setNotes('')
       fetchNext()
+      queryClient.invalidateQueries({ queryKey: progressQueryKey })
     },
   })
 
@@ -178,6 +194,7 @@ export function useScreeningQueue(projectId: string, stage: string) {
     fetchNext,
     submit,
     criteriaComplete,
+    progress: progress.data,
   }
 }
 

@@ -17,12 +17,13 @@ from app.projects.models import (
     ScreeningStage,
 )
 from app.publications.models import Publication
-from app.screening.models import ScreeningDecision, ScreeningWorkItem
+from app.screening.models import ScreeningDecision, ScreeningWorkItem, WorkItemStatus
 from app.screening.service import (
     claim_next_work_item,
     create_screening_work_items,
     decisions_visible,
     my_submitted_work_items,
+    reassign_work_items_from_ineligible_reviewers,
     stage_completed,
     submit_decision,
 )
@@ -150,6 +151,393 @@ def test_submission_requires_all_criteria_and_hides_decisions_until_complete(
     assert decision1.version == 1 and decision2.version == 1
 
 
+def setup_three_publications_two_reviewers(db):
+    """Regression setup for the reported bug: 3 publications, required_reviewers=1,
+    2 initially-eligible reviewers so round-robin assignment splits 2/1 between
+    them -- then one reviewer is removed, and their single assigned publication
+    should not end up permanently stuck."""
+    admin = create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    reviewer1 = create_user(db, "reviewer1", "Reviewer 1", "password-1")
+    reviewer2 = create_user(db, "reviewer2", "Reviewer 2", "password-2")
+    project = Project(
+        name="Test",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.TITLE_ABSTRACT,
+    )
+    db.add(project)
+    db.flush()
+    membership1 = ProjectMembership(
+        project_id=project.id, user_id=reviewer1.id, can_title_abstract_screen=True
+    )
+    membership2 = ProjectMembership(
+        project_id=project.id, user_id=reviewer2.id, can_title_abstract_screen=True
+    )
+    db.add_all([membership1, membership2])
+    db.add(
+        ScreeningConfig(
+            project_id=project.id,
+            stage=ScreeningStage.TITLE_ABSTRACT,
+            required_reviewers=1,
+            allocation_mode=AllocationMode.INDEPENDENT,
+        )
+    )
+    publications = [
+        Publication(project_id=project.id, title=f"Paper {i}") for i in range(3)
+    ]
+    db.add_all(publications)
+    db.commit()
+    create_screening_work_items(db, project, ScreeningStage.TITLE_ABSTRACT)
+    db.commit()
+    return admin, project, publications, reviewer1, reviewer2, membership2
+
+
+def assignees(db, project_id) -> set[str | None]:
+    return {
+        item.assigned_reviewer_id
+        for item in db.scalars(
+            select(ScreeningWorkItem).where(ScreeningWorkItem.project_id == project_id)
+        )
+    }
+
+
+def test_removing_a_reviewer_reassigns_their_pending_work_items(client, db) -> None:
+    (
+        _,
+        project,
+        _,
+        reviewer1,
+        reviewer2,
+        membership2,
+    ) = setup_three_publications_two_reviewers(db)
+    assert assignees(db, project.id) == {reviewer1.id, reviewer2.id}
+
+    login = client.post(
+        "/api/v1/auth/login", json={"username": "admin", "password": "secret-password"}
+    )
+    csrf = login.json()["csrfToken"]
+    response = client.delete(
+        f"/api/v1/projects/{project.id}/members/{membership2.id}",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 204
+
+    assert assignees(db, project.id) == {reviewer1.id}
+
+    reviewer_login = client.post(
+        "/api/v1/auth/login", json={"username": "reviewer1", "password": "password-1"}
+    )
+    reviewer_csrf = reviewer_login.json()["csrfToken"]
+    claimed_titles = set()
+    for _ in range(3):
+        response = client.post(
+            f"/api/v1/projects/{project.id}/screening/title_abstract/next",
+            headers={"X-CSRF-Token": reviewer_csrf},
+        )
+        body = response.json()
+        assert body is not None
+        claimed_titles.add(body["publication"]["title"])
+    assert claimed_titles == {"Paper 0", "Paper 1", "Paper 2"}
+
+
+def test_revoking_a_reviewers_stage_permission_reassigns_their_work_items(
+    client, db
+) -> None:
+    (
+        _,
+        project,
+        _,
+        reviewer1,
+        reviewer2,
+        membership2,
+    ) = setup_three_publications_two_reviewers(db)
+
+    login = client.post(
+        "/api/v1/auth/login", json={"username": "admin", "password": "secret-password"}
+    )
+    csrf = login.json()["csrfToken"]
+    response = client.patch(
+        f"/api/v1/projects/{project.id}/members/{membership2.id}",
+        json={"canTitleAbstractScreen": False},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 200
+
+    assert assignees(db, project.id) == {reviewer1.id}
+
+
+def test_next_endpoint_self_heals_a_work_item_left_on_an_ineligible_reviewer(
+    client, db
+) -> None:
+    """Covers projects that were already broken before this fix existed: the
+    orphaned assignment predates the membership-change hook, so the /next
+    endpoint's own defensive reassignment has to catch it instead."""
+    (
+        _,
+        project,
+        _,
+        reviewer1,
+        reviewer2,
+        membership2,
+    ) = setup_three_publications_two_reviewers(db)
+    db.delete(membership2)
+    db.commit()
+    assert reviewer2.id in assignees(db, project.id)
+
+    login = client.post(
+        "/api/v1/auth/login", json={"username": "reviewer1", "password": "password-1"}
+    )
+    csrf = login.json()["csrfToken"]
+    claimed_titles = set()
+    for _ in range(3):
+        response = client.post(
+            f"/api/v1/projects/{project.id}/screening/title_abstract/next",
+            headers={"X-CSRF-Token": csrf},
+        )
+        body = response.json()
+        assert body is not None
+        claimed_titles.add(body["publication"]["title"])
+    assert claimed_titles == {"Paper 0", "Paper 1", "Paper 2"}
+
+
+def test_submitted_work_items_are_not_reassigned(db) -> None:
+    (
+        _,
+        project,
+        publications,
+        reviewer1,
+        reviewer2,
+        membership2,
+    ) = setup_three_publications_two_reviewers(db)
+    reviewer2_item = next(
+        item
+        for item in db.scalars(
+            select(ScreeningWorkItem).where(
+                ScreeningWorkItem.project_id == project.id,
+                ScreeningWorkItem.assigned_reviewer_id == reviewer2.id,
+            )
+        )
+    )
+    submit_decision(db, reviewer2_item, reviewer2.id, "include", {}, None)
+    db.commit()
+
+    db.delete(membership2)
+    db.commit()
+
+    reassigned = reassign_work_items_from_ineligible_reviewers(
+        db, project.id, ScreeningStage.TITLE_ABSTRACT
+    )
+    db.commit()
+
+    assert reassigned == 0
+    still_assigned = db.get(ScreeningWorkItem, reviewer2_item.id)
+    assert still_assigned.assigned_reviewer_id == reviewer2.id
+    assert still_assigned.status == WorkItemStatus.SUBMITTED
+
+
+def test_admin_can_manually_reassign_a_work_item_to_a_project_member(
+    client, db
+) -> None:
+    _, project, _, reviewer1, reviewer2, _ = setup_three_publications_two_reviewers(db)
+    item = db.scalar(
+        select(ScreeningWorkItem).where(
+            ScreeningWorkItem.project_id == project.id,
+            ScreeningWorkItem.assigned_reviewer_id == reviewer1.id,
+        )
+    )
+
+    login = client.post(
+        "/api/v1/auth/login", json={"username": "admin", "password": "secret-password"}
+    )
+    csrf = login.json()["csrfToken"]
+    response = client.patch(
+        f"/api/v1/projects/{project.id}/screening/work-items/{item.id}/reassign",
+        json={"reviewerId": reviewer2.id},
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["assignedReviewerId"] == reviewer2.id
+    assert body["assignedReviewerName"] == "Reviewer 2"
+    assert body["status"] == "available"
+
+    db.refresh(item)
+    assert item.assigned_reviewer_id == reviewer2.id
+    assert item.status == WorkItemStatus.AVAILABLE
+
+
+def test_reassignment_rejects_a_reviewer_who_is_not_a_project_member(
+    client, db
+) -> None:
+    _, project, _, reviewer1, _, _ = setup_three_publications_two_reviewers(db)
+    outsider = create_user(db, "outsider", "Outsider", "outsider-password")
+    db.commit()
+    item = db.scalar(
+        select(ScreeningWorkItem).where(
+            ScreeningWorkItem.project_id == project.id,
+            ScreeningWorkItem.assigned_reviewer_id == reviewer1.id,
+        )
+    )
+
+    login = client.post(
+        "/api/v1/auth/login", json={"username": "admin", "password": "secret-password"}
+    )
+    csrf = login.json()["csrfToken"]
+    response = client.patch(
+        f"/api/v1/projects/{project.id}/screening/work-items/{item.id}/reassign",
+        json={"reviewerId": outsider.id},
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    assert response.status_code == 400
+    db.refresh(item)
+    assert item.assigned_reviewer_id == reviewer1.id
+
+
+def test_reassignment_rejects_an_already_submitted_work_item(client, db) -> None:
+    _, project, _, reviewer1, reviewer2, _ = setup_three_publications_two_reviewers(db)
+    item = db.scalar(
+        select(ScreeningWorkItem).where(
+            ScreeningWorkItem.project_id == project.id,
+            ScreeningWorkItem.assigned_reviewer_id == reviewer1.id,
+        )
+    )
+    submit_decision(db, item, reviewer1.id, "include", {}, None)
+    db.commit()
+
+    login = client.post(
+        "/api/v1/auth/login", json={"username": "admin", "password": "secret-password"}
+    )
+    csrf = login.json()["csrfToken"]
+    response = client.patch(
+        f"/api/v1/projects/{project.id}/screening/work-items/{item.id}/reassign",
+        json={"reviewerId": reviewer2.id},
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    assert response.status_code == 400
+    db.refresh(item)
+    assert item.assigned_reviewer_id == reviewer1.id
+
+
+def test_non_admin_cannot_reassign_work_items(client, db) -> None:
+    _, project, _, reviewer1, reviewer2, _ = setup_three_publications_two_reviewers(db)
+    item = db.scalar(
+        select(ScreeningWorkItem).where(
+            ScreeningWorkItem.project_id == project.id,
+            ScreeningWorkItem.assigned_reviewer_id == reviewer1.id,
+        )
+    )
+
+    login = client.post(
+        "/api/v1/auth/login", json={"username": "reviewer1", "password": "password-1"}
+    )
+    csrf = login.json()["csrfToken"]
+    response = client.patch(
+        f"/api/v1/projects/{project.id}/screening/work-items/{item.id}/reassign",
+        json={"reviewerId": reviewer2.id},
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    assert response.status_code == 403
+
+
+def test_list_assignments_returns_publication_and_reviewer_details(client, db) -> None:
+    _, project, _, reviewer1, reviewer2, _ = setup_three_publications_two_reviewers(db)
+
+    login = client.post(
+        "/api/v1/auth/login", json={"username": "admin", "password": "secret-password"}
+    )
+    csrf = login.json()["csrfToken"]
+    response = client.get(
+        f"/api/v1/projects/{project.id}/screening/title_abstract/assignments",
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total"] == 3
+    assert body["page"] == 1
+    assert body["pageSize"] == 20
+    titles = {row["publicationTitle"] for row in body["items"]}
+    assert titles == {"Paper 0", "Paper 1", "Paper 2"}
+    reviewer_names = {row["assignedReviewerName"] for row in body["items"]}
+    assert reviewer_names == {"Reviewer 1", "Reviewer 2"}
+
+
+def test_assignments_pagination_sorting_and_filtering(client, db) -> None:
+    _, project, _, reviewer1, reviewer2, _ = setup_three_publications_two_reviewers(db)
+
+    login = client.post(
+        "/api/v1/auth/login", json={"username": "admin", "password": "secret-password"}
+    )
+    csrf = login.json()["csrfToken"]
+
+    first_page = client.get(
+        f"/api/v1/projects/{project.id}/screening/title_abstract/assignments"
+        "?sort=publicationTitle&order=asc&page=1&pageSize=2",
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+    assert first_page["total"] == 3
+    assert [row["publicationTitle"] for row in first_page["items"]] == [
+        "Paper 0",
+        "Paper 1",
+    ]
+
+    second_page = client.get(
+        f"/api/v1/projects/{project.id}/screening/title_abstract/assignments"
+        "?sort=publicationTitle&order=asc&page=2&pageSize=2",
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+    assert [row["publicationTitle"] for row in second_page["items"]] == ["Paper 2"]
+
+    descending = client.get(
+        f"/api/v1/projects/{project.id}/screening/title_abstract/assignments"
+        "?sort=publicationTitle&order=desc",
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+    assert [row["publicationTitle"] for row in descending["items"]] == [
+        "Paper 2",
+        "Paper 1",
+        "Paper 0",
+    ]
+
+    searched = client.get(
+        f"/api/v1/projects/{project.id}/screening/title_abstract/assignments"
+        "?search=Paper 1",
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+    assert [row["publicationTitle"] for row in searched["items"]] == ["Paper 1"]
+    assert searched["total"] == 1
+
+    reviewer2_publication_id = db.scalar(
+        select(ScreeningWorkItem.publication_id).where(
+            ScreeningWorkItem.project_id == project.id,
+            ScreeningWorkItem.assigned_reviewer_id == reviewer2.id,
+        )
+    )
+    reviewer2_title = db.scalar(
+        select(Publication.title).where(Publication.id == reviewer2_publication_id)
+    )
+    by_reviewer = client.get(
+        f"/api/v1/projects/{project.id}/screening/title_abstract/assignments"
+        f"?reviewerId={reviewer2.id}",
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+    assert {row["publicationTitle"] for row in by_reviewer["items"]} == {
+        reviewer2_title
+    }
+    assert by_reviewer["total"] == 1
+
+    by_status = client.get(
+        f"/api/v1/projects/{project.id}/screening/title_abstract/assignments"
+        "?status=available",
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+    assert by_status["total"] == 3
+
+
 def test_next_endpoint_returns_a_claimable_work_item_over_http(client, db) -> None:
     project, publication, reviewer1, _, _ = setup_screening(db)
     create_screening_work_items(db, project, ScreeningStage.TITLE_ABSTRACT)
@@ -183,6 +571,89 @@ def test_next_endpoint_returns_a_claimable_work_item_over_http(client, db) -> No
     )
     assert empty.status_code == 200
     assert empty.json() is None
+
+
+def test_next_endpoint_backfills_a_publication_left_without_a_work_item(
+    client, db
+) -> None:
+    """Regression test: a publication that ended up with no screening work item
+    (e.g. added after title/abstract screening had already started, before the
+    creation-time fix existed) must still surface to the reviewer, not sit
+    permanently invisible in their queue."""
+    project, publication, reviewer1, reviewer2, _ = setup_screening(db)
+    create_screening_work_items(
+        db, project, ScreeningStage.TITLE_ABSTRACT, publication_ids=[publication.id]
+    )
+    orphaned = Publication(project_id=project.id, title="Orphaned paper")
+    db.add(orphaned)
+    db.commit()
+    assert (
+        db.scalar(
+            select(ScreeningWorkItem).where(
+                ScreeningWorkItem.publication_id == orphaned.id
+            )
+        )
+        is None
+    )
+
+    login = client.post(
+        "/api/v1/auth/login", json={"username": "reviewer1", "password": "password-1"}
+    )
+    csrf = login.json()["csrfToken"]
+
+    seen_titles = set()
+    for _ in range(2):
+        response = client.post(
+            f"/api/v1/projects/{project.id}/screening/title_abstract/next",
+            headers={"X-CSRF-Token": csrf},
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body is not None
+        seen_titles.add(body["publication"]["title"])
+
+    assert seen_titles == {publication.title, "Orphaned paper"}
+
+
+def test_progress_endpoint_reports_assigned_and_completed_counts(client, db) -> None:
+    project, publication, reviewer1, _, criteria = setup_screening(db)
+    second = Publication(project_id=project.id, title="Second paper")
+    db.add(second)
+    db.commit()
+    create_screening_work_items(db, project, ScreeningStage.TITLE_ABSTRACT)
+    db.commit()
+
+    login = client.post(
+        "/api/v1/auth/login", json={"username": "reviewer1", "password": "password-1"}
+    )
+    csrf = login.json()["csrfToken"]
+
+    before = client.get(
+        f"/api/v1/projects/{project.id}/screening/title_abstract/progress",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert before.status_code == 200
+    assert before.json() == {"assigned": 2, "completed": 0}
+
+    item = claim_next_work_item(
+        db, project.id, ScreeningStage.TITLE_ABSTRACT, reviewer1.id
+    )
+    submit_decision(
+        db,
+        item,
+        reviewer1.id,
+        "include",
+        {criteria[0].id: True, criteria[1].id: False},
+        None,
+    )
+    db.commit()
+
+    after = client.get(
+        f"/api/v1/projects/{project.id}/screening/title_abstract/progress",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert after.status_code == 200
+    assert after.json() == {"assigned": 2, "completed": 1}
 
 
 def test_revising_decision_preserves_previous_revision(db) -> None:
@@ -239,9 +710,12 @@ def test_my_submitted_work_items_lists_only_own_submitted_decisions(db) -> None:
     claim_next_work_item(db, project.id, ScreeningStage.TITLE_ABSTRACT, reviewer2.id)
     db.commit()
 
-    assert my_submitted_work_items(
-        db, project.id, ScreeningStage.TITLE_ABSTRACT, reviewer1.id
-    ) == []
+    assert (
+        my_submitted_work_items(
+            db, project.id, ScreeningStage.TITLE_ABSTRACT, reviewer1.id
+        )
+        == []
+    )
 
     submit_decision(
         db, first, reviewer1.id, "include", {c.id: True for c in criteria}, None
@@ -254,9 +728,12 @@ def test_my_submitted_work_items_lists_only_own_submitted_decisions(db) -> None:
     assert [item.id for item in mine] == [first.id]
 
     # Not yet submitted by reviewer2, so it shouldn't show up for them either.
-    assert my_submitted_work_items(
-        db, project.id, ScreeningStage.TITLE_ABSTRACT, reviewer2.id
-    ) == []
+    assert (
+        my_submitted_work_items(
+            db, project.id, ScreeningStage.TITLE_ABSTRACT, reviewer2.id
+        )
+        == []
+    )
 
 
 def test_reviewer_can_revise_decision_via_http_and_gets_flagged_after_completion(

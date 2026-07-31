@@ -245,7 +245,9 @@ def save_form_as_template(
     for field in list(
         db.scalars(
             select(FormField)
-            .where(FormField.form_version_id == source.id, FormField.is_archived.is_(False))
+            .where(
+                FormField.form_version_id == source.id, FormField.is_archived.is_(False)
+            )
             .order_by(FormField.position)
         )
     ):
@@ -264,6 +266,40 @@ def save_form_as_template(
         )
     db.flush()
     return template
+
+
+def delete_form(db: Session, form: ReviewForm) -> None:
+    """Delete a form outright, provided no reviewer responses depend on it.
+
+    Extraction/quality responses pin a ``form_version_id`` without cascading
+    delete, so removing a form that already has recorded responses would
+    either orphan them or violate the FK -- guard against that up front with
+    a clear error instead of letting the database reject the delete.
+    """
+    version_ids = list(
+        db.scalars(select(FormVersion.id).where(FormVersion.form_id == form.id))
+    )
+    if version_ids:
+        from app.extraction.models import ExtractionResponse
+        from app.quality.models import QualityResponse
+
+        has_extraction_responses = db.scalar(
+            select(func.count())
+            .select_from(ExtractionResponse)
+            .where(ExtractionResponse.form_version_id.in_(version_ids))
+        )
+        has_quality_responses = db.scalar(
+            select(func.count())
+            .select_from(QualityResponse)
+            .where(QualityResponse.form_version_id.in_(version_ids))
+        )
+        if has_extraction_responses or has_quality_responses:
+            raise ConflictError(
+                "This form already has recorded reviewer responses and can't be "
+                "deleted. Archive its fields instead if you need to change it."
+            )
+    db.delete(form)
+    db.flush()
 
 
 def copy_template_to_project(

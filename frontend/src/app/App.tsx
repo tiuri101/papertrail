@@ -5,6 +5,7 @@ import { DangerZonePanel } from '../features/administration/DangerZonePanel'
 import { HighlightKeywordsPanel } from '../features/administration/HighlightKeywordsPanel'
 import { MembersPanel } from '../features/administration/MembersPanel'
 import { ProjectDetailsPanel } from '../features/administration/ProjectDetailsPanel'
+import { ScreeningAssignmentsPanel } from '../features/administration/ScreeningAssignmentsPanel'
 import { ResearchAgendaPanel } from '../features/administration/ResearchAgendaPanel'
 import { AuditLogPage } from '../features/audit/AuditLogPage'
 import { AccountSettingsPage } from '../features/auth/AccountSettingsPage'
@@ -47,6 +48,7 @@ function ProjectAdministrationPage() {
     <main className="page">
       <ProjectDetailsPanel projectId={projectId} />
       <MembersPanel projectId={projectId} />
+      <ScreeningAssignmentsPanel projectId={projectId} />
       <HighlightKeywordsPanel projectId={projectId} />
       <ProjectLifecyclePanel projectId={projectId} />
       <section className="card">

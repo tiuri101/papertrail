@@ -22,6 +22,7 @@ from app.forms.service import (
     archive_field,
     copy_template_to_project,
     create_form,
+    delete_form,
     rename_field,
     replace_field,
     save_form_as_template,
@@ -104,6 +105,28 @@ def add_project_form(
     )
     db.commit()
     return form
+
+
+@router.delete("/forms/{form_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_form_endpoint(
+    form_id: str,
+    admin: User = Depends(require_admin_csrf),
+    db: Session = Depends(get_db),
+):
+    form = db.get(ReviewForm, form_id)
+    if form is None:
+        raise NotFoundError("Form not found")
+    record_audit(
+        db,
+        action="form.deleted",
+        entity_type="review_form",
+        entity_id=form.id,
+        project_id=form.project_id,
+        actor_id=admin.id,
+        summary=f"Deleted {form.kind.value} form '{form.name}'",
+    )
+    delete_form(db, form)
+    db.commit()
 
 
 @router.post(

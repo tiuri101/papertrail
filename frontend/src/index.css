@@ -604,6 +604,7 @@ form .toolbar,
 .card-list {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr));
+  align-items: start;
   gap: var(--space-5);
   margin: 0 0 var(--space-6);
   padding: 0;
@@ -615,7 +616,6 @@ form .toolbar,
 }
 
 .card-list > .card {
-  min-height: 160px;
   transition: border-color 140ms ease, transform 140ms ease, box-shadow 140ms ease;
 }
 
@@ -1075,9 +1075,14 @@ tbody th {
     white-space: normal;
   }
 
-  table thead,
-  table tbody {
-    min-width: 560px;
+  td .toolbar {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  td .toolbar button,
+  td .toolbar [role='alertdialog'] {
+    width: 100%;
   }
 
   .toolbar {
@@ -1162,6 +1167,18 @@ tbody th {
   .login-card {
     border-radius: var(--radius-lg);
     padding: var(--space-6);
+  }
+
+  th,
+  td {
+    padding: 10px var(--space-2);
+    font-size: 0.88rem;
+  }
+
+  td .toolbar button {
+    min-height: 36px;
+    padding: 6px 10px;
+    font-size: 0.85rem;
   }
 }
 

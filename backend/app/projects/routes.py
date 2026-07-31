@@ -119,9 +119,7 @@ def update_project_details(
 ) -> ProjectDetail:
     project = get_project(db, project_id)
     project.name = payload.name.strip()
-    project.description = (
-        payload.description.strip() if payload.description else None
-    )
+    project.description = payload.description.strip() if payload.description else None
     record_audit(
         db,
         action="project.updated",
@@ -205,6 +203,10 @@ def update_project_member(
         can_assess_quality=payload.can_assess_quality,
         can_adjudicate=payload.can_adjudicate,
     )
+    from app.screening.service import reassign_work_items_from_ineligible_reviewers
+
+    for stage in (ScreeningStage.TITLE_ABSTRACT, ScreeningStage.FULL_TEXT):
+        reassign_work_items_from_ineligible_reviewers(db, project_id, stage)
     record_audit(
         db,
         action="membership.updated",
@@ -240,6 +242,10 @@ def delete_project_member(
         summary="Removed reviewer from project",
     )
     remove_membership(db, membership)
+    from app.screening.service import reassign_work_items_from_ineligible_reviewers
+
+    for stage in (ScreeningStage.TITLE_ABSTRACT, ScreeningStage.FULL_TEXT):
+        reassign_work_items_from_ineligible_reviewers(db, project_id, stage)
     db.commit()
 
 
@@ -475,9 +481,7 @@ def set_highlight_keywords(
     db: Session = Depends(get_db),
 ):
     project = get_project(db, project_id)
-    keywords = parse_highlight_keywords(
-        serialize_highlight_keywords(payload.keywords)
-    )
+    keywords = parse_highlight_keywords(serialize_highlight_keywords(payload.keywords))
     project.highlight_keywords_raw = serialize_highlight_keywords(keywords)
     record_audit(
         db,

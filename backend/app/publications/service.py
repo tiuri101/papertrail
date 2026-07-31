@@ -6,10 +6,46 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.api.errors import DomainError
 from app.imports.models import ImportBatch, ImportedRecord
+from app.projects.models import Project, ProjectStage
 from app.publications.models import MetadataConflict, Publication, PublicationSource
 
 IMPORTANT_FIELDS = {"doi", "title", "authors", "publication_year", "abstract", "venue"}
+
+
+def sync_new_publications_with_stage(
+    db: Session, project: Project, publication_ids: list[str]
+) -> None:
+    """Enroll publications added after draft into the project's active stage.
+
+    Publications created while the project is in draft or duplicate review need no
+    extra action here -- they're picked up naturally the next time that stage
+    advances. But `create_screening_work_items` for title/abstract only runs once,
+    when duplicate review completes, so a publication added afterwards would
+    otherwise sit invisible to reviewers with no screening work item at all.
+    Publications added once full-text retrieval has started aren't supported: those
+    later stages depend on a title/abstract decision a brand-new publication
+    doesn't have yet.
+    """
+    if not publication_ids:
+        return
+    if project.stage == ProjectStage.TITLE_ABSTRACT:
+        from app.projects.models import ScreeningStage
+        from app.screening.service import create_screening_work_items
+
+        create_screening_work_items(
+            db, project, ScreeningStage.TITLE_ABSTRACT, publication_ids=publication_ids
+        )
+    elif project.stage in (
+        ProjectStage.FULL_TEXT,
+        ProjectStage.EXTRACTION,
+        ProjectStage.COMPLETED,
+    ):
+        raise DomainError(
+            "Publications can't be added once full-text retrieval has started. "
+            "Move the project back to an earlier stage first."
+        )
 
 
 def clean_text(value: Any) -> str | None:
@@ -66,6 +102,7 @@ def normalize_imported_records(db: Session, import_batch_id: str) -> int:
         )
     )
     created = 0
+    created_ids: list[str] = []
     for record in records:
         if record.validation_state != "valid":
             continue
@@ -87,7 +124,12 @@ def normalize_imported_records(db: Session, import_batch_id: str) -> int:
             )
         )
         created += 1
+        created_ids.append(publication.id)
     db.flush()
+    if created_ids:
+        project = db.get(Project, batch.project_id)
+        assert project is not None
+        sync_new_publications_with_stage(db, project, created_ids)
     return created
 
 

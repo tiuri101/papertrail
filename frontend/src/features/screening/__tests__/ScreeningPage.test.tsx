@@ -192,6 +192,38 @@ describe('ScreeningPage', () => {
     expect(await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })).toBeInTheDocument()
   })
 
+  it('shows how many papers are assigned to the reviewer and how many are screened', async () => {
+    renderScreening(async (input) => {
+      const path = String(input)
+      if (path.endsWith('/next')) return jsonResponse(workItem)
+      if (path.endsWith('/progress')) return jsonResponse({ assigned: 5, completed: 2 })
+      return jsonResponse({})
+    })
+
+    expect(await screen.findByText('2 of 5 assigned papers screened')).toBeInTheDocument()
+  })
+
+  it('refreshes the assigned/screened count after submitting a decision', async () => {
+    let completed = 2
+    renderScreening(async (input, init) => {
+      const path = String(input)
+      if (path.endsWith('/next')) return jsonResponse(workItem)
+      if (path.endsWith('/progress')) return jsonResponse({ assigned: 5, completed })
+      if (path.endsWith('/decision') && init?.method === 'POST') {
+        completed += 1
+        return jsonResponse({ id: 'decision-1' }, 201)
+      }
+      return jsonResponse({})
+    })
+
+    await screen.findByText('2 of 5 assigned papers screened')
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Decision' }))
+
+    await waitFor(() => {
+      expect(screen.getByText('3 of 5 assigned papers screened')).toBeInTheDocument()
+    })
+  })
+
   it('releases the reserved work item when leaving the page without deciding', async () => {
     const fetchMock = mockFetch(async (input, init) => {
       const path = String(input)

@@ -139,7 +139,10 @@ def claim_next_quality(
 
 
 def save_draft(item: QualityWorkItem, reviewer_id: str, draft: dict) -> None:
-    if item.assigned_reviewer_id != reviewer_id or item.status == QualityStatus.COMPLETED:
+    if (
+        item.assigned_reviewer_id != reviewer_id
+        or item.status == QualityStatus.COMPLETED
+    ):
         raise ForbiddenError("This quality-assessment work item cannot be edited")
     item.draft = draft
 

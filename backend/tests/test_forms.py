@@ -1,12 +1,13 @@
 from sqlalchemy import select
 
 from app.accounts.service import create_user
-from app.forms.models import FieldType, FormField, FormKind
+from app.forms.models import FieldType, FormField, FormKind, FormVersion, ReviewForm
 from app.forms.service import (
     add_field,
     archive_field,
     copy_template_to_project,
     create_form,
+    delete_form,
     rename_field,
     replace_field,
     save_form_as_template,
@@ -148,7 +149,72 @@ def test_replace_field_archives_old_field_and_creates_a_new_typed_field(db) -> N
     assert fields_by_key[replacement.stable_key].is_archived is False
 
 
-def test_project_form_creation_rejects_a_second_form_of_the_same_kind(client, db) -> None:
+def test_delete_form_removes_it_and_its_versions(db) -> None:
+    project = Project(
+        name="Review", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed"
+    )
+    db.add(project)
+    db.flush()
+    form = create_form(db, "Extraction", FormKind.EXTRACTION, project_id=project.id)
+    add_field(db, form, "Main findings", "long_text", required=True)
+    db.commit()
+    form_id = form.id
+
+    delete_form(db, form)
+    db.commit()
+
+    assert db.get(ReviewForm, form_id) is None
+    assert db.scalar(select(FormVersion).where(FormVersion.form_id == form_id)) is None
+
+
+def test_delete_form_is_blocked_once_responses_exist(db) -> None:
+    import pytest
+
+    from app.api.errors import ConflictError
+    from app.conflicts.service import record_final_decision
+    from app.extraction.service import (
+        claim_next_extraction,
+        initialize_extraction,
+        submit_extraction,
+    )
+    from app.projects.models import ProjectMembership, ProjectStage, ScreeningStage
+    from app.publications.models import Publication
+
+    reviewer = create_user(db, "r1", "R1", "password-1")
+    project = Project(
+        name="Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.EXTRACTION,
+    )
+    db.add(project)
+    db.flush()
+    db.add(
+        ProjectMembership(project_id=project.id, user_id=reviewer.id, can_extract=True)
+    )
+    form = create_form(db, "Extraction", FormKind.EXTRACTION, project_id=project.id)
+    required = add_field(db, form, "Main findings", "long_text", required=True)
+    publication = Publication(project_id=project.id, title="Paper")
+    db.add(publication)
+    db.flush()
+    record_final_decision(
+        db, publication.id, ScreeningStage.FULL_TEXT, "include", "agreement", None, None
+    )
+    db.commit()
+
+    initialize_extraction(db, project)
+    db.commit()
+    item = claim_next_extraction(db, project.id, reviewer.id)
+    submit_extraction(db, item, reviewer.id, {required.stable_key: "Finding"})
+    db.commit()
+
+    with pytest.raises(ConflictError):
+        delete_form(db, form)
+
+
+def test_project_form_creation_rejects_a_second_form_of_the_same_kind(
+    client, db
+) -> None:
     create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
     db.commit()
     csrf = login(client, "admin", "secret-password")
@@ -180,3 +246,36 @@ def test_project_form_creation_rejects_a_second_form_of_the_same_kind(client, db
         headers={"X-CSRF-Token": csrf},
     )
     assert other_kind.status_code == 201
+
+
+def test_deleting_a_form_allows_recreating_one_of_the_same_kind(client, db) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    db.commit()
+    csrf = login(client, "admin", "secret-password")
+    project = client.post(
+        "/api/v1/projects",
+        json={"name": "Review", "reviewType": "systematic_review"},
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+    project_id = project["id"]
+
+    first = client.post(
+        f"/api/v1/projects/{project_id}/forms",
+        json={"name": "Extraction", "kind": "extraction"},
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+
+    deleted = client.delete(
+        f"/api/v1/forms/{first['id']}", headers={"X-CSRF-Token": csrf}
+    )
+    assert deleted.status_code == 204
+
+    recreated = client.post(
+        f"/api/v1/projects/{project_id}/forms",
+        json={"name": "Extraction v2", "kind": "extraction"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert recreated.status_code == 201
+
+    forms = client.get(f"/api/v1/projects/{project_id}/forms").json()
+    assert [form["name"] for form in forms] == ["Extraction v2"]

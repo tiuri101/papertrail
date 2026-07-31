@@ -18,7 +18,7 @@ from app.publications.schemas import (
     PublicationResponse,
     PublicationUpdate,
 )
-from app.publications.service import normalize_doi
+from app.publications.service import normalize_doi, sync_new_publications_with_stage
 
 router = APIRouter(tags=["publications"])
 
@@ -220,13 +220,14 @@ def create_manual_publication(
     admin: User = Depends(require_admin_csrf),
     db: Session = Depends(get_db),
 ):
-    require_project_access(db, project_id, admin)
+    project = require_project_access(db, project_id, admin)
     values = payload.model_dump(exclude_unset=True)
     if values.get("doi"):
         values["doi"] = normalize_doi(values["doi"])
     publication = Publication(project_id=project_id, **values)
     db.add(publication)
     db.flush()
+    sync_new_publications_with_stage(db, project, [publication.id])
     record_audit(
         db,
         action="publication.created_manually",

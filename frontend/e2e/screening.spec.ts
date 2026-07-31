@@ -96,7 +96,7 @@ test(
       ).toBeVisible()
 
       const submit = page.getByRole('button', {
-        name: 'Submit decision',
+        name: 'Submit Decision',
       })
 
       await page

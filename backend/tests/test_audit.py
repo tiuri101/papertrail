@@ -5,7 +5,9 @@ from openpyxl import load_workbook
 from app.accounts.service import create_user
 from app.audit.models import AuditEvent
 from app.audit.service import project_dashboard, record_audit
-from app.projects.models import Project, ReviewType
+from app.conflicts.service import record_final_decision
+from app.projects.models import Project, ReviewType, ScreeningStage
+from app.publications.models import Publication
 from app.reporting.service import build_excel
 
 
@@ -68,8 +70,62 @@ def test_dashboard_and_excel_include_audit_information(db) -> None:
     dashboard = project_dashboard(db, project.id)
     assert dashboard["stage"] == "draft"
     assert dashboard["failedJobs"] == 0
+    assert dashboard["totalPapers"] == 0
+    assert dashboard["papersAfterDuplicateReview"] == 0
+    assert dashboard["papersAfterTitleAbstractScreening"] == 0
+    assert dashboard["papersAfterFullTextScreening"] == 0
 
     workbook = load_workbook(BytesIO(build_excel(db, project.id)))
     audit_sheet = workbook["Audit history"]
     assert audit_sheet.max_row == 2
     assert audit_sheet.cell(row=2, column=3).value == "project.created"
+
+
+def test_dashboard_counts_papers_through_the_screening_pipeline(db) -> None:
+    project = Project(
+        name="Screening Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+    )
+    db.add(project)
+    db.flush()
+    publications = [
+        Publication(project_id=project.id, title=f"Paper {i}") for i in range(4)
+    ]
+    db.add_all(publications)
+    db.flush()
+    publications[3].is_active = False  # merged away as a duplicate
+    record_final_decision(
+        db,
+        publications[0].id,
+        ScreeningStage.TITLE_ABSTRACT,
+        "include",
+        "agreement",
+        None,
+        None,
+    )
+    record_final_decision(
+        db,
+        publications[1].id,
+        ScreeningStage.TITLE_ABSTRACT,
+        "exclude",
+        "agreement",
+        None,
+        None,
+    )
+    record_final_decision(
+        db,
+        publications[0].id,
+        ScreeningStage.FULL_TEXT,
+        "include",
+        "agreement",
+        None,
+        None,
+    )
+    db.commit()
+
+    dashboard = project_dashboard(db, project.id)
+    assert dashboard["totalPapers"] == 4
+    assert dashboard["papersAfterDuplicateReview"] == 3
+    assert dashboard["papersAfterTitleAbstractScreening"] == 1
+    assert dashboard["papersAfterFullTextScreening"] == 1
