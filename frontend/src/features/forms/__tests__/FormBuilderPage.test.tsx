@@ -40,7 +40,7 @@ describe('FormBuilderPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add Field' }))
 
     const row = (await screen.findByRole('cell', { name: 'Main finding' })).closest('tr')!
-    expect(within(row).getByText('long_text')).toBeInTheDocument()
+    expect(within(row).getByText('Long text')).toBeInTheDocument()
     expect(within(row).getByText('Required')).toBeInTheDocument()
     const fieldCall = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/forms/form-1/fields') && init?.method === 'POST')
     expect(JSON.parse(String(fieldCall?.[1]?.body))).toEqual({
@@ -124,6 +124,45 @@ describe('FormBuilderPage', () => {
         scoring: { values: { Strong: 2, Weak: 0 } },
       })
     })
+  })
+
+  it('sends a configured scale for a rating field', async () => {
+    const fields: Array<{ id: string; stableKey: string; label: string; fieldType: string; required: boolean; isArchived: boolean }> = []
+    const fetchMock = mockFetch(async (input, init) => {
+      const path = String(input)
+      if (path.endsWith('/forms/form-1/fields') && init?.method === 'POST') {
+        const body = JSON.parse(String(init.body))
+        const field = { id: 'field-1', stableKey: 'stable-1', ...body, isArchived: false }
+        fields.push(field)
+        return jsonResponse(field, 201)
+      }
+      if (path.endsWith('/forms/form-1/fields')) return jsonResponse(fields)
+      if (path.endsWith('/quality-config')) return jsonResponse({ enabled: false, mode: 'both', aggregation: 'sum' })
+      return jsonResponse([{ id: 'form-1', name: 'Extraction', kind: 'extraction', activeVersionId: 'v1' }])
+    })
+    renderWithProviders(<FormBuilderPage />, { route: '/projects/p1/forms', path: '/projects/:projectId/forms' })
+
+    await screen.findByRole('option', { name: 'Extraction (extraction)' })
+    fireEvent.change(screen.getByLabelText('Form to edit'), { target: { value: 'form-1' } })
+    fireEvent.change(await screen.findByLabelText('Label'), { target: { value: 'Overall rank' } })
+    fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'rating' } })
+    fireEvent.change(screen.getByLabelText('Scale minimum'), { target: { value: '0' } })
+    fireEvent.change(screen.getByLabelText('Scale maximum'), { target: { value: '10' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add Field' }))
+
+    await waitFor(() => {
+      const fieldCall = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/forms/form-1/fields') && init?.method === 'POST')
+      expect(fieldCall).toBeTruthy()
+      expect(JSON.parse(String(fieldCall?.[1]?.body))).toEqual({
+        label: 'Overall rank',
+        fieldType: 'rating',
+        required: false,
+        options: ['0', '10'],
+        scoring: {},
+      })
+    })
+    const row = (await screen.findByRole('cell', { name: 'Overall rank' })).closest('tr')!
+    expect(within(row).getByText('Rating (0-10)')).toBeInTheDocument()
   })
 
   it('renders a live preview of the active fields', async () => {
@@ -242,7 +281,7 @@ describe('FormBuilderPage', () => {
     })
     await waitFor(() => {
       const rows = screen.getAllByRole('cell', { name: 'Sample size' }).map((cell) => cell.closest('tr')!)
-      const activeRow = rows.find((candidate) => within(candidate).queryByText('number'))
+      const activeRow = rows.find((candidate) => within(candidate).queryByText('Number'))
       expect(activeRow).toBeTruthy()
       expect(within(activeRow!).getByText('Required')).toBeInTheDocument()
     })

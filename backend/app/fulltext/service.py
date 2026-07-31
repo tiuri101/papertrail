@@ -119,7 +119,9 @@ def resolve_retrieval(
         decision_criteria_answers or {},
         decision_notes,
     )
-    refresh_automatic_final_decision(db, retrieval.publication_id, ScreeningStage.FULL_TEXT)
+    refresh_automatic_final_decision(
+        db, retrieval.publication_id, ScreeningStage.FULL_TEXT
+    )
     return decision
 
 

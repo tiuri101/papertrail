@@ -213,7 +213,11 @@ def test_resolve_retrieval_without_decision_only_saves_status(db) -> None:
     )
 
     decision = resolve_retrieval(
-        db, retrieval, RetrievalStatus.REQUESTED, note="Requested via ILL", user_id=reviewer.id
+        db,
+        retrieval,
+        RetrievalStatus.REQUESTED,
+        note="Requested via ILL",
+        user_id=reviewer.id,
     )
     db.commit()
 

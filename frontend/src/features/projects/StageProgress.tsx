@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react'
+
 export const STAGES = [
   { value: 'draft', label: 'Draft', color: '#2a78d6' },
   { value: 'duplicate_review', label: 'Duplicate Review', color: '#eb6834' },
@@ -8,12 +10,19 @@ export const STAGES = [
 ] as const
 
 export function StageProgress({ stage }: { stage: string }) {
+  const currentRef = useRef<HTMLLIElement>(null)
+
+  useEffect(() => {
+    currentRef.current?.scrollIntoView?.({ block: 'nearest', inline: 'center' })
+  }, [stage])
+
   return (
     <div className="stage-steps-wrap">
       <ol className="stage-steps" aria-label="Project stage">
         {STAGES.map((step) => (
           <li
             key={step.value}
+            ref={step.value === stage ? currentRef : undefined}
             className="stage-step"
             style={{ backgroundColor: step.color }}
             aria-current={step.value === stage ? 'step' : undefined}

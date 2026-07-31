@@ -27,6 +27,17 @@ export function DynamicForm({ fields, value, onChange }: DynamicFormProps) {
   )
 }
 
+function ratingScale(options: string[]): number[] {
+  const [minText, maxText] = options
+  const min = Number(minText)
+  const max = Number(maxText)
+  const hasValidBounds = options.length === 2
+    && minText.trim() !== '' && maxText.trim() !== ''
+    && Number.isFinite(min) && Number.isFinite(max) && max >= min
+  if (!hasValidBounds) return [1, 2, 3, 4, 5]
+  return Array.from({ length: max - min + 1 }, (_, index) => min + index)
+}
+
 function DynamicField({ field, value, onChange }: {
   field: DynamicFormField
   value: unknown
@@ -153,7 +164,7 @@ function DynamicField({ field, value, onChange }: {
             required={field.required}
           >
             <option value="">Select a rating…</option>
-            {[1, 2, 3, 4, 5].map((rating) => (
+            {ratingScale(field.options).map((rating) => (
               <option key={rating} value={rating}>{rating}</option>
             ))}
           </select>

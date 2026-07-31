@@ -1,29 +1,44 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends
-from sqlalchemy import select
+import contextlib
+
+from fastapi import APIRouter, Depends, Query
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.accounts.dependencies import get_current_user, require_csrf
+from app.accounts.dependencies import (
+    get_current_user,
+    require_admin,
+    require_admin_csrf,
+    require_csrf,
+)
 from app.accounts.models import User, UserSession
-from app.api.errors import NotFoundError
+from app.api.errors import DomainError, NotFoundError
 from app.audit.service import record_audit
 from app.db.session import get_db
 from app.projects.models import Criterion, ScreeningStage
 from app.projects.service import get_project, require_project_access
 from app.publications.models import Publication
-from app.screening.models import ScreeningWorkItem
+from app.screening.models import ScreeningWorkItem, WorkItemStatus
 from app.screening.schemas import (
+    AssignmentItem,
+    AssignmentsPage,
     DecisionResponse,
     DecisionSubmit,
     DraftUpdate,
     MyDecisionsResponse,
+    MyProgressResponse,
+    ReassignRequest,
     WorkItemResponse,
 )
 from app.screening.service import (
     claim_next_work_item,
+    create_screening_work_items,
     current_decisions,
+    my_progress,
     my_submitted_work_items,
+    reassign_work_item,
+    reassign_work_items_from_ineligible_reviewers,
     release_work_item,
     save_draft,
     stage_completed,
@@ -68,7 +83,20 @@ def next_item(
     session: UserSession = Depends(require_csrf),
     db: Session = Depends(get_db),
 ):
-    require_project_access(db, project_id, session.user)
+    project = require_project_access(db, project_id, session.user)
+    if stage == ScreeningStage.TITLE_ABSTRACT:
+        # Publications added after duplicate review completes (a manual add, or a
+        # second import batch) never went through the one-time work-item creation
+        # that runs at that transition. Backfilling here -- idempotent, since
+        # existing work items are left alone -- keeps any such publication from
+        # silently sitting invisible to reviewers instead of just leaving it stuck.
+        with contextlib.suppress(DomainError):
+            create_screening_work_items(db, project, ScreeningStage.TITLE_ABSTRACT)
+    # A reviewer removed (or had this stage's permission revoked) after work items
+    # were assigned would otherwise leave those items stuck on someone who can no
+    # longer claim them, and invisible to everyone else. Redistribute defensively
+    # on every fetch so this can't leave a project permanently short a publication.
+    reassign_work_items_from_ineligible_reviewers(db, project_id, stage)
     item = claim_next_work_item(db, project_id, stage, session.user.id)
     db.commit()
     return work_item_payload(db, item) if item else None
@@ -213,4 +241,144 @@ def my_decisions(
         "stage_completed": stage_completed(project, stage),
         "criteria": criteria,
         "items": payload_items,
+    }
+
+
+@router.get(
+    "/projects/{project_id}/screening/{stage}/progress",
+    response_model=MyProgressResponse,
+)
+def my_progress_endpoint(
+    project_id: str,
+    stage: ScreeningStage,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    require_project_access(db, project_id, user)
+    return my_progress(db, project_id, stage, user.id)
+
+
+ASSIGNMENT_SORT_COLUMNS = {
+    "publicationTitle": Publication.title,
+    "status": ScreeningWorkItem.status,
+    "assignedReviewerName": User.display_name,
+    "slotNumber": ScreeningWorkItem.slot_number,
+}
+
+
+@router.get(
+    "/projects/{project_id}/screening/{stage}/assignments",
+    response_model=AssignmentsPage,
+)
+def list_assignments(
+    project_id: str,
+    stage: ScreeningStage,
+    search: str | None = Query(default=None),
+    status: WorkItemStatus | None = Query(default=None),
+    reviewer_id: str | None = Query(default=None, alias="reviewerId"),
+    sort: str = Query(default="publicationTitle"),
+    order: str = Query(default="asc"),
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=20, ge=1, le=200, alias="pageSize"),
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    get_project(db, project_id)
+    filters = [
+        ScreeningWorkItem.project_id == project_id,
+        ScreeningWorkItem.stage == stage,
+    ]
+    if search:
+        filters.append(Publication.title.ilike(f"%{search}%"))
+    if status is not None:
+        filters.append(ScreeningWorkItem.status == status)
+    if reviewer_id == "unassigned":
+        filters.append(ScreeningWorkItem.assigned_reviewer_id.is_(None))
+    elif reviewer_id is not None:
+        filters.append(ScreeningWorkItem.assigned_reviewer_id == reviewer_id)
+
+    joined = (
+        select(ScreeningWorkItem, Publication.title, User.display_name)
+        .join(Publication, Publication.id == ScreeningWorkItem.publication_id)
+        .outerjoin(User, User.id == ScreeningWorkItem.assigned_reviewer_id)
+        .where(*filters)
+    )
+    total = (
+        db.scalar(
+            select(func.count()).select_from(
+                joined.with_only_columns(ScreeningWorkItem.id).subquery()
+            )
+        )
+        or 0
+    )
+
+    sort_column = ASSIGNMENT_SORT_COLUMNS.get(sort, Publication.title)
+    direction = sort_column.desc() if order == "desc" else sort_column.asc()
+    # A stable final tiebreaker keeps row order deterministic across pages --
+    # without it, ties in the chosen sort column can shuffle between requests
+    # and the same row could show up twice, or not at all, across pages.
+    rows = db.execute(
+        joined.order_by(direction, ScreeningWorkItem.id)
+        .limit(page_size)
+        .offset((page - 1) * page_size)
+    ).all()
+
+    items = [
+        {
+            "id": item.id,
+            "publication_id": item.publication_id,
+            "publication_title": title,
+            "slot_number": item.slot_number,
+            "status": item.status,
+            "assigned_reviewer_id": item.assigned_reviewer_id,
+            "assigned_reviewer_name": display_name,
+        }
+        for item, title, display_name in rows
+    ]
+    return {"items": items, "total": total, "page": page, "page_size": page_size}
+
+
+@router.patch(
+    "/projects/{project_id}/screening/work-items/{item_id}/reassign",
+    response_model=AssignmentItem,
+)
+def reassign_work_item_endpoint(
+    project_id: str,
+    item_id: str,
+    payload: ReassignRequest,
+    admin: User = Depends(require_admin_csrf),
+    db: Session = Depends(get_db),
+):
+    item = db.get(ScreeningWorkItem, item_id)
+    if item is None or item.project_id != project_id:
+        raise NotFoundError("Screening work item not found")
+    previous_reviewer_id = item.assigned_reviewer_id
+    reassign_work_item(db, item, payload.reviewer_id)
+    publication = db.get(Publication, item.publication_id)
+    reviewer = db.get(User, payload.reviewer_id)
+    record_audit(
+        db,
+        action="screening_work_item.reassigned",
+        entity_type="screening_work_item",
+        entity_id=item.id,
+        project_id=project_id,
+        actor_id=admin.id,
+        summary=f"Reassigned screening of "
+        f"{publication.title if publication else item.publication_id}"
+        f" to {reviewer.username if reviewer else payload.reviewer_id}",
+        metadata={
+            "stage": item.stage.value,
+            "previousReviewerId": previous_reviewer_id,
+            "newReviewerId": payload.reviewer_id,
+        },
+    )
+    db.commit()
+    return {
+        "id": item.id,
+        "publication_id": item.publication_id,
+        "publication_title": publication.title if publication else "",
+        "slot_number": item.slot_number,
+        "status": item.status,
+        "assigned_reviewer_id": item.assigned_reviewer_id,
+        "assigned_reviewer_name": reviewer.display_name if reviewer else None,
     }

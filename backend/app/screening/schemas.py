@@ -69,3 +69,31 @@ class MyDecisionsResponse(ApiModel):
     stage_completed: bool = Field(serialization_alias="stageCompleted")
     criteria: list[CriterionItem]
     items: list[MyDecisionItem]
+
+
+class MyProgressResponse(ApiModel):
+    assigned: int
+    completed: int
+
+
+class AssignmentItem(ApiModel):
+    id: str
+    publication_id: str = Field(serialization_alias="publicationId")
+    publication_title: str = Field(serialization_alias="publicationTitle")
+    slot_number: int = Field(serialization_alias="slotNumber")
+    status: str
+    assigned_reviewer_id: str | None = Field(serialization_alias="assignedReviewerId")
+    assigned_reviewer_name: str | None = Field(
+        serialization_alias="assignedReviewerName"
+    )
+
+
+class ReassignRequest(ApiModel):
+    reviewer_id: str = Field(alias="reviewerId")
+
+
+class AssignmentsPage(ApiModel):
+    items: list[AssignmentItem]
+    total: int
+    page: int
+    page_size: int = Field(serialization_alias="pageSize")

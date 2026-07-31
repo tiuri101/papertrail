@@ -108,7 +108,8 @@ def download_export(
 
 
 @router.delete(
-    "/projects/{project_id}/exports/{artifact_id}", status_code=status.HTTP_204_NO_CONTENT
+    "/projects/{project_id}/exports/{artifact_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
 )
 def delete_export(
     project_id: str,

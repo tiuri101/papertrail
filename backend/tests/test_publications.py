@@ -2,9 +2,18 @@ from sqlalchemy import select
 
 from app.accounts.service import create_user
 from app.imports.models import ImportBatch, ImportedRecord, ImportStatus
-from app.projects.models import Project, ReviewType
+from app.projects.models import (
+    AllocationMode,
+    Project,
+    ProjectMembership,
+    ProjectStage,
+    ReviewType,
+    ScreeningConfig,
+    ScreeningStage,
+)
 from app.publications.models import MetadataConflict, Publication, PublicationSource
 from app.publications.service import apply_enrichment, normalize_imported_records
+from app.screening.models import ScreeningWorkItem
 
 
 def login(client) -> str:
@@ -142,3 +151,110 @@ def test_enrichment_fills_missing_fields_and_records_important_conflicts(db) -> 
     )
     assert conflict.field_name == "publication_year"
     assert conflict.proposed_value == "2026"
+
+
+def project_in_title_abstract(db, *, stage=ProjectStage.TITLE_ABSTRACT):
+    admin = create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    reviewer = create_user(db, "reviewer", "Reviewer", "reviewer-password")
+    project = Project(
+        name="Test",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=stage,
+    )
+    db.add(project)
+    db.flush()
+    db.add(
+        ProjectMembership(
+            project_id=project.id, user_id=reviewer.id, can_title_abstract_screen=True
+        )
+    )
+    db.add(
+        ScreeningConfig(
+            project_id=project.id,
+            stage=ScreeningStage.TITLE_ABSTRACT,
+            required_reviewers=1,
+            allocation_mode=AllocationMode.INDEPENDENT,
+        )
+    )
+    db.commit()
+    return admin, reviewer, project
+
+
+def test_publication_added_manually_after_title_abstract_started_gets_screened(
+    client, db
+) -> None:
+    _, reviewer, project = project_in_title_abstract(db)
+    csrf = login(client)
+
+    created = client.post(
+        f"/api/v1/projects/{project.id}/publications",
+        json={"title": "Late arrival"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert created.status_code == 201
+    publication_id = created.json()["id"]
+
+    work_item = db.scalar(
+        select(ScreeningWorkItem).where(
+            ScreeningWorkItem.publication_id == publication_id,
+            ScreeningWorkItem.stage == ScreeningStage.TITLE_ABSTRACT,
+        )
+    )
+    assert work_item is not None
+    assert work_item.assigned_reviewer_id == reviewer.id
+
+
+def test_publication_import_after_title_abstract_started_gets_screened(db) -> None:
+    _, reviewer, project = project_in_title_abstract(db)
+    batch = ImportBatch(
+        project_id=project.id,
+        original_filename="records.csv",
+        stored_path="/tmp/records.csv",
+        file_type="csv",
+        status=ImportStatus.COMPLETED,
+        created_by_id=reviewer.id,
+    )
+    db.add(batch)
+    db.flush()
+    db.add(
+        ImportedRecord(
+            import_batch_id=batch.id,
+            source_row=1,
+            raw_data={"title": "Second batch paper"},
+            parsed_data={"title": "Second batch paper"},
+            validation_state="valid",
+            warnings=[],
+        )
+    )
+    db.commit()
+
+    created = normalize_imported_records(db, batch.id)
+    db.commit()
+    assert created == 1
+
+    publication = db.scalar(
+        select(Publication).where(Publication.title == "Second batch paper")
+    )
+    work_item = db.scalar(
+        select(ScreeningWorkItem).where(
+            ScreeningWorkItem.publication_id == publication.id,
+            ScreeningWorkItem.stage == ScreeningStage.TITLE_ABSTRACT,
+        )
+    )
+    assert work_item is not None
+    assert work_item.assigned_reviewer_id == reviewer.id
+
+
+def test_publication_creation_blocked_once_full_text_has_started(client, db) -> None:
+    _, _, project = project_in_title_abstract(db, stage=ProjectStage.FULL_TEXT)
+    csrf = login(client)
+
+    response = client.post(
+        f"/api/v1/projects/{project.id}/publications",
+        json={"title": "Too late"},
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    assert response.status_code == 400
+    assert db.scalar(select(Publication).where(Publication.title == "Too late")) is None

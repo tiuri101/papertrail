@@ -71,7 +71,9 @@ def _user_names(db: Session) -> dict[str, str]:
 def _criterion_texts(db: Session, project_id: str) -> dict[str, str]:
     return dict(
         db.execute(
-            select(Criterion.id, Criterion.text).where(Criterion.project_id == project_id)
+            select(Criterion.id, Criterion.text).where(
+                Criterion.project_id == project_id
+            )
         ).all()
     )
 
@@ -261,6 +263,7 @@ def _add_configuration_sheets(db: Session, workbook: Workbook, project_id: str) 
         ],
     )
 
+
 def _add_record_sheets(
     db: Session,
     workbook: Workbook,
@@ -366,7 +369,11 @@ def _add_screening_sheets(
         "Title abstract screening",
         headers,
         _screening_rows(
-            decisions, ScreeningStage.TITLE_ABSTRACT, titles, user_names, criterion_texts
+            decisions,
+            ScreeningStage.TITLE_ABSTRACT,
+            titles,
+            user_names,
+            criterion_texts,
         ),
     )
     retrievals = list(

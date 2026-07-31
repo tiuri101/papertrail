@@ -41,11 +41,28 @@ const fieldTypes = [
   'rating',
 ]
 
+const fieldTypeLabels: Record<string, string> = {
+  short_text: 'Short text',
+  long_text: 'Long text',
+  number: 'Number',
+  checkbox: 'Checkbox',
+  single_select: 'Single select',
+  multiple_select: 'Multiple select',
+  date: 'Date',
+  url: 'URL',
+  rating: 'Rating',
+}
+
 const selectFieldTypes = new Set(['single_select', 'multiple_select'])
 const weightedFieldTypes = new Set(['number', 'rating'])
 
 function parseOptions(text: string): string[] {
   return text.split('\n').map((line) => line.trim()).filter(Boolean)
+}
+
+function describeRatingScale(options: string[]): string {
+  if (options.length !== 2) return '1-5'
+  return `${options[0]}-${options[1]}`
 }
 
 function buildScoring(params: {
@@ -90,6 +107,8 @@ export function FormBuilderPage() {
   const [fieldType, setFieldType] = useState('long_text')
   const [required, setRequired] = useState(false)
   const [optionsText, setOptionsText] = useState('')
+  const [ratingMin, setRatingMin] = useState('1')
+  const [ratingMax, setRatingMax] = useState('5')
   const [weight, setWeight] = useState('')
   const [optionScores, setOptionScores] = useState<Record<string, string>>({})
   const [trueScore, setTrueScore] = useState('')
@@ -156,10 +175,22 @@ export function FormBuilderPage() {
       queryClient.invalidateQueries({ queryKey: ['forms', projectId] })
     },
   })
+  const deleteForm = useMutation({
+    mutationFn: (formId: string) => apiRequest<void>(
+      `/api/v1/forms/${formId}`,
+      { method: 'DELETE' },
+    ),
+    onSuccess: (_data, formId) => {
+      if (selectedForm === formId) setSelectedForm('')
+      queryClient.invalidateQueries({ queryKey: ['forms', projectId] })
+    },
+  })
   const selectedFormKind = forms.data?.find((form) => form.id === selectedForm)?.kind
   const isQualityForm = selectedFormKind === 'quality'
   const showOptions = selectFieldTypes.has(fieldType)
+  const showRatingScale = fieldType === 'rating'
   const options = parseOptions(optionsText)
+  const ratingOptions = [ratingMin, ratingMax]
 
   const addField = useMutation({
     mutationFn: () => apiRequest<FormField>(
@@ -170,7 +201,7 @@ export function FormBuilderPage() {
           label: fieldLabel,
           fieldType,
           required,
-          options: showOptions ? options : [],
+          options: showOptions ? options : showRatingScale ? ratingOptions : [],
           scoring: buildScoring({ isQualityForm, fieldType, weight, options, optionScores, trueScore, falseScore }),
         }),
       },
@@ -178,6 +209,8 @@ export function FormBuilderPage() {
     onSuccess: () => {
       setFieldLabel('')
       setOptionsText('')
+      setRatingMin('1')
+      setRatingMax('5')
       setWeight('')
       setOptionScores({})
       setTrueScore('')
@@ -252,7 +285,7 @@ export function FormBuilderPage() {
   })
 
   const mutationError = createForm.error ?? addField.error ?? renameField.error
-    ?? deleteField.error ?? replaceField.error ?? saveAsTemplate.error
+    ?? deleteField.error ?? replaceField.error ?? saveAsTemplate.error ?? deleteForm.error
   const activeFields = fields.data?.filter((field) => !field.isArchived) ?? []
 
   return (
@@ -301,12 +334,33 @@ export function FormBuilderPage() {
           when reviewers extract data or assess quality — there's no separate "active" form to
           pick, so once a kind has a form here, edit that one instead of creating another.
         </p>
+        <label>
+          Kind
+          <select
+            value={kind}
+            onChange={(event) => { setKind(event.target.value); setTemplateId('') }}
+          >
+            <option value="extraction">Extraction</option>
+            <option value="quality">Quality assessment</option>
+          </select>
+        </label>
         {existingFormOfKind ? (
           <p>
             This project already has a {kind === 'quality' ? 'quality assessment' : kind} form:{' '}
             <strong>{existingFormOfKind.name}</strong>.{' '}
             <button type="button" onClick={() => setSelectedForm(existingFormOfKind.id)}>
               Edit It Below
+            </button>{' '}
+            <button
+              type="button"
+              onClick={() => {
+                if (window.confirm(`Remove the "${existingFormOfKind.name}" form? This can't be undone, but you can create a new one (optionally from a template) right after.`)) {
+                  deleteForm.mutate(existingFormOfKind.id)
+                }
+              }}
+              disabled={deleteForm.isPending}
+            >
+              Remove It
             </button>
           </p>
         ) : (
@@ -314,16 +368,6 @@ export function FormBuilderPage() {
             <label>
               Name
               <input value={name} onChange={(event) => setName(event.target.value)} />
-            </label>
-            <label>
-              Kind
-              <select
-                value={kind}
-                onChange={(event) => { setKind(event.target.value); setTemplateId('') }}
-              >
-                <option value="extraction">Extraction</option>
-                <option value="quality">Quality assessment</option>
-              </select>
             </label>
             <label>
               Start from template (optional)
@@ -372,7 +416,7 @@ export function FormBuilderPage() {
                 onChange={(event) => setFieldType(event.target.value)}
               >
                 {fieldTypes.map((type) => (
-                  <option key={type} value={type}>{type}</option>
+                  <option key={type} value={type}>{fieldTypeLabels[type] ?? type}</option>
                 ))}
               </select>
             </label>
@@ -393,6 +437,26 @@ export function FormBuilderPage() {
                   rows={4}
                 />
               </label>
+            ) : null}
+            {showRatingScale ? (
+              <>
+                <label>
+                  Scale minimum
+                  <input
+                    type="number"
+                    value={ratingMin}
+                    onChange={(event) => setRatingMin(event.target.value)}
+                  />
+                </label>
+                <label>
+                  Scale maximum
+                  <input
+                    type="number"
+                    value={ratingMax}
+                    onChange={(event) => setRatingMax(event.target.value)}
+                  />
+                </label>
+              </>
             ) : null}
             {isQualityForm && weightedFieldTypes.has(fieldType) ? (
               <label>
@@ -458,7 +522,10 @@ export function FormBuilderPage() {
                       />
                     ) : field.label}
                   </td>
-                  <td>{field.fieldType}</td>
+                  <td>
+                    {fieldTypeLabels[field.fieldType] ?? field.fieldType}
+                    {field.fieldType === 'rating' ? ` (${describeRatingScale(field.options)})` : ''}
+                  </td>
                   <td>{field.required ? 'Required' : '—'}</td>
                   <td>{field.isArchived ? 'Archived' : 'Active'}</td>
                   <td>
@@ -501,7 +568,7 @@ export function FormBuilderPage() {
                               value={replaceType}
                               onChange={(event) => setReplaceType(event.target.value)}
                             >
-                              {fieldTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+                              {fieldTypes.map((type) => <option key={type} value={type}>{fieldTypeLabels[type] ?? type}</option>)}
                             </select>
                             <button
                               type="button"

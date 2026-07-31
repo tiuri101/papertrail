@@ -17,6 +17,7 @@ def test_editable_install_discovers_only_application_packages() -> None:
     assert package_discovery["include"] == ["app*"]
     assert set(package_discovery["exclude"]) == {"data*", "migrations*", "tests*"}
 
+
 def test_development_compose_contains_only_postgresql() -> None:
     compose = (PROJECT_ROOT / "docker-compose.dev.yml").read_text(encoding="utf-8")
 

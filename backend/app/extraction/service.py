@@ -128,7 +128,10 @@ def claim_next_extraction(
 
 
 def save_draft(item: ExtractionWorkItem, reviewer_id: str, draft: dict) -> None:
-    if item.assigned_reviewer_id != reviewer_id or item.status == ExtractionStatus.COMPLETED:
+    if (
+        item.assigned_reviewer_id != reviewer_id
+        or item.status == ExtractionStatus.COMPLETED
+    ):
         raise ForbiddenError("This extraction work item cannot be edited")
     item.draft = draft
 

@@ -29,10 +29,16 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id", name=op.f("pk_login_throttles")),
     )
     op.create_index(
-        op.f("ix_login_throttles_blocked_until"), "login_throttles", ["blocked_until"], unique=False
+        op.f("ix_login_throttles_blocked_until"),
+        "login_throttles",
+        ["blocked_until"],
+        unique=False,
     )
     op.create_index(
-        op.f("ix_login_throttles_identity_hash"), "login_throttles", ["identity_hash"], unique=True
+        op.f("ix_login_throttles_identity_hash"),
+        "login_throttles",
+        ["identity_hash"],
+        unique=True,
     )
     op.create_table(
         "projects",
@@ -66,7 +72,9 @@ def upgrade() -> None:
         sa.Column("configuration_ready", sa.Boolean(), nullable=False),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("reopened_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("highlight_keywords_raw", sa.Text(), server_default="", nullable=False),
+        sa.Column(
+            "highlight_keywords_raw", sa.Text(), server_default="", nullable=False
+        ),
         sa.Column("id", sa.String(length=36), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
@@ -96,7 +104,9 @@ def upgrade() -> None:
         sa.Column("summary", sa.Text(), nullable=False),
         sa.Column(
             "event_metadata",
-            sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), "postgresql"),
+            sa.JSON().with_variant(
+                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
+            ),
             nullable=False,
         ),
         sa.Column("id", sa.String(length=36), nullable=False),
@@ -116,10 +126,17 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_audit_events")),
     )
-    op.create_index(op.f("ix_audit_events_action"), "audit_events", ["action"], unique=False)
-    op.create_index(op.f("ix_audit_events_actor_id"), "audit_events", ["actor_id"], unique=False)
     op.create_index(
-        "ix_audit_events_entity", "audit_events", ["entity_type", "entity_id"], unique=False
+        op.f("ix_audit_events_action"), "audit_events", ["action"], unique=False
+    )
+    op.create_index(
+        op.f("ix_audit_events_actor_id"), "audit_events", ["actor_id"], unique=False
+    )
+    op.create_index(
+        "ix_audit_events_entity",
+        "audit_events",
+        ["entity_type", "entity_id"],
+        unique=False,
     )
     op.create_index(
         "ix_audit_events_project_created",
@@ -136,12 +153,21 @@ def upgrade() -> None:
         sa.Column("job_type", sa.String(length=100), nullable=False),
         sa.Column(
             "payload",
-            sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), "postgresql"),
+            sa.JSON().with_variant(
+                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
+            ),
             nullable=False,
         ),
         sa.Column(
             "status",
-            sa.Enum("QUEUED", "RUNNING", "COMPLETED", "FAILED", "CANCELLED", name="jobstatus"),
+            sa.Enum(
+                "QUEUED",
+                "RUNNING",
+                "COMPLETED",
+                "FAILED",
+                "CANCELLED",
+                name="jobstatus",
+            ),
             nullable=False,
         ),
         sa.Column("progress_current", sa.Integer(), nullable=False),
@@ -157,7 +183,9 @@ def upgrade() -> None:
         sa.Column("error_message", sa.Text(), nullable=True),
         sa.Column(
             "result",
-            sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), "postgresql"),
+            sa.JSON().with_variant(
+                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
+            ),
             nullable=True,
         ),
         sa.Column("id", sa.String(length=36), nullable=False),
@@ -178,19 +206,34 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id", name=op.f("pk_background_jobs")),
     )
     op.create_index(
-        op.f("ix_background_jobs_job_type"), "background_jobs", ["job_type"], unique=False
+        op.f("ix_background_jobs_job_type"),
+        "background_jobs",
+        ["job_type"],
+        unique=False,
     )
     op.create_index(
-        op.f("ix_background_jobs_lease_until"), "background_jobs", ["lease_until"], unique=False
+        op.f("ix_background_jobs_lease_until"),
+        "background_jobs",
+        ["lease_until"],
+        unique=False,
     )
     op.create_index(
-        op.f("ix_background_jobs_project_id"), "background_jobs", ["project_id"], unique=False
+        op.f("ix_background_jobs_project_id"),
+        "background_jobs",
+        ["project_id"],
+        unique=False,
     )
-    op.create_index(op.f("ix_background_jobs_status"), "background_jobs", ["status"], unique=False)
+    op.create_index(
+        op.f("ix_background_jobs_status"), "background_jobs", ["status"], unique=False
+    )
     op.create_table(
         "criteria",
         sa.Column("project_id", sa.String(length=36), nullable=False),
-        sa.Column("kind", sa.Enum("INCLUSION", "EXCLUSION", name="criterionkind"), nullable=False),
+        sa.Column(
+            "kind",
+            sa.Enum("INCLUSION", "EXCLUSION", name="criterionkind"),
+            nullable=False,
+        ),
         sa.Column("text", sa.Text(), nullable=False),
         sa.Column("position", sa.Integer(), nullable=False),
         sa.Column("is_active", sa.Boolean(), nullable=False),
@@ -205,7 +248,9 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_criteria")),
     )
-    op.create_index(op.f("ix_criteria_project_id"), "criteria", ["project_id"], unique=False)
+    op.create_index(
+        op.f("ix_criteria_project_id"), "criteria", ["project_id"], unique=False
+    )
     op.create_table(
         "project_memberships",
         sa.Column("project_id", sa.String(length=36), nullable=False),
@@ -240,7 +285,10 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_index(
-        op.f("ix_project_memberships_user_id"), "project_memberships", ["user_id"], unique=False
+        op.f("ix_project_memberships_user_id"),
+        "project_memberships",
+        ["user_id"],
+        unique=False,
     )
     op.create_table(
         "publications",
@@ -260,7 +308,9 @@ def upgrade() -> None:
         sa.Column("arxiv_id", sa.String(length=100), nullable=True),
         sa.Column(
             "other_identifiers",
-            sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), "postgresql"),
+            sa.JSON().with_variant(
+                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
+            ),
             nullable=False,
         ),
         sa.Column("is_active", sa.Boolean(), nullable=False),
@@ -284,7 +334,10 @@ def upgrade() -> None:
     )
     op.create_index(op.f("ix_publications_doi"), "publications", ["doi"], unique=False)
     op.create_index(
-        op.f("ix_publications_merged_into_id"), "publications", ["merged_into_id"], unique=False
+        op.f("ix_publications_merged_into_id"),
+        "publications",
+        ["merged_into_id"],
+        unique=False,
     )
     op.create_index(
         op.f("ix_publications_project_id"), "publications", ["project_id"], unique=False
@@ -308,7 +361,10 @@ def upgrade() -> None:
         sa.UniqueConstraint("project_id", name="uq_quality_config_project"),
     )
     op.create_index(
-        op.f("ix_quality_configs_project_id"), "quality_configs", ["project_id"], unique=False
+        op.f("ix_quality_configs_project_id"),
+        "quality_configs",
+        ["project_id"],
+        unique=False,
     )
     op.create_table(
         "research_questions",
@@ -328,13 +384,18 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id", name=op.f("pk_research_questions")),
     )
     op.create_index(
-        op.f("ix_research_questions_project_id"), "research_questions", ["project_id"], unique=False
+        op.f("ix_research_questions_project_id"),
+        "research_questions",
+        ["project_id"],
+        unique=False,
     )
     op.create_table(
         "review_forms",
         sa.Column("project_id", sa.String(length=36), nullable=True),
         sa.Column("name", sa.String(length=250), nullable=False),
-        sa.Column("kind", sa.Enum("EXTRACTION", "QUALITY", name="formkind"), nullable=False),
+        sa.Column(
+            "kind", sa.Enum("EXTRACTION", "QUALITY", name="formkind"), nullable=False
+        ),
         sa.Column("is_template", sa.Boolean(), nullable=False),
         sa.Column("active_version_id", sa.String(length=36), nullable=True),
         sa.Column("id", sa.String(length=36), nullable=False),
@@ -355,9 +416,14 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_index(
-        op.f("ix_review_forms_is_template"), "review_forms", ["is_template"], unique=False
+        op.f("ix_review_forms_is_template"),
+        "review_forms",
+        ["is_template"],
+        unique=False,
     )
-    op.create_index(op.f("ix_review_forms_kind"), "review_forms", ["kind"], unique=False)
+    op.create_index(
+        op.f("ix_review_forms_kind"), "review_forms", ["kind"], unique=False
+    )
     op.create_index(
         op.f("ix_review_forms_project_id"), "review_forms", ["project_id"], unique=False
     )
@@ -365,7 +431,9 @@ def upgrade() -> None:
         "screening_configs",
         sa.Column("project_id", sa.String(length=36), nullable=False),
         sa.Column(
-            "stage", sa.Enum("TITLE_ABSTRACT", "FULL_TEXT", name="screeningstage"), nullable=False
+            "stage",
+            sa.Enum("TITLE_ABSTRACT", "FULL_TEXT", name="screeningstage"),
+            nullable=False,
         ),
         sa.Column("required_reviewers", sa.Integer(), nullable=False),
         sa.Column(
@@ -410,7 +478,10 @@ def upgrade() -> None:
         sa.UniqueConstraint("project_id", "stage", name="uq_screening_config_stage"),
     )
     op.create_index(
-        op.f("ix_screening_configs_project_id"), "screening_configs", ["project_id"], unique=False
+        op.f("ix_screening_configs_project_id"),
+        "screening_configs",
+        ["project_id"],
+        unique=False,
     )
     op.create_table(
         "search_sources",
@@ -425,7 +496,9 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(
-            ["created_by_id"], ["users.id"], name=op.f("fk_search_sources_created_by_id_users")
+            ["created_by_id"],
+            ["users.id"],
+            name=op.f("fk_search_sources_created_by_id_users"),
         ),
         sa.ForeignKeyConstraint(
             ["project_id"],
@@ -436,7 +509,10 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id", name=op.f("pk_search_sources")),
     )
     op.create_index(
-        op.f("ix_search_sources_project_id"), "search_sources", ["project_id"], unique=False
+        op.f("ix_search_sources_project_id"),
+        "search_sources",
+        ["project_id"],
+        unique=False,
     )
     op.create_table(
         "user_sessions",
@@ -456,12 +532,20 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id", name=op.f("pk_user_sessions")),
     )
     op.create_index(
-        op.f("ix_user_sessions_expires_at"), "user_sessions", ["expires_at"], unique=False
+        op.f("ix_user_sessions_expires_at"),
+        "user_sessions",
+        ["expires_at"],
+        unique=False,
     )
     op.create_index(
-        op.f("ix_user_sessions_token_hash"), "user_sessions", ["token_hash"], unique=True
+        op.f("ix_user_sessions_token_hash"),
+        "user_sessions",
+        ["token_hash"],
+        unique=True,
     )
-    op.create_index(op.f("ix_user_sessions_user_id"), "user_sessions", ["user_id"], unique=False)
+    op.create_index(
+        op.f("ix_user_sessions_user_id"), "user_sessions", ["user_id"], unique=False
+    )
     op.create_table(
         "duplicate_candidates",
         sa.Column("project_id", sa.String(length=36), nullable=False),
@@ -469,7 +553,9 @@ def upgrade() -> None:
         sa.Column("publication_b_id", sa.String(length=36), nullable=False),
         sa.Column(
             "match_reasons",
-            sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), "postgresql"),
+            sa.JSON().with_variant(
+                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
+            ),
             nullable=False,
         ),
         sa.Column("title_similarity", sa.Float(), nullable=True),
@@ -508,7 +594,10 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_duplicate_candidates")),
         sa.UniqueConstraint(
-            "project_id", "publication_a_id", "publication_b_id", name="uq_duplicate_pair"
+            "project_id",
+            "publication_a_id",
+            "publication_b_id",
+            name="uq_duplicate_pair",
         ),
     )
     op.create_index(
@@ -530,7 +619,10 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_index(
-        op.f("ix_duplicate_candidates_status"), "duplicate_candidates", ["status"], unique=False
+        op.f("ix_duplicate_candidates_status"),
+        "duplicate_candidates",
+        ["status"],
+        unique=False,
     )
     op.create_table(
         "export_artifacts",
@@ -565,13 +657,19 @@ def upgrade() -> None:
         sa.UniqueConstraint("job_id", name="uq_export_artifact_job"),
     )
     op.create_index(
-        op.f("ix_export_artifacts_export_type"), "export_artifacts", ["export_type"], unique=False
+        op.f("ix_export_artifacts_export_type"),
+        "export_artifacts",
+        ["export_type"],
+        unique=False,
     )
     op.create_index(
         op.f("ix_export_artifacts_job_id"), "export_artifacts", ["job_id"], unique=False
     )
     op.create_index(
-        op.f("ix_export_artifacts_project_id"), "export_artifacts", ["project_id"], unique=False
+        op.f("ix_export_artifacts_project_id"),
+        "export_artifacts",
+        ["project_id"],
+        unique=False,
     )
     op.create_table(
         "extraction_work_items",
@@ -587,7 +685,9 @@ def upgrade() -> None:
         ),
         sa.Column(
             "draft",
-            sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), "postgresql"),
+            sa.JSON().with_variant(
+                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
+            ),
             nullable=False,
         ),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
@@ -646,18 +746,25 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_index(
-        op.f("ix_extraction_work_items_status"), "extraction_work_items", ["status"], unique=False
+        op.f("ix_extraction_work_items_status"),
+        "extraction_work_items",
+        ["status"],
+        unique=False,
     )
     op.create_table(
         "final_decisions",
         sa.Column("project_id", sa.String(length=36), nullable=False),
         sa.Column("publication_id", sa.String(length=36), nullable=False),
         sa.Column(
-            "stage", sa.Enum("TITLE_ABSTRACT", "FULL_TEXT", name="screeningstage"), nullable=False
+            "stage",
+            sa.Enum("TITLE_ABSTRACT", "FULL_TEXT", name="screeningstage"),
+            nullable=False,
         ),
         sa.Column(
             "outcome",
-            sa.Enum("INCLUDE", "EXCLUDE", "UNCERTAIN", "DUPLICATE", name="screeningoutcome"),
+            sa.Enum(
+                "INCLUDE", "EXCLUDE", "UNCERTAIN", "DUPLICATE", name="screeningoutcome"
+            ),
             nullable=False,
         ),
         sa.Column("resolution_method", sa.String(length=80), nullable=False),
@@ -690,13 +797,19 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id", name=op.f("pk_final_decisions")),
     )
     op.create_index(
-        op.f("ix_final_decisions_is_valid"), "final_decisions", ["is_valid"], unique=False
+        op.f("ix_final_decisions_is_valid"),
+        "final_decisions",
+        ["is_valid"],
+        unique=False,
     )
     op.create_index(
         op.f("ix_final_decisions_outcome"), "final_decisions", ["outcome"], unique=False
     )
     op.create_index(
-        op.f("ix_final_decisions_project_id"), "final_decisions", ["project_id"], unique=False
+        op.f("ix_final_decisions_project_id"),
+        "final_decisions",
+        ["project_id"],
+        unique=False,
     )
     op.create_index(
         op.f("ix_final_decisions_publication_id"),
@@ -704,7 +817,9 @@ def upgrade() -> None:
         ["publication_id"],
         unique=False,
     )
-    op.create_index(op.f("ix_final_decisions_stage"), "final_decisions", ["stage"], unique=False)
+    op.create_index(
+        op.f("ix_final_decisions_stage"), "final_decisions", ["stage"], unique=False
+    )
     op.create_table(
         "form_versions",
         sa.Column("form_id", sa.String(length=36), nullable=False),
@@ -723,7 +838,9 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id", name=op.f("pk_form_versions")),
         sa.UniqueConstraint("form_id", "version_number", name="uq_form_version_number"),
     )
-    op.create_index(op.f("ix_form_versions_form_id"), "form_versions", ["form_id"], unique=False)
+    op.create_index(
+        op.f("ix_form_versions_form_id"), "form_versions", ["form_id"], unique=False
+    )
     op.create_table(
         "full_text_retrievals",
         sa.Column("project_id", sa.String(length=36), nullable=False),
@@ -764,7 +881,9 @@ def upgrade() -> None:
             ondelete="SET NULL",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_full_text_retrievals")),
-        sa.UniqueConstraint("publication_id", name="uq_full_text_retrieval_publication"),
+        sa.UniqueConstraint(
+            "publication_id", name="uq_full_text_retrieval_publication"
+        ),
     )
     op.create_index(
         op.f("ix_full_text_retrievals_project_id"),
@@ -779,7 +898,10 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_index(
-        op.f("ix_full_text_retrievals_status"), "full_text_retrievals", ["status"], unique=False
+        op.f("ix_full_text_retrievals_status"),
+        "full_text_retrievals",
+        ["status"],
+        unique=False,
     )
     op.create_table(
         "import_batches",
@@ -790,7 +912,9 @@ def upgrade() -> None:
         sa.Column("file_type", sa.String(length=30), nullable=False),
         sa.Column(
             "status",
-            sa.Enum("PENDING", "PROCESSING", "COMPLETED", "FAILED", name="importstatus"),
+            sa.Enum(
+                "PENDING", "PROCESSING", "COMPLETED", "FAILED", name="importstatus"
+            ),
             nullable=False,
         ),
         sa.Column("record_count", sa.Integer(), nullable=False),
@@ -800,14 +924,18 @@ def upgrade() -> None:
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column(
             "mapping",
-            sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), "postgresql"),
+            sa.JSON().with_variant(
+                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
+            ),
             nullable=True,
         ),
         sa.Column("id", sa.String(length=36), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(
-            ["created_by_id"], ["users.id"], name=op.f("fk_import_batches_created_by_id_users")
+            ["created_by_id"],
+            ["users.id"],
+            name=op.f("fk_import_batches_created_by_id_users"),
         ),
         sa.ForeignKeyConstraint(
             ["project_id"],
@@ -824,7 +952,10 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id", name=op.f("pk_import_batches")),
     )
     op.create_index(
-        op.f("ix_import_batches_project_id"), "import_batches", ["project_id"], unique=False
+        op.f("ix_import_batches_project_id"),
+        "import_batches",
+        ["project_id"],
+        unique=False,
     )
     op.create_index(
         op.f("ix_import_batches_search_source_id"),
@@ -871,7 +1002,9 @@ def upgrade() -> None:
         ),
         sa.Column(
             "draft",
-            sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), "postgresql"),
+            sa.JSON().with_variant(
+                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
+            ),
             nullable=False,
         ),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
@@ -906,7 +1039,10 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_index(
-        op.f("ix_quality_work_items_project_id"), "quality_work_items", ["project_id"], unique=False
+        op.f("ix_quality_work_items_project_id"),
+        "quality_work_items",
+        ["project_id"],
+        unique=False,
     )
     op.create_index(
         op.f("ix_quality_work_items_publication_id"),
@@ -927,14 +1063,19 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_index(
-        op.f("ix_quality_work_items_status"), "quality_work_items", ["status"], unique=False
+        op.f("ix_quality_work_items_status"),
+        "quality_work_items",
+        ["status"],
+        unique=False,
     )
     op.create_table(
         "screening_work_items",
         sa.Column("project_id", sa.String(length=36), nullable=False),
         sa.Column("publication_id", sa.String(length=36), nullable=False),
         sa.Column(
-            "stage", sa.Enum("TITLE_ABSTRACT", "FULL_TEXT", name="screeningstage"), nullable=False
+            "stage",
+            sa.Enum("TITLE_ABSTRACT", "FULL_TEXT", name="screeningstage"),
+            nullable=False,
         ),
         sa.Column("slot_number", sa.Integer(), nullable=False),
         sa.Column("assigned_reviewer_id", sa.String(length=36), nullable=True),
@@ -948,7 +1089,9 @@ def upgrade() -> None:
         ),
         sa.Column(
             "draft",
-            sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), "postgresql"),
+            sa.JSON().with_variant(
+                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
+            ),
             nullable=False,
         ),
         sa.Column("submitted_at", sa.DateTime(timezone=True), nullable=True),
@@ -980,7 +1123,9 @@ def upgrade() -> None:
             ondelete="SET NULL",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_screening_work_items")),
-        sa.UniqueConstraint("publication_id", "stage", "slot_number", name="uq_screening_slot"),
+        sa.UniqueConstraint(
+            "publication_id", "stage", "slot_number", name="uq_screening_slot"
+        ),
     )
     op.create_index(
         op.f("ix_screening_work_items_assigned_reviewer_id"),
@@ -1019,10 +1164,16 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_index(
-        op.f("ix_screening_work_items_stage"), "screening_work_items", ["stage"], unique=False
+        op.f("ix_screening_work_items_stage"),
+        "screening_work_items",
+        ["stage"],
+        unique=False,
     )
     op.create_index(
-        op.f("ix_screening_work_items_status"), "screening_work_items", ["status"], unique=False
+        op.f("ix_screening_work_items_status"),
+        "screening_work_items",
+        ["status"],
+        unique=False,
     )
     op.create_table(
         "extraction_responses",
@@ -1031,7 +1182,9 @@ def upgrade() -> None:
         sa.Column("form_version_id", sa.String(length=36), nullable=False),
         sa.Column(
             "answers",
-            sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), "postgresql"),
+            sa.JSON().with_variant(
+                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
+            ),
             nullable=False,
         ),
         sa.Column("version", sa.Integer(), nullable=False),
@@ -1057,7 +1210,9 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_extraction_responses")),
-        sa.UniqueConstraint("work_item_id", "version", name="uq_extraction_response_version"),
+        sa.UniqueConstraint(
+            "work_item_id", "version", name="uq_extraction_response_version"
+        ),
     )
     op.create_index(
         op.f("ix_extraction_responses_form_version_id"),
@@ -1108,12 +1263,16 @@ def upgrade() -> None:
         sa.Column("position", sa.Integer(), nullable=False),
         sa.Column(
             "options",
-            sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), "postgresql"),
+            sa.JSON().with_variant(
+                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
+            ),
             nullable=False,
         ),
         sa.Column(
             "scoring",
-            sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), "postgresql"),
+            sa.JSON().with_variant(
+                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
+            ),
             nullable=False,
         ),
         sa.Column("is_archived", sa.Boolean(), nullable=False),
@@ -1127,12 +1286,19 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_form_fields")),
-        sa.UniqueConstraint("form_version_id", "stable_key", name="uq_form_field_stable_key"),
+        sa.UniqueConstraint(
+            "form_version_id", "stable_key", name="uq_form_field_stable_key"
+        ),
     )
     op.create_index(
-        op.f("ix_form_fields_form_version_id"), "form_fields", ["form_version_id"], unique=False
+        op.f("ix_form_fields_form_version_id"),
+        "form_fields",
+        ["form_version_id"],
+        unique=False,
     )
-    op.create_index(op.f("ix_form_fields_stable_key"), "form_fields", ["stable_key"], unique=False)
+    op.create_index(
+        op.f("ix_form_fields_stable_key"), "form_fields", ["stable_key"], unique=False
+    )
     op.create_table(
         "imported_records",
         sa.Column("import_batch_id", sa.String(length=36), nullable=False),
@@ -1140,18 +1306,24 @@ def upgrade() -> None:
         sa.Column("source_key", sa.String(length=300), nullable=True),
         sa.Column(
             "raw_data",
-            sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), "postgresql"),
+            sa.JSON().with_variant(
+                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
+            ),
             nullable=False,
         ),
         sa.Column(
             "parsed_data",
-            sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), "postgresql"),
+            sa.JSON().with_variant(
+                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
+            ),
             nullable=False,
         ),
         sa.Column("validation_state", sa.String(length=30), nullable=False),
         sa.Column(
             "warnings",
-            sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), "postgresql"),
+            sa.JSON().with_variant(
+                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
+            ),
             nullable=False,
         ),
         sa.Column("id", sa.String(length=36), nullable=False),
@@ -1180,17 +1352,23 @@ def upgrade() -> None:
         sa.Column("merged_by_id", sa.String(length=36), nullable=True),
         sa.Column(
             "canonical_before",
-            sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), "postgresql"),
+            sa.JSON().with_variant(
+                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
+            ),
             nullable=False,
         ),
         sa.Column(
             "merged_before",
-            sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), "postgresql"),
+            sa.JSON().with_variant(
+                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
+            ),
             nullable=False,
         ),
         sa.Column(
             "moved_source_ids",
-            sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), "postgresql"),
+            sa.JSON().with_variant(
+                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
+            ),
             nullable=False,
         ),
         sa.Column("reversed_at", sa.DateTime(timezone=True), nullable=True),
@@ -1249,7 +1427,10 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_index(
-        op.f("ix_publication_merges_project_id"), "publication_merges", ["project_id"], unique=False
+        op.f("ix_publication_merges_project_id"),
+        "publication_merges",
+        ["project_id"],
+        unique=False,
     )
     op.create_table(
         "quality_responses",
@@ -1258,7 +1439,9 @@ def upgrade() -> None:
         sa.Column("form_version_id", sa.String(length=36), nullable=False),
         sa.Column(
             "answers",
-            sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), "postgresql"),
+            sa.JSON().with_variant(
+                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
+            ),
             nullable=False,
         ),
         sa.Column("total_score", sa.Float(), nullable=True),
@@ -1285,7 +1468,9 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_quality_responses")),
-        sa.UniqueConstraint("work_item_id", "version", name="uq_quality_response_version"),
+        sa.UniqueConstraint(
+            "work_item_id", "version", name="uq_quality_response_version"
+        ),
     )
     op.create_index(
         op.f("ix_quality_responses_form_version_id"),
@@ -1294,10 +1479,16 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_index(
-        op.f("ix_quality_responses_is_current"), "quality_responses", ["is_current"], unique=False
+        op.f("ix_quality_responses_is_current"),
+        "quality_responses",
+        ["is_current"],
+        unique=False,
     )
     op.create_index(
-        op.f("ix_quality_responses_reviewer_id"), "quality_responses", ["reviewer_id"], unique=False
+        op.f("ix_quality_responses_reviewer_id"),
+        "quality_responses",
+        ["reviewer_id"],
+        unique=False,
     )
     op.create_index(
         op.f("ix_quality_responses_work_item_id"),
@@ -1311,12 +1502,16 @@ def upgrade() -> None:
         sa.Column("reviewer_id", sa.String(length=36), nullable=False),
         sa.Column(
             "outcome",
-            sa.Enum("INCLUDE", "EXCLUDE", "UNCERTAIN", "DUPLICATE", name="screeningoutcome"),
+            sa.Enum(
+                "INCLUDE", "EXCLUDE", "UNCERTAIN", "DUPLICATE", name="screeningoutcome"
+            ),
             nullable=False,
         ),
         sa.Column(
             "criteria_answers",
-            sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), "postgresql"),
+            sa.JSON().with_variant(
+                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
+            ),
             nullable=False,
         ),
         sa.Column("notes", sa.Text(), nullable=True),
@@ -1338,7 +1533,9 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_screening_decisions")),
-        sa.UniqueConstraint("work_item_id", "version", name="uq_screening_decision_version"),
+        sa.UniqueConstraint(
+            "work_item_id", "version", name="uq_screening_decision_version"
+        ),
     )
     op.create_index(
         op.f("ix_screening_decisions_is_current"),
@@ -1347,7 +1544,10 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_index(
-        op.f("ix_screening_decisions_outcome"), "screening_decisions", ["outcome"], unique=False
+        op.f("ix_screening_decisions_outcome"),
+        "screening_decisions",
+        ["outcome"],
+        unique=False,
     )
     op.create_index(
         op.f("ix_screening_decisions_reviewer_id"),
@@ -1381,7 +1581,9 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_publication_sources")),
-        sa.UniqueConstraint("imported_record_id", name="uq_publication_source_imported_record"),
+        sa.UniqueConstraint(
+            "imported_record_id", name="uq_publication_source_imported_record"
+        ),
     )
     op.create_index(
         op.f("ix_publication_sources_imported_record_id"),
@@ -1400,103 +1602,192 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     # ### commands auto generated by Alembic - please adjust! ###
-    op.drop_index(op.f("ix_publication_sources_publication_id"), table_name="publication_sources")
     op.drop_index(
-        op.f("ix_publication_sources_imported_record_id"), table_name="publication_sources"
+        op.f("ix_publication_sources_publication_id"), table_name="publication_sources"
+    )
+    op.drop_index(
+        op.f("ix_publication_sources_imported_record_id"),
+        table_name="publication_sources",
     )
     op.drop_table("publication_sources")
-    op.drop_index(op.f("ix_screening_decisions_work_item_id"), table_name="screening_decisions")
-    op.drop_index(op.f("ix_screening_decisions_reviewer_id"), table_name="screening_decisions")
-    op.drop_index(op.f("ix_screening_decisions_outcome"), table_name="screening_decisions")
-    op.drop_index(op.f("ix_screening_decisions_is_current"), table_name="screening_decisions")
-    op.drop_table("screening_decisions")
-    op.drop_index(op.f("ix_quality_responses_work_item_id"), table_name="quality_responses")
-    op.drop_index(op.f("ix_quality_responses_reviewer_id"), table_name="quality_responses")
-    op.drop_index(op.f("ix_quality_responses_is_current"), table_name="quality_responses")
-    op.drop_index(op.f("ix_quality_responses_form_version_id"), table_name="quality_responses")
-    op.drop_table("quality_responses")
-    op.drop_index(op.f("ix_publication_merges_project_id"), table_name="publication_merges")
     op.drop_index(
-        op.f("ix_publication_merges_merged_publication_id"), table_name="publication_merges"
+        op.f("ix_screening_decisions_work_item_id"), table_name="screening_decisions"
     )
     op.drop_index(
-        op.f("ix_publication_merges_canonical_publication_id"), table_name="publication_merges"
+        op.f("ix_screening_decisions_reviewer_id"), table_name="screening_decisions"
+    )
+    op.drop_index(
+        op.f("ix_screening_decisions_outcome"), table_name="screening_decisions"
+    )
+    op.drop_index(
+        op.f("ix_screening_decisions_is_current"), table_name="screening_decisions"
+    )
+    op.drop_table("screening_decisions")
+    op.drop_index(
+        op.f("ix_quality_responses_work_item_id"), table_name="quality_responses"
+    )
+    op.drop_index(
+        op.f("ix_quality_responses_reviewer_id"), table_name="quality_responses"
+    )
+    op.drop_index(
+        op.f("ix_quality_responses_is_current"), table_name="quality_responses"
+    )
+    op.drop_index(
+        op.f("ix_quality_responses_form_version_id"), table_name="quality_responses"
+    )
+    op.drop_table("quality_responses")
+    op.drop_index(
+        op.f("ix_publication_merges_project_id"), table_name="publication_merges"
+    )
+    op.drop_index(
+        op.f("ix_publication_merges_merged_publication_id"),
+        table_name="publication_merges",
+    )
+    op.drop_index(
+        op.f("ix_publication_merges_canonical_publication_id"),
+        table_name="publication_merges",
     )
     op.drop_table("publication_merges")
-    op.drop_index(op.f("ix_imported_records_import_batch_id"), table_name="imported_records")
+    op.drop_index(
+        op.f("ix_imported_records_import_batch_id"), table_name="imported_records"
+    )
     op.drop_table("imported_records")
     op.drop_index(op.f("ix_form_fields_stable_key"), table_name="form_fields")
     op.drop_index(op.f("ix_form_fields_form_version_id"), table_name="form_fields")
     op.drop_table("form_fields")
-    op.drop_index(op.f("ix_extraction_responses_work_item_id"), table_name="extraction_responses")
-    op.drop_index(op.f("ix_extraction_responses_reviewer_id"), table_name="extraction_responses")
-    op.drop_index(op.f("ix_extraction_responses_is_current"), table_name="extraction_responses")
     op.drop_index(
-        op.f("ix_extraction_responses_form_version_id"), table_name="extraction_responses"
+        op.f("ix_extraction_responses_work_item_id"), table_name="extraction_responses"
+    )
+    op.drop_index(
+        op.f("ix_extraction_responses_reviewer_id"), table_name="extraction_responses"
+    )
+    op.drop_index(
+        op.f("ix_extraction_responses_is_current"), table_name="extraction_responses"
+    )
+    op.drop_index(
+        op.f("ix_extraction_responses_form_version_id"),
+        table_name="extraction_responses",
     )
     op.drop_table("extraction_responses")
-    op.drop_index(op.f("ix_screening_work_items_status"), table_name="screening_work_items")
-    op.drop_index(op.f("ix_screening_work_items_stage"), table_name="screening_work_items")
-    op.drop_index(op.f("ix_screening_work_items_reserved_until"), table_name="screening_work_items")
-    op.drop_index(op.f("ix_screening_work_items_reserved_by_id"), table_name="screening_work_items")
-    op.drop_index(op.f("ix_screening_work_items_random_rank"), table_name="screening_work_items")
-    op.drop_index(op.f("ix_screening_work_items_publication_id"), table_name="screening_work_items")
-    op.drop_index(op.f("ix_screening_work_items_project_id"), table_name="screening_work_items")
     op.drop_index(
-        op.f("ix_screening_work_items_assigned_reviewer_id"), table_name="screening_work_items"
+        op.f("ix_screening_work_items_status"), table_name="screening_work_items"
+    )
+    op.drop_index(
+        op.f("ix_screening_work_items_stage"), table_name="screening_work_items"
+    )
+    op.drop_index(
+        op.f("ix_screening_work_items_reserved_until"),
+        table_name="screening_work_items",
+    )
+    op.drop_index(
+        op.f("ix_screening_work_items_reserved_by_id"),
+        table_name="screening_work_items",
+    )
+    op.drop_index(
+        op.f("ix_screening_work_items_random_rank"), table_name="screening_work_items"
+    )
+    op.drop_index(
+        op.f("ix_screening_work_items_publication_id"),
+        table_name="screening_work_items",
+    )
+    op.drop_index(
+        op.f("ix_screening_work_items_project_id"), table_name="screening_work_items"
+    )
+    op.drop_index(
+        op.f("ix_screening_work_items_assigned_reviewer_id"),
+        table_name="screening_work_items",
     )
     op.drop_table("screening_work_items")
     op.drop_index(op.f("ix_quality_work_items_status"), table_name="quality_work_items")
-    op.drop_index(op.f("ix_quality_work_items_reserved_until"), table_name="quality_work_items")
-    op.drop_index(op.f("ix_quality_work_items_random_rank"), table_name="quality_work_items")
-    op.drop_index(op.f("ix_quality_work_items_publication_id"), table_name="quality_work_items")
-    op.drop_index(op.f("ix_quality_work_items_project_id"), table_name="quality_work_items")
     op.drop_index(
-        op.f("ix_quality_work_items_assigned_reviewer_id"), table_name="quality_work_items"
+        op.f("ix_quality_work_items_reserved_until"), table_name="quality_work_items"
+    )
+    op.drop_index(
+        op.f("ix_quality_work_items_random_rank"), table_name="quality_work_items"
+    )
+    op.drop_index(
+        op.f("ix_quality_work_items_publication_id"), table_name="quality_work_items"
+    )
+    op.drop_index(
+        op.f("ix_quality_work_items_project_id"), table_name="quality_work_items"
+    )
+    op.drop_index(
+        op.f("ix_quality_work_items_assigned_reviewer_id"),
+        table_name="quality_work_items",
     )
     op.drop_table("quality_work_items")
-    op.drop_index(op.f("ix_metadata_conflicts_publication_id"), table_name="metadata_conflicts")
+    op.drop_index(
+        op.f("ix_metadata_conflicts_publication_id"), table_name="metadata_conflicts"
+    )
     op.drop_table("metadata_conflicts")
-    op.drop_index(op.f("ix_import_batches_search_source_id"), table_name="import_batches")
+    op.drop_index(
+        op.f("ix_import_batches_search_source_id"), table_name="import_batches"
+    )
     op.drop_index(op.f("ix_import_batches_project_id"), table_name="import_batches")
     op.drop_table("import_batches")
-    op.drop_index(op.f("ix_full_text_retrievals_status"), table_name="full_text_retrievals")
-    op.drop_index(op.f("ix_full_text_retrievals_publication_id"), table_name="full_text_retrievals")
-    op.drop_index(op.f("ix_full_text_retrievals_project_id"), table_name="full_text_retrievals")
+    op.drop_index(
+        op.f("ix_full_text_retrievals_status"), table_name="full_text_retrievals"
+    )
+    op.drop_index(
+        op.f("ix_full_text_retrievals_publication_id"),
+        table_name="full_text_retrievals",
+    )
+    op.drop_index(
+        op.f("ix_full_text_retrievals_project_id"), table_name="full_text_retrievals"
+    )
     op.drop_table("full_text_retrievals")
     op.drop_index(op.f("ix_form_versions_form_id"), table_name="form_versions")
     op.drop_table("form_versions")
     op.drop_index(op.f("ix_final_decisions_stage"), table_name="final_decisions")
-    op.drop_index(op.f("ix_final_decisions_publication_id"), table_name="final_decisions")
+    op.drop_index(
+        op.f("ix_final_decisions_publication_id"), table_name="final_decisions"
+    )
     op.drop_index(op.f("ix_final_decisions_project_id"), table_name="final_decisions")
     op.drop_index(op.f("ix_final_decisions_outcome"), table_name="final_decisions")
     op.drop_index(op.f("ix_final_decisions_is_valid"), table_name="final_decisions")
     op.drop_table("final_decisions")
-    op.drop_index(op.f("ix_extraction_work_items_status"), table_name="extraction_work_items")
     op.drop_index(
-        op.f("ix_extraction_work_items_reserved_until"), table_name="extraction_work_items"
+        op.f("ix_extraction_work_items_status"), table_name="extraction_work_items"
     )
-    op.drop_index(op.f("ix_extraction_work_items_random_rank"), table_name="extraction_work_items")
     op.drop_index(
-        op.f("ix_extraction_work_items_publication_id"), table_name="extraction_work_items"
+        op.f("ix_extraction_work_items_reserved_until"),
+        table_name="extraction_work_items",
     )
-    op.drop_index(op.f("ix_extraction_work_items_project_id"), table_name="extraction_work_items")
     op.drop_index(
-        op.f("ix_extraction_work_items_assigned_reviewer_id"), table_name="extraction_work_items"
+        op.f("ix_extraction_work_items_random_rank"), table_name="extraction_work_items"
+    )
+    op.drop_index(
+        op.f("ix_extraction_work_items_publication_id"),
+        table_name="extraction_work_items",
+    )
+    op.drop_index(
+        op.f("ix_extraction_work_items_project_id"), table_name="extraction_work_items"
+    )
+    op.drop_index(
+        op.f("ix_extraction_work_items_assigned_reviewer_id"),
+        table_name="extraction_work_items",
     )
     op.drop_table("extraction_work_items")
     op.drop_index(op.f("ix_export_artifacts_project_id"), table_name="export_artifacts")
     op.drop_index(op.f("ix_export_artifacts_job_id"), table_name="export_artifacts")
-    op.drop_index(op.f("ix_export_artifacts_export_type"), table_name="export_artifacts")
+    op.drop_index(
+        op.f("ix_export_artifacts_export_type"), table_name="export_artifacts"
+    )
     op.drop_table("export_artifacts")
-    op.drop_index(op.f("ix_duplicate_candidates_status"), table_name="duplicate_candidates")
     op.drop_index(
-        op.f("ix_duplicate_candidates_publication_b_id"), table_name="duplicate_candidates"
+        op.f("ix_duplicate_candidates_status"), table_name="duplicate_candidates"
     )
     op.drop_index(
-        op.f("ix_duplicate_candidates_publication_a_id"), table_name="duplicate_candidates"
+        op.f("ix_duplicate_candidates_publication_b_id"),
+        table_name="duplicate_candidates",
     )
-    op.drop_index(op.f("ix_duplicate_candidates_project_id"), table_name="duplicate_candidates")
+    op.drop_index(
+        op.f("ix_duplicate_candidates_publication_a_id"),
+        table_name="duplicate_candidates",
+    )
+    op.drop_index(
+        op.f("ix_duplicate_candidates_project_id"), table_name="duplicate_candidates"
+    )
     op.drop_table("duplicate_candidates")
     op.drop_index(op.f("ix_user_sessions_user_id"), table_name="user_sessions")
     op.drop_index(op.f("ix_user_sessions_token_hash"), table_name="user_sessions")
@@ -1504,14 +1795,18 @@ def downgrade() -> None:
     op.drop_table("user_sessions")
     op.drop_index(op.f("ix_search_sources_project_id"), table_name="search_sources")
     op.drop_table("search_sources")
-    op.drop_index(op.f("ix_screening_configs_project_id"), table_name="screening_configs")
+    op.drop_index(
+        op.f("ix_screening_configs_project_id"), table_name="screening_configs"
+    )
     op.drop_table("screening_configs")
     op.drop_index(op.f("ix_review_forms_project_id"), table_name="review_forms")
     op.drop_index(op.f("ix_review_forms_kind"), table_name="review_forms")
     op.drop_index(op.f("ix_review_forms_is_template"), table_name="review_forms")
     op.drop_index(op.f("ix_review_forms_active_version_id"), table_name="review_forms")
     op.drop_table("review_forms")
-    op.drop_index(op.f("ix_research_questions_project_id"), table_name="research_questions")
+    op.drop_index(
+        op.f("ix_research_questions_project_id"), table_name="research_questions"
+    )
     op.drop_table("research_questions")
     op.drop_index(op.f("ix_quality_configs_project_id"), table_name="quality_configs")
     op.drop_table("quality_configs")
@@ -1519,8 +1814,12 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_publications_merged_into_id"), table_name="publications")
     op.drop_index(op.f("ix_publications_doi"), table_name="publications")
     op.drop_table("publications")
-    op.drop_index(op.f("ix_project_memberships_user_id"), table_name="project_memberships")
-    op.drop_index(op.f("ix_project_memberships_project_id"), table_name="project_memberships")
+    op.drop_index(
+        op.f("ix_project_memberships_user_id"), table_name="project_memberships"
+    )
+    op.drop_index(
+        op.f("ix_project_memberships_project_id"), table_name="project_memberships"
+    )
     op.drop_table("project_memberships")
     op.drop_index(op.f("ix_criteria_project_id"), table_name="criteria")
     op.drop_table("criteria")
@@ -1538,7 +1837,11 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_users_username"), table_name="users")
     op.drop_table("users")
     op.drop_table("projects")
-    op.drop_index(op.f("ix_login_throttles_identity_hash"), table_name="login_throttles")
-    op.drop_index(op.f("ix_login_throttles_blocked_until"), table_name="login_throttles")
+    op.drop_index(
+        op.f("ix_login_throttles_identity_hash"), table_name="login_throttles"
+    )
+    op.drop_index(
+        op.f("ix_login_throttles_blocked_until"), table_name="login_throttles"
+    )
     op.drop_table("login_throttles")
     # ### end Alembic commands ###

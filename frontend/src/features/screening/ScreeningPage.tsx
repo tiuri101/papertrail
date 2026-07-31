@@ -16,6 +16,9 @@ export function ScreeningPage() {
           ? 'Full-Text Screening'
           : 'Title and Abstract Screening'}
       </h1>
+      {queue.progress ? (
+        <p className="muted">{queue.progress.completed} of {queue.progress.assigned} assigned papers screened</p>
+      ) : null}
       <p><Link to={`/projects/${projectId}/screening/${stage}/my-decisions`}>Review or change my past decisions</Link></p>
       {!queue.item ? (
         <>

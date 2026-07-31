@@ -318,7 +318,9 @@ def test_admin_sets_highlight_keywords_and_reviewer_can_read_them(client, db) ->
 
     updated = client.put(
         f"/api/v1/projects/{project_id}/highlight-keywords",
-        json={"keywords": ["virtual reality", " virtual reality ", "urban analytics", ""]},
+        json={
+            "keywords": ["virtual reality", " virtual reality ", "urban analytics", ""]
+        },
         headers={"X-CSRF-Token": csrf},
     )
     assert updated.status_code == 200

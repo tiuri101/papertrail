@@ -1,4 +1,3 @@
-
 from app.accounts.service import create_user
 from app.conflicts.service import (
     record_final_decision,
@@ -132,9 +131,7 @@ def test_revision_invalidates_existing_consensus(db) -> None:
         None,
     )
     db.commit()
-    submit_decision(
-        db, items[0], r1.id, "uncertain", {criterion.id: True}, "changed"
-    )
+    submit_decision(db, items[0], r1.id, "uncertain", {criterion.id: True}, "changed")
     db.commit()
     db.refresh(final)
     assert final.is_valid is False

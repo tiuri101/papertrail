@@ -123,6 +123,71 @@ def create_screening_work_items(
     return created
 
 
+def reassign_work_items_from_ineligible_reviewers(
+    db: Session, project_id: str, stage: ScreeningStage
+) -> int:
+    """Redistribute a stage's not-yet-submitted work items away from reviewers who
+    are no longer eligible for it (removed from the project, or had the stage
+    permission turned off), spreading them round-robin across whoever is
+    currently eligible.
+
+    Assignment happens once, at creation time, so nothing else revisits it -- if a
+    reviewer is removed afterward, their existing AVAILABLE/RESERVED items would
+    otherwise sit assigned to someone who can no longer claim them, invisible to
+    every other reviewer too, since each reviewer's queue only ever looks at items
+    assigned to them specifically. Submitted items are left untouched: who actually
+    screened a publication shouldn't change after the fact.
+    """
+    eligible = eligible_reviewer_ids(db, project_id, stage)
+    if not eligible:
+        return 0
+    orphaned = list(
+        db.scalars(
+            select(ScreeningWorkItem)
+            .where(
+                ScreeningWorkItem.project_id == project_id,
+                ScreeningWorkItem.stage == stage,
+                ScreeningWorkItem.status != WorkItemStatus.SUBMITTED,
+                ScreeningWorkItem.assigned_reviewer_id.is_not(None),
+                ScreeningWorkItem.assigned_reviewer_id.not_in(eligible),
+            )
+            .order_by(ScreeningWorkItem.random_rank)
+        )
+    )
+    for index, item in enumerate(orphaned):
+        item.assigned_reviewer_id = eligible[index % len(eligible)]
+        if item.status == WorkItemStatus.RESERVED:
+            item.status = WorkItemStatus.AVAILABLE
+            item.reserved_by_id = None
+            item.reserved_until = None
+    db.flush()
+    return len(orphaned)
+
+
+def reassign_work_item(
+    db: Session, item: ScreeningWorkItem, reviewer_id: str
+) -> ScreeningWorkItem:
+    """Manually move a not-yet-submitted work item to a different reviewer.
+
+    Restricted to reviewers currently eligible for this stage in this project --
+    the same pool `create_screening_work_items` draws from -- so an admin can't
+    hand a publication to someone outside the project by mistake.
+    """
+    if item.status == WorkItemStatus.SUBMITTED:
+        raise DomainError(
+            "A submitted work item can't be reassigned; its decision is already recorded"
+        )
+    eligible = eligible_reviewer_ids(db, item.project_id, item.stage)
+    if reviewer_id not in eligible:
+        raise DomainError("That reviewer isn't eligible for this stage on this project")
+    item.assigned_reviewer_id = reviewer_id
+    item.status = WorkItemStatus.AVAILABLE
+    item.reserved_by_id = None
+    item.reserved_until = None
+    db.flush()
+    return item
+
+
 def claim_next_work_item(
     db: Session,
     project_id: str,
@@ -316,6 +381,39 @@ def stage_completed(project: Project, stage: ScreeningStage) -> bool:
     return _PROJECT_STAGE_ORDER.index(project.stage) > _PROJECT_STAGE_ORDER.index(
         reached
     )
+
+
+def my_progress(
+    db: Session, project_id: str, stage: ScreeningStage, reviewer_id: str
+) -> dict[str, int]:
+    """How many work items this reviewer has been assigned for a stage, and how
+    many of those they've already submitted a decision for."""
+    assigned = (
+        db.scalar(
+            select(func.count())
+            .select_from(ScreeningWorkItem)
+            .where(
+                ScreeningWorkItem.project_id == project_id,
+                ScreeningWorkItem.stage == stage,
+                ScreeningWorkItem.assigned_reviewer_id == reviewer_id,
+            )
+        )
+        or 0
+    )
+    completed = (
+        db.scalar(
+            select(func.count())
+            .select_from(ScreeningWorkItem)
+            .where(
+                ScreeningWorkItem.project_id == project_id,
+                ScreeningWorkItem.stage == stage,
+                ScreeningWorkItem.assigned_reviewer_id == reviewer_id,
+                ScreeningWorkItem.status == WorkItemStatus.SUBMITTED,
+            )
+        )
+        or 0
+    )
+    return {"assigned": assigned, "completed": completed}
 
 
 def my_submitted_work_items(
