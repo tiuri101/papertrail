@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.accounts.dependencies import require_admin_csrf, require_csrf
+from app.accounts.dependencies import require_csrf
 from app.accounts.models import User, UserSession
 from app.api.errors import NotFoundError
 from app.audit.service import record_audit
@@ -17,9 +17,11 @@ from app.extraction.service import (
     active_fields,
     claim_next_extraction,
     project_form,
+    reassign_work_items_from_ineligible_reviewers,
     save_draft,
     submit_extraction,
 )
+from app.projects.dependencies import require_project_manager_csrf
 from app.projects.service import require_project_access
 from app.publications.models import Publication
 
@@ -49,6 +51,7 @@ def next_extraction(
     db: Session = Depends(get_db),
 ):
     require_project_access(db, project_id, session.user)
+    reassign_work_items_from_ineligible_reviewers(db, project_id)
     item = claim_next_extraction(db, project_id, session.user.id)
     db.commit()
     return extraction_item_payload(db, item) if item else None
@@ -107,7 +110,7 @@ def complete_extraction(
 def reopen_extraction(
     project_id: str,
     item_id: str,
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
     item = db.get(ExtractionWorkItem, item_id)

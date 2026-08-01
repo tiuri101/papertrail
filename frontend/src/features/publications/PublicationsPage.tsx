@@ -5,6 +5,7 @@ import { useParams } from 'react-router-dom'
 import { apiRequest } from '../../api/client'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { HighlightedText } from '../../components/HighlightedText'
+import { useCanManageProject } from '../../hooks/useCanManageProject'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 
 interface Publication {
@@ -181,12 +182,14 @@ function PublicationRow({
   selected,
   onToggleSelected,
   highlightKeywords,
+  canManage,
 }: {
   publication: Publication
   projectId: string
   selected: boolean
   onToggleSelected: () => void
   highlightKeywords: string[]
+  canManage: boolean
 }) {
   const queryClient = useQueryClient()
   const [editing, setEditing] = useState(false)
@@ -204,7 +207,7 @@ function PublicationRow({
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['jobs', projectId] }),
   })
 
-  if (editing) {
+  if (editing && canManage) {
     return (
       <li className="card">
         <PublicationEditForm publication={publication} projectId={projectId} onDone={() => setEditing(false)} />
@@ -218,9 +221,13 @@ function PublicationRow({
         <input type="checkbox" checked={selected} onChange={onToggleSelected} aria-label={`Select ${publication.title}`} />
       </label>
       {' '}
-      <button type="button" className="link-button" onClick={() => setEditing(true)}>
+      {canManage ? (
+        <button type="button" className="link-button" onClick={() => setEditing(true)}>
+          <strong><HighlightedText text={publication.title} keywords={highlightKeywords} /></strong>
+        </button>
+      ) : (
         <strong><HighlightedText text={publication.title} keywords={highlightKeywords} /></strong>
-      </button>
+      )}
       {' — '}{publication.authors ?? 'Unknown authors'}
       {publication.publicationYear ? ` (${publication.publicationYear})` : ''}
       {publication.doi ? (
@@ -229,18 +236,20 @@ function PublicationRow({
       {publication.publisherUrl ? (
         <> <a href={publication.publisherUrl} target="_blank" rel="noopener noreferrer">Publisher link</a></>
       ) : null}
-      <div className="toolbar">
-        <button type="button" onClick={() => setEditing(true)}>Edit</button>
-        <button type="button" onClick={() => enrich.mutate()} disabled={enrich.isPending || !publication.doi}>
-          Enrich Metadata
-        </button>
-        <ConfirmButton
-          label="Delete"
-          warning={`Delete "${publication.title}"? This cannot be undone.`}
-          onConfirm={() => remove.mutate()}
-          disabled={remove.isPending}
-        />
-      </div>
+      {canManage ? (
+        <div className="toolbar">
+          <button type="button" onClick={() => setEditing(true)}>Edit</button>
+          <button type="button" onClick={() => enrich.mutate()} disabled={enrich.isPending || !publication.doi}>
+            Enrich Metadata
+          </button>
+          <ConfirmButton
+            label="Delete"
+            warning={`Delete "${publication.title}"? This cannot be undone.`}
+            onConfirm={() => remove.mutate()}
+            disabled={remove.isPending}
+          />
+        </div>
+      ) : null}
       {enrich.isSuccess ? <p className="muted">Enrichment queued.</p> : null}
       {enrich.error ? <p className="error" role="alert">{enrich.error.message}</p> : null}
       {remove.error ? <p className="error" role="alert">{remove.error.message}</p> : null}
@@ -320,6 +329,7 @@ function MetadataConflictsPanel({ projectId }: { projectId: string }) {
 export function PublicationsPage() {
   const { projectId = '' } = useParams()
   const queryClient = useQueryClient()
+  const canManage = useCanManageProject(projectId)
   const highlightKeywords = useHighlightKeywords(projectId)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const query = useQuery({
@@ -360,29 +370,31 @@ export function PublicationsPage() {
         <p className="muted">{query.data.length} publication{query.data.length === 1 ? '' : 's'} in this project</p>
       ) : null}
       {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
-      <section className="card">
-        <h2>Metadata Enrichment</h2>
-        <p className="muted">Fill in missing metadata from Crossref and Semantic Scholar for one record, a selection, or every record missing metadata.</p>
-        {bulkEnrich.error ? <p className="error" role="alert">{bulkEnrich.error.message}</p> : null}
-        {bulkEnrich.isSuccess ? <p>Enrichment queued for {bulkEnrich.data.jobIds.length} publication{bulkEnrich.data.jobIds.length === 1 ? '' : 's'}.</p> : null}
-        <div className="toolbar">
-          <button
-            type="button"
-            disabled={bulkEnrich.isPending || selectedIds.size === 0}
-            onClick={() => bulkEnrich.mutate({ publicationIds: Array.from(selectedIds), missingOnly: false })}
-          >
-            Enrich Selected ({selectedIds.size})
-          </button>
-          <button
-            type="button"
-            disabled={bulkEnrich.isPending}
-            onClick={() => bulkEnrich.mutate({ missingOnly: true })}
-          >
-            Enrich All Records with Missing Metadata
-          </button>
-        </div>
-      </section>
-      <MetadataConflictsPanel projectId={projectId} />
+      {canManage ? (
+        <section className="card">
+          <h2>Metadata Enrichment</h2>
+          <p className="muted">Fill in missing metadata from Crossref and Semantic Scholar for one record, a selection, or every record missing metadata.</p>
+          {bulkEnrich.error ? <p className="error" role="alert">{bulkEnrich.error.message}</p> : null}
+          {bulkEnrich.isSuccess ? <p>Enrichment queued for {bulkEnrich.data.jobIds.length} publication{bulkEnrich.data.jobIds.length === 1 ? '' : 's'}.</p> : null}
+          <div className="toolbar">
+            <button
+              type="button"
+              disabled={bulkEnrich.isPending || selectedIds.size === 0}
+              onClick={() => bulkEnrich.mutate({ publicationIds: Array.from(selectedIds), missingOnly: false })}
+            >
+              Enrich Selected ({selectedIds.size})
+            </button>
+            <button
+              type="button"
+              disabled={bulkEnrich.isPending}
+              onClick={() => bulkEnrich.mutate({ missingOnly: true })}
+            >
+              Enrich All Records with Missing Metadata
+            </button>
+          </div>
+        </section>
+      ) : null}
+      {canManage ? <MetadataConflictsPanel projectId={projectId} /> : null}
       <ul className="card-list stacked">
         {query.data?.map((publication) => (
           <PublicationRow
@@ -392,6 +404,7 @@ export function PublicationsPage() {
             selected={selectedIds.has(publication.id)}
             onToggleSelected={() => toggleSelected(publication.id)}
             highlightKeywords={highlightKeywords}
+            canManage={canManage}
           />
         ))}
       </ul>

@@ -4,10 +4,15 @@ from sqlalchemy import select
 from app.accounts.service import create_user
 from app.api.errors import DomainError, ForbiddenError
 from app.conflicts.service import record_final_decision
-from app.extraction.models import ExtractionResponse, ExtractionWorkItem
+from app.extraction.models import (
+    ExtractionResponse,
+    ExtractionStatus,
+    ExtractionWorkItem,
+)
 from app.extraction.service import (
     claim_next_extraction,
     initialize_extraction,
+    reassign_work_items_from_ineligible_reviewers,
     save_draft,
     submit_extraction,
 )
@@ -152,6 +157,106 @@ def test_new_required_field_reopens_completed_extractions(db) -> None:
     db.commit()
     db.refresh(item)
     assert item.status == "available"
+
+
+def test_removing_a_reviewer_reassigns_their_pending_extraction_items(
+    client, db
+) -> None:
+    project, _, _, _, _, r1, r2 = setup_extraction(db)
+    initialize_extraction(db, project)
+    db.commit()
+    membership2 = db.scalar(
+        select(ProjectMembership).where(
+            ProjectMembership.project_id == project.id,
+            ProjectMembership.user_id == r2.id,
+        )
+    )
+
+    login = client.post(
+        "/api/v1/auth/login", json={"username": "admin", "password": "secret-password"}
+    )
+    csrf = login.json()["csrfToken"]
+    response = client.delete(
+        f"/api/v1/projects/{project.id}/members/{membership2.id}",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 204
+
+    items = list(
+        db.scalars(
+            select(ExtractionWorkItem).where(
+                ExtractionWorkItem.project_id == project.id
+            )
+        )
+    )
+    assert r2.id not in {item.assigned_reviewer_id for item in items}
+    assert all(item.status == ExtractionStatus.AVAILABLE for item in items)
+
+
+def test_revoking_extraction_permission_reassigns_work_items(client, db) -> None:
+    project, _, _, _, _, r1, r2 = setup_extraction(db)
+    initialize_extraction(db, project)
+    db.commit()
+    membership2 = db.scalar(
+        select(ProjectMembership).where(
+            ProjectMembership.project_id == project.id,
+            ProjectMembership.user_id == r2.id,
+        )
+    )
+
+    login = client.post(
+        "/api/v1/auth/login", json={"username": "admin", "password": "secret-password"}
+    )
+    csrf = login.json()["csrfToken"]
+    response = client.patch(
+        f"/api/v1/projects/{project.id}/members/{membership2.id}",
+        json={"canExtract": False},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 200
+
+    items = list(
+        db.scalars(
+            select(ExtractionWorkItem).where(
+                ExtractionWorkItem.project_id == project.id
+            )
+        )
+    )
+    assert r2.id not in {item.assigned_reviewer_id for item in items}
+
+
+def test_completed_extraction_items_are_not_reassigned(db) -> None:
+    project, _, required, _, _, r1, r2 = setup_extraction(db)
+    initialize_extraction(db, project)
+    db.commit()
+    r2_item = next(
+        item
+        for item in db.scalars(
+            select(ExtractionWorkItem).where(
+                ExtractionWorkItem.project_id == project.id,
+                ExtractionWorkItem.assigned_reviewer_id == r2.id,
+            )
+        )
+    )
+    submit_extraction(db, r2_item, r2.id, {required.stable_key: "Finding"})
+    db.commit()
+
+    membership2 = db.scalar(
+        select(ProjectMembership).where(
+            ProjectMembership.project_id == project.id,
+            ProjectMembership.user_id == r2.id,
+        )
+    )
+    db.delete(membership2)
+    db.commit()
+
+    reassigned = reassign_work_items_from_ineligible_reviewers(db, project.id)
+    db.commit()
+
+    assert reassigned == 0
+    db.refresh(r2_item)
+    assert r2_item.assigned_reviewer_id == r2.id
+    assert r2_item.status == ExtractionStatus.COMPLETED
 
 
 def test_next_extraction_endpoint_returns_the_publication_and_active_fields(

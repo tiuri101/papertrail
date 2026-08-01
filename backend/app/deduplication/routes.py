@@ -2,7 +2,6 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
-from app.accounts.dependencies import require_admin_csrf
 from app.accounts.models import User
 from app.api.errors import DomainError, NotFoundError
 from app.audit.service import record_audit
@@ -16,6 +15,7 @@ from app.deduplication.service import (
     transition_if_duplicate_review_complete,
 )
 from app.jobs.service import enqueue_job
+from app.projects.dependencies import require_project_manager_csrf
 from app.projects.models import ProjectStage
 from app.projects.service import get_project
 
@@ -25,7 +25,7 @@ router = APIRouter(tags=["deduplication"])
 @router.post("/projects/{project_id}/ready", status_code=status.HTTP_202_ACCEPTED)
 def mark_project_ready(
     project_id: str,
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
     from app.projects.checklist import project_checklist
@@ -68,7 +68,7 @@ def mark_project_ready(
 @router.get("/projects/{project_id}/duplicates", response_model=list[CandidateResponse])
 def list_candidates(
     project_id: str,
-    _: User = Depends(require_admin_csrf),
+    _: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
     return list(
@@ -92,7 +92,7 @@ def resolve_not_duplicate(
     project_id: str,
     candidate_id: str,
     payload: ResolutionNote,
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
     candidate = db.get(DuplicateCandidate, candidate_id)
@@ -118,7 +118,7 @@ def resolve_merge(
     project_id: str,
     candidate_id: str,
     payload: MergeRequest,
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
     candidate = db.get(DuplicateCandidate, candidate_id)
@@ -152,7 +152,7 @@ def resolve_merge(
 def undo_merge(
     project_id: str,
     merge_id: str,
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
     merge = db.get(PublicationMerge, merge_id)

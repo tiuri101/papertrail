@@ -31,7 +31,9 @@ const candidate = {
 describe('DuplicateReviewPage', () => {
   it('shows publication metadata and resolves a candidate as distinct', async () => {
     let resolved = false
-    const fetchMock = mockFetch(async (_input, init) => {
+    const fetchMock = mockFetch(async (input, init) => {
+      const path = String(input)
+      if (path.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
       if (init?.method === 'POST') {
         resolved = true
         return jsonResponse({ ...candidate, status: 'not_duplicate' })
@@ -60,9 +62,13 @@ describe('DuplicateReviewPage', () => {
   })
 
   it('sends the selected canonical publication when merging', async () => {
-    const fetchMock = mockFetch(async (_input, init) => init?.method === 'POST'
-      ? jsonResponse({ ...candidate, status: 'merged' })
-      : jsonResponse([candidate]))
+    const fetchMock = mockFetch(async (input, init) => {
+      const path = String(input)
+      if (path.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
+      return init?.method === 'POST'
+        ? jsonResponse({ ...candidate, status: 'merged' })
+        : jsonResponse([candidate])
+    })
     renderWithProviders(<DuplicateReviewPage />, { route: '/projects/p1/duplicates', path: '/projects/:projectId/duplicates' })
     await screen.findByText('A Study of Urban VR')
 

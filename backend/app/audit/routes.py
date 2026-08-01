@@ -4,11 +4,12 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.accounts.dependencies import get_current_user, require_admin_csrf
+from app.accounts.dependencies import get_current_user
 from app.accounts.models import User
 from app.audit.models import AuditEvent
 from app.audit.service import project_dashboard
 from app.db.session import get_db
+from app.projects.dependencies import require_project_manager_csrf
 from app.projects.service import require_project_access
 
 router = APIRouter(tags=["audit"])
@@ -18,7 +19,7 @@ router = APIRouter(tags=["audit"])
 def list_audit_events(
     project_id: str,
     limit: int = Query(default=100, ge=1, le=500),
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
     require_project_access(db, project_id, admin)

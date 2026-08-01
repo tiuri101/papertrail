@@ -106,6 +106,9 @@ class ProjectMembership(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     user_id: Mapped[str] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
+    is_owner: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
     can_title_abstract_screen: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False
     )

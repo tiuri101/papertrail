@@ -14,10 +14,16 @@ from app.projects.models import (
     ScreeningStage,
 )
 from app.publications.models import Publication
-from app.quality.models import QualityConfig, QualityResponse, QualityWorkItem
+from app.quality.models import (
+    QualityConfig,
+    QualityResponse,
+    QualityStatus,
+    QualityWorkItem,
+)
 from app.quality.service import (
     claim_next_quality,
     initialize_quality,
+    reassign_work_items_from_ineligible_reviewers,
     save_draft,
     submit_quality,
 )
@@ -133,6 +139,90 @@ def test_quality_revision_preserves_old_response(db) -> None:
     )
     assert [r.version for r in responses] == [1, 2]
     assert first.is_current is False and second.is_current is True
+
+
+def test_removing_a_reviewer_reassigns_their_pending_quality_item(client, db) -> None:
+    project, _, _, _, reviewer, _ = setup_quality(db)
+    initialize_quality(db, project)
+    db.commit()
+    membership = db.scalar(
+        select(ProjectMembership).where(
+            ProjectMembership.project_id == project.id,
+            ProjectMembership.user_id == reviewer.id,
+        )
+    )
+
+    login = client.post(
+        "/api/v1/auth/login", json={"username": "admin", "password": "secret-password"}
+    )
+    csrf = login.json()["csrfToken"]
+    response = client.delete(
+        f"/api/v1/projects/{project.id}/members/{membership.id}",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 204
+
+    item = db.scalar(
+        select(QualityWorkItem).where(QualityWorkItem.project_id == project.id)
+    )
+    assert item.assigned_reviewer_id != reviewer.id
+    assert item.status == QualityStatus.AVAILABLE
+
+
+def test_revoking_quality_permission_reassigns_work_items(client, db) -> None:
+    project, _, _, _, reviewer, _ = setup_quality(db)
+    initialize_quality(db, project)
+    db.commit()
+    membership = db.scalar(
+        select(ProjectMembership).where(
+            ProjectMembership.project_id == project.id,
+            ProjectMembership.user_id == reviewer.id,
+        )
+    )
+
+    login = client.post(
+        "/api/v1/auth/login", json={"username": "admin", "password": "secret-password"}
+    )
+    csrf = login.json()["csrfToken"]
+    response = client.patch(
+        f"/api/v1/projects/{project.id}/members/{membership.id}",
+        json={"canAssessQuality": False},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 200
+
+    item = db.scalar(
+        select(QualityWorkItem).where(QualityWorkItem.project_id == project.id)
+    )
+    assert item.assigned_reviewer_id != reviewer.id
+
+
+def test_completed_quality_items_are_not_reassigned(db) -> None:
+    project, _, design, reporting, reviewer, _ = setup_quality(db)
+    initialize_quality(db, project)
+    db.commit()
+    item = claim_next_quality(db, project.id, reviewer.id)
+    submit_quality(
+        db, item, reviewer.id, {design.stable_key: "strong", reporting.stable_key: 4}
+    )
+    db.commit()
+
+    membership = db.scalar(
+        select(ProjectMembership).where(
+            ProjectMembership.project_id == project.id,
+            ProjectMembership.user_id == reviewer.id,
+        )
+    )
+    db.delete(membership)
+    db.commit()
+
+    reassigned = reassign_work_items_from_ineligible_reviewers(db, project.id)
+    db.commit()
+
+    assert reassigned == 0
+    db.refresh(item)
+    assert item.assigned_reviewer_id == reviewer.id
+    assert item.status == QualityStatus.COMPLETED
 
 
 def login(client, username, password) -> str:

@@ -6,15 +6,19 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.accounts.dependencies import get_current_user, require_admin_csrf
+from app.accounts.dependencies import get_current_user
 from app.accounts.models import User
 from app.api.errors import NotFoundError
 from app.audit.service import record_audit
 from app.db.session import get_db
 from app.jobs.service import enqueue_job
+from app.projects.dependencies import (
+    require_project_manager_csrf,
+    require_project_member_csrf,
+)
 from app.projects.service import require_project_access
 from app.reporting.models import ExportArtifact
-from app.reporting.service import calculate_prisma_counts
+from app.reporting.service import build_final_results, calculate_prisma_counts
 
 router = APIRouter(tags=["reporting"])
 
@@ -35,14 +39,23 @@ def prisma_counts(
     return calculate_prisma_counts(db, project_id)
 
 
+@router.get("/projects/{project_id}/final-results")
+def final_results(
+    project_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    require_project_access(db, project_id, user)
+    return build_final_results(db, project_id)
+
+
 @router.post("/projects/{project_id}/exports", status_code=status.HTTP_202_ACCEPTED)
 def create_export(
     project_id: str,
     payload: ExportRequest,
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_member_csrf),
     db: Session = Depends(get_db),
 ):
-    require_project_access(db, project_id, admin)
     job = enqueue_job(
         db,
         "generate_export",
@@ -114,7 +127,7 @@ def download_export(
 def delete_export(
     project_id: str,
     artifact_id: str,
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
     require_project_access(db, project_id, admin)

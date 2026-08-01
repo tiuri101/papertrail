@@ -71,6 +71,7 @@ describe('PublicationsPage', () => {
   it('clicking a publication opens an edit form that saves metadata', async () => {
     const fetchMock = mockFetch((input) => {
       const url = String(input)
+      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
       if (url.includes('/publications/publication-1')) {
         return jsonResponse({ ...publications[0], title: 'Urban Data in Virtual Reality' })
       }
@@ -92,7 +93,9 @@ describe('PublicationsPage', () => {
   })
 
   it('deleting a publication requires confirming a warning first', async () => {
-    const fetchMock = mockFetch((_input, init) => {
+    const fetchMock = mockFetch((input, init) => {
+      const url = String(input)
+      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
       if (init?.method === 'DELETE') return emptyResponse(204)
       return jsonResponse(publications)
     })
@@ -114,6 +117,7 @@ describe('PublicationsPage', () => {
   it('triggers enrichment for a single publication with a DOI', async () => {
     const fetchMock = mockFetch((input, init) => {
       const url = String(input)
+      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
       if (url.endsWith('/publications/publication-1/enrich') && init?.method === 'POST') {
         return jsonResponse({ jobId: 'job-1' }, 202)
       }
@@ -137,6 +141,7 @@ describe('PublicationsPage', () => {
   it('enriches selected publications and all publications missing metadata', async () => {
     const fetchMock = mockFetch((input, init) => {
       const url = String(input)
+      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
       if (url.endsWith('/publications/enrich') && init?.method === 'POST') {
         return jsonResponse({ jobIds: ['job-1'] }, 202)
       }
@@ -179,6 +184,7 @@ describe('PublicationsPage', () => {
     ]
     const fetchMock = mockFetch((input, init) => {
       const url = String(input)
+      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
       if (url.endsWith('/metadata-conflicts')) return jsonResponse(conflicts)
       if (url.endsWith('/metadata-conflicts/conflict-1/resolve') && init?.method === 'POST') {
         return jsonResponse({ ...conflicts[0], status: 'accept_proposed' })

@@ -7,7 +7,6 @@ from sqlalchemy.orm import Session
 from app.accounts.dependencies import (
     get_current_session,
     get_current_user,
-    require_admin,
     require_admin_csrf,
     require_csrf,
 )
@@ -135,7 +134,7 @@ def browser_session(
 
 @users_router.get("", response_model=list[UserResponse])
 def list_users(
-    _: User = Depends(require_admin), db: Session = Depends(get_db)
+    _: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> list[User]:
     return list(db.scalars(select(User).order_by(User.username)))
 

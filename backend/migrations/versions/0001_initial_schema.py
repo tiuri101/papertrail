@@ -255,6 +255,7 @@ def upgrade() -> None:
         "project_memberships",
         sa.Column("project_id", sa.String(length=36), nullable=False),
         sa.Column("user_id", sa.String(length=36), nullable=False),
+        sa.Column("is_owner", sa.Boolean(), nullable=False),
         sa.Column("can_title_abstract_screen", sa.Boolean(), nullable=False),
         sa.Column("can_full_text_screen", sa.Boolean(), nullable=False),
         sa.Column("can_extract", sa.Boolean(), nullable=False),

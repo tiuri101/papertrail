@@ -23,7 +23,11 @@ const conflict = {
 
 describe('ConflictResolutionPage', () => {
   it("shows each reviewer's decision and notes for a conflicted publication", async () => {
-    mockFetch(async () => jsonResponse([conflict]))
+    mockFetch(async (input) => {
+      const path = String(input)
+      if (path.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
+      return jsonResponse([conflict])
+    })
     renderWithProviders(<ConflictResolutionPage />, {
       route: '/projects/p1/conflicts/title_abstract',
       path: '/projects/:projectId/conflicts/:stage',
@@ -40,7 +44,9 @@ describe('ConflictResolutionPage', () => {
   it('records a separate administrator consensus decision with a note', async () => {
     let resolved = false
     const fetchMock = mockFetch(async (input, init) => {
-      if (init?.method === 'POST' && String(input).endsWith('/final')) {
+      const path = String(input)
+      if (path.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
+      if (init?.method === 'POST' && path.endsWith('/final')) {
         resolved = true
         return jsonResponse({ id: 'final-1', outcome: 'include' }, 201)
       }
@@ -67,7 +73,9 @@ describe('ConflictResolutionPage', () => {
 
   it('requests an additional reviewer for a publication', async () => {
     const fetchMock = mockFetch(async (input, init) => {
-      if (init?.method === 'POST' && String(input).endsWith('/additional-reviewer')) {
+      const path = String(input)
+      if (path.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
+      if (init?.method === 'POST' && path.endsWith('/additional-reviewer')) {
         return jsonResponse({ workItemId: 'item-1', assignedReviewerId: 'r3' }, 201)
       }
       return jsonResponse([conflict])

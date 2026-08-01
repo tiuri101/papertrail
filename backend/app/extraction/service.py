@@ -99,6 +99,40 @@ def initialize_extraction(db: Session, project: Project) -> int:
     return created
 
 
+def reassign_work_items_from_ineligible_reviewers(db: Session, project_id: str) -> int:
+    """Redistribute not-yet-completed extraction work items away from reviewers who
+    are no longer eligible to extract (removed from the project, or had the
+    extraction permission turned off), spreading them round-robin across whoever is
+    currently eligible.
+
+    Mirrors screening's function of the same name: assignment happens once, at
+    creation time, so nothing else revisits it -- if a reviewer's eligibility is
+    revoked afterward, their existing AVAILABLE/RESERVED items would otherwise sit
+    assigned to someone who can no longer claim them. Completed items are left
+    untouched: who actually extracted a publication shouldn't change after the fact.
+    """
+    eligible = eligible_extractors(db, project_id)
+    if not eligible:
+        return 0
+    orphaned = list(
+        db.scalars(
+            select(ExtractionWorkItem)
+            .where(
+                ExtractionWorkItem.project_id == project_id,
+                ExtractionWorkItem.status != ExtractionStatus.COMPLETED,
+                ExtractionWorkItem.assigned_reviewer_id.not_in(eligible),
+            )
+            .order_by(ExtractionWorkItem.random_rank)
+        )
+    )
+    for index, item in enumerate(orphaned):
+        item.assigned_reviewer_id = eligible[index % len(eligible)]
+        item.status = ExtractionStatus.AVAILABLE
+        item.reserved_until = None
+    db.flush()
+    return len(orphaned)
+
+
 def claim_next_extraction(
     db: Session, project_id: str, reviewer_id: str
 ) -> ExtractionWorkItem | None:

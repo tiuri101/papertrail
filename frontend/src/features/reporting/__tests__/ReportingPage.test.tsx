@@ -80,6 +80,7 @@ describe('ReportingPage', () => {
     let artifacts = [{ id: 'artifact-1', type: 'xlsx', filename: 'Review_2026-07-30.xlsx', createdAt: '2026-07-30T08:00:00Z' }]
     const fetchMock = mockFetch(async (input, init) => {
       const path = String(input)
+      if (path.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
       if (path.endsWith('/prisma')) return jsonResponse({})
       if (path.endsWith('/artifact-1') && init?.method === 'DELETE') {
         artifacts = []

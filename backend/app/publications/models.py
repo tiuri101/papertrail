@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import enum
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from app.db.types import JSONType
+
+if TYPE_CHECKING:
+    from app.imports.models import ImportedRecord
 
 
 class ConflictStatus(enum.StrEnum):
@@ -49,6 +53,31 @@ class Publication(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         back_populates="publication", cascade="all, delete-orphan"
     )
 
+    @property
+    def search_sources(self) -> list[dict]:
+        """The search imports (and, transitively, searches) that brought in
+        this publication. A publication can trace back to more than one
+        when a duplicate merge combines records pulled in separately."""
+        seen: set[str] = set()
+        results: list[dict] = []
+        for source in self.sources:
+            record = source.imported_record
+            batch = record.import_batch if record else None
+            if batch is None or batch.id in seen:
+                continue
+            seen.add(batch.id)
+            results.append(
+                {
+                    "import_batch_id": batch.id,
+                    "original_filename": batch.original_filename,
+                    "search_source_id": batch.search_source_id,
+                    "source_name": batch.search_source.source_name
+                    if batch.search_source
+                    else None,
+                }
+            )
+        return results
+
 
 class PublicationSource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "publication_sources"
@@ -65,6 +94,7 @@ class PublicationSource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("imported_records.id", ondelete="CASCADE"), index=True
     )
     publication: Mapped[Publication] = relationship(back_populates="sources")
+    imported_record: Mapped[ImportedRecord] = relationship()
 
 
 class MetadataConflict(UUIDPrimaryKeyMixin, TimestampMixin, Base):
