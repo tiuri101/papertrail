@@ -134,9 +134,19 @@ def browser_session(
 
 @users_router.get("", response_model=list[UserResponse])
 def list_users(
-    _: User = Depends(get_current_user), db: Session = Depends(get_db)
-) -> list[User]:
-    return list(db.scalars(select(User).order_by(User.username)))
+    caller: User = Depends(get_current_user), db: Session = Depends(get_db)
+) -> list[UserResponse]:
+    users = db.scalars(select(User).order_by(User.username))
+    return [
+        UserResponse(
+            id=user.id,
+            username=user.username,
+            display_name=user.display_name,
+            is_admin=user.is_admin if caller.is_admin else False,
+            is_active=user.is_active,
+        )
+        for user in users
+    ]
 
 
 @users_router.post("", response_model=UserResponse, status_code=status.HTTP_201_CREATED)

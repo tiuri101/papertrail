@@ -129,6 +129,52 @@ def test_project_jobs_are_listed_with_status(
     assert jobs_after.json()[0]["completedAt"] is not None
 
 
+def test_a_regular_project_member_can_document_a_search_and_import_records(
+    client, db, session_factory, tmp_path, monkeypatch
+) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    member = create_user(db, "reviewer", "Reviewer One", "secret-password")
+    db.commit()
+    admin_csrf = login(client)
+    project_id = create_project(client, admin_csrf)
+
+    added = client.post(
+        f"/api/v1/projects/{project_id}/members",
+        json={"userId": member.id},
+        headers={"X-CSRF-Token": admin_csrf},
+    )
+    assert added.status_code == 201
+
+    member_csrf = client.post(
+        "/api/v1/auth/login",
+        json={"username": "reviewer", "password": "secret-password"},
+    ).json()["csrfToken"]
+
+    monkeypatch.setenv("PAPERTRAIL_IMPORT_DIR", str(tmp_path / "imports"))
+    from app.core.config import get_settings
+
+    get_settings.cache_clear()
+
+    search = client.post(
+        f"/api/v1/projects/{project_id}/searches",
+        json={
+            "sourceName": "IEEE Xplore",
+            "query": "virtual reality AND urban",
+            "searchDate": "2026-07-30",
+        },
+        headers={"X-CSRF-Token": member_csrf},
+    )
+    assert search.status_code == 201
+
+    response = client.post(
+        f"/api/v1/projects/{project_id}/imports",
+        data={"searchSourceId": search.json()["id"]},
+        files={"file": ("records.csv", b"Title,Authors\nPaper A,Doe\n", "text/csv")},
+        headers={"X-CSRF-Token": member_csrf},
+    )
+    assert response.status_code == 202
+
+
 def test_csv_import_runs_through_persistent_job(
     client, db, session_factory, tmp_path, monkeypatch
 ) -> None:

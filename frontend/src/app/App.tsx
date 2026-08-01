@@ -5,7 +5,9 @@ import { DangerZonePanel } from '../features/administration/DangerZonePanel'
 import { HighlightKeywordsPanel } from '../features/administration/HighlightKeywordsPanel'
 import { MembersPanel } from '../features/administration/MembersPanel'
 import { ProjectDetailsPanel } from '../features/administration/ProjectDetailsPanel'
+import { ReviewerProgressPanel } from '../features/administration/ReviewerProgressPanel'
 import { ScreeningAssignmentsPanel } from '../features/administration/ScreeningAssignmentsPanel'
+import { ScreeningConfigPanel } from '../features/administration/ScreeningConfigPanel'
 import { ResearchAgendaPanel } from '../features/administration/ResearchAgendaPanel'
 import { AuditLogPage } from '../features/audit/AuditLogPage'
 import { AccountSettingsPage } from '../features/auth/AccountSettingsPage'
@@ -22,6 +24,7 @@ import { JobsPage } from '../features/jobs/JobsPage'
 import { ProjectLifecyclePanel } from '../features/lifecycle/ProjectLifecyclePanel'
 import { ProjectPage } from '../features/projects/ProjectPage'
 import { ProjectsPage } from '../features/projects/ProjectsPage'
+import { AddPublicationPage } from '../features/publications/AddPublicationPage'
 import { PublicationsPage } from '../features/publications/PublicationsPage'
 import { QualityPage } from '../features/quality/QualityPage'
 import { ReportingPage } from '../features/reporting/ReportingPage'
@@ -63,7 +66,9 @@ function ProjectAdministrationPage() {
     <main className="page">
       <ProjectDetailsPanel projectId={projectId} />
       <MembersPanel projectId={projectId} />
+      <ScreeningConfigPanel projectId={projectId} />
       <ScreeningAssignmentsPanel projectId={projectId} />
+      <ReviewerProgressPanel projectId={projectId} />
       <HighlightKeywordsPanel projectId={projectId} />
       <ProjectLifecyclePanel projectId={projectId} />
       <section className="card">
@@ -110,6 +115,7 @@ export function App() {
             <Route path="/projects/:projectId/imports" element={<ImportPage />} />
             <Route path="/projects/:projectId/jobs" element={<JobsPage />} />
             <Route path="/projects/:projectId/publications" element={<PublicationsPage />} />
+            <Route path="/projects/:projectId/publications/add" element={<AddPublicationPage />} />
             <Route path="/projects/:projectId/duplicates" element={<DuplicateReviewPage />} />
             <Route path="/projects/:projectId/screening/:stage" element={<ScreeningPage />} />
             <Route path="/projects/:projectId/screening/:stage/my-decisions" element={<MyDecisionsPage />} />

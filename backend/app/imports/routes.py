@@ -21,7 +21,7 @@ from app.db.session import get_db
 from app.imports.models import ImportBatch, ImportStatus, SearchSource
 from app.imports.schemas import JobAccepted, SearchSourceCreate, SearchSourceResponse
 from app.jobs.service import enqueue_job
-from app.projects.dependencies import require_project_manager_csrf
+from app.projects.dependencies import require_project_member_csrf
 from app.projects.service import get_project, require_project_access
 
 router = APIRouter(tags=["imports"])
@@ -53,7 +53,7 @@ def list_searches(
 def add_search(
     project_id: str,
     payload: SearchSourceCreate,
-    admin: User = Depends(require_project_manager_csrf),
+    admin: User = Depends(require_project_member_csrf),
     db: Session = Depends(get_db),
 ):
     get_project(db, project_id)
@@ -91,7 +91,7 @@ async def upload_import(
     search_source_id: str | None = Form(default=None, alias="searchSourceId"),
     mapping_json: str | None = Form(default=None, alias="mappingJson"),
     file: UploadFile = File(...),
-    admin: User = Depends(require_project_manager_csrf),
+    admin: User = Depends(require_project_member_csrf),
     db: Session = Depends(get_db),
 ):
     get_project(db, project_id)
@@ -172,12 +172,11 @@ async def upload_import(
 async def preview_import(
     project_id: str,
     file: UploadFile = File(...),
-    admin: User = Depends(require_project_manager_csrf),
+    admin: User = Depends(require_project_member_csrf),
     db: Session = Depends(get_db),
 ):
     from app.imports.adapters import normalize_imported_row, parse_file
 
-    require_project_access(db, project_id, admin)
     safe_name = Path(file.filename or "import").name
     suffix = Path(safe_name).suffix.lower()
     if suffix not in {".csv", ".tsv", ".xlsx", ".ris", ".bib", ".bibtex"}:

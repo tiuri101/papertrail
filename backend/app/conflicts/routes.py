@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.accounts.models import User
+from app.api.errors import NotFoundError
 from app.audit.service import record_audit
 from app.conflicts.schemas import (
     ConflictItem,
@@ -60,6 +61,9 @@ def resolve_conflict(
     admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
+    publication = db.get(Publication, publication_id)
+    if publication is None or publication.project_id != project_id:
+        raise NotFoundError("Publication not found")
     final = record_final_decision(
         db,
         publication_id,
@@ -98,6 +102,9 @@ def create_additional_review(
     admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
+    publication = db.get(Publication, publication_id)
+    if publication is None or publication.project_id != project_id:
+        raise NotFoundError("Publication not found")
     item = add_resolution_reviewer(db, publication_id, stage)
     record_audit(
         db,

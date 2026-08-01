@@ -1,9 +1,11 @@
 from __future__ import annotations
 
-from sqlalchemy import select
+from datetime import UTC, datetime, timedelta
+
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session
 
-from app.api.errors import DomainError
+from app.api.errors import DomainError, ForbiddenError
 from app.conflicts.models import FinalDecision
 from app.conflicts.service import refresh_automatic_final_decision, valid_final_decision
 from app.fulltext.models import FullTextRetrieval, RetrievalStatus
@@ -14,6 +16,16 @@ from app.screening.service import (
     create_screening_work_items,
     submit_decision,
 )
+
+RESERVATION_HOURS = 24
+
+# A retrieval remains claimable work until it reaches one of these; everything
+# else (available/not_found/inaccessible) is resolved and drops out of the queue.
+CLAIMABLE_STATUSES = (RetrievalStatus.NOT_YET_SOUGHT, RetrievalStatus.REQUESTED)
+
+
+def utcnow() -> datetime:
+    return datetime.now(UTC)
 
 
 def title_abstract_included_ids(db: Session, project_id: str) -> list[str]:
@@ -45,6 +57,93 @@ def initialize_full_text_stage(db: Session, project: Project) -> int:
     return created
 
 
+def claim_next_retrieval(
+    db: Session, project_id: str, user_id: str
+) -> FullTextRetrieval | None:
+    """Claim the next paper needing full-text retrieval for this reviewer.
+
+    Papers aren't distributed up front -- one is reserved only once a reviewer
+    actually asks for it, so no more than one reviewer is ever looking at the
+    same paper at a time. A reviewer's own in-progress ("requested") claim is
+    only offered back to them once every never-touched paper has been claimed,
+    so a follow-up on an ILL request doesn't block them from picking up fresh
+    work.
+    """
+    now = utcnow()
+    filters = [
+        FullTextRetrieval.project_id == project_id,
+        FullTextRetrieval.status.in_(CLAIMABLE_STATUSES),
+        or_(
+            FullTextRetrieval.claimed_by_id.is_(None),
+            FullTextRetrieval.claimed_until < now,
+            FullTextRetrieval.claimed_by_id == user_id,
+        ),
+    ]
+    priority = case(
+        (FullTextRetrieval.status == RetrievalStatus.NOT_YET_SOUGHT, 0), else_=1
+    )
+    query = (
+        select(FullTextRetrieval)
+        .where(*filters)
+        .order_by(priority, FullTextRetrieval.created_at)
+        .limit(1)
+    )
+    if db.bind is not None and db.bind.dialect.name == "postgresql":
+        query = query.with_for_update(skip_locked=True)
+    retrieval = db.scalar(query)
+    if retrieval is None:
+        return None
+    retrieval.claimed_by_id = user_id
+    retrieval.claimed_until = now + timedelta(hours=RESERVATION_HOURS)
+    db.flush()
+    return retrieval
+
+
+def release_retrieval_claim(retrieval: FullTextRetrieval, user_id: str) -> None:
+    if retrieval.claimed_by_id != user_id:
+        raise ForbiddenError("This publication is not claimed by the current reviewer")
+    retrieval.claimed_by_id = None
+    retrieval.claimed_until = None
+
+
+def ensure_retrieval_claim(retrieval: FullTextRetrieval, user_id: str) -> None:
+    """Reject a status update from someone other than whoever actively holds
+    the claim. Unclaimed and expired-claim retrievals are left open -- e.g.
+    for a manager updating a record no one has picked up yet."""
+    if (
+        retrieval.claimed_by_id is not None
+        and retrieval.claimed_by_id != user_id
+        and retrieval.claimed_until is not None
+        and retrieval.claimed_until >= utcnow()
+    ):
+        raise ForbiddenError(
+            "This publication is currently claimed by another reviewer"
+        )
+
+
+def retrieval_progress(db: Session, project_id: str) -> dict[str, int]:
+    total = (
+        db.scalar(
+            select(func.count())
+            .select_from(FullTextRetrieval)
+            .where(FullTextRetrieval.project_id == project_id)
+        )
+        or 0
+    )
+    addressed = (
+        db.scalar(
+            select(func.count())
+            .select_from(FullTextRetrieval)
+            .where(
+                FullTextRetrieval.project_id == project_id,
+                FullTextRetrieval.status != RetrievalStatus.NOT_YET_SOUGHT,
+            )
+        )
+        or 0
+    )
+    return {"total": total, "addressed": addressed}
+
+
 def set_retrieval_status(
     db: Session,
     retrieval: FullTextRetrieval,
@@ -56,6 +155,12 @@ def set_retrieval_status(
     retrieval.status = status
     retrieval.note = note
     retrieval.updated_by_id = user_id
+    if status == RetrievalStatus.REQUESTED and user_id is not None:
+        retrieval.claimed_by_id = user_id
+        retrieval.claimed_until = utcnow() + timedelta(hours=RESERVATION_HOURS)
+    else:
+        retrieval.claimed_by_id = None
+        retrieval.claimed_until = None
     if status == RetrievalStatus.AVAILABLE:
         project = db.get(Project, retrieval.project_id)
         assert project is not None
@@ -95,6 +200,7 @@ def resolve_retrieval(
     full-text screening decision if the report was just marked available.
     Returns None when no decision was submitted (status isn't available, or
     the current user has no screening work item for this publication)."""
+    ensure_retrieval_claim(retrieval, user_id)
     set_retrieval_status(db, retrieval, status, note=note, user_id=user_id)
     if decision_outcome is None:
         return None

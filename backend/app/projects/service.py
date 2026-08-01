@@ -44,7 +44,18 @@ def create_project(
                 uncertain_resolution=ResolutionMethod.ADMIN_CONSENSUS,
             )
         )
-    db.add(ProjectMembership(project_id=project.id, user_id=owner.id, is_owner=True))
+    db.add(
+        ProjectMembership(
+            project_id=project.id,
+            user_id=owner.id,
+            is_owner=True,
+            can_title_abstract_screen=True,
+            can_full_text_screen=True,
+            can_extract=True,
+            can_assess_quality=True,
+            can_adjudicate=True,
+        )
+    )
     db.flush()
     return project
 
@@ -82,6 +93,25 @@ def is_project_manager(db: Session, project_id: str, user: User) -> bool:
         db.scalar(
             select(ProjectMembership.id).where(
                 ProjectMembership.project_id == project_id,
+                ProjectMembership.user_id == user.id,
+                ProjectMembership.is_owner.is_(True),
+            )
+        )
+        is not None
+    )
+
+
+def is_any_project_manager(db: Session, user: User) -> bool:
+    """True for a global admin, or a user who owns at least one project.
+
+    Used for endpoints not scoped to a single project (e.g. the shared
+    template catalog) that project owners still need read access to.
+    """
+    if user.is_admin:
+        return True
+    return (
+        db.scalar(
+            select(ProjectMembership.id).where(
                 ProjectMembership.user_id == user.id,
                 ProjectMembership.is_owner.is_(True),
             )

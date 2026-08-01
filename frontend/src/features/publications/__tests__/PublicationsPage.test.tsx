@@ -61,6 +61,21 @@ describe('PublicationsPage', () => {
     expect(screen.getByText('2 publications in this project')).toBeInTheDocument()
   })
 
+  it('hides the multi-select checkbox and management controls from regular users', async () => {
+    mockFetch((input) => {
+      const url = String(input)
+      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: false })
+      return jsonResponse(publications)
+    })
+    renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
+
+    expect(await screen.findByText('Urban Data in VR')).toBeInTheDocument()
+    expect(screen.queryByLabelText('Select Urban Data in VR')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Urban Data in VR' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Metadata Enrichment')).not.toBeInTheDocument()
+  })
+
   it('shows singular count for a single publication', async () => {
     mockFetch(() => jsonResponse([publications[0]]))
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })

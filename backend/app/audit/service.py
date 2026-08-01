@@ -2,19 +2,20 @@ from __future__ import annotations
 
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
+from app.accounts.models import User
 from app.audit.models import AuditEvent
 from app.conflicts.models import FinalDecision
 from app.deduplication.models import DuplicateCandidate
-from app.extraction.models import ExtractionWorkItem
+from app.extraction.models import ExtractionStatus, ExtractionWorkItem
 from app.fulltext.models import FullTextRetrieval, RetrievalStatus
 from app.jobs.models import BackgroundJob, JobStatus
 from app.projects.models import Project, ScreeningStage
 from app.publications.models import Publication
-from app.quality.models import QualityWorkItem
-from app.screening.models import ScreeningOutcome
+from app.quality.models import QualityStatus, QualityWorkItem
+from app.screening.models import ScreeningOutcome, ScreeningWorkItem, WorkItemStatus
 
 
 def record_audit(
@@ -172,4 +173,79 @@ def project_dashboard(db: Session, project_id: str) -> dict[str, int | str]:
         "extractionRemaining": int(extraction_remaining),
         "qualityRemaining": int(quality_remaining),
         "failedJobs": int(failed_jobs),
+    }
+
+
+def reviewer_progress(db: Session, project_id: str) -> list[dict[str, Any]]:
+    """Per-stage, per-reviewer work item counts: how many papers each
+    reviewer has been assigned, and how many of those they've completed."""
+    stages: list[dict[str, Any]] = []
+
+    for stage, label in (
+        (ScreeningStage.TITLE_ABSTRACT, "Title/Abstract Screening"),
+        (ScreeningStage.FULL_TEXT, "Full-Text Screening"),
+    ):
+        rows = db.execute(
+            select(
+                ScreeningWorkItem.assigned_reviewer_id,
+                User.display_name,
+                func.count().label("assigned"),
+                func.sum(
+                    case(
+                        (ScreeningWorkItem.status == WorkItemStatus.SUBMITTED, 1),
+                        else_=0,
+                    )
+                ).label("completed"),
+            )
+            .join(User, User.id == ScreeningWorkItem.assigned_reviewer_id)
+            .where(
+                ScreeningWorkItem.project_id == project_id,
+                ScreeningWorkItem.stage == stage,
+            )
+            .group_by(ScreeningWorkItem.assigned_reviewer_id, User.display_name)
+            .order_by(User.display_name)
+        ).all()
+        stages.append(_reviewer_progress_stage(stage.value, label, rows))
+
+    for model, completed_status, key, label in (
+        (
+            ExtractionWorkItem,
+            ExtractionStatus.COMPLETED,
+            "extraction",
+            "Data Extraction",
+        ),
+        (QualityWorkItem, QualityStatus.COMPLETED, "quality", "Quality Assessment"),
+    ):
+        rows = db.execute(
+            select(
+                model.assigned_reviewer_id,
+                User.display_name,
+                func.count().label("assigned"),
+                func.sum(case((model.status == completed_status, 1), else_=0)).label(
+                    "completed"
+                ),
+            )
+            .join(User, User.id == model.assigned_reviewer_id)
+            .where(model.project_id == project_id)
+            .group_by(model.assigned_reviewer_id, User.display_name)
+            .order_by(User.display_name)
+        ).all()
+        stages.append(_reviewer_progress_stage(key, label, rows))
+
+    return stages
+
+
+def _reviewer_progress_stage(stage: str, label: str, rows: list) -> dict[str, Any]:
+    return {
+        "stage": stage,
+        "label": label,
+        "reviewers": [
+            {
+                "reviewerId": reviewer_id,
+                "reviewerName": display_name,
+                "assigned": int(assigned),
+                "completed": int(completed or 0),
+            }
+            for reviewer_id, display_name, assigned, completed in rows
+        ],
     }

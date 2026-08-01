@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { DynamicForm, type DynamicFormField } from '../forms/DynamicForm'
 
 interface PublicationSummary {
@@ -126,7 +127,7 @@ export function ExtractionPage() {
                 Open DOI
               </a>
             </p>
-          ) : item.publication.publisherUrl ? (
+          ) : isSafeHttpUrl(item.publication.publisherUrl) ? (
             <p>
               <a href={item.publication.publisherUrl} target="_blank" rel="noreferrer">
                 Open publisher page

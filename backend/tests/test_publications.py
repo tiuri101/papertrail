@@ -64,6 +64,32 @@ def test_delete_publication_soft_deletes_and_hides_it_from_the_list(client, db) 
     assert again.status_code == 404
 
 
+def test_a_regular_project_member_can_add_a_publication_manually(client, db) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    member = create_user(db, "reviewer", "Reviewer", "secret-password")
+    project = Project(
+        name="Review", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed"
+    )
+    db.add(project)
+    db.flush()
+    db.add(ProjectMembership(project_id=project.id, user_id=member.id))
+    db.commit()
+
+    csrf = client.post(
+        "/api/v1/auth/login",
+        json={"username": "reviewer", "password": "secret-password"},
+    ).json()["csrfToken"]
+
+    response = client.post(
+        f"/api/v1/projects/{project.id}/publications",
+        json={"title": "Added by a reviewer"},
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    assert response.status_code == 201
+    assert response.json()["title"] == "Added by a reviewer"
+
+
 def project_and_batch(db):
     admin = create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
     project = Project(

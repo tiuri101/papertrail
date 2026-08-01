@@ -1,6 +1,10 @@
+from datetime import UTC, datetime, timedelta
+
+import pytest
 from sqlalchemy import select
 
 from app.accounts.service import create_user
+from app.api.errors import ForbiddenError
 from app.conflicts.service import (
     record_final_decision,
     refresh_automatic_final_decision,
@@ -10,8 +14,11 @@ from app.forms.models import FormKind
 from app.forms.service import create_form
 from app.fulltext.models import FullTextRetrieval, RetrievalStatus
 from app.fulltext.service import (
+    claim_next_retrieval,
     initialize_full_text_stage,
+    release_retrieval_claim,
     resolve_retrieval,
+    retrieval_progress,
     set_retrieval_status,
     transition_if_full_text_complete,
 )
@@ -80,6 +87,137 @@ def setup_fulltext(db, *, with_extraction_form: bool = True):
         create_form(db, "Extraction form", FormKind.EXTRACTION, project_id=project.id)
     db.commit()
     return admin, reviewer, project, included, excluded
+
+
+def setup_two_reviewer_retrievals(db):
+    """Two eligible reviewers and two untouched retrieval records, for
+    exercising the claim queue directly without going through title/abstract
+    screening."""
+    create_user(db, "admin", "Admin", "secret-password", is_admin=True)
+    reviewer1 = create_user(db, "reviewer1", "Reviewer One", "secret-password")
+    reviewer2 = create_user(db, "reviewer2", "Reviewer Two", "secret-password")
+    project = Project(
+        name="Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.FULL_TEXT,
+    )
+    db.add(project)
+    db.flush()
+    for reviewer in (reviewer1, reviewer2):
+        db.add(
+            ProjectMembership(
+                project_id=project.id, user_id=reviewer.id, can_full_text_screen=True
+            )
+        )
+    pub_a = Publication(project_id=project.id, title="Paper A")
+    pub_b = Publication(project_id=project.id, title="Paper B")
+    db.add_all([pub_a, pub_b])
+    db.flush()
+    retrieval_a = FullTextRetrieval(project_id=project.id, publication_id=pub_a.id)
+    retrieval_b = FullTextRetrieval(project_id=project.id, publication_id=pub_b.id)
+    db.add_all([retrieval_a, retrieval_b])
+    db.commit()
+    return project, reviewer1, reviewer2, pub_a, pub_b
+
+
+def test_claim_next_retrieval_never_hands_the_same_paper_to_two_reviewers(db) -> None:
+    project, reviewer1, reviewer2, pub_a, pub_b = setup_two_reviewer_retrievals(db)
+
+    first = claim_next_retrieval(db, project.id, reviewer1.id)
+    second = claim_next_retrieval(db, project.id, reviewer2.id)
+    db.commit()
+
+    assert first is not None
+    assert second is not None
+    assert {first.publication_id, second.publication_id} == {pub_a.id, pub_b.id}
+    assert first.claimed_by_id == reviewer1.id
+    assert second.claimed_by_id == reviewer2.id
+    assert claim_next_retrieval(db, project.id, reviewer2.id).id == second.id
+
+
+def test_claim_next_retrieval_prefers_untouched_papers_over_my_own_followup(
+    db,
+) -> None:
+    project, reviewer1, _reviewer2, pub_a, pub_b = setup_two_reviewer_retrievals(db)
+
+    claimed = claim_next_retrieval(db, project.id, reviewer1.id)
+    assert claimed.publication_id == pub_a.id
+    set_retrieval_status(
+        db,
+        claimed,
+        RetrievalStatus.REQUESTED,
+        note="ILL requested",
+        user_id=reviewer1.id,
+    )
+    db.commit()
+
+    # Paper B has never been touched, so it's offered before circling back to
+    # the reviewer's own outstanding ILL request.
+    next_claim = claim_next_retrieval(db, project.id, reviewer1.id)
+    assert next_claim.publication_id == pub_b.id
+
+
+def test_claim_next_retrieval_lets_another_reviewer_take_over_an_expired_claim(
+    db,
+) -> None:
+    project, reviewer1, reviewer2, pub_a, _pub_b = setup_two_reviewer_retrievals(db)
+    retrieval = db.scalar(
+        select(FullTextRetrieval).where(FullTextRetrieval.publication_id == pub_a.id)
+    )
+    retrieval.claimed_by_id = reviewer1.id
+    retrieval.claimed_until = datetime.now(UTC) - timedelta(hours=1)
+    db.commit()
+
+    reclaimed = claim_next_retrieval(db, project.id, reviewer2.id)
+    assert reclaimed.publication_id == pub_a.id
+    assert reclaimed.claimed_by_id == reviewer2.id
+
+
+def test_release_retrieval_claim_frees_it_for_another_reviewer(db) -> None:
+    project, reviewer1, reviewer2, pub_a, pub_b = setup_two_reviewer_retrievals(db)
+    claimed = claim_next_retrieval(db, project.id, reviewer1.id)
+    db.commit()
+
+    release_retrieval_claim(claimed, reviewer1.id)
+    db.commit()
+
+    reclaimed_ids = {
+        claim_next_retrieval(db, project.id, reviewer2.id).publication_id
+        for _ in range(1)
+    }
+    assert claimed.publication_id in reclaimed_ids
+
+
+def test_release_retrieval_claim_requires_the_current_claimant(db) -> None:
+    project, reviewer1, reviewer2, _pub_a, _pub_b = setup_two_reviewer_retrievals(db)
+    claimed = claim_next_retrieval(db, project.id, reviewer1.id)
+    db.commit()
+
+    with pytest.raises(ForbiddenError):
+        release_retrieval_claim(claimed, reviewer2.id)
+
+
+def test_resolve_retrieval_rejects_an_update_from_a_reviewer_without_the_claim(
+    db,
+) -> None:
+    project, reviewer1, reviewer2, pub_a, _pub_b = setup_two_reviewer_retrievals(db)
+    claimed = claim_next_retrieval(db, project.id, reviewer1.id)
+    db.commit()
+
+    with pytest.raises(ForbiddenError):
+        resolve_retrieval(db, claimed, RetrievalStatus.NOT_FOUND, user_id=reviewer2.id)
+
+
+def test_retrieval_progress_counts_addressed_and_total(db) -> None:
+    project, reviewer1, _reviewer2, pub_a, _pub_b = setup_two_reviewer_retrievals(db)
+    claimed = claim_next_retrieval(db, project.id, reviewer1.id)
+    db.commit()
+    assert retrieval_progress(db, project.id) == {"total": 2, "addressed": 0}
+
+    resolve_retrieval(db, claimed, RetrievalStatus.NOT_FOUND, user_id=reviewer1.id)
+    db.commit()
+    assert retrieval_progress(db, project.id) == {"total": 2, "addressed": 1}
 
 
 def test_only_title_abstract_inclusions_receive_retrieval_records(db) -> None:
@@ -287,3 +425,43 @@ def test_list_retrievals_includes_publication_details(client, db) -> None:
         "doi": "10.1/included",
         "publisherUrl": None,
     }
+
+
+def test_full_text_next_progress_and_release_routes(client, db) -> None:
+    _, reviewer, project, included, _ = setup_fulltext(db)
+    initialize_full_text_stage(db, project)
+    db.commit()
+
+    csrf = client.post(
+        "/api/v1/auth/login",
+        json={"username": reviewer.username, "password": "reviewer-password"},
+    ).json()["csrfToken"]
+
+    claimed = client.post(
+        f"/api/v1/projects/{project.id}/full-text/next", headers={"X-CSRF-Token": csrf}
+    )
+    assert claimed.status_code == 200
+    body = claimed.json()
+    assert body is not None
+    assert body["publicationId"] == included.id
+
+    progress = client.get(
+        f"/api/v1/projects/{project.id}/full-text/progress",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert progress.status_code == 200
+    assert progress.json() == {"total": 1, "addressed": 0}
+
+    # Nothing left to claim while the reviewer holds the only retrieval.
+    empty = client.post(
+        f"/api/v1/projects/{project.id}/full-text/next", headers={"X-CSRF-Token": csrf}
+    )
+    assert empty.json() is not None
+    assert empty.json()["id"] == body["id"]
+
+    released = client.post(
+        f"/api/v1/projects/{project.id}/full-text/{body['id']}/release",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert released.status_code == 200
+    assert released.json() == {"status": "released"}

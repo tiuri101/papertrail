@@ -3,7 +3,6 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
-import { useCanManageProject } from '../../hooks/useCanManageProject'
 import { getCsrfToken } from '../auth/session'
 import { BackgroundJob, findJob, hasActiveJob, isJobActive } from '../jobs/jobStatus'
 
@@ -20,7 +19,6 @@ interface ImportResult { jobId: string }
 export function ImportPage() {
   const { projectId = '' } = useParams()
   const queryClient = useQueryClient()
-  const canManage = useCanManageProject(projectId)
   const [file, setFile] = useState<File | null>(null)
   const [sourceName, setSourceName] = useState('')
   const [query, setQuery] = useState('')
@@ -94,45 +92,41 @@ export function ImportPage() {
 
       <section className="card">
         <h2>Import an Export File</h2>
-        {canManage ? (
-          <>
-            <p className="muted">Record the database and search string used alongside the file, so it can be traced back for this import and reported in your PRISMA flow.</p>
-            {submit.error ? <p className="error" role="alert">{submit.error.message}</p> : null}
-            <form onSubmit={(event) => { event.preventDefault(); submit.mutate() }}>
-              <label>
-                Database
-                <input value={sourceName} onChange={(event) => setSourceName(event.target.value)} required />
-              </label>
-              <label>
-                Search string
-                <textarea value={query} onChange={(event) => setQuery(event.target.value)} rows={2} required />
-              </label>
-              <label>
-                Search date
-                <input type="date" value={searchDate} onChange={(event) => setSearchDate(event.target.value)} required />
-              </label>
-              <label>
-                Filters applied (optional)
-                <input value={filters} onChange={(event) => setFilters(event.target.value)} />
-              </label>
-              <label>Bibliographic export
-                <input type="file" accept=".csv,.tsv,.xlsx,.ris,.bib,.bibtex" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
-              </label>
-              <button type="submit" disabled={!file || submit.isPending}>Upload</button>
-            </form>
-            {submit.data ? (
-              !pendingJob || isJobActive(pendingJob.status) ? (
-                <p>Import queued: {submit.data.jobId}</p>
-              ) : pendingJob.status === 'completed' ? (
-                <p>Import complete.</p>
-              ) : (
-                <p className="error" role="alert">
-                  Import {pendingJob.status}
-                  {pendingJob.errorMessage ? `: ${pendingJob.errorMessage}` : ''}
-                </p>
-              )
-            ) : null}
-          </>
+        <p className="muted">Record the database and search string used alongside the file, so it can be traced back for this import and reported in your PRISMA flow.</p>
+        {submit.error ? <p className="error" role="alert">{submit.error.message}</p> : null}
+        <form onSubmit={(event) => { event.preventDefault(); submit.mutate() }}>
+          <label>
+            Database
+            <input value={sourceName} onChange={(event) => setSourceName(event.target.value)} required />
+          </label>
+          <label>
+            Search string
+            <textarea value={query} onChange={(event) => setQuery(event.target.value)} rows={2} required />
+          </label>
+          <label>
+            Search date
+            <input type="date" value={searchDate} onChange={(event) => setSearchDate(event.target.value)} required />
+          </label>
+          <label>
+            Filters applied (optional)
+            <input value={filters} onChange={(event) => setFilters(event.target.value)} />
+          </label>
+          <label>Bibliographic export
+            <input type="file" accept=".csv,.tsv,.xlsx,.ris,.bib,.bibtex" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
+          </label>
+          <button type="submit" disabled={!file || submit.isPending}>Upload</button>
+        </form>
+        {submit.data ? (
+          !pendingJob || isJobActive(pendingJob.status) ? (
+            <p>Import queued: {submit.data.jobId}</p>
+          ) : pendingJob.status === 'completed' ? (
+            <p>Import complete.</p>
+          ) : (
+            <p className="error" role="alert">
+              Import {pendingJob.status}
+              {pendingJob.errorMessage ? `: ${pendingJob.errorMessage}` : ''}
+            </p>
+          )
         ) : null}
         {searches.data?.length ? (
           <>

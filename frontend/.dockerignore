@@ -1,0 +1,16 @@
+node_modules
+dist
+coverage
+test-results
+playwright-report
+e2e
+tests
+.idea
+.claude
+.git
+.mcp.json
+.mcp.json.tmp
+*.tsbuildinfo
+.env
+.env.*
+npm-debug.log*

@@ -46,6 +46,18 @@ def test_complete_review_workflow_produces_exports(db, tmp_path) -> None:
     project = create_project(
         db, "Acceptance Review", None, ReviewType.SYSTEMATIC_REVIEW, admin
     )
+    # The owner is a full reviewer by default; this workflow exercises the
+    # single invited reviewer doing all the work, so keep the owner out of
+    # the eligible-reviewer pool for these stages.
+    owner_membership = db.scalar(
+        select(ProjectMembership).where(
+            ProjectMembership.project_id == project.id,
+            ProjectMembership.user_id == admin.id,
+        )
+    )
+    owner_membership.can_title_abstract_screen = False
+    owner_membership.can_full_text_screen = False
+    owner_membership.can_extract = False
     db.add(
         ProjectMembership(
             project_id=project.id,

@@ -61,6 +61,21 @@ describe('DuplicateReviewPage', () => {
     expect(postCall?.[0]).toBe('/api/v1/projects/p1/duplicates/candidate-1/not-duplicate')
   })
 
+  it('lets a regular project member (not a manager) resolve a candidate', async () => {
+    const fetchMock = mockFetch(async (input, init) => {
+      const path = String(input)
+      if (path.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: false })
+      if (init?.method === 'POST') return jsonResponse({ ...candidate, status: 'not_duplicate' })
+      return jsonResponse([candidate])
+    })
+    renderWithProviders(<DuplicateReviewPage />, { route: '/projects/p1/duplicates', path: '/projects/:projectId/duplicates' })
+
+    expect(await screen.findByText('A Study of Urban VR')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Not a Duplicate' }))
+
+    await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(true))
+  })
+
   it('sends the selected canonical publication when merging', async () => {
     const fetchMock = mockFetch(async (input, init) => {
       const path = String(input)

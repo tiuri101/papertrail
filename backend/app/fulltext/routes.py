@@ -8,8 +8,18 @@ from app.api.errors import NotFoundError
 from app.audit.service import record_audit
 from app.db.session import get_db
 from app.fulltext.models import FullTextRetrieval, RetrievalStatus
-from app.fulltext.schemas import RetrievalResponse, RetrievalUpdate
-from app.fulltext.service import resolve_retrieval, transition_if_full_text_complete
+from app.fulltext.schemas import (
+    RetrievalProgressResponse,
+    RetrievalResponse,
+    RetrievalUpdate,
+)
+from app.fulltext.service import (
+    claim_next_retrieval,
+    release_retrieval_claim,
+    resolve_retrieval,
+    retrieval_progress,
+    transition_if_full_text_complete,
+)
 from app.projects.service import get_project, require_project_access
 
 router = APIRouter(tags=["full text"])
@@ -29,6 +39,49 @@ def list_retrievals(
             .where(FullTextRetrieval.project_id == project_id)
         )
     )
+
+
+@router.post(
+    "/projects/{project_id}/full-text/next",
+    response_model=RetrievalResponse | None,
+)
+def next_retrieval(
+    project_id: str,
+    session: UserSession = Depends(require_csrf),
+    db: Session = Depends(get_db),
+):
+    require_project_access(db, project_id, session.user)
+    retrieval = claim_next_retrieval(db, project_id, session.user.id)
+    db.commit()
+    return retrieval
+
+
+@router.post("/projects/{project_id}/full-text/{retrieval_id}/release")
+def release_retrieval(
+    project_id: str,
+    retrieval_id: str,
+    session: UserSession = Depends(require_csrf),
+    db: Session = Depends(get_db),
+):
+    retrieval = db.get(FullTextRetrieval, retrieval_id)
+    if retrieval is None or retrieval.project_id != project_id:
+        raise NotFoundError("Full-text retrieval record not found")
+    release_retrieval_claim(retrieval, session.user.id)
+    db.commit()
+    return {"status": "released"}
+
+
+@router.get(
+    "/projects/{project_id}/full-text/progress",
+    response_model=RetrievalProgressResponse,
+)
+def full_text_progress(
+    project_id: str,
+    session: UserSession = Depends(require_csrf),
+    db: Session = Depends(get_db),
+):
+    require_project_access(db, project_id, session.user)
+    return retrieval_progress(db, project_id)
 
 
 @router.put(

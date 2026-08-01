@@ -39,7 +39,7 @@ const draftChecklist = {
 describe('ProjectChecklistPanel', () => {
   it('only shows checklist items for the current stage', async () => {
     mockFetch(() => jsonResponse(draftChecklist))
-    renderWithProviders(<ProjectChecklistPanel projectId="p1" />)
+    renderWithProviders(<ProjectChecklistPanel projectId="p1" canManage />)
 
     expect(await screen.findByText("What's Next: Set Up the Project")).toBeInTheDocument()
 
@@ -55,6 +55,24 @@ describe('ProjectChecklistPanel', () => {
     expect(screen.getByRole('button', { name: 'Move Project to Duplicate Review' })).toBeDisabled()
   })
 
+  it('hides the ready action from regular users, even once every item is complete', async () => {
+    const completeChecklist = {
+      ...draftChecklist,
+      stages: [
+        {
+          ...draftChecklist.stages[0],
+          items: draftChecklist.stages[0].items.map((item) => ({ ...item, done: true })),
+        },
+        draftChecklist.stages[1],
+      ],
+    }
+    mockFetch(() => jsonResponse(completeChecklist))
+    renderWithProviders(<ProjectChecklistPanel projectId="p1" canManage={false} />)
+
+    await screen.findByText("What's Next: Set Up the Project")
+    expect(screen.queryByRole('button', { name: 'Move Project to Duplicate Review' })).not.toBeInTheDocument()
+  })
+
   it('explains that an auto-advancing stage needs no manual action', async () => {
     const checklist = {
       stage: 'duplicate_review',
@@ -64,7 +82,7 @@ describe('ProjectChecklistPanel', () => {
       ],
     }
     mockFetch(() => jsonResponse(checklist))
-    renderWithProviders(<ProjectChecklistPanel projectId="p1" />)
+    renderWithProviders(<ProjectChecklistPanel projectId="p1" canManage />)
 
     expect(await screen.findByText("What's Next: Resolve Duplicates")).toBeInTheDocument()
     expect(screen.getByText(/automatically/)).toBeInTheDocument()
@@ -89,7 +107,7 @@ describe('ProjectChecklistPanel', () => {
       }
       return jsonResponse(completeChecklist)
     })
-    renderWithProviders(<ProjectChecklistPanel projectId="p1" />)
+    renderWithProviders(<ProjectChecklistPanel projectId="p1" canManage />)
 
     const button = await screen.findByRole('button', { name: 'Move Project to Duplicate Review' })
     expect(button).not.toBeDisabled()
@@ -103,7 +121,7 @@ describe('ProjectChecklistPanel', () => {
 
   it('disables the ready action until every checklist item is complete', async () => {
     mockFetch(() => jsonResponse(draftChecklist))
-    renderWithProviders(<ProjectChecklistPanel projectId="p1" />)
+    renderWithProviders(<ProjectChecklistPanel projectId="p1" canManage />)
 
     expect(await screen.findByRole('button', { name: 'Move Project to Duplicate Review' })).toBeDisabled()
   })
@@ -120,7 +138,7 @@ describe('ProjectChecklistPanel', () => {
         draftChecklist.stages[1],
       ],
     }))
-    const { queryClient } = renderWithProviders(<ProjectChecklistPanel projectId="p1" />)
+    const { queryClient } = renderWithProviders(<ProjectChecklistPanel projectId="p1" canManage />)
 
     expect(await screen.findByRole('button', { name: 'Move Project to Duplicate Review' })).toBeDisabled()
 
@@ -135,7 +153,7 @@ describe('ProjectChecklistPanel', () => {
   it('invalidates the project query once the checklist reports a stage change', async () => {
     let stage = 'draft'
     mockFetch(() => jsonResponse({ ...draftChecklist, stage }))
-    const { queryClient } = renderWithProviders(<ProjectChecklistPanel projectId="p1" />)
+    const { queryClient } = renderWithProviders(<ProjectChecklistPanel projectId="p1" canManage />)
     const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries')
 
     await screen.findByText("What's Next: Set Up the Project")

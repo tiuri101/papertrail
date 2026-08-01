@@ -8,7 +8,10 @@ from app.api.errors import NotFoundError
 from app.audit.service import record_audit
 from app.db.session import get_db
 from app.jobs.service import enqueue_job
-from app.projects.dependencies import require_project_manager_csrf
+from app.projects.dependencies import (
+    require_project_manager_csrf,
+    require_project_member_csrf,
+)
 from app.projects.service import require_project_access
 from app.publications.models import MetadataConflict, Publication
 from app.publications.schemas import (
@@ -218,7 +221,7 @@ def resolve_conflict(
 def create_manual_publication(
     project_id: str,
     payload: PublicationCreate,
-    admin: User = Depends(require_project_manager_csrf),
+    admin: User = Depends(require_project_member_csrf),
     db: Session = Depends(get_db),
 ):
     project = require_project_access(db, project_id, admin)

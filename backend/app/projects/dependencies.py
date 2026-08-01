@@ -7,7 +7,11 @@ from app.accounts.dependencies import get_current_user, require_csrf
 from app.accounts.models import User, UserSession
 from app.api.errors import ForbiddenError
 from app.db.session import get_db
-from app.projects.service import is_project_manager, require_project_access
+from app.projects.service import (
+    is_any_project_manager,
+    is_project_manager,
+    require_project_access,
+)
 
 
 def require_project_manager(
@@ -16,6 +20,17 @@ def require_project_manager(
     db: Session = Depends(get_db),
 ) -> User:
     if not is_project_manager(db, project_id, user):
+        raise ForbiddenError("Project owner or administrator access required")
+    return user
+
+
+def require_any_project_manager(
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> User:
+    """Authorize an action not scoped to one project (e.g. browsing the
+    shared template catalog) to any project owner or the administrator."""
+    if not is_any_project_manager(db, user):
         raise ForbiddenError("Project owner or administrator access required")
     return user
 

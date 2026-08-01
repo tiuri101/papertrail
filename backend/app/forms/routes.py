@@ -4,7 +4,6 @@ from sqlalchemy.orm import Session
 
 from app.accounts.dependencies import (
     get_current_user,
-    require_admin,
     require_admin_csrf,
     require_csrf,
 )
@@ -33,6 +32,7 @@ from app.forms.service import (
     save_form_as_template,
 )
 from app.projects.dependencies import (
+    require_any_project_manager,
     require_project_manager,
     require_project_manager_csrf,
 )
@@ -42,7 +42,9 @@ router = APIRouter(tags=["forms"])
 
 
 @router.get("/form-templates", response_model=list[FormResponse])
-def list_templates(_: User = Depends(require_admin), db: Session = Depends(get_db)):
+def list_templates(
+    _: User = Depends(require_any_project_manager), db: Session = Depends(get_db)
+):
     return list(
         db.scalars(
             select(ReviewForm)

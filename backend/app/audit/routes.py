@@ -7,9 +7,12 @@ from sqlalchemy.orm import Session
 from app.accounts.dependencies import get_current_user
 from app.accounts.models import User
 from app.audit.models import AuditEvent
-from app.audit.service import project_dashboard
+from app.audit.service import project_dashboard, reviewer_progress
 from app.db.session import get_db
-from app.projects.dependencies import require_project_manager_csrf
+from app.projects.dependencies import (
+    require_project_manager,
+    require_project_manager_csrf,
+)
 from app.projects.service import require_project_access
 
 router = APIRouter(tags=["audit"])
@@ -53,3 +56,12 @@ def get_project_dashboard(
 ):
     require_project_access(db, project_id, user)
     return project_dashboard(db, project_id)
+
+
+@router.get("/projects/{project_id}/reviewer-progress")
+def get_reviewer_progress(
+    project_id: str,
+    _: User = Depends(require_project_manager),
+    db: Session = Depends(get_db),
+):
+    return reviewer_progress(db, project_id)

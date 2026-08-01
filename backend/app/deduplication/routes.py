@@ -15,7 +15,10 @@ from app.deduplication.service import (
     transition_if_duplicate_review_complete,
 )
 from app.jobs.service import enqueue_job
-from app.projects.dependencies import require_project_manager_csrf
+from app.projects.dependencies import (
+    require_project_manager_csrf,
+    require_project_member_csrf,
+)
 from app.projects.models import ProjectStage
 from app.projects.service import get_project
 
@@ -68,7 +71,7 @@ def mark_project_ready(
 @router.get("/projects/{project_id}/duplicates", response_model=list[CandidateResponse])
 def list_candidates(
     project_id: str,
-    _: User = Depends(require_project_manager_csrf),
+    _: User = Depends(require_project_member_csrf),
     db: Session = Depends(get_db),
 ):
     return list(
@@ -92,7 +95,7 @@ def resolve_not_duplicate(
     project_id: str,
     candidate_id: str,
     payload: ResolutionNote,
-    admin: User = Depends(require_project_manager_csrf),
+    admin: User = Depends(require_project_member_csrf),
     db: Session = Depends(get_db),
 ):
     candidate = db.get(DuplicateCandidate, candidate_id)
@@ -118,7 +121,7 @@ def resolve_merge(
     project_id: str,
     candidate_id: str,
     payload: MergeRequest,
-    admin: User = Depends(require_project_manager_csrf),
+    admin: User = Depends(require_project_member_csrf),
     db: Session = Depends(get_db),
 ):
     candidate = db.get(DuplicateCandidate, candidate_id)

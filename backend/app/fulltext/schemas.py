@@ -37,3 +37,8 @@ class RetrievalUpdate(ApiModel):
     status: str
     note: str | None = None
     decision: RetrievalDecisionSubmit | None = None
+
+
+class RetrievalProgressResponse(ApiModel):
+    total: int
+    addressed: int

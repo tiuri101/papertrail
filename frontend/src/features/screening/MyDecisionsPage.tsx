@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { ConfirmButton } from '../../components/ConfirmButton'
+import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { CriteriaAnswerFields } from './CriteriaAnswerFields'
 import type { CriterionAnswer, ScreeningCriterion } from './useScreeningQueue'
 
@@ -146,7 +147,9 @@ function DecisionCard({
 }) {
   const [editing, setEditing] = useState(false)
   const publication = item.publication
-  const link = publication.doi ? `https://doi.org/${publication.doi}` : publication.publisherUrl
+  const link = publication.doi
+    ? `https://doi.org/${publication.doi}`
+    : isSafeHttpUrl(publication.publisherUrl) ? publication.publisherUrl : null
 
   return (
     <li className="card">

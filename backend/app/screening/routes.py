@@ -199,6 +199,9 @@ def revealed_decisions(
     db: Session = Depends(get_db),
 ):
     require_project_access(db, project_id, user)
+    publication = db.get(Publication, publication_id)
+    if publication is None or publication.project_id != project_id:
+        raise NotFoundError("Publication not found")
     return current_decisions(db, publication_id, stage)
 
 

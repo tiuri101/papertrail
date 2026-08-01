@@ -279,3 +279,26 @@ def test_deleting_a_form_allows_recreating_one_of_the_same_kind(client, db) -> N
 
     forms = client.get(f"/api/v1/projects/{project_id}/forms").json()
     assert [form["name"] for form in forms] == ["Extraction v2"]
+
+
+def test_non_admin_project_owner_can_browse_but_not_manage_templates(
+    client, db
+) -> None:
+    create_user(db, "owner", "Owner", "secret-password", is_admin=False)
+    db.commit()
+    csrf = login(client, "owner", "secret-password")
+    client.post(
+        "/api/v1/projects",
+        json={"name": "Review", "reviewType": "systematic_review"},
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    templates = client.get("/api/v1/form-templates")
+    assert templates.status_code == 200
+
+    forbidden = client.post(
+        "/api/v1/form-templates",
+        json={"name": "Template", "kind": "extraction"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert forbidden.status_code == 403
