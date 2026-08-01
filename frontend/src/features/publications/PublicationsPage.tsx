@@ -8,7 +8,8 @@ import { HighlightedText } from '../../components/HighlightedText'
 import { useCanManageProject } from '../../hooks/useCanManageProject'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
-import { PublicationDraft, PublicationFieldInputs, toPayload } from './publicationFields'
+import { PublicationFieldInputs } from './publicationFields'
+import { PublicationDraft, toPayload } from './publicationFieldsData'
 
 interface Publication {
   id: string

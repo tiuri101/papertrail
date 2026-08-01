@@ -3,12 +3,8 @@ import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
-import {
-  emptyPublicationDraft,
-  PublicationDraft,
-  PublicationFieldInputs,
-  toPayload,
-} from './publicationFields'
+import { PublicationFieldInputs } from './publicationFields'
+import { emptyPublicationDraft, PublicationDraft, toPayload } from './publicationFieldsData'
 
 export function AddPublicationPage() {
   const { projectId = '' } = useParams()
