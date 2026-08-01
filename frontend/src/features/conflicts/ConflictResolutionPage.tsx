@@ -4,6 +4,7 @@ import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { useProjectManageState } from '../../hooks/useCanManageProject'
+import { isSafeHttpUrl } from '../../lib/safeUrl'
 
 interface ConflictPublication {
   id: string
@@ -126,7 +127,9 @@ function ConflictCard({ conflict, resolving, addingReviewer, onResolve, onAddRev
 }) {
   const [note, setNote] = useState('')
   const publication = conflict.publication
-  const link = publication.doi ? `https://doi.org/${publication.doi}` : publication.publisherUrl
+  const link = publication.doi
+    ? `https://doi.org/${publication.doi}`
+    : isSafeHttpUrl(publication.publisherUrl) ? publication.publisherUrl : null
 
   return (
     <li className="card">

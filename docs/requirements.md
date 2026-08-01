@@ -11,7 +11,7 @@
 
 ## 1. Overview
 
-Papertrail is a self-hosted web application for managing academic literature reviews. It is intended for review projects with hundreds to a few thousand publications and supports collaborative workflows involving one administrator and multiple reviewers.
+Papertrail is a self-hosted web application for managing academic literature reviews. It is intended for review projects with hundreds to a few thousand publications and supports collaborative workflows involving an installation administrator, project owners, and multiple reviewers.
 
 Users manually export literature search results from academic databases such as ScienceDirect, IEEE Xplore, the ACM Digital Library, and SpringerLink. These exports are imported into Papertrail, normalized, checked for duplicates, screened in two stages, and processed through configurable extraction and quality-assessment forms.
 
@@ -59,35 +59,41 @@ The initial version will not:
 
 ## 4. Users and Roles
 
-Papertrail has two roles.
+Papertrail has three roles: administrator, project owner, and reviewer. Administrator and project owner are collectively referred to below as **project managers** for a given project, since they have identical rights over it.
 
 ### 4.1 Administrator
 
-There is one installation-wide administrator. The administrator can:
+There is at least one installation-wide administrator account. Only the administrator can:
 
 - Create and manage local user accounts.
-- Create and configure review projects.
-- Add and remove project members.
+
+The administrator additionally has every project manager right, below, on every project, whether or not the administrator is that project's owner.
+
+### 4.2 Project owner
+
+Any authenticated user can create a review project; the creator becomes that project's owner. A project owner has full management rights over that project, equivalent to the administrator's, but scoped to it alone. A project manager (its owner, or the administrator) can:
+
+- Configure and rename the project, and add or remove project members.
 - Configure reviewer eligibility by activity.
-- Import and manually add publication records.
-- Configure and manage duplicate detection.
-- Resolve duplicate suggestions and perform reversible merges.
+- Manually add a publication record directly (as opposed to through an import).
+- Mark a project ready to enter duplicate review, and reverse a completed merge.
 - Edit normalized publication metadata.
 - Trigger metadata enrichment for one or multiple records.
 - Resolve metadata conflicts.
-- Configure screening procedures.
-- Create extraction and quality-assessment templates.
-- Create and edit project-specific forms.
+- Configure screening procedures, including the number of required reviewers per stage.
+- Create and edit project-specific forms, and save one as a reusable template.
 - Record final consensus decisions.
 - Reopen submitted extraction or quality-assessment work.
 - Perform reviewer activities when eligible.
-- Reopen completed projects.
+- Reopen, move back, reset, or delete the project.
 - Generate and download exports.
 - View all project data and the audit log.
 
-The administrator may not edit or replace an individual reviewer’s submitted screening decision. The administrator records a separate final consensus decision where required.
+A project manager may not edit or replace an individual reviewer's submitted screening decision. A project manager records a separate final consensus decision where required.
 
-### 4.2 Reviewer
+Creating extraction and quality-assessment templates from scratch, and deleting templates from the shared catalog, remains administrator-only; a project owner can browse the catalog to start a project form from a template, and can save one of their own project's forms as a new reusable template.
+
+### 4.3 Reviewer
 
 A reviewer can belong to multiple projects. Reviewer eligibility is configured independently for:
 
@@ -97,7 +103,9 @@ A reviewer can belong to multiple projects. Reviewer eligibility is configured i
 - Quality assessment
 - Conflict adjudication
 
-Reviewers can only access and perform activities for which they are eligible.
+Reviewers can only access and perform activities for which they are eligible, and only within projects they are a member of. The interface does not show actions a reviewer isn't permitted to take.
+
+Regardless of eligibility, any project member can edit the project's research questions and inclusion/exclusion criteria; document a database search and upload its import file; resolve a duplicate suggestion as not a duplicate or perform a merge; and generate and download exports.
 
 Reviewers do not see extraction or quality-assessment data assigned to other reviewers. They may see other reviewers’ screening decisions, criterion selections, and notes after all required independent decisions have been submitted.
 
@@ -158,7 +166,7 @@ The project can enter duplicate review when:
 
 - At least one record has been imported or manually added.
 - The project configuration required for screening is complete.
-- The administrator marks the draft configuration as ready.
+- A project manager (the project's owner or the administrator) marks the draft configuration as ready.
 
 #### Duplicate review to title/abstract screening
 
@@ -189,7 +197,7 @@ The project advances when:
 
 ### 6.2 Moving backward and reopening
 
-The administrator may reopen a completed project or move a project back to an earlier stage.
+A project manager may reopen a completed project or move a project back to an earlier stage.
 
 Downstream data is retained and is not deleted. Data that no longer applies to the active publication set is excluded from active workflow counts and standard outputs but remains stored for traceability.
 
@@ -232,7 +240,7 @@ The application should recognize common export structures from:
 - ACM Digital Library
 - SpringerLink
 
-When automatic recognition fails, the administrator can map source columns to Papertrail fields manually.
+When automatic recognition fails, a project manager can map source columns to Papertrail fields manually.
 
 Import processing should include:
 
@@ -285,7 +293,7 @@ The application does not maintain a complete version history for every metadata 
 
 ## 10. Metadata Editing and Enrichment
 
-The administrator can manually edit normalized publication metadata.
+A project manager can manually edit normalized publication metadata.
 
 Metadata enrichment is performed on request, either:
 
@@ -440,19 +448,19 @@ When a revision affects a record with an existing final consensus decision:
 
 ## 15. Uncertain Decisions and Conflicts
 
-The project administrator configures how uncertain and conflicting decisions are resolved.
+The project manager configures how uncertain and conflicting decisions are resolved.
 
 Supported resolution methods include:
 
 - Discussion followed by consensus
-- Administrator-recorded consensus
+- Consensus recorded by the project owner or administrator
 - Additional independent reviewer
 - Designated adjudicator
 - Majority decision
 
 Papertrail stores the original reviewer decisions separately from the final project decision.
 
-The final consensus decision may include a note. Requiring a note is configurable or left to the administrator’s judgment.
+The final consensus decision may include a note. Requiring a note is configurable or left to the project manager's judgment.
 
 A separate discussion or comment system is not required.
 
@@ -541,7 +549,7 @@ Extraction fields do not need to be explicitly linked to individual research que
 
 The assigned reviewer may revise submitted extraction data.
 
-The administrator may reopen an extraction assigned to another reviewer but may not silently replace that reviewer’s answers.
+A project manager may reopen an extraction assigned to another reviewer but may not silently replace that reviewer’s answers.
 
 ---
 
@@ -566,7 +574,7 @@ Quality-assessment forms support:
 - Automatic totals
 - Simple sums or weighted scoring where configured
 
-The administrator decides whether the project uses:
+The project manager decides whether the project uses:
 
 - Qualitative assessment only
 - Numerical scoring only
@@ -574,7 +582,7 @@ The administrator decides whether the project uses:
 
 Quality scores do not automatically include or exclude a publication.
 
-The administrator may reopen a submitted assessment. The assigned reviewer may revise it.
+A project manager may reopen a submitted assessment. The assigned reviewer may revise it.
 
 ---
 
@@ -607,7 +615,7 @@ Papertrail supports reusable templates for:
 - Extraction forms
 - Quality-assessment forms
 
-Templates are managed by the administrator.
+Creating a template from scratch and deleting a template are administrator-only. Any project manager (a project's owner, or the administrator) can browse the shared template catalog and use a template when creating a project form. A project owner can additionally save one of their own project's forms as a new reusable template.
 
 A template can be:
 
@@ -692,6 +700,10 @@ Supported scopes should include:
 
 The application should generate valid BibTeX entries using the best available metadata and stable fallback citation keys.
 
+### 22.4 Final results view
+
+Beyond the downloadable exports, Papertrail provides an in-application, sortable and paginated table of every finally included publication together with its extraction answers and, when quality assessment is enabled, its quality-assessment answers and total score. Any project member can view it; it does not require generating a background export job.
+
 ---
 
 ## 23. Audit Logging
@@ -770,21 +782,17 @@ Keyboard shortcuts may be added for common decisions but are not required for th
 
 ### 24.3 Administrative views
 
-Administrative views are required for:
+Administrative views, visible only to a project's owner or the administrator, are required for:
 
 - Project setup
 - Member and eligibility management
-- Search documentation
-- Imports and column mapping
 - Metadata conflict resolution
-- Duplicate review
 - Screening configuration
 - Conflict resolution
 - Form and template editing
-- Export configuration
 - Audit-log inspection
 
-Reviewers do not need a general searchable or sortable record browser.
+Reviewers do not see navigation to these views, and do not need a general searchable or sortable record browser. All project members see the research-questions and criteria editor, search documentation and import upload, duplicate review, and exports.
 
 ---
 
@@ -937,9 +945,9 @@ These extensions are not required for the initial implementation.
 
 ## 29. Core Acceptance Criteria
 
-Papertrail can be considered functionally complete for its first release when an administrator can:
+Papertrail can be considered functionally complete for its first release when an administrator can create user accounts, any user can create a review project, and a project manager (the project's owner or the administrator) can:
 
-1. Create users and a review project.
+1. Add and configure eligible reviewers.
 2. Define research questions, criteria, and reviewer rules.
 3. Document searches and import records from supported formats.
 4. Normalize records and enrich missing metadata.

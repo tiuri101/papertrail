@@ -1,4 +1,8 @@
-from pydantic import BaseModel, ConfigDict, Field
+import re
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+_URL_SCHEME = re.compile(r"^\s*([a-zA-Z][a-zA-Z0-9+.\-]*):")
 
 
 class ApiModel(BaseModel):
@@ -38,6 +42,16 @@ class PublicationUpdate(ApiModel):
     issn: str | None = None
     pubmed_id: str | None = Field(default=None, alias="pubmedId")
     arxiv_id: str | None = Field(default=None, alias="arxivId")
+
+    @field_validator("publisher_url")
+    @classmethod
+    def validate_publisher_url(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        match = _URL_SCHEME.match(value)
+        if match and match.group(1).lower() not in ("http", "https"):
+            raise ValueError("publisherUrl must use http or https")
+        return value
 
 
 class ConflictResponse(ApiModel):

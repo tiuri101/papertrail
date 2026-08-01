@@ -14,15 +14,6 @@ const publicationA = {
   publisherUrl: null,
 }
 
-const publicationB = {
-  id: 'publication-2',
-  title: 'Remote Sensing Review',
-  authors: null,
-  publicationYear: null,
-  doi: null,
-  publisherUrl: null,
-}
-
 const criteria = [
   { id: 'criterion-1', kind: 'inclusion', text: 'Uses virtual reality' },
 ]
@@ -40,17 +31,32 @@ const workItem = {
   draft: {},
 }
 
-function render(
-  retrievals: unknown[],
-  nextResponses: (unknown | null)[],
-  putResponses: unknown[] = [{}],
-) {
-  let nextCallCount = 0
+function render({
+  fulltextNext,
+  progress = { total: 1, addressed: 0 },
+  screeningNext = [null],
+  putResponses = [{}],
+}: {
+  fulltextNext: (unknown | null)[]
+  progress?: { total: number; addressed: number }
+  screeningNext?: (unknown | null)[]
+  putResponses?: unknown[]
+}) {
+  let fulltextNextCallCount = 0
+  let screeningNextCallCount = 0
   let putCallCount = 0
   const fetchMock = mockFetch((input, init) => {
     const path = String(input)
-    if (path.endsWith('/full-text') && (!init || init.method === undefined)) {
-      return jsonResponse(retrievals)
+    if (path.endsWith('/full-text/next') && init?.method === 'POST') {
+      const response = fulltextNext[Math.min(fulltextNextCallCount, fulltextNext.length - 1)]
+      fulltextNextCallCount += 1
+      return jsonResponse(response)
+    }
+    if (path.endsWith('/full-text/progress')) {
+      return jsonResponse(progress)
+    }
+    if (path.includes('/full-text/') && path.endsWith('/release')) {
+      return jsonResponse({ status: 'released' })
     }
     if (path.includes('/full-text/') && init?.method === 'PUT') {
       const response = putResponses[Math.min(putCallCount, putResponses.length - 1)]
@@ -61,8 +67,8 @@ function render(
       return jsonResponse({ criteria })
     }
     if (path.endsWith('/screening/full_text/next') && init?.method === 'POST') {
-      const response = nextResponses[Math.min(nextCallCount, nextResponses.length - 1)]
-      nextCallCount += 1
+      const response = screeningNext[Math.min(screeningNextCallCount, screeningNext.length - 1)]
+      screeningNextCallCount += 1
       return jsonResponse(response)
     }
     return jsonResponse({})
@@ -73,10 +79,8 @@ function render(
 
 describe('FullTextPage', () => {
   it('shows the next unresolved retrieval when there is no assigned screening work', async () => {
-    const retrievals = [
-      { id: 'retrieval-1', publicationId: 'publication-1', publication: publicationA, status: 'not_yet_sought', note: null },
-    ]
-    render(retrievals, [null])
+    const retrieval = { id: 'retrieval-1', publicationId: 'publication-1', publication: publicationA, status: 'not_yet_sought', note: null }
+    render({ fulltextNext: [retrieval], progress: { total: 1, addressed: 0 } })
 
     expect(await screen.findByRole('heading', { name: 'Urban Data in VR' })).toBeInTheDocument()
     expect(screen.getByLabelText('Retrieval status for Urban Data in VR')).toBeInTheDocument()
@@ -85,36 +89,28 @@ describe('FullTextPage', () => {
   })
 
   it('shows a message when no publications require full-text retrieval', async () => {
-    render([], [null])
+    render({ fulltextNext: [null], progress: { total: 0, addressed: 0 } })
     expect(await screen.findByText('No publications require full-text retrieval.')).toBeInTheDocument()
   })
 
   it('shows a message when nothing is left for this reviewer to do', async () => {
-    const retrievals = [
-      { id: 'retrieval-1', publicationId: 'publication-1', publication: publicationA, status: 'not_found', note: null },
-      { id: 'retrieval-2', publicationId: 'publication-2', publication: publicationB, status: 'available', note: null },
-    ]
-    render(retrievals, [null])
+    render({ fulltextNext: [null], progress: { total: 2, addressed: 2 } })
 
     expect(await screen.findByText('No full-text work is currently available for you.')).toBeInTheDocument()
     expect(screen.getByText('2 of 2 retrieval decisions made')).toBeInTheDocument()
   })
 
   it('prioritizes an already-claimed screening item over a pending retrieval action', async () => {
-    const retrievals = [
-      { id: 'retrieval-1', publicationId: 'publication-1', publication: publicationA, status: 'not_yet_sought', note: null },
-    ]
-    render(retrievals, [workItem])
+    const retrieval = { id: 'retrieval-1', publicationId: 'publication-1', publication: publicationA, status: 'not_yet_sought', note: null }
+    render({ fulltextNext: [retrieval], progress: { total: 1, addressed: 0 }, screeningNext: [workItem] })
 
     expect(await screen.findByRole('button', { name: 'Submit Decision' })).toBeInTheDocument()
     expect(screen.queryByLabelText('Retrieval status for Urban Data in VR')).not.toBeInTheDocument()
   })
 
   it('does not show screening fields until the report is marked available', async () => {
-    const retrievals = [
-      { id: 'retrieval-1', publicationId: 'publication-1', publication: publicationA, status: 'not_yet_sought', note: null },
-    ]
-    render(retrievals, [null])
+    const retrieval = { id: 'retrieval-1', publicationId: 'publication-1', publication: publicationA, status: 'not_yet_sought', note: null }
+    render({ fulltextNext: [retrieval], progress: { total: 1, addressed: 0 } })
 
     await screen.findByLabelText('Retrieval status for Urban Data in VR')
     expect(screen.queryByText('Criteria')).not.toBeInTheDocument()
@@ -126,10 +122,12 @@ describe('FullTextPage', () => {
   })
 
   it('submits the retrieval status and the screening decision together in a single request', async () => {
-    const retrievals = [
-      { id: 'retrieval-1', publicationId: 'publication-1', publication: publicationA, status: 'not_yet_sought', note: null },
-    ]
-    const fetchMock = render(retrievals, [null], [{ status: 'available', note: null, decisionSubmitted: true }])
+    const retrieval = { id: 'retrieval-1', publicationId: 'publication-1', publication: publicationA, status: 'not_yet_sought', note: null }
+    const fetchMock = render({
+      fulltextNext: [retrieval, null],
+      progress: { total: 1, addressed: 0 },
+      putResponses: [{ status: 'available', note: null, decisionSubmitted: true }],
+    })
 
     await screen.findByLabelText('Retrieval status for Urban Data in VR')
     fireEvent.change(screen.getByLabelText('Retrieval status for Urban Data in VR'), { target: { value: 'available' } })
@@ -152,19 +150,18 @@ describe('FullTextPage', () => {
     expect(screen.queryByRole('button', { name: 'Submit Decision' })).not.toBeInTheDocument()
     const putCalls = fetchMock.mock.calls.filter(([, init]) => init?.method === 'PUT')
     expect(putCalls).toHaveLength(1)
-    const nextCalls = fetchMock.mock.calls.filter(([input, init]) => String(input).endsWith('/screening/full_text/next') && init?.method === 'POST')
-    expect(nextCalls).toHaveLength(1)
+    const screeningNextCalls = fetchMock.mock.calls.filter(([input, init]) => String(input).endsWith('/screening/full_text/next') && init?.method === 'POST')
+    expect(screeningNextCalls).toHaveLength(1)
   })
 
   it('falls back to the reviewer queue when nobody was assigned to screen the paper just marked available', async () => {
-    const retrievals = [
-      { id: 'retrieval-1', publicationId: 'publication-1', publication: publicationA, status: 'not_yet_sought', note: null },
-    ]
-    const fetchMock = render(
-      retrievals,
-      [null, workItem],
-      [{ status: 'available', note: null, decisionSubmitted: false }],
-    )
+    const retrieval = { id: 'retrieval-1', publicationId: 'publication-1', publication: publicationA, status: 'not_yet_sought', note: null }
+    const fetchMock = render({
+      fulltextNext: [retrieval, null],
+      progress: { total: 1, addressed: 0 },
+      screeningNext: [null, workItem],
+      putResponses: [{ status: 'available', note: null, decisionSubmitted: false }],
+    })
 
     await screen.findByLabelText('Retrieval status for Urban Data in VR')
     fireEvent.change(screen.getByLabelText('Retrieval status for Urban Data in VR'), { target: { value: 'available' } })
@@ -172,16 +169,18 @@ describe('FullTextPage', () => {
 
     expect(await screen.findByRole('button', { name: 'Submit Decision' })).toBeInTheDocument()
     await waitFor(() => {
-      const nextCalls = fetchMock.mock.calls.filter(([input, init]) => String(input).endsWith('/screening/full_text/next') && init?.method === 'POST')
-      expect(nextCalls).toHaveLength(2)
+      const screeningNextCalls = fetchMock.mock.calls.filter(([input, init]) => String(input).endsWith('/screening/full_text/next') && init?.method === 'POST')
+      expect(screeningNextCalls).toHaveLength(2)
     })
   })
 
   it('saves a note alongside the current status without showing screening fields', async () => {
-    const retrievals = [
-      { id: 'retrieval-1', publicationId: 'publication-1', publication: publicationA, status: 'requested', note: null },
-    ]
-    const fetchMock = render(retrievals, [null], [{ status: 'requested', note: 'Requested via ILL', decisionSubmitted: false }])
+    const retrieval = { id: 'retrieval-1', publicationId: 'publication-1', publication: publicationA, status: 'requested', note: null }
+    const fetchMock = render({
+      fulltextNext: [retrieval, null],
+      progress: { total: 1, addressed: 0 },
+      putResponses: [{ status: 'requested', note: 'Requested via ILL', decisionSubmitted: false }],
+    })
 
     const noteField = await screen.findByLabelText('Note for Urban Data in VR')
     fireEvent.change(noteField, { target: { value: 'Requested via ILL' } })

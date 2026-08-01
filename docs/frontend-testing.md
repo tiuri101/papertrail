@@ -11,11 +11,13 @@ Covered areas include:
 - API credentials, JSON requests, multipart uploads, CSRF headers, errors, and empty responses
 - Session loading, authentication redirects, login, logout, and session caching
 - Administrator-only navigation and route protection
+- Project-owner and administrator gating of project administration, conflict resolution, form management, and the audit log
 - User and project creation
 - Import upload behavior and error handling
 - Publication and project views
-- Duplicate resolution and canonical-record selection
+- Duplicate resolution and canonical-record selection by any project member
 - Screening queues, explicit criterion completion, exclusions, draft restoration, and empty queues
+- Screening reviewer-count and disagreement/uncertain-resolution configuration
 - Consensus decisions and full-text retrieval status
 - Extraction and quality-assessment submissions, including malformed JSON
 - Dynamic form creation and required fields

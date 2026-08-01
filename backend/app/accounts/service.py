@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import secrets
 from dataclasses import dataclass
@@ -15,6 +16,12 @@ from app.api.errors import ConflictError, NotFoundError
 from app.core.config import get_settings
 
 password_hasher = PasswordHasher()
+
+# Hashed once at import time and verified against on the "no such user" path
+# below, so that authenticate() takes the same time whether or not the
+# username exists -- otherwise the skipped Argon2 verify makes username
+# existence observable via response timing.
+_DUMMY_PASSWORD_HASH = password_hasher.hash(secrets.token_urlsafe(32))
 
 
 def utcnow() -> datetime:
@@ -58,6 +65,8 @@ def verify_password(user: User, password: str) -> bool:
 def authenticate(db: Session, username: str, password: str) -> User | None:
     user = db.scalar(select(User).where(User.username == username.strip().lower()))
     if user is None or not user.is_active:
+        with contextlib.suppress(VerifyMismatchError):
+            password_hasher.verify(_DUMMY_PASSWORD_HASH, password)
         return None
     try:
         password_hasher.verify(user.password_hash, password)

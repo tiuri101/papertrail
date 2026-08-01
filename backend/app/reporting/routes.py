@@ -1,7 +1,7 @@
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, status
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -18,7 +18,11 @@ from app.projects.dependencies import (
 )
 from app.projects.service import require_project_access
 from app.reporting.models import ExportArtifact
-from app.reporting.service import build_final_results, calculate_prisma_counts
+from app.reporting.service import (
+    build_final_results,
+    build_prisma_svg,
+    calculate_prisma_counts,
+)
 
 router = APIRouter(tags=["reporting"])
 
@@ -37,6 +41,21 @@ def prisma_counts(
 ):
     require_project_access(db, project_id, user)
     return calculate_prisma_counts(db, project_id)
+
+
+@router.get("/projects/{project_id}/prisma/svg")
+def prisma_svg(
+    project_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    project = require_project_access(db, project_id, user)
+    svg = build_prisma_svg(project.name, calculate_prisma_counts(db, project_id))
+    return Response(
+        content=svg,
+        media_type="image/svg+xml",
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @router.get("/projects/{project_id}/final-results")

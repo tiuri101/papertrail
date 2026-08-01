@@ -51,12 +51,13 @@ const projectSectionGroups: ProjectSectionGroup[] = [
     links: [
       { path: 'imports', label: 'Searches and Imports' },
       { path: 'publications', label: 'Publications' },
+      { path: 'publications/add', label: 'Add a Publication' },
     ],
   },
   {
     heading: 'Deduplication',
     stage: 'duplicate_review',
-    links: [{ path: 'duplicates', label: 'Duplicate Review', managerOnly: true }],
+    links: [{ path: 'duplicates', label: 'Duplicate Review' }],
   },
   {
     heading: 'Title/Abstract Screening',
@@ -112,7 +113,7 @@ export function ProjectPage() {
     <main className="page">
       <h1>{project.data.name}</h1>
       <StageProgress stage={project.data.stage} />
-      <ProjectChecklistPanel projectId={projectId} />
+      <ProjectChecklistPanel projectId={projectId} canManage={project.data.canManage} />
       <section className="card">
         <h2>Actions</h2>
         <nav className="workflow-nav" aria-label="Project workflow">

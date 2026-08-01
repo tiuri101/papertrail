@@ -1,4 +1,5 @@
 import { HighlightedText } from '../../components/HighlightedText'
+import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { CriteriaAnswerFields } from './CriteriaAnswerFields'
 import type { ScreeningQueue } from './useScreeningQueue'
 
@@ -25,7 +26,7 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
             Open DOI
           </a>
         ) : null}
-        {item.publication.publisherUrl ? (
+        {isSafeHttpUrl(item.publication.publisherUrl) ? (
           <a
             href={item.publication.publisherUrl}
             target="_blank"

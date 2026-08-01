@@ -32,7 +32,7 @@ function currentStageIsIncomplete(data: ProjectChecklist | undefined): boolean {
   return currentStage.items.some((item) => !item.done)
 }
 
-export function ProjectChecklistPanel({ projectId }: { projectId: string }) {
+export function ProjectChecklistPanel({ projectId, canManage }: { projectId: string; canManage: boolean }) {
   const queryClient = useQueryClient()
   const checklist = useQuery({
     queryKey: ['project-checklist', projectId],
@@ -93,7 +93,7 @@ export function ProjectChecklistPanel({ projectId }: { projectId: string }) {
       ) : (
         <p className="muted">Nothing left to do here.</p>
       )}
-      {currentStage.action === 'ready' ? (
+      {currentStage.action === 'ready' && canManage ? (
         <button
           type="button"
           onClick={() => markReady.mutate()}

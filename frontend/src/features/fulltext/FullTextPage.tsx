@@ -4,27 +4,13 @@ import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
+import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { CriteriaAnswerFields } from '../screening/CriteriaAnswerFields'
 import { ScreeningItemCard } from '../screening/ScreeningItemCard'
 import type { CriterionAnswer, ScreeningCriterion } from '../screening/useScreeningQueue'
 import { useScreeningQueue } from '../screening/useScreeningQueue'
-
-interface RetrievalPublication {
-  id: string
-  title: string
-  authors: string | null
-  publicationYear: number | null
-  doi: string | null
-  publisherUrl: string | null
-}
-
-interface Retrieval {
-  id: string
-  publicationId: string
-  publication: RetrievalPublication
-  status: string
-  note: string | null
-}
+import type { Retrieval } from './useRetrievalQueue'
+import { useRetrievalQueue } from './useRetrievalQueue'
 
 interface ProjectCriteria {
   criteria: ScreeningCriterion[]
@@ -56,16 +42,9 @@ interface RetrievalDecision {
 
 export function FullTextPage() {
   const { projectId = '' } = useParams()
-  const queryClient = useQueryClient()
   const highlightKeywords = useHighlightKeywords(projectId)
   const queue = useScreeningQueue(projectId, 'full_text')
-
-  const retrievals = useQuery({
-    queryKey: ['fulltext', projectId],
-    queryFn: () => apiRequest<Retrieval[]>(
-      `/api/v1/projects/${projectId}/full-text`,
-    ),
-  })
+  const retrievalQueue = useRetrievalQueue(projectId)
 
   const criteria = useQuery({
     queryKey: ['project', projectId],
@@ -83,15 +62,7 @@ export function FullTextPage() {
         method: 'PUT',
         body: JSON.stringify({ status, note, decision }),
       }),
-    onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: ['fulltext', projectId] })
-    },
   })
-
-  const list = retrievals.data ?? []
-  const addressedCount = list.filter((retrieval) => retrieval.status !== 'not_yet_sought').length
-  const pendingRetrieval = list.find((retrieval) => retrieval.status === 'not_yet_sought')
-    ?? list.find((retrieval) => retrieval.status === 'requested')
 
   const handleSubmit = async (
     retrieval: Retrieval,
@@ -101,31 +72,33 @@ export function FullTextPage() {
   ) => {
     const result = await updateRetrieval.mutateAsync({ id: retrieval.id, status, note, decision })
     if (status === 'available' && !result.decisionSubmitted) queue.fetchNext()
+    retrievalQueue.advance()
   }
 
-  const isLoading = retrievals.isLoading || queue.loadingNext
+  const progress = retrievalQueue.progress
+  const isLoading = retrievalQueue.loadingNext || queue.loadingNext || progress === undefined
 
   return (
     <main className="page">
       <h1>Full-Text</h1>
-      {retrievals.error ? <p className="error" role="alert">{retrievals.error.message}</p> : null}
+      {retrievalQueue.nextError ? <p className="error" role="alert">{retrievalQueue.nextError}</p> : null}
       {updateRetrieval.error ? <p className="error" role="alert">{updateRetrieval.error.message}</p> : null}
       {queue.nextError ? <p className="error" role="alert">{queue.nextError}</p> : null}
-      {list.length > 0 ? (
-        <p className="muted">{addressedCount} of {list.length} retrieval decisions made</p>
+      {progress ? (
+        <p className="muted">{progress.addressed} of {progress.total} retrieval decisions made</p>
       ) : null}
       {queue.item ? (
         <ScreeningItemCard {...queue} highlightKeywords={highlightKeywords} />
       ) : isLoading ? (
         <p>Loading…</p>
-      ) : list.length === 0 ? (
+      ) : progress?.total === 0 ? (
         <p className="muted">No publications require full-text retrieval.</p>
-      ) : pendingRetrieval ? (
+      ) : retrievalQueue.item ? (
         <RetrievalCard
-          retrieval={pendingRetrieval}
+          retrieval={retrievalQueue.item}
           criteria={criteria.data?.criteria ?? []}
           saving={updateRetrieval.isPending}
-          onSubmit={(status, note, decision) => handleSubmit(pendingRetrieval, status, note, decision)}
+          onSubmit={(status, note, decision) => handleSubmit(retrievalQueue.item!, status, note, decision)}
         />
       ) : (
         <p className="muted">No full-text work is currently available for you.</p>
@@ -146,7 +119,9 @@ function RetrievalCard({ retrieval, criteria, saving, onSubmit }: {
   const [outcome, setOutcome] = useState('include')
   const [notes, setNotes] = useState('')
   const publication = retrieval.publication
-  const link = publication.doi ? `https://doi.org/${publication.doi}` : publication.publisherUrl
+  const link = publication.doi
+    ? `https://doi.org/${publication.doi}`
+    : isSafeHttpUrl(publication.publisherUrl) ? publication.publisherUrl : null
   const isAvailable = status === 'available'
 
   useEffect(() => {

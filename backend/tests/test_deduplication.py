@@ -142,6 +142,59 @@ def test_list_candidates_includes_publication_details(client, db) -> None:
     assert candidate["publicationA"]["venue"] in {"CHI", "CHI Extended Abstracts"}
 
 
+def test_a_regular_project_member_can_resolve_duplicates(client, db) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    project = Project(
+        name="Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.DUPLICATE_REVIEW,
+    )
+    db.add(project)
+    db.flush()
+    pub_a = Publication(
+        project_id=project.id, title="A Study of Urban VR", doi="10.1000/same"
+    )
+    pub_b = Publication(
+        project_id=project.id, title="A study of urban VR", doi="10.1000/same"
+    )
+    db.add_all([pub_a, pub_b])
+    db.commit()
+
+    detect_duplicates(db, project.id)
+    db.commit()
+
+    member = create_user(db, "reviewer", "Reviewer", "secret-password")
+    db.commit()
+    admin_csrf = login(client)
+    added = client.post(
+        f"/api/v1/projects/{project.id}/members",
+        json={"userId": member.id},
+        headers={"X-CSRF-Token": admin_csrf},
+    )
+    assert added.status_code == 201
+
+    member_csrf = client.post(
+        "/api/v1/auth/login",
+        json={"username": "reviewer", "password": "secret-password"},
+    ).json()["csrfToken"]
+
+    listed = client.get(
+        f"/api/v1/projects/{project.id}/duplicates",
+        headers={"X-CSRF-Token": member_csrf},
+    )
+    assert listed.status_code == 200
+    candidate_id = listed.json()[0]["id"]
+
+    resolved = client.post(
+        f"/api/v1/projects/{project.id}/duplicates/{candidate_id}/not-duplicate",
+        json={"note": None},
+        headers={"X-CSRF-Token": member_csrf},
+    )
+    assert resolved.status_code == 200
+    assert resolved.json()["status"] == "not_duplicate"
+
+
 def setup_records(db):
     admin = create_user(db, "admin", "Admin", "secret-password", is_admin=True)
     project = Project(

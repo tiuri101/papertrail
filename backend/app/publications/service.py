@@ -55,6 +55,21 @@ def clean_text(value: Any) -> str | None:
     return text or None
 
 
+_URL_SCHEME = re.compile(r"^\s*([a-zA-Z][a-zA-Z0-9+.\-]*):")
+
+
+def clean_url(value: Any) -> str | None:
+    """Like clean_text, but drops values using a non-http(s) scheme
+    (e.g. javascript:) so they can't end up rendered as a link href."""
+    text = clean_text(value)
+    if not text:
+        return None
+    match = _URL_SCHEME.match(text)
+    if match and match.group(1).lower() not in ("http", "https"):
+        return None
+    return text
+
+
 def normalize_doi(value: Any) -> str | None:
     text = clean_text(value)
     if not text:
@@ -81,7 +96,7 @@ def publication_values(parsed: dict[str, Any]) -> dict[str, Any]:
         "venue": clean_text(parsed.get("venue")),
         "publication_type": clean_text(parsed.get("publication_type")),
         "doi": normalize_doi(parsed.get("doi")),
-        "publisher_url": clean_text(parsed.get("url") or parsed.get("publisher_url")),
+        "publisher_url": clean_url(parsed.get("url") or parsed.get("publisher_url")),
         "keywords": clean_text(parsed.get("keywords")),
         "isbn": clean_text(parsed.get("isbn")),
         "issn": clean_text(parsed.get("issn")),
@@ -145,6 +160,8 @@ def apply_enrichment(
             if field == "publication_year"
             else normalize_doi(proposed)
             if field == "doi"
+            else clean_url(proposed)
+            if field == "publisher_url"
             else clean_text(proposed)
         )
         current = getattr(publication, field)

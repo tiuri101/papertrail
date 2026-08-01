@@ -135,7 +135,29 @@ def test_prisma_counts_and_svg_are_derived_from_records(db) -> None:
     svg = build_prisma_svg(project.name, counts)
     assert svg.startswith("<svg")
     assert "Records identified" in svg
-    assert ">3<" in svg
+    assert "searching (n=3)" in svg
+    assert "Records excluded (n=1)" in svg
+    assert "Reports not retrieved (n=1)" in svg
+    assert "Duplicate records removed" in svg
+    assert "Records checked" in svg
+    assert "Studies included in review" in svg
+
+
+def test_prisma_svg_route_returns_the_figure_inline(client, db) -> None:
+    project, _ = setup_report(db)
+
+    csrf = client.post(
+        "/api/v1/auth/login", json={"username": "admin", "password": "secret-password"}
+    ).json()["csrfToken"]
+    response = client.get(
+        f"/api/v1/projects/{project.id}/prisma/svg", headers={"X-CSRF-Token": csrf}
+    )
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("image/svg+xml")
+    assert response.headers["cache-control"] == "no-store"
+    assert response.text.startswith("<svg")
+    assert "Records identified" in response.text
 
 
 def test_excel_and_bibtex_exports_are_valid_and_safe(db) -> None:

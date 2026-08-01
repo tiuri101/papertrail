@@ -860,6 +860,8 @@ def upgrade() -> None:
         ),
         sa.Column("note", sa.String(length=500), nullable=True),
         sa.Column("updated_by_id", sa.String(length=36), nullable=True),
+        sa.Column("claimed_by_id", sa.String(length=36), nullable=True),
+        sa.Column("claimed_until", sa.DateTime(timezone=True), nullable=True),
         sa.Column("id", sa.String(length=36), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
@@ -879,6 +881,12 @@ def upgrade() -> None:
             ["updated_by_id"],
             ["users.id"],
             name=op.f("fk_full_text_retrievals_updated_by_id_users"),
+            ondelete="SET NULL",
+        ),
+        sa.ForeignKeyConstraint(
+            ["claimed_by_id"],
+            ["users.id"],
+            name=op.f("fk_full_text_retrievals_claimed_by_id_users"),
             ondelete="SET NULL",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_full_text_retrievals")),
@@ -902,6 +910,18 @@ def upgrade() -> None:
         op.f("ix_full_text_retrievals_status"),
         "full_text_retrievals",
         ["status"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_full_text_retrievals_claimed_by_id"),
+        "full_text_retrievals",
+        ["claimed_by_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_full_text_retrievals_claimed_until"),
+        "full_text_retrievals",
+        ["claimed_until"],
         unique=False,
     )
     op.create_table(
@@ -1726,6 +1746,14 @@ def downgrade() -> None:
     )
     op.drop_index(op.f("ix_import_batches_project_id"), table_name="import_batches")
     op.drop_table("import_batches")
+    op.drop_index(
+        op.f("ix_full_text_retrievals_claimed_until"),
+        table_name="full_text_retrievals",
+    )
+    op.drop_index(
+        op.f("ix_full_text_retrievals_claimed_by_id"),
+        table_name="full_text_retrievals",
+    )
     op.drop_index(
         op.f("ix_full_text_retrievals_status"), table_name="full_text_retrievals"
     )

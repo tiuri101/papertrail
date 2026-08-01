@@ -102,6 +102,14 @@ describe('ReportingPage', () => {
     expect(String(deleteCall?.[0])).toBe('/api/v1/projects/p1/exports/artifact-1')
   })
 
+  it('shows the PRISMA flow diagram inline, sourced from the project-scoped SVG endpoint', async () => {
+    mockFetch(async (input) => String(input).endsWith('/prisma') ? jsonResponse({}) : jsonResponse([]))
+    renderWithProviders(<ReportingPage />, { route: '/projects/p1/reporting', path: '/projects/:projectId/reporting' })
+
+    const figure = await screen.findByAltText(/PRISMA 2020 flow diagram/)
+    expect(figure).toHaveAttribute('src', '/api/v1/projects/p1/prisma/svg')
+  })
+
   it('offers all required export families', async () => {
     mockFetch(async (input) => String(input).endsWith('/prisma') ? jsonResponse({}) : jsonResponse([]))
     renderWithProviders(<ReportingPage />, { route: '/projects/p1/reporting', path: '/projects/:projectId/reporting' })

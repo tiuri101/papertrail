@@ -81,6 +81,14 @@ export function ReportingPage() {
         </p>
       ) : null}
       <section className="card">
+        <h2>PRISMA 2020 Flow Diagram</h2>
+        <img
+          src={`/api/v1/projects/${projectId}/prisma/svg`}
+          alt="PRISMA 2020 flow diagram showing record counts through identification, screening, and inclusion"
+          style={{ maxWidth: '100%', height: 'auto' }}
+        />
+      </section>
+      <section className="card">
         <h2>PRISMA 2020 Counts</h2>
         <pre>{JSON.stringify(prisma.data, null, 2)}</pre>
       </section>

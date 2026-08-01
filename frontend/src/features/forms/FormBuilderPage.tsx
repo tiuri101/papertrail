@@ -401,263 +401,266 @@ export function FormBuilderPage() {
           </form>
         )}
       </section>
-      <label>
-        Form to edit
-        <select
-          value={selectedForm}
-          onChange={(event) => setSelectedForm(event.target.value)}
-        >
-          <option value="">Select a form</option>
-          {forms.data?.map((form) => (
-            <option key={form.id} value={form.id}>
-              {form.name} ({form.kind})
-            </option>
-          ))}
-        </select>
-      </label>
-      {selectedForm ? (
-        <section className="card">
-          <h2>Add Field</h2>
-          <form onSubmit={(event) => { event.preventDefault(); addField.mutate() }}>
-            <label>
-              Label
-              <input
-                value={fieldLabel}
-                onChange={(event) => setFieldLabel(event.target.value)}
-                required
-              />
-            </label>
-            <label>
-              Type
-              <select
-                value={fieldType}
-                onChange={(event) => setFieldType(event.target.value)}
-              >
-                {fieldTypes.map((type) => (
-                  <option key={type} value={type}>{fieldTypeLabels[type] ?? type}</option>
-                ))}
-              </select>
-            </label>
-            <label>
-              <input
-                type="checkbox"
-                checked={required}
-                onChange={(event) => setRequired(event.target.checked)}
-              />
-              Required
-            </label>
-            {showOptions ? (
+      <section className="card">
+        <h2>Edit a Form</h2>
+        <label>
+          Form to edit
+          <select
+            value={selectedForm}
+            onChange={(event) => setSelectedForm(event.target.value)}
+          >
+            <option value="">Select a form</option>
+            {forms.data?.map((form) => (
+              <option key={form.id} value={form.id}>
+                {form.name} ({form.kind})
+              </option>
+            ))}
+          </select>
+        </label>
+        {selectedForm ? (
+          <>
+            <h3>Add Field</h3>
+            <form onSubmit={(event) => { event.preventDefault(); addField.mutate() }}>
               <label>
-                Options (one per line)
-                <textarea
-                  value={optionsText}
-                  onChange={(event) => setOptionsText(event.target.value)}
-                  rows={4}
-                />
-              </label>
-            ) : null}
-            {showRatingScale ? (
-              <>
-                <label>
-                  Scale minimum
-                  <input
-                    type="number"
-                    value={ratingMin}
-                    onChange={(event) => setRatingMin(event.target.value)}
-                  />
-                </label>
-                <label>
-                  Scale maximum
-                  <input
-                    type="number"
-                    value={ratingMax}
-                    onChange={(event) => setRatingMax(event.target.value)}
-                  />
-                </label>
-              </>
-            ) : null}
-            {isQualityForm && weightedFieldTypes.has(fieldType) ? (
-              <label>
-                Score weight
+                Label
                 <input
-                  type="number"
-                  value={weight}
-                  onChange={(event) => setWeight(event.target.value)}
+                  value={fieldLabel}
+                  onChange={(event) => setFieldLabel(event.target.value)}
+                  required
                 />
               </label>
-            ) : null}
-            {isQualityForm && fieldType === 'single_select' ? (
-              <fieldset>
-                <legend>Score per option</legend>
-                {options.length === 0 ? <p className="muted">Add options above first.</p> : null}
-                {options.map((option) => (
-                  <label key={option}>
-                    {option}
+              <label>
+                Type
+                <select
+                  value={fieldType}
+                  onChange={(event) => setFieldType(event.target.value)}
+                >
+                  {fieldTypes.map((type) => (
+                    <option key={type} value={type}>{fieldTypeLabels[type] ?? type}</option>
+                  ))}
+                </select>
+              </label>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={required}
+                  onChange={(event) => setRequired(event.target.checked)}
+                />
+                Required
+              </label>
+              {showOptions ? (
+                <label>
+                  Options (one per line)
+                  <textarea
+                    value={optionsText}
+                    onChange={(event) => setOptionsText(event.target.value)}
+                    rows={4}
+                  />
+                </label>
+              ) : null}
+              {showRatingScale ? (
+                <>
+                  <label>
+                    Scale minimum
                     <input
                       type="number"
-                      value={optionScores[option] ?? ''}
-                      onChange={(event) => setOptionScores((current) => ({ ...current, [option]: event.target.value }))}
+                      value={ratingMin}
+                      onChange={(event) => setRatingMin(event.target.value)}
                     />
                   </label>
-                ))}
-              </fieldset>
-            ) : null}
-            {isQualityForm && fieldType === 'checkbox' ? (
-              <>
+                  <label>
+                    Scale maximum
+                    <input
+                      type="number"
+                      value={ratingMax}
+                      onChange={(event) => setRatingMax(event.target.value)}
+                    />
+                  </label>
+                </>
+              ) : null}
+              {isQualityForm && weightedFieldTypes.has(fieldType) ? (
                 <label>
-                  Score if checked
-                  <input type="number" value={trueScore} onChange={(event) => setTrueScore(event.target.value)} />
+                  Score weight
+                  <input
+                    type="number"
+                    value={weight}
+                    onChange={(event) => setWeight(event.target.value)}
+                  />
                 </label>
-                <label>
-                  Score if unchecked
-                  <input type="number" value={falseScore} onChange={(event) => setFalseScore(event.target.value)} />
-                </label>
-              </>
-            ) : null}
-            <button type="submit" disabled={addField.isPending}>Add Field</button>
-          </form>
-          <h3>Fields</h3>
-          {fields.error ? <p className="error" role="alert">{fields.error.message}</p> : null}
-          <table>
-            <thead>
-              <tr>
-                <th>Label</th>
-                <th>Type</th>
-                <th>Required</th>
-                <th>Status</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {fields.data?.map((field) => (
-                <tr key={field.id}>
-                  <td>
-                    {editingKey === field.stableKey ? (
+              ) : null}
+              {isQualityForm && fieldType === 'single_select' ? (
+                <fieldset>
+                  <legend>Score per option</legend>
+                  {options.length === 0 ? <p className="muted">Add options above first.</p> : null}
+                  {options.map((option) => (
+                    <label key={option}>
+                      {option}
                       <input
-                        aria-label={`Edit label for ${field.label}`}
-                        value={editingLabel}
-                        onChange={(event) => setEditingLabel(event.target.value)}
+                        type="number"
+                        value={optionScores[option] ?? ''}
+                        onChange={(event) => setOptionScores((current) => ({ ...current, [option]: event.target.value }))}
                       />
-                    ) : field.label}
-                  </td>
-                  <td>
-                    {fieldTypeLabels[field.fieldType] ?? field.fieldType}
-                    {field.fieldType === 'rating' ? ` (${describeRatingScale(field.options)})` : ''}
-                  </td>
-                  <td>{field.required ? 'Required' : '—'}</td>
-                  <td>{field.isArchived ? 'Archived' : 'Active'}</td>
-                  <td>
-                    {editingKey === field.stableKey ? (
-                      <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
-                        <button
-                          type="button"
-                          disabled={renameField.isPending}
-                          onClick={() => renameField.mutate({ stableKey: field.stableKey, label: editingLabel })}
-                        >
-                          Save
-                        </button>
-                        <button type="button" onClick={() => setEditingKey(null)}>Cancel</button>
-                      </div>
-                    ) : !field.isArchived ? (
-                      <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap', alignItems: 'center' }}>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setEditingKey(field.stableKey)
-                            setEditingLabel(field.label)
-                          }}
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            if (window.confirm(`Archive field "${field.label}"? It will be removed from new submissions, but every value already recorded for it is kept and can still be included in exports.`)) {
-                              deleteField.mutate(field.stableKey)
-                            }
-                          }}
-                        >
-                          Archive
-                        </button>
-                        {replacingKey === field.stableKey ? (
-                          <>
-                            <select
-                              aria-label={`New type for ${field.label}`}
-                              value={replaceType}
-                              onChange={(event) => setReplaceType(event.target.value)}
-                            >
-                              {fieldTypes.map((type) => <option key={type} value={type}>{fieldTypeLabels[type] ?? type}</option>)}
-                            </select>
-                            <button
-                              type="button"
-                              disabled={replaceField.isPending}
-                              onClick={() => {
-                                if (window.confirm(`Change the type of "${field.label}"? This isn't done in place: the current field is archived (its recorded values stay attached to it) and a new field with the new type is added instead.`)) {
-                                  replaceField.mutate({
-                                    stableKey: field.stableKey,
-                                    fieldType: replaceType,
-                                    label: field.label,
-                                    required: field.required,
-                                  })
-                                }
-                              }}
-                            >
-                              Confirm
-                            </button>
-                            <button type="button" onClick={() => setReplacingKey(null)}>Cancel</button>
-                          </>
-                        ) : (
+                    </label>
+                  ))}
+                </fieldset>
+              ) : null}
+              {isQualityForm && fieldType === 'checkbox' ? (
+                <>
+                  <label>
+                    Score if checked
+                    <input type="number" value={trueScore} onChange={(event) => setTrueScore(event.target.value)} />
+                  </label>
+                  <label>
+                    Score if unchecked
+                    <input type="number" value={falseScore} onChange={(event) => setFalseScore(event.target.value)} />
+                  </label>
+                </>
+              ) : null}
+              <button type="submit" disabled={addField.isPending}>Add Field</button>
+            </form>
+            <h3>Fields</h3>
+            {fields.error ? <p className="error" role="alert">{fields.error.message}</p> : null}
+            <table>
+              <thead>
+                <tr>
+                  <th>Label</th>
+                  <th>Type</th>
+                  <th>Required</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {fields.data?.map((field) => (
+                  <tr key={field.id}>
+                    <td>
+                      {editingKey === field.stableKey ? (
+                        <input
+                          aria-label={`Edit label for ${field.label}`}
+                          value={editingLabel}
+                          onChange={(event) => setEditingLabel(event.target.value)}
+                        />
+                      ) : field.label}
+                    </td>
+                    <td>
+                      {fieldTypeLabels[field.fieldType] ?? field.fieldType}
+                      {field.fieldType === 'rating' ? ` (${describeRatingScale(field.options)})` : ''}
+                    </td>
+                    <td>{field.required ? 'Required' : '—'}</td>
+                    <td>{field.isArchived ? 'Archived' : 'Active'}</td>
+                    <td>
+                      {editingKey === field.stableKey ? (
+                        <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+                          <button
+                            type="button"
+                            disabled={renameField.isPending}
+                            onClick={() => renameField.mutate({ stableKey: field.stableKey, label: editingLabel })}
+                          >
+                            Save
+                          </button>
+                          <button type="button" onClick={() => setEditingKey(null)}>Cancel</button>
+                        </div>
+                      ) : !field.isArchived ? (
+                        <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap', alignItems: 'center' }}>
                           <button
                             type="button"
                             onClick={() => {
-                              setReplacingKey(field.stableKey)
-                              setReplaceType(field.fieldType)
+                              setEditingKey(field.stableKey)
+                              setEditingLabel(field.label)
                             }}
                           >
-                            Change Type…
+                            Edit
                           </button>
-                        )}
-                      </div>
-                    ) : null}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <h3>Save as Reusable Template</h3>
-          <p className="muted">Saves the current fields as a new template. Later edits to this project form won't affect the template, or vice versa.</p>
-          <form onSubmit={(event) => { event.preventDefault(); saveAsTemplate.mutate() }}>
-            <label>
-              Template name
-              <input
-                value={templateName}
-                onChange={(event) => setTemplateName(event.target.value)}
-                placeholder={forms.data?.find((form) => form.id === selectedForm)?.name ?? ''}
-              />
-            </label>
-            {saveAsTemplate.isSuccess ? <p>Template saved.</p> : null}
-            <button type="submit" disabled={saveAsTemplate.isPending}>Save as Template</button>
-          </form>
-          {activeFields.length ? (
-            <>
-              <h3>Preview</h3>
-              <div className="card">
-                <DynamicForm
-                  fields={activeFields.map((field) => ({
-                    stableKey: field.stableKey,
-                    label: field.label,
-                    fieldType: field.fieldType,
-                    required: field.required,
-                    options: field.options,
-                  }))}
-                  value={previewAnswers}
-                  onChange={(key, value) => setPreviewAnswers((current) => ({ ...current, [key]: value }))}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (window.confirm(`Archive field "${field.label}"? It will be removed from new submissions, but every value already recorded for it is kept and can still be included in exports.`)) {
+                                deleteField.mutate(field.stableKey)
+                              }
+                            }}
+                          >
+                            Archive
+                          </button>
+                          {replacingKey === field.stableKey ? (
+                            <>
+                              <select
+                                aria-label={`New type for ${field.label}`}
+                                value={replaceType}
+                                onChange={(event) => setReplaceType(event.target.value)}
+                              >
+                                {fieldTypes.map((type) => <option key={type} value={type}>{fieldTypeLabels[type] ?? type}</option>)}
+                              </select>
+                              <button
+                                type="button"
+                                disabled={replaceField.isPending}
+                                onClick={() => {
+                                  if (window.confirm(`Change the type of "${field.label}"? This isn't done in place: the current field is archived (its recorded values stay attached to it) and a new field with the new type is added instead.`)) {
+                                    replaceField.mutate({
+                                      stableKey: field.stableKey,
+                                      fieldType: replaceType,
+                                      label: field.label,
+                                      required: field.required,
+                                    })
+                                  }
+                                }}
+                              >
+                                Confirm
+                              </button>
+                              <button type="button" onClick={() => setReplacingKey(null)}>Cancel</button>
+                            </>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setReplacingKey(field.stableKey)
+                                setReplaceType(field.fieldType)
+                              }}
+                            >
+                              Change Type…
+                            </button>
+                          )}
+                        </div>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <h3>Save as Reusable Template</h3>
+            <p className="muted">Saves the current fields as a new template. Later edits to this project form won't affect the template, or vice versa.</p>
+            <form onSubmit={(event) => { event.preventDefault(); saveAsTemplate.mutate() }}>
+              <label>
+                Template name
+                <input
+                  value={templateName}
+                  onChange={(event) => setTemplateName(event.target.value)}
+                  placeholder={forms.data?.find((form) => form.id === selectedForm)?.name ?? ''}
                 />
-              </div>
-            </>
-          ) : null}
-        </section>
-      ) : null}
+              </label>
+              {saveAsTemplate.isSuccess ? <p>Template saved.</p> : null}
+              <button type="submit" disabled={saveAsTemplate.isPending}>Save as Template</button>
+            </form>
+            {activeFields.length ? (
+              <>
+                <h3>Preview</h3>
+                <div className="card">
+                  <DynamicForm
+                    fields={activeFields.map((field) => ({
+                      stableKey: field.stableKey,
+                      label: field.label,
+                      fieldType: field.fieldType,
+                      required: field.required,
+                      options: field.options,
+                    }))}
+                    value={previewAnswers}
+                    onChange={(key, value) => setPreviewAnswers((current) => ({ ...current, [key]: value }))}
+                  />
+                </div>
+              </>
+            ) : null}
+          </>
+        ) : null}
+      </section>
     </main>
   )
 }
