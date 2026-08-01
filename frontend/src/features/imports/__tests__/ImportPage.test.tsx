@@ -14,9 +14,13 @@ function fillSearchFields() {
 
 describe('ImportPage', () => {
   it('does not offer a way to skip or reuse a documented search', async () => {
-    mockFetch(() => jsonResponse([
-      { id: 'search-1', sourceName: 'IEEE Xplore', query: 'virtual reality AND urban', searchDate: '2026-07-30', filters: null },
-    ]))
+    mockFetch((input) => {
+      const url = String(input)
+      if (url.endsWith('/projects/project-1')) return jsonResponse({ id: 'project-1', canManage: true })
+      return jsonResponse([
+        { id: 'search-1', sourceName: 'IEEE Xplore', query: 'virtual reality AND urban', searchDate: '2026-07-30', filters: null },
+      ])
+    })
     renderWithProviders(<ImportPage />, { route: '/projects/project-1/imports', path: '/projects/:projectId/imports' })
 
     await screen.findByLabelText('Bibliographic export')
@@ -29,6 +33,7 @@ describe('ImportPage', () => {
     const searches: Array<{ id: string; sourceName: string; query: string; searchDate: string; filters: string | null }> = []
     const fetchMock = mockFetch((input, init) => {
       const url = String(input)
+      if (url.endsWith('/projects/project-1')) return jsonResponse({ id: 'project-1', canManage: true })
       if (init?.method === 'POST' && url.endsWith('/searches')) {
         const body = JSON.parse(String(init.body))
         const search = { id: 'search-1', ...body }
@@ -73,6 +78,7 @@ describe('ImportPage', () => {
   it('shows the server-provided import error', async () => {
     mockFetch((input, init) => {
       const url = String(input)
+      if (url.endsWith('/projects/project-1')) return jsonResponse({ id: 'project-1', canManage: true })
       if (init?.method === 'POST' && url.endsWith('/searches')) {
         return jsonResponse({ id: 'search-1', sourceName: 'IEEE Xplore', query: 'urban', searchDate: '2026-07-30', filters: null }, 201)
       }
@@ -96,6 +102,7 @@ describe('ImportPage', () => {
     let jobStatus = 'queued'
     mockFetch((input, init) => {
       const url = String(input)
+      if (url.endsWith('/projects/project-1')) return jsonResponse({ id: 'project-1', canManage: true })
       if (init?.method === 'POST' && url.endsWith('/searches')) {
         return jsonResponse({ id: 'search-1', sourceName: 'IEEE Xplore', query: 'urban', searchDate: '2026-07-30', filters: null }, 201)
       }

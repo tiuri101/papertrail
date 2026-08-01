@@ -44,7 +44,7 @@ def test_complete_review_workflow_produces_exports(db, tmp_path) -> None:
     admin = create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
     reviewer = create_user(db, "reviewer", "Reviewer", "secret-password")
     project = create_project(
-        db, "Acceptance Review", None, ReviewType.SYSTEMATIC_REVIEW
+        db, "Acceptance Review", None, ReviewType.SYSTEMATIC_REVIEW, admin
     )
     db.add(
         ProjectMembership(

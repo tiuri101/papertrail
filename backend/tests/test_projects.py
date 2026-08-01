@@ -97,7 +97,11 @@ def test_admin_updates_and_removes_project_membership(client, db) -> None:
     assert removed.status_code == 204
 
     detail = client.get(f"/api/v1/projects/{project_id}")
-    assert detail.json()["memberships"] == []
+    # The creator's own owner membership stays behind; only the removed
+    # reviewer is gone.
+    memberships = detail.json()["memberships"]
+    assert len(memberships) == 1
+    assert memberships[0]["isOwner"] is True
 
 
 def test_project_configuration_supports_questions_criteria_and_stage_settings(

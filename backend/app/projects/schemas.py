@@ -56,6 +56,7 @@ class MembershipUpdate(ApiModel):
 class MembershipResponse(ApiModel):
     id: str
     user_id: str = Field(serialization_alias="userId")
+    is_owner: bool = Field(serialization_alias="isOwner")
     can_title_abstract_screen: bool = Field(
         serialization_alias="canTitleAbstractScreen"
     )
@@ -125,6 +126,7 @@ class ProjectDetail(ProjectSummary):
     screening_configs: list[ScreeningConfigResponse] = Field(
         serialization_alias="screeningConfigs"
     )
+    can_manage: bool = Field(serialization_alias="canManage")
 
 
 class HighlightKeywordsUpdate(ApiModel):

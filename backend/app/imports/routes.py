@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, File, Form, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.accounts.dependencies import get_current_user, require_admin_csrf
+from app.accounts.dependencies import get_current_user
 from app.accounts.models import User
 from app.api.errors import (
     DomainError,
@@ -21,6 +21,7 @@ from app.db.session import get_db
 from app.imports.models import ImportBatch, ImportStatus, SearchSource
 from app.imports.schemas import JobAccepted, SearchSourceCreate, SearchSourceResponse
 from app.jobs.service import enqueue_job
+from app.projects.dependencies import require_project_manager_csrf
 from app.projects.service import get_project, require_project_access
 
 router = APIRouter(tags=["imports"])
@@ -52,7 +53,7 @@ def list_searches(
 def add_search(
     project_id: str,
     payload: SearchSourceCreate,
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
     get_project(db, project_id)
@@ -90,7 +91,7 @@ async def upload_import(
     search_source_id: str | None = Form(default=None, alias="searchSourceId"),
     mapping_json: str | None = Form(default=None, alias="mappingJson"),
     file: UploadFile = File(...),
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
     get_project(db, project_id)
@@ -171,7 +172,7 @@ async def upload_import(
 async def preview_import(
     project_id: str,
     file: UploadFile = File(...),
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
     from app.imports.adapters import normalize_imported_row, parse_file

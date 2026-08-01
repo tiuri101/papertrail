@@ -2,12 +2,13 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.accounts.dependencies import get_current_user, require_admin_csrf
+from app.accounts.dependencies import get_current_user
 from app.accounts.models import User
 from app.api.errors import NotFoundError
 from app.audit.service import record_audit
 from app.db.session import get_db
 from app.jobs.service import enqueue_job
+from app.projects.dependencies import require_project_manager_csrf
 from app.projects.service import require_project_access
 from app.publications.models import MetadataConflict, Publication
 from app.publications.schemas import (
@@ -68,7 +69,7 @@ def update_publication(
     project_id: str,
     publication_id: str,
     payload: PublicationUpdate,
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
     publication = db.get(Publication, publication_id)
@@ -98,7 +99,7 @@ def update_publication(
 def delete_publication(
     project_id: str,
     publication_id: str,
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
     publication = db.get(Publication, publication_id)
@@ -128,7 +129,7 @@ def delete_publication(
 def enrich_publication(
     project_id: str,
     publication_id: str,
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
     publication = db.get(Publication, publication_id)
@@ -159,7 +160,7 @@ def enrich_publication(
 )
 def list_conflicts(
     project_id: str,
-    _: User = Depends(require_admin_csrf),
+    _: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
     return list(
@@ -181,7 +182,7 @@ def resolve_conflict(
     project_id: str,
     conflict_id: str,
     payload: ConflictResolve,
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
     conflict = db.get(MetadataConflict, conflict_id)
@@ -217,7 +218,7 @@ def resolve_conflict(
 def create_manual_publication(
     project_id: str,
     payload: PublicationCreate,
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
     project = require_project_access(db, project_id, admin)
@@ -247,7 +248,7 @@ def create_manual_publication(
 def bulk_enrich_publications(
     project_id: str,
     payload: BulkEnrichmentRequest,
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
     require_project_access(db, project_id, admin)

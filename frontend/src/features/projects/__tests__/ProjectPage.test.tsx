@@ -32,6 +32,7 @@ describe('ProjectPage', () => {
         id: 'p1',
         name: 'Immersive analytics review',
         stage: 'title_abstract_screening',
+        canManage: true,
       })
     })
     renderWithProviders(<ProjectPage />, { route: '/projects/p1', path: '/projects/:projectId' })

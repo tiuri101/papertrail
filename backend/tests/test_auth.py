@@ -71,16 +71,31 @@ def test_mutation_requires_csrf(client, db) -> None:
     assert response.status_code == 403
 
 
-def test_reviewer_cannot_manage_users(client, db) -> None:
+def test_reviewer_can_list_but_not_manage_users(client, db) -> None:
     create_user(db, "reviewer", "Reviewer", "reviewer-password", is_admin=False)
     db.commit()
     login = client.post(
         "/api/v1/auth/login",
         json={"username": "reviewer", "password": "reviewer-password"},
     )
-    response = client.get("/api/v1/users")
+    csrf = login.json()["csrfToken"]
     assert login.status_code == 200
-    assert response.status_code == 403
+
+    # Any authenticated user can see the user directory (needed to add project
+    # members), but only an admin can create or update accounts.
+    list_response = client.get("/api/v1/users")
+    assert list_response.status_code == 200
+
+    create_response = client.post(
+        "/api/v1/users",
+        json={
+            "username": "someoneelse",
+            "displayName": "Someone Else",
+            "password": "another-password",
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert create_response.status_code == 403
 
 
 def test_reviewer_can_update_own_display_name_and_password(client, db) -> None:

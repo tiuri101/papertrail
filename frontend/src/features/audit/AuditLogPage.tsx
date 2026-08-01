@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { useProjectManageState } from '../../hooks/useCanManageProject'
 
 interface AuditEvent {
   id: string
@@ -16,12 +17,28 @@ interface AuditEvent {
 
 export function AuditLogPage() {
   const { projectId = '' } = useParams()
+  const { canManage, isLoading: canManageLoading } = useProjectManageState(projectId)
   const events = useQuery({
     queryKey: ['audit', projectId],
     queryFn: () => apiRequest<AuditEvent[]>(
       `/api/v1/projects/${projectId}/audit`,
     ),
+    enabled: Boolean(projectId) && canManage,
   })
+
+  if (canManageLoading) {
+    return <main className="page"><p>Loading…</p></main>
+  }
+  if (!canManage) {
+    return (
+      <main className="page">
+        <h1>Audit Log</h1>
+        <p className="error" role="alert">
+          Only the project owner or an administrator can view the audit log.
+        </p>
+      </main>
+    )
+  }
 
   return (
     <main className="page">

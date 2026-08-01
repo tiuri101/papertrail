@@ -25,9 +25,11 @@ import { ProjectsPage } from '../features/projects/ProjectsPage'
 import { PublicationsPage } from '../features/publications/PublicationsPage'
 import { QualityPage } from '../features/quality/QualityPage'
 import { ReportingPage } from '../features/reporting/ReportingPage'
+import { FinalResultsPage } from '../features/results/FinalResultsPage'
 import { MyDecisionsPage } from '../features/screening/MyDecisionsPage'
 import { ScreeningPage } from '../features/screening/ScreeningPage'
 import { UsersPage } from '../features/users/UsersPage'
+import { useProjectManageState } from '../hooks/useCanManageProject'
 
 function ProjectSectionLayout() {
   const { projectId = '' } = useParams()
@@ -44,6 +46,19 @@ function ProjectSectionLayout() {
 function ProjectAdministrationPage() {
   const { projectId = '' } = useParams()
   const navigate = useNavigate()
+  const { canManage, isLoading: canManageLoading } = useProjectManageState(projectId)
+  if (canManageLoading) {
+    return <main className="page"><p>Loading…</p></main>
+  }
+  if (!canManage) {
+    return (
+      <main className="page">
+        <p className="error" role="alert">
+          Only the project owner or an administrator can access project administration.
+        </p>
+      </main>
+    )
+  }
   return (
     <main className="page">
       <ProjectDetailsPanel projectId={projectId} />
@@ -103,6 +118,7 @@ export function App() {
             <Route path="/projects/:projectId/forms" element={<FormBuilderPage />} />
             <Route path="/projects/:projectId/extraction" element={<ExtractionPage />} />
             <Route path="/projects/:projectId/quality" element={<QualityPage />} />
+            <Route path="/projects/:projectId/results" element={<FinalResultsPage />} />
             <Route path="/projects/:projectId/reporting" element={<ReportingPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

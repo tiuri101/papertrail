@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { useProjectManageState } from '../../hooks/useCanManageProject'
 
 interface ConflictPublication {
   id: string
@@ -41,11 +42,13 @@ function formatOutcome(outcome: string) {
 export function ConflictResolutionPage() {
   const { projectId = '', stage = 'title_abstract' } = useParams()
   const queryClient = useQueryClient()
+  const { canManage, isLoading: canManageLoading } = useProjectManageState(projectId)
   const conflicts = useQuery({
     queryKey: ['conflicts', projectId, stage],
     queryFn: () => apiRequest<ConflictItem[]>(
       `/api/v1/projects/${projectId}/screening/${stage}/conflicts`,
     ),
+    enabled: Boolean(projectId) && canManage,
   })
   const resolve = useMutation({
     mutationFn: ({ publicationId, outcome, note }: { publicationId: string; outcome: string; note: string | null }) =>
@@ -76,6 +79,20 @@ export function ConflictResolutionPage() {
   })
 
   const list = conflicts.data ?? []
+
+  if (canManageLoading) {
+    return <main className="page"><p>Loading…</p></main>
+  }
+  if (!canManage) {
+    return (
+      <main className="page">
+        <h1>Conflict Resolution</h1>
+        <p className="error" role="alert">
+          Only the project owner or an administrator can resolve conflicts.
+        </p>
+      </main>
+    )
+  }
 
   return (
     <main className="page">

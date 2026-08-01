@@ -1,7 +1,6 @@
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
-from app.accounts.dependencies import require_admin_csrf
 from app.accounts.models import User
 from app.audit.service import record_audit
 from app.conflicts.schemas import (
@@ -16,6 +15,7 @@ from app.conflicts.service import (
     transition_if_screening_complete,
 )
 from app.db.session import get_db
+from app.projects.dependencies import require_project_manager_csrf
 from app.projects.models import ScreeningStage
 from app.projects.service import get_project
 from app.publications.models import Publication
@@ -31,7 +31,7 @@ router = APIRouter(tags=["conflict resolution"])
 def list_conflicts(
     project_id: str,
     stage: ScreeningStage,
-    _: User = Depends(require_admin_csrf),
+    _: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
     items = []
@@ -57,7 +57,7 @@ def resolve_conflict(
     stage: ScreeningStage,
     publication_id: str,
     payload: FinalDecisionCreate,
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
     final = record_final_decision(
@@ -95,7 +95,7 @@ def create_additional_review(
     project_id: str,
     stage: ScreeningStage,
     publication_id: str,
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
     item = add_resolution_reviewer(db, publication_id, stage)

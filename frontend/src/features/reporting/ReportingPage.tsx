@@ -4,6 +4,7 @@ import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { ConfirmButton } from '../../components/ConfirmButton'
+import { useCanManageProject } from '../../hooks/useCanManageProject'
 import { BackgroundJob, findJob, hasActiveJob, isJobActive } from '../jobs/jobStatus'
 
 interface ExportArtifact {
@@ -16,6 +17,7 @@ interface ExportArtifact {
 export function ReportingPage() {
   const { projectId = '' } = useParams()
   const queryClient = useQueryClient()
+  const canManage = useCanManageProject(projectId)
   const [pendingJobId, setPendingJobId] = useState<string | null>(null)
   const prisma = useQuery({
     queryKey: ['prisma', projectId],
@@ -120,14 +122,16 @@ export function ReportingPage() {
               {artifact.filename}
             </a>
             {' — '}{artifact.type}{' '}
-            <ConfirmButton
-              label="Delete"
-              confirmLabel="Delete Export"
-              warning={`Delete ${artifact.filename}? This cannot be undone.`}
-              variant="danger"
-              disabled={deleteExport.isPending}
-              onConfirm={() => deleteExport.mutate(artifact.id)}
-            />
+            {canManage ? (
+              <ConfirmButton
+                label="Delete"
+                confirmLabel="Delete Export"
+                warning={`Delete ${artifact.filename}? This cannot be undone.`}
+                variant="danger"
+                disabled={deleteExport.isPending}
+                onConfirm={() => deleteExport.mutate(artifact.id)}
+              />
+            ) : null}
           </li>
         ))}
       </ul>

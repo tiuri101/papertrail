@@ -6,7 +6,7 @@ from io import BytesIO
 
 from openpyxl import Workbook
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.accounts.models import User
 from app.audit.models import AuditEvent
@@ -15,7 +15,7 @@ from app.deduplication.models import DuplicateCandidate
 from app.extraction.models import ExtractionResponse, ExtractionWorkItem
 from app.forms.models import FormField, FormVersion, ReviewForm
 from app.fulltext.models import FullTextRetrieval
-from app.imports.models import ImportBatch, SearchSource
+from app.imports.models import ImportBatch, ImportedRecord, SearchSource
 from app.projects.models import (
     Criterion,
     CriterionKind,
@@ -23,7 +23,7 @@ from app.projects.models import (
     ResearchQuestion,
     ScreeningStage,
 )
-from app.publications.models import Publication
+from app.publications.models import Publication, PublicationSource
 from app.quality.models import QualityResponse, QualityWorkItem
 from app.reporting.prisma import calculate_prisma_counts
 from app.screening.models import ScreeningDecision, ScreeningOutcome, ScreeningWorkItem
@@ -101,25 +101,44 @@ def _readable_answers(answers: dict, field_labels: dict[str, str]) -> dict:
     return {field_labels.get(key, key): value for key, value in answers.items()}
 
 
+def _search_source_labels(publication: Publication) -> tuple[str | None, str | None]:
+    sources = publication.search_sources
+    source_names = ", ".join(
+        dict.fromkeys(
+            source["source_name"] for source in sources if source["source_name"]
+        )
+    )
+    filenames = ", ".join(
+        dict.fromkeys(source["original_filename"] for source in sources)
+    )
+    return source_names or None, filenames or None
+
+
 def publication_rows(
     publications: list[Publication], titles: dict[str, str]
 ) -> list[list]:
-    return [
-        [
-            publication.id,
-            publication.title,
-            publication.authors,
-            publication.publication_year,
-            publication.venue,
-            publication.publication_type,
-            publication.doi,
-            publication.publisher_url,
-            publication.keywords,
-            publication.is_active,
-            titles.get(publication.merged_into_id, publication.merged_into_id),
-        ]
-        for publication in publications
-    ]
+    rows = []
+    for publication in publications:
+        source_names, filenames = _search_source_labels(publication)
+        rows.append(
+            [
+                publication.id,
+                publication.title,
+                publication.authors,
+                publication.publication_year,
+                publication.venue,
+                publication.publication_type,
+                publication.doi,
+                publication.publisher_url,
+                publication.keywords,
+                publication.is_active,
+                publication.merged_into_id,
+                titles.get(publication.merged_into_id, publication.merged_into_id),
+                source_names,
+                filenames,
+            ]
+        )
+    return rows
 
 
 def _screening_rows(
@@ -131,6 +150,7 @@ def _screening_rows(
 ) -> list[list]:
     return [
         [
+            decision.work_item.publication_id,
             titles.get(
                 decision.work_item.publication_id, decision.work_item.publication_id
             ),
@@ -186,7 +206,10 @@ def build_excel(db: Session, project_id: str) -> bytes:
         "Publisher URL",
         "Keywords",
         "Active",
-        "Merged into",
+        "Merged into ID",
+        "Merged into title",
+        "Search sources",
+        "Import files",
     ]
     add_sheet(
         workbook,
@@ -291,6 +314,12 @@ def _add_record_sheets(
     publications = list(
         db.scalars(
             select(Publication)
+            .options(
+                selectinload(Publication.sources)
+                .selectinload(PublicationSource.imported_record)
+                .selectinload(ImportedRecord.import_batch)
+                .selectinload(ImportBatch.search_source)
+            )
             .where(Publication.project_id == project_id)
             .order_by(Publication.title)
         )
@@ -306,7 +335,10 @@ def _add_record_sheets(
         "Publisher URL",
         "Keywords",
         "Active",
-        "Merged into",
+        "Merged into ID",
+        "Merged into title",
+        "Search sources",
+        "Import files",
     ]
     titles = {publication.id: publication.title for publication in publications}
     add_sheet(
@@ -322,11 +354,22 @@ def _add_record_sheets(
     add_sheet(
         workbook,
         "Duplicate decisions",
-        ["ID", "Publication A", "Publication B", "Reasons", "Confidence", "Status"],
+        [
+            "ID",
+            "Publication A ID",
+            "Publication A title",
+            "Publication B ID",
+            "Publication B title",
+            "Reasons",
+            "Confidence",
+            "Status",
+        ],
         [
             [
                 item.id,
+                item.publication_a_id,
                 titles.get(item.publication_a_id, item.publication_a_id),
+                item.publication_b_id,
                 titles.get(item.publication_b_id, item.publication_b_id),
                 item.match_reasons,
                 item.confidence,
@@ -357,7 +400,8 @@ def _add_screening_sheets(
         )
     )
     headers = [
-        "Publication",
+        "Publication ID",
+        "Publication title",
         "Reviewer",
         "Outcome",
         "Criteria",
@@ -384,9 +428,10 @@ def _add_screening_sheets(
     add_sheet(
         workbook,
         "Full text retrieval",
-        ["Publication", "Status", "Note"],
+        ["Publication ID", "Publication title", "Status", "Note"],
         [
             [
+                item.publication_id,
                 titles.get(item.publication_id, item.publication_id),
                 item.status.value,
                 item.note,
@@ -413,9 +458,17 @@ def _add_screening_sheets(
     add_sheet(
         workbook,
         "Exclusions",
-        ["Publication", "Stage", "Outcome", "Resolution", "Note"],
+        [
+            "Publication ID",
+            "Publication title",
+            "Stage",
+            "Outcome",
+            "Resolution",
+            "Note",
+        ],
         [
             [
+                item.publication_id,
                 titles.get(item.publication_id, item.publication_id),
                 item.stage.value,
                 item.outcome.value,
@@ -456,9 +509,10 @@ def _add_evidence_sheets(
     add_sheet(
         workbook,
         "Extraction",
-        ["Publication", "Reviewer", "Form version", "Answers"],
+        ["Publication ID", "Publication title", "Reviewer", "Form version", "Answers"],
         [
             [
+                item.work_item.publication_id,
                 titles.get(
                     item.work_item.publication_id, item.work_item.publication_id
                 ),
@@ -484,9 +538,17 @@ def _add_evidence_sheets(
     add_sheet(
         workbook,
         "Quality assessment",
-        ["Publication", "Reviewer", "Form version", "Answers", "Total score"],
+        [
+            "Publication ID",
+            "Publication title",
+            "Reviewer",
+            "Form version",
+            "Answers",
+            "Total score",
+        ],
         [
             [
+                item.work_item.publication_id,
                 titles.get(
                     item.work_item.publication_id, item.work_item.publication_id
                 ),

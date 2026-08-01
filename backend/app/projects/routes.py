@@ -4,14 +4,18 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.accounts.dependencies import get_current_user, require_admin_csrf
-from app.accounts.models import User
+from app.accounts.dependencies import get_current_user, require_csrf
+from app.accounts.models import User, UserSession
 from app.accounts.service import get_user_or_raise
 from app.api.errors import NotFoundError
 from app.audit.service import record_audit
 from app.db.session import get_db
 from app.imports.schemas import JobResponse
 from app.jobs.models import BackgroundJob
+from app.projects.dependencies import (
+    require_project_manager_csrf,
+    require_project_member_csrf,
+)
 from app.projects.models import (
     Criterion,
     Project,
@@ -45,6 +49,7 @@ from app.projects.service import (
     create_project,
     get_membership,
     get_project,
+    is_project_manager,
     list_projects_for_user,
     next_position,
     parse_highlight_keywords,
@@ -67,24 +72,29 @@ def list_projects(
 @router.post("", response_model=ProjectSummary, status_code=status.HTTP_201_CREATED)
 def add_project(
     payload: ProjectCreate,
-    admin: User = Depends(require_admin_csrf),
+    session: UserSession = Depends(require_csrf),
     db: Session = Depends(get_db),
 ) -> Project:
-    project = create_project(db, payload.name, payload.description, payload.review_type)
+    user = session.user
+    project = create_project(
+        db, payload.name, payload.description, payload.review_type, user
+    )
     record_audit(
         db,
         action="project.created",
         entity_type="project",
         entity_id=project.id,
         project_id=project.id,
-        actor_id=admin.id,
+        actor_id=user.id,
         summary=f"Created project {project.name}",
     )
     db.commit()
     return project
 
 
-def _serialize_project_detail(project: Project) -> ProjectDetail:
+def _serialize_project_detail(
+    db: Session, project: Project, user: User
+) -> ProjectDetail:
     return ProjectDetail(
         id=project.id,
         name=project.name,
@@ -97,6 +107,7 @@ def _serialize_project_detail(project: Project) -> ProjectDetail:
         ],
         criteria=[item for item in project.criteria if item.is_active],
         screening_configs=project.screening_configs,
+        can_manage=is_project_manager(db, project.id, user),
     )
 
 
@@ -107,14 +118,14 @@ def project_detail(
     db: Session = Depends(get_db),
 ) -> ProjectDetail:
     project = require_project_access(db, project_id, user)
-    return _serialize_project_detail(project)
+    return _serialize_project_detail(db, project, user)
 
 
 @router.patch("/{project_id}", response_model=ProjectDetail)
 def update_project_details(
     project_id: str,
     payload: ProjectDetailsUpdate,
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ) -> ProjectDetail:
     project = get_project(db, project_id)
@@ -130,7 +141,7 @@ def update_project_details(
         summary=f"Renamed project to {project.name}",
     )
     db.commit()
-    return _serialize_project_detail(project)
+    return _serialize_project_detail(db, project, admin)
 
 
 @router.get("/{project_id}/checklist", response_model=ProjectChecklist)
@@ -153,7 +164,7 @@ def project_checklist_endpoint(
 def add_project_member(
     project_id: str,
     payload: MembershipCreate,
-    _: User = Depends(require_admin_csrf),
+    _: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
     project = get_project(db, project_id)
@@ -189,7 +200,7 @@ def update_project_member(
     project_id: str,
     member_id: str,
     payload: MembershipUpdate,
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
     get_project(db, project_id)
@@ -203,10 +214,18 @@ def update_project_member(
         can_assess_quality=payload.can_assess_quality,
         can_adjudicate=payload.can_adjudicate,
     )
+    from app.extraction.service import (
+        reassign_work_items_from_ineligible_reviewers as reassign_extraction,
+    )
+    from app.quality.service import (
+        reassign_work_items_from_ineligible_reviewers as reassign_quality,
+    )
     from app.screening.service import reassign_work_items_from_ineligible_reviewers
 
     for stage in (ScreeningStage.TITLE_ABSTRACT, ScreeningStage.FULL_TEXT):
         reassign_work_items_from_ineligible_reviewers(db, project_id, stage)
+    reassign_extraction(db, project_id)
+    reassign_quality(db, project_id)
     record_audit(
         db,
         action="membership.updated",
@@ -227,7 +246,7 @@ def update_project_member(
 def delete_project_member(
     project_id: str,
     member_id: str,
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
     get_project(db, project_id)
@@ -242,10 +261,18 @@ def delete_project_member(
         summary="Removed reviewer from project",
     )
     remove_membership(db, membership)
+    from app.extraction.service import (
+        reassign_work_items_from_ineligible_reviewers as reassign_extraction,
+    )
+    from app.quality.service import (
+        reassign_work_items_from_ineligible_reviewers as reassign_quality,
+    )
     from app.screening.service import reassign_work_items_from_ineligible_reviewers
 
     for stage in (ScreeningStage.TITLE_ABSTRACT, ScreeningStage.FULL_TEXT):
         reassign_work_items_from_ineligible_reviewers(db, project_id, stage)
+    reassign_extraction(db, project_id)
+    reassign_quality(db, project_id)
     db.commit()
 
 
@@ -257,7 +284,7 @@ def delete_project_member(
 def add_research_question(
     project_id: str,
     payload: OrderedTextCreate,
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_member_csrf),
     db: Session = Depends(get_db),
 ):
     get_project(db, project_id)
@@ -291,7 +318,7 @@ def update_research_question(
     project_id: str,
     item_id: str,
     payload: ResearchQuestionUpdate,
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_member_csrf),
     db: Session = Depends(get_db),
 ):
     item = db.get(ResearchQuestion, item_id)
@@ -317,7 +344,7 @@ def update_research_question(
 def delete_research_question(
     project_id: str,
     item_id: str,
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_member_csrf),
     db: Session = Depends(get_db),
 ):
     item = db.get(ResearchQuestion, item_id)
@@ -344,7 +371,7 @@ def delete_research_question(
 def add_criterion(
     project_id: str,
     payload: CriterionCreate,
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_member_csrf),
     db: Session = Depends(get_db),
 ):
     get_project(db, project_id)
@@ -376,7 +403,7 @@ def update_criterion(
     project_id: str,
     item_id: str,
     payload: CriterionUpdate,
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_member_csrf),
     db: Session = Depends(get_db),
 ):
     item = db.get(Criterion, item_id)
@@ -404,7 +431,7 @@ def update_criterion(
 def delete_criterion(
     project_id: str,
     item_id: str,
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_member_csrf),
     db: Session = Depends(get_db),
 ):
     item = db.get(Criterion, item_id)
@@ -430,7 +457,7 @@ def set_screening_config(
     project_id: str,
     stage: ScreeningStage,
     payload: ScreeningConfigUpdate,
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
     get_project(db, project_id)
@@ -477,7 +504,7 @@ def get_highlight_keywords(
 def set_highlight_keywords(
     project_id: str,
     payload: HighlightKeywordsUpdate,
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
     project = get_project(db, project_id)
@@ -516,12 +543,12 @@ def list_project_jobs(
 @router.get("/{project_id}/integrity")
 def project_integrity(
     project_id: str,
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
     from app.projects.lifecycle import project_integrity_issues
 
-    project = require_project_access(db, project_id, admin)
+    project = get_project(db, project_id)
     return {"issues": project_integrity_issues(db, project)}
 
 
@@ -529,7 +556,7 @@ def project_integrity(
 def reopen_completed_project(
     project_id: str,
     payload: ProjectReopen,
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
     from app.api.errors import DomainError
@@ -548,7 +575,7 @@ def reopen_completed_project(
 def move_project_back_endpoint(
     project_id: str,
     payload: ProjectReopen,
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
     from app.api.errors import DomainError
@@ -566,7 +593,7 @@ def move_project_back_endpoint(
 @router.post("/{project_id}/reset", response_model=ProjectSummary)
 def reset_project_endpoint(
     project_id: str,
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
     from app.projects.lifecycle import reset_project
@@ -580,7 +607,7 @@ def reset_project_endpoint(
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_project_endpoint(
     project_id: str,
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
     from app.projects.lifecycle import delete_project

@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { useProjectManageState } from '../../hooks/useCanManageProject'
 import { DynamicForm } from './DynamicForm'
 
 interface ReviewForm {
@@ -98,6 +99,7 @@ function buildScoring(params: {
 export function FormBuilderPage() {
   const { projectId = '' } = useParams()
   const queryClient = useQueryClient()
+  const { canManage, isLoading: canManageLoading } = useProjectManageState(projectId)
   const [name, setName] = useState('Extraction form')
   const [kind, setKind] = useState('extraction')
   const [templateId, setTemplateId] = useState('')
@@ -129,24 +131,26 @@ export function FormBuilderPage() {
     queryFn: () => apiRequest<ReviewForm[]>(
       `/api/v1/projects/${projectId}/forms`,
     ),
+    enabled: canManage,
   })
   const templates = useQuery({
     queryKey: ['form-templates'],
     queryFn: () => apiRequest<ReviewForm[]>('/api/v1/form-templates'),
+    enabled: canManage,
   })
   const fields = useQuery({
     queryKey: ['form-fields', selectedForm],
     queryFn: () => apiRequest<FormField[]>(
       `/api/v1/forms/${selectedForm}/fields`,
     ),
-    enabled: Boolean(selectedForm),
+    enabled: Boolean(selectedForm) && canManage,
   })
   const qualityConfig = useQuery({
     queryKey: ['quality-config', projectId],
     queryFn: () => apiRequest<QualityConfig>(
       `/api/v1/projects/${projectId}/quality-config`,
     ),
-    enabled: Boolean(projectId),
+    enabled: Boolean(projectId) && canManage,
   })
   const qualityConfigSeeded = useRef(false)
   useEffect(() => {
@@ -287,6 +291,20 @@ export function FormBuilderPage() {
   const mutationError = createForm.error ?? addField.error ?? renameField.error
     ?? deleteField.error ?? replaceField.error ?? saveAsTemplate.error ?? deleteForm.error
   const activeFields = fields.data?.filter((field) => !field.isArchived) ?? []
+
+  if (canManageLoading) {
+    return <main className="page"><p>Loading…</p></main>
+  }
+  if (!canManage) {
+    return (
+      <main className="page">
+        <h1>Forms and Templates</h1>
+        <p className="error" role="alert">
+          Only the project owner or an administrator can manage forms and templates.
+        </p>
+      </main>
+    )
+  }
 
   return (
     <main className="page">

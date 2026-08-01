@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { useProjectManageState } from '../../hooks/useCanManageProject'
 
 interface CandidatePublication {
   id: string
@@ -51,11 +52,13 @@ function PublicationSummary({ publication }: { publication: CandidatePublication
 export function DuplicateReviewPage() {
   const { projectId = '' } = useParams()
   const queryClient = useQueryClient()
+  const { canManage, isLoading: canManageLoading } = useProjectManageState(projectId)
   const candidates = useQuery({
     queryKey: ['duplicates', projectId],
     queryFn: () => apiRequest<Candidate[]>(
       `/api/v1/projects/${projectId}/duplicates`,
     ),
+    enabled: Boolean(projectId) && canManage,
   })
   const refreshCandidates = () => queryClient.invalidateQueries({
     queryKey: ['duplicates', projectId],
@@ -81,6 +84,20 @@ export function DuplicateReviewPage() {
 
   const mutationError = notDuplicate.error ?? merge.error
   const pending = notDuplicate.isPending || merge.isPending
+
+  if (canManageLoading) {
+    return <main className="page"><p>Loading…</p></main>
+  }
+  if (!canManage) {
+    return (
+      <main className="page">
+        <h1>Duplicate Review</h1>
+        <p className="error" role="alert">
+          Only the project owner or an administrator can review duplicates.
+        </p>
+      </main>
+    )
+  }
 
   return (
     <main className="page">

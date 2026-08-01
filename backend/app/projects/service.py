@@ -19,7 +19,11 @@ from app.projects.models import (
 
 
 def create_project(
-    db: Session, name: str, description: str | None, review_type: ReviewType
+    db: Session,
+    name: str,
+    description: str | None,
+    review_type: ReviewType,
+    owner: User,
 ) -> Project:
     project = Project(
         name=name.strip(),
@@ -40,6 +44,7 @@ def create_project(
                 uncertain_resolution=ResolutionMethod.ADMIN_CONSENSUS,
             )
         )
+    db.add(ProjectMembership(project_id=project.id, user_id=owner.id, is_owner=True))
     db.flush()
     return project
 
@@ -67,6 +72,40 @@ def require_project_access(db: Session, project_id: str, user: User) -> Project:
     if not any(m.user_id == user.id for m in project.memberships):
         raise ForbiddenError("Project membership required")
     return project
+
+
+def is_project_manager(db: Session, project_id: str, user: User) -> bool:
+    """A project manager is a global admin or that project's owner."""
+    if user.is_admin:
+        return True
+    return (
+        db.scalar(
+            select(ProjectMembership.id).where(
+                ProjectMembership.project_id == project_id,
+                ProjectMembership.user_id == user.id,
+                ProjectMembership.is_owner.is_(True),
+            )
+        )
+        is not None
+    )
+
+
+def require_project_manager(db: Session, project_id: str, user: User) -> Project:
+    project = get_project(db, project_id)
+    if not is_project_manager(db, project_id, user):
+        raise ForbiddenError("Project owner or administrator access required")
+    return project
+
+
+def require_manager_for(db: Session, user: User, project_id: str | None) -> None:
+    """Authorize a manager-only action on an entity that may or may not belong
+    to a project (e.g. a form that could be a global template)."""
+    if project_id is None:
+        if not user.is_admin:
+            raise ForbiddenError("Administrator access required")
+        return
+    if not is_project_manager(db, project_id, user):
+        raise ForbiddenError("Project owner or administrator access required")
 
 
 def list_projects_for_user(db: Session, user: User) -> list[Project]:

@@ -6,16 +6,15 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.accounts.dependencies import (
-    get_current_user,
-    require_admin,
-    require_admin_csrf,
-    require_csrf,
-)
+from app.accounts.dependencies import get_current_user, require_csrf
 from app.accounts.models import User, UserSession
 from app.api.errors import DomainError, NotFoundError
 from app.audit.service import record_audit
 from app.db.session import get_db
+from app.projects.dependencies import (
+    require_project_manager,
+    require_project_manager_csrf,
+)
 from app.projects.models import Criterion, ScreeningStage
 from app.projects.service import get_project, require_project_access
 from app.publications.models import Publication
@@ -280,7 +279,7 @@ def list_assignments(
     order: str = Query(default="asc"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=20, ge=1, le=200, alias="pageSize"),
-    _: User = Depends(require_admin),
+    _: User = Depends(require_project_manager),
     db: Session = Depends(get_db),
 ):
     get_project(db, project_id)
@@ -346,7 +345,7 @@ def reassign_work_item_endpoint(
     project_id: str,
     item_id: str,
     payload: ReassignRequest,
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
     item = db.get(ScreeningWorkItem, item_id)

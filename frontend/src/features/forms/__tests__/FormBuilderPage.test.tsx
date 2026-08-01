@@ -11,6 +11,7 @@ describe('FormBuilderPage', () => {
     const fields: Array<{ id: string; stableKey: string; label: string; fieldType: string; required: boolean; isArchived: boolean }> = []
     const fetchMock = mockFetch(async (input, init) => {
       const path = String(input)
+      if (path.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
       if (path.endsWith('/projects/p1/forms') && init?.method === 'POST') {
         const body = JSON.parse(String(init.body))
         const form = { id: 'form-1', ...body, activeVersionId: null }
@@ -29,7 +30,7 @@ describe('FormBuilderPage', () => {
     })
     renderWithProviders(<FormBuilderPage />, { route: '/projects/p1/forms', path: '/projects/:projectId/forms' })
 
-    fireEvent.change(screen.getByLabelText('Name'), { target: { value: 'Urban review extraction' } })
+    fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'Urban review extraction' } })
     fireEvent.change(screen.getByLabelText('Kind'), { target: { value: 'extraction' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create Form' }))
 
@@ -56,6 +57,7 @@ describe('FormBuilderPage', () => {
     const fields: Array<{ id: string; stableKey: string; label: string; fieldType: string; required: boolean; isArchived: boolean }> = []
     const fetchMock = mockFetch(async (input, init) => {
       const path = String(input)
+      if (path.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
       if (path.endsWith('/forms/form-1/fields') && init?.method === 'POST') {
         const body = JSON.parse(String(init.body))
         const field = { id: 'field-1', stableKey: 'stable-1', ...body, isArchived: false }
@@ -92,6 +94,7 @@ describe('FormBuilderPage', () => {
     const fields: Array<{ id: string; stableKey: string; label: string; fieldType: string; required: boolean; isArchived: boolean }> = []
     const fetchMock = mockFetch(async (input, init) => {
       const path = String(input)
+      if (path.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
       if (path.endsWith('/forms/form-1/fields') && init?.method === 'POST') {
         const body = JSON.parse(String(init.body))
         const field = { id: 'field-1', stableKey: 'stable-1', ...body, isArchived: false }
@@ -130,6 +133,7 @@ describe('FormBuilderPage', () => {
     const fields: Array<{ id: string; stableKey: string; label: string; fieldType: string; required: boolean; isArchived: boolean }> = []
     const fetchMock = mockFetch(async (input, init) => {
       const path = String(input)
+      if (path.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
       if (path.endsWith('/forms/form-1/fields') && init?.method === 'POST') {
         const body = JSON.parse(String(init.body))
         const field = { id: 'field-1', stableKey: 'stable-1', ...body, isArchived: false }
@@ -171,6 +175,7 @@ describe('FormBuilderPage', () => {
     ]
     mockFetch(async (input) => {
       const path = String(input)
+      if (path.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
       if (path.endsWith('/forms/form-1/fields')) return jsonResponse(fields)
       if (path.endsWith('/quality-config')) return jsonResponse({ enabled: false, mode: 'both', aggregation: 'sum' })
       return jsonResponse([{ id: 'form-1', name: 'Extraction', kind: 'extraction', activeVersionId: 'v1' }])
@@ -190,6 +195,7 @@ describe('FormBuilderPage', () => {
     ]
     const fetchMock = mockFetch(async (input, init) => {
       const path = String(input)
+      if (path.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
       if (path.endsWith('/forms/form-1/fields/stable-1') && init?.method === 'PATCH') {
         const body = JSON.parse(String(init.body))
         fields[0] = { ...fields[0], ...body }
@@ -221,6 +227,7 @@ describe('FormBuilderPage', () => {
     ]
     const fetchMock = mockFetch(async (input, init) => {
       const path = String(input)
+      if (path.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
       if (path.endsWith('/forms/form-1/fields/stable-1') && init?.method === 'PATCH') {
         const body = JSON.parse(String(init.body))
         fields[0] = { ...fields[0], ...body, isArchived: true }
@@ -253,6 +260,7 @@ describe('FormBuilderPage', () => {
     ]
     const fetchMock = mockFetch(async (input, init) => {
       const path = String(input)
+      if (path.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
       if (path.endsWith('/forms/form-1/fields/stable-1/replace') && init?.method === 'POST') {
         const body = JSON.parse(String(init.body))
         const replacement = { id: 'field-2', stableKey: 'stable-2', label: body.label, fieldType: body.fieldType, required: body.required, isArchived: false, options: [] }
@@ -292,6 +300,7 @@ describe('FormBuilderPage', () => {
     const templates = [{ id: 'template-1', name: 'General extraction', kind: 'extraction', isTemplate: true, activeVersionId: 'v1' }]
     const fetchMock = mockFetch(async (input, init) => {
       const path = String(input)
+      if (path.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
       if (path.endsWith('/form-templates') && (!init || init.method === undefined)) return jsonResponse(templates)
       if (path.endsWith('/projects/p1/forms') && init?.method === 'POST') {
         const body = JSON.parse(String(init.body))
@@ -332,6 +341,7 @@ describe('FormBuilderPage', () => {
     let config = { enabled: false, mode: 'both', aggregation: 'sum' }
     const fetchMock = mockFetch(async (input, init) => {
       const path = String(input)
+      if (path.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
       if (path.endsWith('/quality-config') && init?.method === 'PUT') {
         config = JSON.parse(String(init.body))
         return jsonResponse(config)

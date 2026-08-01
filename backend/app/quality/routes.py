@@ -2,11 +2,15 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.accounts.dependencies import require_admin, require_admin_csrf, require_csrf
+from app.accounts.dependencies import require_csrf
 from app.accounts.models import User, UserSession
 from app.api.errors import NotFoundError
 from app.audit.service import record_audit
 from app.db.session import get_db
+from app.projects.dependencies import (
+    require_project_manager,
+    require_project_manager_csrf,
+)
 from app.projects.service import get_project, require_project_access
 from app.publications.models import Publication
 from app.quality.models import QualityConfig, QualityWorkItem
@@ -22,6 +26,7 @@ from app.quality.service import (
     active_fields,
     claim_next_quality,
     quality_form,
+    reassign_work_items_from_ineligible_reviewers,
     save_draft,
     submit_quality,
 )
@@ -46,7 +51,7 @@ def quality_item_payload(db: Session, item: QualityWorkItem) -> dict:
 )
 def get_quality_config(
     project_id: str,
-    _: User = Depends(require_admin),
+    _: User = Depends(require_project_manager),
     db: Session = Depends(get_db),
 ):
     get_project(db, project_id)
@@ -66,7 +71,7 @@ def get_quality_config(
 def configure_quality(
     project_id: str,
     payload: QualityConfigUpdate,
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
     get_project(db, project_id)
@@ -104,6 +109,7 @@ def next_quality(
     db: Session = Depends(get_db),
 ):
     require_project_access(db, project_id, session.user)
+    reassign_work_items_from_ineligible_reviewers(db, project_id)
     item = claim_next_quality(db, project_id, session.user.id)
     db.commit()
     return quality_item_payload(db, item) if item else None
@@ -162,7 +168,7 @@ def complete_quality(
 def reopen_quality(
     project_id: str,
     item_id: str,
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
     item = db.get(QualityWorkItem, item_id)

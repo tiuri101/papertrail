@@ -110,6 +110,40 @@ def initialize_quality(db: Session, project: Project) -> int:
     return created
 
 
+def reassign_work_items_from_ineligible_reviewers(db: Session, project_id: str) -> int:
+    """Redistribute not-yet-completed quality work items away from reviewers who are
+    no longer eligible to assess quality (removed from the project, or had the
+    quality-assessment permission turned off), spreading them round-robin across
+    whoever is currently eligible.
+
+    Mirrors screening's function of the same name: assignment happens once, at
+    creation time, so nothing else revisits it -- if a reviewer's eligibility is
+    revoked afterward, their existing AVAILABLE/RESERVED items would otherwise sit
+    assigned to someone who can no longer claim them. Completed items are left
+    untouched: who actually assessed a publication shouldn't change after the fact.
+    """
+    eligible = eligible_assessors(db, project_id)
+    if not eligible:
+        return 0
+    orphaned = list(
+        db.scalars(
+            select(QualityWorkItem)
+            .where(
+                QualityWorkItem.project_id == project_id,
+                QualityWorkItem.status != QualityStatus.COMPLETED,
+                QualityWorkItem.assigned_reviewer_id.not_in(eligible),
+            )
+            .order_by(QualityWorkItem.random_rank)
+        )
+    )
+    for index, item in enumerate(orphaned):
+        item.assigned_reviewer_id = eligible[index % len(eligible)]
+        item.status = QualityStatus.AVAILABLE
+        item.reserved_until = None
+    db.flush()
+    return len(orphaned)
+
+
 def claim_next_quality(
     db: Session, project_id: str, reviewer_id: str
 ) -> QualityWorkItem | None:

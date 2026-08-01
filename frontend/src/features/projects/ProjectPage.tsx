@@ -10,6 +10,7 @@ interface ProjectDetail {
   id: string
   name: string
   stage: string
+  canManage: boolean
 }
 
 const STAGE_INDEX: Record<string, number> = {
@@ -21,10 +22,16 @@ const STAGE_INDEX: Record<string, number> = {
   completed: 5,
 }
 
+interface ProjectSectionLink {
+  path: string
+  label: string
+  managerOnly?: boolean
+}
+
 interface ProjectSectionGroup {
   heading: string
   stage: string | null
-  links: Array<[string, string]>
+  links: ProjectSectionLink[]
 }
 
 const projectSectionGroups: ProjectSectionGroup[] = [
@@ -32,55 +39,60 @@ const projectSectionGroups: ProjectSectionGroup[] = [
     heading: 'Setup & Configuration',
     stage: null,
     links: [
-      ['admin', 'Administration'],
-      ['research-agenda', 'Research Agenda'],
-      ['forms', 'Forms and Templates'],
-      ['jobs', 'Jobs'],
+      { path: 'admin', label: 'Administration', managerOnly: true },
+      { path: 'research-agenda', label: 'Research Agenda' },
+      { path: 'forms', label: 'Forms and Templates', managerOnly: true },
+      { path: 'jobs', label: 'Jobs' },
     ],
   },
   {
     heading: 'Searches & Publications',
     stage: null,
     links: [
-      ['imports', 'Searches and Imports'],
-      ['publications', 'Publications'],
+      { path: 'imports', label: 'Searches and Imports' },
+      { path: 'publications', label: 'Publications' },
     ],
   },
   {
     heading: 'Deduplication',
     stage: 'duplicate_review',
-    links: [['duplicates', 'Duplicate Review']],
+    links: [{ path: 'duplicates', label: 'Duplicate Review', managerOnly: true }],
   },
   {
     heading: 'Title/Abstract Screening',
     stage: 'title_abstract_screening',
     links: [
-      ['screening/title_abstract', 'Title/Abstract Screening'],
-      ['screening/title_abstract/my-decisions', 'My Title/Abstract Decisions'],
-      ['conflicts/title_abstract', 'Title/Abstract Conflicts'],
+      { path: 'screening/title_abstract', label: 'Title/Abstract Screening' },
+      { path: 'screening/title_abstract/my-decisions', label: 'My Title/Abstract Decisions' },
+      { path: 'conflicts/title_abstract', label: 'Title/Abstract Conflicts', managerOnly: true },
     ],
   },
   {
     heading: 'Full-Text',
     stage: 'full_text_screening',
     links: [
-      ['full-text', 'Full-Text'],
-      ['screening/full_text/my-decisions', 'My Full-Text Decisions'],
-      ['conflicts/full_text', 'Full-Text Conflicts'],
+      { path: 'full-text', label: 'Full-Text' },
+      { path: 'screening/full_text/my-decisions', label: 'My Full-Text Decisions' },
+      { path: 'conflicts/full_text', label: 'Full-Text Conflicts', managerOnly: true },
     ],
   },
   {
     heading: 'Extraction & Quality',
     stage: 'extraction_quality',
     links: [
-      ['extraction', 'Data Extraction'],
-      ['quality', 'Quality Assessment'],
+      { path: 'extraction', label: 'Data Extraction' },
+      { path: 'quality', label: 'Quality Assessment' },
     ],
+  },
+  {
+    heading: 'Final Results',
+    stage: 'completed',
+    links: [{ path: 'results', label: 'Final Results' }],
   },
   {
     heading: 'Reporting',
     stage: null,
-    links: [['reporting', 'Reporting and Exports']],
+    links: [{ path: 'reporting', label: 'Reporting and Exports' }],
   },
 ]
 
@@ -106,11 +118,15 @@ export function ProjectPage() {
         <nav className="workflow-nav" aria-label="Project workflow">
           {projectSectionGroups.map((group) => {
             const upcoming = group.stage !== null && STAGE_INDEX[group.stage] > currentIndex
+            const visibleLinks = group.links.filter(
+              (link) => !link.managerOnly || project.data.canManage,
+            )
+            if (visibleLinks.length === 0) return null
             return (
               <div className={upcoming ? 'nav-group nav-group--upcoming' : 'nav-group'} key={group.heading}>
                 <h3>{group.heading}</h3>
                 <div className="toolbar">
-                  {group.links.map(([path, label]) => (
+                  {visibleLinks.map(({ path, label }) => (
                     upcoming ? (
                       <span
                         key={path}

@@ -1,7 +1,9 @@
+import datetime
+
 from sqlalchemy import select
 
 from app.accounts.service import create_user
-from app.imports.models import ImportBatch, ImportedRecord, ImportStatus
+from app.imports.models import ImportBatch, ImportedRecord, ImportStatus, SearchSource
 from app.projects.models import (
     AllocationMode,
     Project,
@@ -117,6 +119,55 @@ def test_normalization_creates_publication_and_preserves_source(db) -> None:
         )
     )
     assert source.imported_record_id == record.id
+
+
+def test_publication_search_sources_trace_back_to_the_import(db) -> None:
+    admin, project, batch = project_and_batch(db)
+    search = SearchSource(
+        project_id=project.id,
+        source_name="PubMed",
+        query="systematic review",
+        search_date=datetime.date(2026, 1, 1),
+        created_by_id=admin.id,
+    )
+    db.add(search)
+    db.flush()
+    batch.search_source_id = search.id
+    record = ImportedRecord(
+        import_batch_id=batch.id,
+        source_row=1,
+        raw_data={"title": "Traceable paper"},
+        parsed_data={"title": "Traceable paper"},
+        validation_state="valid",
+        warnings=[],
+    )
+    db.add(record)
+    db.commit()
+
+    created = normalize_imported_records(db, batch.id)
+    db.commit()
+    assert created == 1
+
+    publication = db.scalar(
+        select(Publication).where(Publication.title == "Traceable paper")
+    )
+    assert publication.search_sources == [
+        {
+            "import_batch_id": batch.id,
+            "original_filename": "records.csv",
+            "search_source_id": search.id,
+            "source_name": "PubMed",
+        }
+    ]
+
+
+def test_manually_created_publication_has_no_search_sources(db) -> None:
+    _, project, _ = project_and_batch(db)
+    publication = Publication(project_id=project.id, title="Hand-added paper")
+    db.add(publication)
+    db.commit()
+
+    assert publication.search_sources == []
 
 
 def test_enrichment_fills_missing_fields_and_records_important_conflicts(db) -> None:

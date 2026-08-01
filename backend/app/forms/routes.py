@@ -2,8 +2,13 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.accounts.dependencies import require_admin, require_admin_csrf
-from app.accounts.models import User
+from app.accounts.dependencies import (
+    get_current_user,
+    require_admin,
+    require_admin_csrf,
+    require_csrf,
+)
+from app.accounts.models import User, UserSession
 from app.api.errors import ConflictError, DomainError, NotFoundError
 from app.audit.service import record_audit
 from app.db.session import get_db
@@ -27,7 +32,11 @@ from app.forms.service import (
     replace_field,
     save_form_as_template,
 )
-from app.projects.service import get_project
+from app.projects.dependencies import (
+    require_project_manager,
+    require_project_manager_csrf,
+)
+from app.projects.service import get_project, require_manager_for
 
 router = APIRouter(tags=["forms"])
 
@@ -72,7 +81,7 @@ def add_template(
 def add_project_form(
     project_id: str,
     payload: FormCreate,
-    admin: User = Depends(require_admin_csrf),
+    admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ):
     get_project(db, project_id)
@@ -110,12 +119,14 @@ def add_project_form(
 @router.delete("/forms/{form_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_form_endpoint(
     form_id: str,
-    admin: User = Depends(require_admin_csrf),
+    session: UserSession = Depends(require_csrf),
     db: Session = Depends(get_db),
 ):
+    admin = session.user
     form = db.get(ReviewForm, form_id)
     if form is None:
         raise NotFoundError("Form not found")
+    require_manager_for(db, admin, form.project_id)
     record_audit(
         db,
         action="form.deleted",
@@ -137,12 +148,14 @@ def delete_form_endpoint(
 def add_form_field(
     form_id: str,
     payload: FieldCreate,
-    admin: User = Depends(require_admin_csrf),
+    session: UserSession = Depends(require_csrf),
     db: Session = Depends(get_db),
 ):
+    admin = session.user
     form = db.get(ReviewForm, form_id)
     if form is None:
         raise NotFoundError("Form not found")
+    require_manager_for(db, admin, form.project_id)
     field = add_field(
         db,
         form,
@@ -168,7 +181,7 @@ def add_form_field(
 @router.get("/projects/{project_id}/forms", response_model=list[FormResponse])
 def list_project_forms(
     project_id: str,
-    _: User = Depends(require_admin),
+    _: User = Depends(require_project_manager),
     db: Session = Depends(get_db),
 ):
     get_project(db, project_id)
@@ -184,12 +197,13 @@ def list_project_forms(
 @router.get("/forms/{form_id}/fields", response_model=list[FieldResponse])
 def list_form_fields(
     form_id: str,
-    _: User = Depends(require_admin),
+    user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     form = db.get(ReviewForm, form_id)
     if form is None or not form.active_version_id:
         raise NotFoundError("Form not found")
+    require_manager_for(db, user, form.project_id)
     return list(
         db.scalars(
             select(FormField)
@@ -204,12 +218,14 @@ def update_form_field(
     form_id: str,
     stable_key: str,
     payload: FieldUpdate,
-    admin: User = Depends(require_admin_csrf),
+    session: UserSession = Depends(require_csrf),
     db: Session = Depends(get_db),
 ):
+    admin = session.user
     form = db.get(ReviewForm, form_id)
     if form is None:
         raise NotFoundError("Form not found")
+    require_manager_for(db, admin, form.project_id)
     if payload.archive:
         field = archive_field(db, form, stable_key)
         action = "form_field.archived"
@@ -239,12 +255,14 @@ def update_form_field(
 def save_form_as_template_endpoint(
     form_id: str,
     payload: SaveAsTemplateRequest,
-    admin: User = Depends(require_admin_csrf),
+    session: UserSession = Depends(require_csrf),
     db: Session = Depends(get_db),
 ):
+    admin = session.user
     form = db.get(ReviewForm, form_id)
     if form is None:
         raise NotFoundError("Form not found")
+    require_manager_for(db, admin, form.project_id)
     template = save_form_as_template(db, form, payload.name)
     record_audit(
         db,
@@ -266,12 +284,14 @@ def replace_form_field(
     form_id: str,
     stable_key: str,
     payload: FieldReplace,
-    admin: User = Depends(require_admin_csrf),
+    session: UserSession = Depends(require_csrf),
     db: Session = Depends(get_db),
 ):
+    admin = session.user
     form = db.get(ReviewForm, form_id)
     if form is None:
         raise NotFoundError("Form not found")
+    require_manager_for(db, admin, form.project_id)
     field = replace_field(
         db,
         form,
