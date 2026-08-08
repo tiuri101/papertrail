@@ -35,6 +35,11 @@ class Settings(BaseSettings):
     max_upload_bytes: int = 25 * 1024 * 1024
     import_dir: Path = Path("./data/imports")
     export_dir: Path = Path("./data/exports")
+    pdf_storage_path: Path = Path("./data/pdfs")
+    max_pdf_size_mb: int = 50
+    max_pdf_archive_size_mb: int = 500
+    max_pdf_batch_files: int = 1000
+    max_pdf_zip_expanded_bytes: int = 1024 * 1024 * 1024
     worker_threads: int = 4
     job_poll_interval_seconds: float = 1.0
     job_lease_seconds: int = 300
@@ -49,6 +54,7 @@ class Settings(BaseSettings):
     def ensure_directories(self) -> None:
         self.import_dir.mkdir(parents=True, exist_ok=True)
         self.export_dir.mkdir(parents=True, exist_ok=True)
+        self.pdf_storage_path.mkdir(parents=True, exist_ok=True)
 
 
 @lru_cache

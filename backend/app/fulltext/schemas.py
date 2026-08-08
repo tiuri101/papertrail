@@ -1,10 +1,35 @@
+from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
 class ApiModel(BaseModel):
-    model_config = ConfigDict(
-        from_attributes=True, populate_by_name=True, use_enum_values=True
-    )
+    model_config = ConfigDict(from_attributes=True, populate_by_name=True, use_enum_values=True)
+
+
+class DocumentUserResponse(ApiModel):
+    id: str
+    display_name: str = Field(serialization_alias="displayName")
+
+
+class DocumentResponse(ApiModel):
+    id: str
+    original_filename: str = Field(serialization_alias="originalFilename")
+    mime_type: str = Field(serialization_alias="mimeType")
+    file_size: int = Field(serialization_alias="fileSize")
+    sha256: str
+    uploaded_at: datetime = Field(serialization_alias="uploadedAt")
+    uploaded_by: DocumentUserResponse | None = Field(serialization_alias="uploadedBy")
+    is_active: bool = Field(serialization_alias="isActive")
+    replaced_by_document_id: str | None = Field(serialization_alias="replacedByDocumentId")
+    removed_at: datetime | None = Field(serialization_alias="removedAt")
+    source: str
+    import_batch_id: str | None = Field(serialization_alias="importBatchId")
+
+
+class FullTextDocumentResponse(ApiModel):
+    available: bool
+    document: DocumentResponse | None = None
 
 
 class RetrievalPublication(ApiModel):
@@ -22,9 +47,7 @@ class RetrievalResponse(ApiModel):
     publication: RetrievalPublication
     status: str
     note: str | None
-    decision_submitted: bool = Field(
-        default=False, serialization_alias="decisionSubmitted"
-    )
+    decision_submitted: bool = Field(default=False, serialization_alias="decisionSubmitted")
 
 
 class RetrievalDecisionSubmit(ApiModel):

@@ -1,6 +1,6 @@
 # Papertrail
 
-Papertrail is a self-hosted, multi-user web application for structured academic literature reviews. It imports bibliographic exports, preserves source provenance, supports duplicate review and configurable multi-reviewer screening, tracks manual full-text retrieval, collects extraction and quality-assessment data, and produces PRISMA 2020, XLSX, and BibTeX outputs alongside a browsable final-results view of every included publication.
+Papertrail is a self-hosted, multi-user web application for structured academic literature reviews. It imports bibliographic exports and optional full-text PDFs, preserves source provenance and PDF version history, supports duplicate review and configurable multi-reviewer screening, tracks manual full-text retrieval, collects extraction and quality-assessment data, and produces PRISMA 2020, XLSX, and BibTeX outputs alongside a browsable final-results view of every included publication.
 
 ## Architecture
 
@@ -12,6 +12,8 @@ Papertrail is a self-hosted, multi-user web application for structured academic 
 - Docker Compose production deployment
 
 Papertrail is a modular monolith. The API and worker share domain services and one authoritative database.
+
+PDF binaries are stored in a dedicated persistent filesystem volume, while their metadata and stable document IDs are stored in PostgreSQL. Papertrail never downloads or scrapes publisher PDFs; users must supply files they are authorized to access and store.
 
 ## Local development
 

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.api.errors import DomainError, ForbiddenError
 from app.conflicts.models import FinalDecision
 from app.conflicts.service import refresh_automatic_final_decision, valid_final_decision
-from app.fulltext.models import FullTextRetrieval, RetrievalStatus
+from app.fulltext.models import FullTextRetrieval, PublicationDocument, RetrievalStatus
 from app.projects.models import Project, ProjectStage, ScreeningStage
 from app.screening.models import ScreeningDecision, ScreeningOutcome, ScreeningWorkItem
 from app.screening.service import (
@@ -43,23 +43,41 @@ def title_abstract_included_ids(db: Session, project_id: str) -> list[str]:
 
 def initialize_full_text_stage(db: Session, project: Project) -> int:
     created = 0
+    available_publication_ids: list[str] = []
     for publication_id in title_abstract_included_ids(db, project.id):
         existing = db.scalar(
-            select(FullTextRetrieval.id).where(
-                FullTextRetrieval.publication_id == publication_id
-            )
+            select(FullTextRetrieval.id).where(FullTextRetrieval.publication_id == publication_id)
         )
         if existing:
             continue
-        db.add(FullTextRetrieval(project_id=project.id, publication_id=publication_id))
+        has_pdf = db.scalar(
+            select(PublicationDocument.id).where(
+                PublicationDocument.publication_id == publication_id,
+                PublicationDocument.is_active.is_(True),
+            )
+        )
+        db.add(
+            FullTextRetrieval(
+                project_id=project.id,
+                publication_id=publication_id,
+                status=RetrievalStatus.AVAILABLE if has_pdf else RetrievalStatus.NOT_YET_SOUGHT,
+            )
+        )
+        if has_pdf:
+            available_publication_ids.append(publication_id)
         created += 1
     db.flush()
+    if available_publication_ids:
+        create_screening_work_items(
+            db,
+            project,
+            ScreeningStage.FULL_TEXT,
+            publication_ids=available_publication_ids,
+        )
     return created
 
 
-def claim_next_retrieval(
-    db: Session, project_id: str, user_id: str
-) -> FullTextRetrieval | None:
+def claim_next_retrieval(db: Session, project_id: str, user_id: str) -> FullTextRetrieval | None:
     """Claim the next paper needing full-text retrieval for this reviewer.
 
     Papers aren't distributed up front -- one is reserved only once a reviewer
@@ -79,9 +97,7 @@ def claim_next_retrieval(
             FullTextRetrieval.claimed_by_id == user_id,
         ),
     ]
-    priority = case(
-        (FullTextRetrieval.status == RetrievalStatus.NOT_YET_SOUGHT, 0), else_=1
-    )
+    priority = case((FullTextRetrieval.status == RetrievalStatus.NOT_YET_SOUGHT, 0), else_=1)
     query = (
         select(FullTextRetrieval)
         .where(*filters)
@@ -116,9 +132,7 @@ def ensure_retrieval_claim(retrieval: FullTextRetrieval, user_id: str) -> None:
         and retrieval.claimed_until is not None
         and retrieval.claimed_until >= utcnow()
     ):
-        raise ForbiddenError(
-            "This publication is currently claimed by another reviewer"
-        )
+        raise ForbiddenError("This publication is currently claimed by another reviewer")
 
 
 def retrieval_progress(db: Session, project_id: str) -> dict[str, int]:
@@ -225,17 +239,13 @@ def resolve_retrieval(
         decision_criteria_answers or {},
         decision_notes,
     )
-    refresh_automatic_final_decision(
-        db, retrieval.publication_id, ScreeningStage.FULL_TEXT
-    )
+    refresh_automatic_final_decision(db, retrieval.publication_id, ScreeningStage.FULL_TEXT)
     return decision
 
 
 def transition_if_full_text_complete(db: Session, project: Project) -> bool:
     retrievals = list(
-        db.scalars(
-            select(FullTextRetrieval).where(FullTextRetrieval.project_id == project.id)
-        )
+        db.scalars(select(FullTextRetrieval).where(FullTextRetrieval.project_id == project.id))
     )
     expected = set(title_abstract_included_ids(db, project.id))
     if {item.publication_id for item in retrievals} != expected:
@@ -247,9 +257,7 @@ def transition_if_full_text_complete(db: Session, project: Project) -> bool:
         }:
             return False
         if retrieval.status == RetrievalStatus.AVAILABLE:
-            final = valid_final_decision(
-                db, retrieval.publication_id, ScreeningStage.FULL_TEXT
-            )
+            final = valid_final_decision(db, retrieval.publication_id, ScreeningStage.FULL_TEXT)
             if final is None:
                 return False
 

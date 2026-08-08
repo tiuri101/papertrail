@@ -17,6 +17,7 @@ export interface ScreeningCriterion {
 export interface ScreeningWorkItem {
   id: string
   publication: {
+    id: string
     title: string
     authors: string | null
     abstract: string | null

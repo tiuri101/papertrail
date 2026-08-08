@@ -2,6 +2,8 @@ import re
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.fulltext.schemas import FullTextDocumentResponse
+
 _URL_SCHEME = re.compile(r"^\s*([a-zA-Z][a-zA-Z0-9+.\-]*):")
 
 
@@ -26,6 +28,7 @@ class PublicationResponse(ApiModel):
     pubmed_id: str | None = Field(serialization_alias="pubmedId")
     arxiv_id: str | None = Field(serialization_alias="arxivId")
     is_active: bool = Field(serialization_alias="isActive")
+    full_text: FullTextDocumentResponse = Field(serialization_alias="fullText")
 
 
 class PublicationUpdate(ApiModel):

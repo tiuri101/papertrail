@@ -1,6 +1,6 @@
 # Architecture
 
-Papertrail is an API-first modular monolith. A React/TypeScript single-page application communicates with a FastAPI backend. PostgreSQL is the authoritative store for bibliographic records, workflow state, sessions, audit events, queue reservations, and background jobs.
+Papertrail is an API-first modular monolith. A React/TypeScript single-page application communicates with a FastAPI backend. PostgreSQL is the authoritative store for bibliographic records, PDF metadata and version links, workflow state, sessions, audit events, queue reservations, and background jobs. PDF binaries are held in a dedicated persistent filesystem volume.
 
 ```text
 Browser (React/TypeScript)
@@ -11,8 +11,9 @@ Browser (React/TypeScript)
       |
  PostgreSQL <---- threaded worker
       |              |
- file metadata   imports, enrichment,
-                 duplicate scoring, exports
+ PDF metadata    imports, PDF matching,
+      |          duplicate scoring, exports
+ PDF volume
 ```
 
 ## Backend modules
@@ -29,8 +30,8 @@ Screening, extraction, and quality work items use deterministic ranks derived fr
 
 ## Data preservation
 
-Imported source rows are immutable and linked to normalized publications. Duplicate merges preserve source relationships and are reversible. Individual reviewer decisions and revisions remain separate from final project decisions. Dynamic forms use immutable versions and stable field identifiers.
+Imported source rows are immutable and linked to normalized publications. Each PDF version has a stable document ID and generated storage key; one partial unique index permits at most one active PDF per publication. Replacement and logical removal preserve prior metadata and files. Duplicate merges transfer every document to the canonical publication and retain conflicting files as history. Individual reviewer decisions and revisions remain separate from PDF availability and final project decisions. Dynamic forms use immutable versions and stable field identifiers.
 
 ## Deployment
 
-Docker Compose runs PostgreSQL, a one-shot migration container, FastAPI, the threaded worker, the built React frontend, and Caddy. Original imports and generated exports share a persistent application-file volume. Caddy can provide local HTTP or automatic HTTPS for a configured hostname.
+Docker Compose runs PostgreSQL, a one-shot migration container, FastAPI, the threaded worker, the built React frontend, and Caddy. Original imports and generated exports share a persistent application-file volume; PDFs use a separate `papertrail_pdf_data` volume mounted only by FastAPI and the worker. PDF content is never exposed as static storage. Caddy can provide local HTTP or automatic HTTPS for a configured hostname.

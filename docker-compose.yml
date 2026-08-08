@@ -5,6 +5,8 @@ x-backend-environment: &backend-environment
   PAPERTRAIL_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-papertrail}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/${POSTGRES_DB:-papertrail}
   PAPERTRAIL_IMPORT_DIR: /data/imports
   PAPERTRAIL_EXPORT_DIR: /data/exports
+  PAPERTRAIL_PDF_STORAGE_PATH: /pdf-data
+  PAPERTRAIL_MAX_PDF_SIZE_MB: ${PAPERTRAIL_MAX_PDF_SIZE_MB:-50}
   PAPERTRAIL_SESSION_COOKIE_SECURE: ${PAPERTRAIL_SESSION_COOKIE_SECURE:-false}
   PAPERTRAIL_ALLOWED_HOSTS: ${PAPERTRAIL_ALLOWED_HOSTS:-localhost,127.0.0.1}
   PAPERTRAIL_CORS_ORIGINS: ${PAPERTRAIL_CORS_ORIGINS:-http://localhost}
@@ -54,6 +56,7 @@ services:
       - --forwarded-allow-ips=*
     volumes:
       - papertrail_files:/data
+      - papertrail_pdf_data:/pdf-data
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -70,6 +73,7 @@ services:
     command: python -m app.jobs.worker
     volumes:
       - papertrail_files:/data
+      - papertrail_pdf_data:/pdf-data
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -106,6 +110,8 @@ volumes:
     name: papertrail_postgres_data
   papertrail_files:
     name: papertrail_files
+  papertrail_pdf_data:
+    name: papertrail_pdf_data
   caddy_data:
     name: papertrail_caddy_data
   caddy_config:

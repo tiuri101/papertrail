@@ -6,7 +6,7 @@ Any project member, not just the project owner or administrator, can edit the pr
 
 ## Search documentation and imports
 
-Record the database, search string, date, and any filters used for each search, and upload the corresponding export file. Unrecognized columns can be mapped to a normalized field before import.
+Record the database, search string, date, and any filters used for each search, and upload the corresponding export file. You may select multiple PDFs and/or a ZIP of PDFs in the same form. After import, review only ambiguous, unmatched, or existing-PDF conflicts; high-confidence DOI and title matches are attached automatically. Unrecognized metadata columns can be mapped to a normalized field before import.
 
 ## Duplicate review
 
@@ -20,7 +20,9 @@ In independent screening, other reviewers' answers remain hidden until all requi
 
 ## Full text
 
-Papertrail provides DOI and publisher links but does not download or store PDFs. Record whether the report is available, requested, not found, or inaccessible. Only available reports enter full-text screening.
+Papertrail provides DOI and publisher links and stores PDFs supplied by authorized project users. During full-text work, upload a missing PDF directly from the screening page. An attached PDF can be viewed in the browser, replaced, or logically removed. Replacement creates a new stable document version and retains the previous file in the collapsible history; removal preserves history and does not change any screening decision. PDFs imported before screening become available when the publication reaches the full-text stage.
+
+Only project members can view PDF metadata or content. Full-text reviewers, project owners, and administrators can upload, replace, and remove PDFs. Papertrail does not automatically download or scrape publisher content; only upload files you are authorized to access and store.
 
 ## Extraction and quality assessment
 

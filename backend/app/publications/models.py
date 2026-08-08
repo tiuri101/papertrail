@@ -10,6 +10,7 @@ from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from app.db.types import JSONType
 
 if TYPE_CHECKING:
+    from app.fulltext.models import PublicationDocument
     from app.imports.models import ImportedRecord
 
 
@@ -38,9 +39,7 @@ class Publication(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     issn: Mapped[str | None] = mapped_column(String(100))
     pubmed_id: Mapped[str | None] = mapped_column(String(100))
     arxiv_id: Mapped[str | None] = mapped_column(String(100))
-    other_identifiers: Mapped[dict] = mapped_column(
-        JSONType, default=dict, nullable=False
-    )
+    other_identifiers: Mapped[dict] = mapped_column(JSONType, default=dict, nullable=False)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     merged_into_id: Mapped[str | None] = mapped_column(
         ForeignKey("publications.id", ondelete="SET NULL"), index=True
@@ -52,6 +51,18 @@ class Publication(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     conflicts: Mapped[list[MetadataConflict]] = relationship(
         back_populates="publication", cascade="all, delete-orphan"
     )
+    documents: Mapped[list[PublicationDocument]] = relationship(
+        back_populates="publication", cascade="all, delete-orphan"
+    )
+
+    @property
+    def active_document(self) -> PublicationDocument | None:
+        return next((document for document in self.documents if document.is_active), None)
+
+    @property
+    def full_text(self) -> dict[str, object]:
+        document = self.active_document
+        return {"available": document is not None, "document": document}
 
     @property
     def search_sources(self) -> list[dict]:
@@ -71,9 +82,7 @@ class Publication(UUIDPrimaryKeyMixin, TimestampMixin, Base):
                     "import_batch_id": batch.id,
                     "original_filename": batch.original_filename,
                     "search_source_id": batch.search_source_id,
-                    "source_name": batch.search_source.source_name
-                    if batch.search_source
-                    else None,
+                    "source_name": batch.search_source.source_name if batch.search_source else None,
                 }
             )
         return results
@@ -82,9 +91,7 @@ class Publication(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 class PublicationSource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "publication_sources"
     __table_args__ = (
-        UniqueConstraint(
-            "imported_record_id", name="uq_publication_source_imported_record"
-        ),
+        UniqueConstraint("imported_record_id", name="uq_publication_source_imported_record"),
     )
 
     publication_id: Mapped[str] = mapped_column(
