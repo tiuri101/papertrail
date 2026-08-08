@@ -19,6 +19,7 @@ class ExtractionDraftUpdate(ApiModel):
 class ExtractionItemResponse(ApiModel):
     id: str
     publication_id: str = Field(serialization_alias="publicationId")
+    full_text_available: bool = Field(serialization_alias="fullTextAvailable")
     assigned_reviewer_id: str = Field(serialization_alias="assignedReviewerId")
     status: str
     draft: dict

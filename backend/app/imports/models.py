@@ -3,7 +3,16 @@ from __future__ import annotations
 import enum
 from datetime import date, datetime
 
-from sqlalchemy import BigInteger, Date, DateTime, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    BigInteger,
+    Date,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -38,10 +47,14 @@ class SearchSource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     query: Mapped[str] = mapped_column(Text, nullable=False)
     search_date: Mapped[date] = mapped_column(Date, nullable=False)
     filters: Mapped[str | None] = mapped_column(Text)
-    exported_result_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    exported_result_count: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False
+    )
     created_by_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
 
-    import_batches: Mapped[list[ImportBatch]] = relationship(back_populates="search_source")
+    import_batches: Mapped[list[ImportBatch]] = relationship(
+        back_populates="search_source"
+    )
 
 
 class ImportBatch(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -60,13 +73,17 @@ class ImportBatch(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Enum(ImportStatus), default=ImportStatus.PENDING, nullable=False
     )
     record_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    invalid_record_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    invalid_record_count: Mapped[int] = mapped_column(
+        Integer, default=0, nullable=False
+    )
     error_message: Mapped[str | None] = mapped_column(Text)
     created_by_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     mapping: Mapped[dict | None] = mapped_column(JSONType)
 
-    search_source: Mapped[SearchSource | None] = relationship(back_populates="import_batches")
+    search_source: Mapped[SearchSource | None] = relationship(
+        back_populates="import_batches"
+    )
     records: Mapped[list[ImportedRecord]] = relationship(
         back_populates="import_batch", cascade="all, delete-orphan"
     )
@@ -85,7 +102,9 @@ class ImportedRecord(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     source_key: Mapped[str | None] = mapped_column(String(300))
     raw_data: Mapped[dict] = mapped_column(JSONType, nullable=False)
     parsed_data: Mapped[dict] = mapped_column(JSONType, nullable=False)
-    validation_state: Mapped[str] = mapped_column(String(30), default="valid", nullable=False)
+    validation_state: Mapped[str] = mapped_column(
+        String(30), default="valid", nullable=False
+    )
     warnings: Mapped[list] = mapped_column(JSONType, default=list, nullable=False)
 
     import_batch: Mapped[ImportBatch] = relationship(back_populates="records")
@@ -122,9 +141,15 @@ class ImportPdfItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("publication_documents.id", ondelete="SET NULL"), index=True
     )
     error_message: Mapped[str | None] = mapped_column(Text)
-    resolved_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    resolved_by_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     import_batch: Mapped[ImportBatch] = relationship(back_populates="pdf_items")
-    matched_publication = relationship("Publication", foreign_keys=[matched_publication_id])
-    attached_document = relationship("PublicationDocument", foreign_keys=[attached_document_id])
+    matched_publication = relationship(
+        "Publication", foreign_keys=[matched_publication_id]
+    )
+    attached_document = relationship(
+        "PublicationDocument", foreign_keys=[attached_document_id]
+    )

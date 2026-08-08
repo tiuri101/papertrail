@@ -11,6 +11,7 @@ param(
         "create-admin",
         "api",
         "worker",
+        "llm-worker",
         "frontend",
         "start",
         "test",
@@ -99,11 +100,12 @@ Papertrail local-development helper
 Usage:
   .\scripts\dev.ps1 setup          Install local dependencies and start PostgreSQL
   .\scripts\dev.ps1 create-admin   Create the local administrator interactively
-  .\scripts\dev.ps1 start          Open API, worker, and frontend in separate windows
+  .\scripts\dev.ps1 start          Open API, both workers, and frontend in separate windows
 
 Individual processes:
   .\scripts\dev.ps1 api
   .\scripts\dev.ps1 worker
+  .\scripts\dev.ps1 llm-worker
   .\scripts\dev.ps1 frontend
 
 Database:
@@ -183,6 +185,9 @@ switch ($Command) {
     "worker" {
         Invoke-BackendPython -m app.jobs.worker
     }
+    "llm-worker" {
+        Invoke-BackendPython -m app.jobs.worker --llm
+    }
     "frontend" {
         Push-Location $Frontend
         try {
@@ -200,11 +205,11 @@ switch ($Command) {
         Invoke-DevelopmentCompose up -d --wait postgres
         Assert-VirtualEnvironment
         $PowerShellExecutable = (Get-Process -Id $PID).Path
-        foreach ($Subcommand in @("api", "worker", "frontend")) {
+        foreach ($Subcommand in @("api", "worker", "llm-worker", "frontend")) {
             $ArgumentLine = "-NoExit -ExecutionPolicy Bypass -File `"$PSCommandPath`" $Subcommand"
             Start-Process -FilePath $PowerShellExecutable -ArgumentList $ArgumentLine
         }
-        Write-Host "Started API, worker, and frontend in separate PowerShell windows."
+        Write-Host "Started API, general worker, LLM worker, and frontend in separate PowerShell windows."
         Write-Host "Open http://localhost:5173"
     }
     "test" {

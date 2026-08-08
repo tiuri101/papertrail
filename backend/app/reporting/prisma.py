@@ -42,6 +42,7 @@ def calculate_prisma_counts(
             .select_from(Publication)
             .where(
                 Publication.project_id == project_id,
+                Publication.is_active.is_(True),
                 ~Publication.id.in_(imported_publication_ids),
             )
         )
@@ -162,10 +163,13 @@ def build_prisma_svg(project_name: str, counts: dict) -> str:  # noqa: C901
         )
 
     def stage_bar(y: float, height: float, label: str) -> str:
-        cx, cy = stage_bar_x + stage_bar_width / 2, y + height / 2
+        inset = 6
+        bar_y = y + inset
+        bar_height = height - inset * 2
+        cx, cy = stage_bar_x + stage_bar_width / 2, bar_y + bar_height / 2
         return (
-            f'<rect x="{stage_bar_x}" y="{y}" width="{stage_bar_width}" '
-            f'height="{height}" rx="4" fill="#334155"/>'
+            f'<rect data-stage="{esc(label)}" x="{stage_bar_x}" y="{bar_y}" '
+            f'width="{stage_bar_width}" height="{bar_height}" rx="4" fill="#334155"/>'
             f'<text x="{cx}" y="{cy}" text-anchor="middle" dominant-baseline="central" '
             'font-family="sans-serif" font-size="12" font-weight="bold" fill="white" '
             f'transform="rotate(-90 {cx} {cy})">{esc(label)}</text>'
@@ -189,10 +193,9 @@ def build_prisma_svg(project_name: str, counts: dict) -> str:  # noqa: C901
         '<rect width="100%" height="100%" fill="#f8fafc"/>',
         f'<text x="{canvas_width / 2}" y="32" text-anchor="middle" '
         'font-family="sans-serif" font-size="18" font-weight="bold">'
-        f"{esc(project_name)} — PRISMA 2020</text>",
-        # Bars span the full height of their stage, including the gap down to
-        # the next stage, so there's enough room for the rotated label -- a
-        # bar matching just one box's row_height is too short to fit text.
+        f"{esc(project_name)}</text>",
+        # Bars occupy most of each stage (including the flow gap), with a small
+        # inset so adjacent stage labels remain visually distinct.
         stage_bar(y_identified, y_dedup - y_identified, "Identification"),
         stage_bar(y_dedup, y_screened - y_dedup, "Duplicates"),
         stage_bar(y_screened, y_sought - y_screened, "Screening"),

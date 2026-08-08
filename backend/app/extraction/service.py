@@ -243,6 +243,10 @@ def submit_extraction(
         version=version,
     )
     db.add(response)
+    db.flush()
+    from app.llm.service import record_suggestion_provenance
+
+    record_suggestion_provenance(db, item, response)
     item.status = ExtractionStatus.COMPLETED
     item.reserved_until = None
     item.completed_at = utcnow()

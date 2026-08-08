@@ -21,6 +21,7 @@ def enqueue_job(
     project_id: str | None,
     created_by_id: str | None,
     max_attempts: int = 3,
+    priority: int = 0,
 ) -> BackgroundJob:
     job = BackgroundJob(
         job_type=job_type,
@@ -28,6 +29,7 @@ def enqueue_job(
         project_id=project_id,
         created_by_id=created_by_id,
         max_attempts=max_attempts,
+        priority=priority,
     )
     db.add(job)
     db.flush()
@@ -35,7 +37,12 @@ def enqueue_job(
 
 
 def claim_job(
-    db: Session, worker_id: str, lease_seconds: int = 300
+    db: Session,
+    worker_id: str,
+    lease_seconds: int = 300,
+    *,
+    allowed_job_types: set[str] | None = None,
+    excluded_job_types: set[str] | None = None,
 ) -> BackgroundJob | None:
     now = utcnow()
     query = (
@@ -48,8 +55,12 @@ def claim_job(
             ),
             BackgroundJob.attempts < BackgroundJob.max_attempts,
         )
-        .order_by(BackgroundJob.created_at)
+        .order_by(BackgroundJob.priority.desc(), BackgroundJob.created_at)
     )
+    if allowed_job_types is not None:
+        query = query.where(BackgroundJob.job_type.in_(allowed_job_types))
+    if excluded_job_types:
+        query = query.where(BackgroundJob.job_type.not_in(excluded_job_types))
     if db.bind is not None and db.bind.dialect.name == "postgresql":
         query = query.with_for_update(skip_locked=True)
     job = db.scalar(query.limit(1))

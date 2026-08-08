@@ -1,6 +1,6 @@
 # Papertrail
 
-Papertrail is a self-hosted, multi-user web application for structured academic literature reviews. It imports bibliographic exports and optional full-text PDFs, preserves source provenance and PDF version history, supports duplicate review and configurable multi-reviewer screening, tracks manual full-text retrieval, collects extraction and quality-assessment data, and produces PRISMA 2020, XLSX, and BibTeX outputs alongside a browsable final-results view of every included publication.
+Papertrail is a self-hosted, multi-user web application for structured academic literature reviews. It imports bibliographic exports and optional full-text PDFs, preserves source provenance and PDF version history, supports duplicate review and configurable multi-reviewer screening, tracks manual full-text retrieval, and provides optional evidence-backed extraction suggestions through an external Ollama service. Reviewer-controlled extraction and quality-assessment data remain authoritative.
 
 ## Architecture
 
@@ -64,4 +64,5 @@ See [Installation](docs/installation.md) for production configuration.
 - [Frontend testing](docs/frontend-testing.md)
 - [Backup and restore](docs/backup-and-restore.md)
 - [Import formats](docs/import-formats.md)
+- [LLM-assisted extraction](docs/llm-assisted-extraction.md)
 - [API overview](docs/api.md)

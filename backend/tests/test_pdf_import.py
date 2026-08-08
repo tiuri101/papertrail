@@ -15,7 +15,12 @@ from app.deduplication.service import merge_publications
 from app.fulltext.documents import attach_staged_pdf
 from app.fulltext.models import DocumentSource, PublicationDocument
 from app.fulltext.storage import stage_pdf_stream
-from app.imports.models import ImportBatch, ImportedRecord, ImportPdfItem, PdfMatchStatus
+from app.imports.models import (
+    ImportBatch,
+    ImportedRecord,
+    ImportPdfItem,
+    PdfMatchStatus,
+)
 from app.imports.pdf_import import process_pdf_matches, resolve_pdf_match
 from app.imports.service import process_import_job
 from app.jobs.models import BackgroundJob
@@ -68,7 +73,9 @@ def setup_batch(db):
     return user, project, batch
 
 
-def add_batch_publication(db, batch, title, *, doi=None, authors="Doe, Jane", year=2026):
+def add_batch_publication(
+    db, batch, title, *, doi=None, authors="Doe, Jane", year=2026
+):
     record = ImportedRecord(
         import_batch_id=batch.id,
         source_row=1,
@@ -84,7 +91,9 @@ def add_batch_publication(db, batch, title, *, doi=None, authors="Doe, Jane", ye
     )
     db.add_all([record, publication])
     db.flush()
-    db.add(PublicationSource(publication_id=publication.id, imported_record_id=record.id))
+    db.add(
+        PublicationSource(publication_id=publication.id, imported_record_id=record.id)
+    )
     db.flush()
     return publication
 
@@ -123,7 +132,9 @@ def test_bulk_matching_by_doi_title_ambiguity_and_conflict(db) -> None:
             doi="10.1000/exact",
         )
     )
-    doi_item = add_item(db, batch, pdf_bytes("Different title", "10.1000/exact"), "doi.pdf")
+    doi_item = add_item(
+        db, batch, pdf_bytes("Different title", "10.1000/exact"), "doi.pdf"
+    )
     title_item = add_item(db, batch, pdf_bytes("Café — Urban Systems"), "title.pdf")
     strong_item = add_item(
         db,
@@ -266,7 +277,9 @@ def test_metadata_with_zip_isolated_failures_and_metadata_only_still_works(
 
     zip_pdf = pdf_bytes("ZIP Paper", "10.1000/zip")
     archive_stream = BytesIO()
-    with zipfile.ZipFile(archive_stream, "w", compression=zipfile.ZIP_DEFLATED) as archive:
+    with zipfile.ZipFile(
+        archive_stream, "w", compression=zipfile.ZIP_DEFLATED
+    ) as archive:
         archive.writestr("zip-paper.pdf", zip_pdf)
         archive.writestr("notes.txt", "not a PDF")
         archive.writestr("../escape.pdf", pdf_bytes("Escape"))

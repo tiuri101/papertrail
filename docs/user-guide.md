@@ -24,6 +24,12 @@ Papertrail provides DOI and publisher links and stores PDFs supplied by authoriz
 
 Only project members can view PDF metadata or content. Full-text reviewers, project owners, and administrators can upload, replace, and remove PDFs. Papertrail does not automatically download or scrape publisher content; only upload files you are authorized to access and store.
 
+## LLM-assisted data extraction
+
+When a project administrator enables the external Ollama integration and publishes an LLM extraction schema, Papertrail prepares suggestions after a paper passes title/abstract screening and has a PDF. Suggestions are deliberately hidden from eligibility screening. In Data Extraction, the assigned reviewer sees each mapped suggestion beside the normal editable field, including explicit/inferred/ambiguous/missing status and verified or unverified page evidence. Existing drafts are never overwritten; apply a suggestion explicitly or enter any different value. LLM-only helper fields are informational and are not submitted or exported. LLM errors never prevent manual extraction.
+
+The normal submitted extraction and exports always use reviewer-controlled values. Papertrail retains the immutable original suggestion separately for audit and evaluation. See [LLM-assisted extraction](llm-assisted-extraction.md) for processing, privacy, and versioning details.
+
 ## Extraction and quality assessment
 
 Each included publication has one assigned extractor and, when enabled, one quality assessor. Complete all required fields before submission. Submitted work can be revised, or reopened by the project owner or an administrator.

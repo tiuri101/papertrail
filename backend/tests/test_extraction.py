@@ -18,6 +18,7 @@ from app.extraction.service import (
 )
 from app.forms.models import FormKind
 from app.forms.service import add_field, create_form
+from app.fulltext.models import PublicationDocument
 from app.projects.models import (
     Project,
     ProjectMembership,
@@ -264,6 +265,25 @@ def test_next_extraction_endpoint_returns_the_publication_and_active_fields(
 ) -> None:
     project, _, required, optional, publications, r1, _ = setup_extraction(db)
     initialize_extraction(db, project)
+    assigned_item = db.scalar(
+        select(ExtractionWorkItem).where(
+            ExtractionWorkItem.project_id == project.id,
+            ExtractionWorkItem.assigned_reviewer_id == r1.id,
+        )
+    )
+    assert assigned_item is not None
+    db.add(
+        PublicationDocument(
+            project_id=project.id,
+            publication_id=assigned_item.publication_id,
+            original_filename="paper.pdf",
+            storage_key=f"projects/{project.id}/publications/{assigned_item.publication_id}/document.pdf",
+            mime_type="application/pdf",
+            file_size=1024,
+            sha256="a" * 64,
+            uploaded_by_user_id=r1.id,
+        )
+    )
     db.commit()
     csrf = client.post(
         "/api/v1/auth/login", json={"username": "r1", "password": "password-1"}
@@ -275,6 +295,8 @@ def test_next_extraction_endpoint_returns_the_publication_and_active_fields(
     assert response.status_code == 200
     body = response.json()
     assert body["publication"]["title"] in {"Paper 0", "Paper 1"}
+    assert body["fullTextAvailable"] is True
+    assert "storage" not in str(body).lower()
     assert {field["stableKey"] for field in body["fields"]} == {
         required.stable_key,
         optional.stable_key,

@@ -23,9 +23,14 @@ interface Candidate {
 
 const MATCH_REASON_LABELS: Record<string, string> = {
   exact_doi: 'Exact DOI',
+  exact_pubmed_id: 'Exact PubMed ID',
+  exact_arxiv_id: 'Exact arXiv ID',
   exact_title: 'Exact title match',
   similar_title: 'Similar title',
   similar_title_authors: 'Similar title & authors',
+  similar_title_year: 'Similar title & year',
+  shared_isbn: 'Shared ISBN',
+  shared_issn: 'Shared ISSN',
 }
 
 function humanizeMatchReason(reason: string): string {
@@ -89,14 +94,14 @@ export function DuplicateReviewPage() {
       {candidates.error ? <p className="error" role="alert">{candidates.error.message}</p> : null}
       {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
       {candidates.data && candidates.data.length === 0 ? <p className="muted">No duplicates found.</p> : null}
-      <ul className="card-list">
+      <ul className="card-list stacked">
         {candidates.data?.map((candidate) => (
           <li className="card" key={candidate.id}>
             <p className="muted">
               {candidate.matchReasons.map(humanizeMatchReason).join(', ')} — {Math.round(candidate.confidence * 100)}% match
               {' — '}{candidate.status}
             </p>
-            <div className="compare-columns">
+            <div className="compare-columns duplicate-publications">
               <div>
                 <PublicationSummary publication={candidate.publicationA} />
                 {candidate.status === 'unresolved' ? (

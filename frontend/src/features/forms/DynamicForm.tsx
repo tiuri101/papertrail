@@ -10,18 +10,21 @@ interface DynamicFormProps {
   fields: DynamicFormField[]
   value: Record<string, unknown>
   onChange: (key: string, value: unknown) => void
+  renderAssistance?: (field: DynamicFormField) => ReactNode
 }
 
-export function DynamicForm({ fields, value, onChange }: DynamicFormProps) {
+export function DynamicForm({ fields, value, onChange, renderAssistance }: DynamicFormProps) {
   return (
     <>
       {fields.map((field) => (
-        <DynamicField
-          key={field.stableKey}
-          field={field}
-          value={value[field.stableKey]}
-          onChange={(next) => onChange(field.stableKey, next)}
-        />
+        <div className="dynamic-field" key={field.stableKey}>
+          <DynamicField
+            field={field}
+            value={value[field.stableKey]}
+            onChange={(next) => onChange(field.stableKey, next)}
+          />
+          {renderAssistance?.(field)}
+        </div>
       ))}
     </>
   )
@@ -174,3 +177,4 @@ function DynamicField({ field, value, onChange }: {
       return null
   }
 }
+import type { ReactNode } from 'react'

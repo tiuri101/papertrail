@@ -43,11 +43,15 @@ class FullTextRetrieval(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         default=RetrievalStatus.NOT_YET_SOUGHT, index=True, nullable=False
     )
     note: Mapped[str | None] = mapped_column(String(500))
-    updated_by_id: Mapped[str | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"))
+    updated_by_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
     claimed_by_id: Mapped[str | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), index=True
     )
-    claimed_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+    claimed_until: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), index=True
+    )
 
     publication = relationship("Publication", foreign_keys=[publication_id])
 
@@ -78,7 +82,9 @@ class PublicationDocument(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     original_filename: Mapped[str] = mapped_column(String(500), nullable=False)
     storage_key: Mapped[str] = mapped_column(String(1000), unique=True, nullable=False)
-    mime_type: Mapped[str] = mapped_column(String(100), default="application/pdf", nullable=False)
+    mime_type: Mapped[str] = mapped_column(
+        String(100), default="application/pdf", nullable=False
+    )
     file_size: Mapped[int] = mapped_column(BigInteger, nullable=False)
     sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     uploaded_by_user_id: Mapped[str | None] = mapped_column(
@@ -105,4 +111,6 @@ class PublicationDocument(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     publication = relationship("Publication", back_populates="documents")
     uploaded_by = relationship("User", foreign_keys=[uploaded_by_user_id])
     removed_by = relationship("User", foreign_keys=[removed_by_user_id])
-    replaced_by = relationship("PublicationDocument", remote_side="PublicationDocument.id")
+    replaced_by = relationship(
+        "PublicationDocument", remote_side="PublicationDocument.id"
+    )

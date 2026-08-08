@@ -24,6 +24,8 @@ The one-shot `migrate` container applies all Alembic migrations before the API a
 
 Full-text binaries live in the dedicated `papertrail_pdf_data` Docker volume, mounted only in the API and worker containers. `PAPERTRAIL_MAX_PDF_SIZE_MB` controls the per-file server-side limit (50 MB by default in Compose). Host-based deployments must set `PAPERTRAIL_PDF_STORAGE_PATH` to a persistent writable directory. Back up PostgreSQL and this PDF volume together; the database alone is not a complete backup.
 
+LLM-assisted extraction is optional and uses a separately operated Ollama server. Set `PAPERTRAIL_LLM_ENABLED=true`, `PAPERTRAIL_OLLAMA_BASE_URL`, and `PAPERTRAIL_OLLAMA_MODEL`; tune the timeout, context length, and dedicated LLM concurrency with the variables documented in [LLM-assisted extraction](llm-assisted-extraction.md). Compose adds a Papertrail `llm-worker` using the backend image and PostgreSQL queue, but does not add Ollama, model installation, or GPU configuration. Ensure the worker host can reach the configured Ollama URL and secure that route because it carries full paper text.
+
 ## Production example
 
 ```dotenv
@@ -42,4 +44,4 @@ docker compose ps
 curl -f http://localhost/health
 ```
 
-The `postgres`, `api`, `worker`, `frontend`, and `gateway` services should be running. The `migrate` service should have exited successfully.
+The `postgres`, `api`, `worker`, `llm-worker`, `frontend`, and `gateway` services should be running. The `migrate` service should have exited successfully. With LLM support disabled, `llm-worker` remains idle.

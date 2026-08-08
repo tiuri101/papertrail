@@ -21,6 +21,7 @@ import { FormBuilderPage } from '../features/forms/FormBuilderPage'
 import { FullTextPage } from '../features/fulltext/FullTextPage'
 import { ImportPage } from '../features/imports/ImportPage'
 import { JobsPage } from '../features/jobs/JobsPage'
+import { LlmAssistancePanel } from '../features/llm/LlmAssistancePanel'
 import { ProjectLifecyclePanel } from '../features/lifecycle/ProjectLifecyclePanel'
 import { ProjectPage } from '../features/projects/ProjectPage'
 import { ProjectsPage } from '../features/projects/ProjectsPage'
@@ -70,6 +71,7 @@ function ProjectAdministrationPage() {
       <ScreeningAssignmentsPanel projectId={projectId} />
       <ReviewerProgressPanel projectId={projectId} />
       <HighlightKeywordsPanel projectId={projectId} />
+      <LlmAssistancePanel projectId={projectId} />
       <ProjectLifecyclePanel projectId={projectId} />
       <section className="card">
         <h2>Audit Log</h2>

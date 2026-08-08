@@ -1,5 +1,6 @@
 from datetime import date
 from io import BytesIO
+from xml.etree import ElementTree
 
 import pytest
 from openpyxl import load_workbook
@@ -7,6 +8,7 @@ from sqlalchemy import select
 
 from app.accounts.service import create_user
 from app.conflicts.service import record_final_decision
+from app.deduplication.models import PublicationMerge
 from app.extraction.models import ExtractionWorkItem
 from app.extraction.service import initialize_extraction, submit_extraction
 from app.forms.models import FormKind
@@ -141,6 +143,58 @@ def test_prisma_counts_and_svg_are_derived_from_records(db) -> None:
     assert "Duplicate records removed" in svg
     assert "Records checked" in svg
     assert "Studies included in review" in svg
+    assert ">Review</text>" in svg
+    assert "Review — PRISMA 2020" not in svg
+
+    root = ElementTree.fromstring(svg)
+    stage_bars = {
+        element.attrib["data-stage"]: element
+        for element in root.findall("{http://www.w3.org/2000/svg}rect")
+        if "data-stage" in element.attrib
+    }
+    ordered_stages = [
+        "Identification",
+        "Duplicates",
+        "Screening",
+        "Eligibility",
+        "Included",
+    ]
+    for current, following in zip(ordered_stages, ordered_stages[1:], strict=False):
+        current_bar = stage_bars[current]
+        following_bar = stage_bars[following]
+        current_bottom = float(current_bar.attrib["y"]) + float(
+            current_bar.attrib["height"]
+        )
+        assert float(following_bar.attrib["y"]) - current_bottom >= 10
+
+
+def test_prisma_counts_do_not_treat_merged_publications_as_other_sources(db) -> None:
+    project, canonical = setup_report(db)
+    merged = Publication(
+        project_id=project.id,
+        title="Merged duplicate",
+        is_active=False,
+        merged_into_id=canonical.id,
+    )
+    db.add(merged)
+    db.flush()
+    db.add(
+        PublicationMerge(
+            project_id=project.id,
+            canonical_publication_id=canonical.id,
+            merged_publication_id=merged.id,
+            canonical_before={},
+            merged_before={},
+            moved_source_ids=[],
+            moved_document_states=[],
+        )
+    )
+    db.commit()
+
+    counts = calculate_prisma_counts(db, project.id)
+
+    assert counts["recordsIdentifiedOtherSources"] == 3
+    assert counts["duplicatesRemoved"] == 1
 
 
 def test_prisma_svg_route_returns_the_figure_inline(client, db) -> None:

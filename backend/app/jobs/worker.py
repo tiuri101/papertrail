@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import signal
+import sys
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
@@ -18,6 +19,9 @@ from app.deduplication.jobs import detect_duplicates_job
 from app.imports.service import process_import_job
 from app.jobs.models import BackgroundJob, JobStatus
 from app.jobs.service import claim_job, renew_job_lease
+from app.llm.extraction import run_llm_extraction_job
+from app.llm.service import LLM_JOB, TEXT_JOB
+from app.llm.text_extraction import extract_document_text_job
 from app.publications.jobs import enrich_publication_job
 from app.reporting.jobs import generate_export_job
 
@@ -28,6 +32,8 @@ HANDLERS: dict[str, Handler] = {
     "enrich_publication": enrich_publication_job,
     "detect_duplicates": detect_duplicates_job,
     "generate_export": generate_export_job,
+    TEXT_JOB: extract_document_text_job,
+    LLM_JOB: run_llm_extraction_job,
 }
 
 
@@ -48,11 +54,23 @@ def maintain_lease(
             logger.exception("Could not renew lease for background job %s", job_id)
 
 
-def execute_next_job(session_factory: sessionmaker, worker_id: str) -> bool:
+def execute_next_job(
+    session_factory: sessionmaker,
+    worker_id: str,
+    *,
+    allowed_job_types: set[str] | None = None,
+    excluded_job_types: set[str] | None = None,
+) -> bool:
     settings = get_settings()
     try:
         with session_factory() as claim_session:
-            job = claim_job(claim_session, worker_id, settings.job_lease_seconds)
+            job = claim_job(
+                claim_session,
+                worker_id,
+                settings.job_lease_seconds,
+                allowed_job_types=allowed_job_types,
+                excluded_job_types=excluded_job_types,
+            )
             if job is None:
                 claim_session.rollback()
                 return False
@@ -112,16 +130,29 @@ def execute_next_job(session_factory: sessionmaker, worker_id: str) -> bool:
                 )
                 job.error_message = str(exc)
                 job.lease_until = None
-                record_audit(
-                    db,
-                    action="job.failed",
-                    entity_type="background_job",
-                    entity_id=job.id,
-                    project_id=job.project_id,
-                    actor_id=job.created_by_id,
-                    summary=f"Background job {job.job_type} failed",
-                    metadata={"error": str(exc)},
-                )
+                if job.status == JobStatus.FAILED and job.job_type == LLM_JOB:
+                    from app.llm.models import LlmExtractionRun, ProcessingStatus
+
+                    run = db.get(LlmExtractionRun, str(job.payload.get("run_id")))
+                    if run and run.status in {
+                        ProcessingStatus.PENDING,
+                        ProcessingStatus.PROCESSING,
+                    }:
+                        run.status = ProcessingStatus.FAILED
+                        run.error_type = "transient_retries_exhausted"
+                        run.error_message = str(exc)[:2000]
+                        run.completed_at = datetime.now(UTC)
+                if job.status == JobStatus.FAILED:
+                    record_audit(
+                        db,
+                        action="job.failed",
+                        entity_type="background_job",
+                        entity_id=job.id,
+                        project_id=job.project_id,
+                        actor_id=job.created_by_id,
+                        summary=f"Background job {job.job_type} failed",
+                        metadata={"error": str(exc)},
+                    )
                 db.commit()
                 logger.exception("Background job %s failed", job_id)
             return True
@@ -130,33 +161,44 @@ def execute_next_job(session_factory: sessionmaker, worker_id: str) -> bool:
         heartbeat.join(timeout=2)
 
 
-def run_worker() -> None:
+def run_worker(*, llm_only: bool = False) -> None:
     configure_logging()
     settings = get_settings()
     stop = Event()
     signal.signal(signal.SIGTERM, lambda *_: stop.set())
     signal.signal(signal.SIGINT, lambda *_: stop.set())
-    worker_id = f"worker-{id(stop)}"
+    worker_id = f"{'llm-worker' if llm_only else 'worker'}-{id(stop)}"
+    thread_count = (
+        settings.llm_max_concurrent_jobs if llm_only else settings.worker_threads
+    )
+    allowed_job_types = {LLM_JOB} if llm_only else None
+    excluded_job_types = None if llm_only else {LLM_JOB}
     logger.info(
         "Papertrail worker starting (worker_id=%s, threads=%d, poll_interval=%ss)",
         worker_id,
-        settings.worker_threads,
+        thread_count,
         settings.job_poll_interval_seconds,
     )
     with ThreadPoolExecutor(
-        max_workers=settings.worker_threads,
+        max_workers=thread_count,
         thread_name_prefix="papertrail",
     ) as executor:
         futures = set()
         while not stop.is_set():
             futures = {future for future in futures if not future.done()}
-            available = settings.worker_threads - len(futures)
+            available = thread_count - len(futures)
             for _ in range(available):
                 futures.add(
-                    executor.submit(execute_next_job, SessionFactory, worker_id)
+                    executor.submit(
+                        execute_next_job,
+                        SessionFactory,
+                        worker_id,
+                        allowed_job_types=allowed_job_types,
+                        excluded_job_types=excluded_job_types,
+                    )
                 )
             stop.wait(settings.job_poll_interval_seconds)
 
 
 if __name__ == "__main__":
-    run_worker()
+    run_worker(llm_only="--llm" in sys.argv)

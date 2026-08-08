@@ -666,6 +666,15 @@ form .toolbar,
   gap: var(--space-5);
 }
 
+.duplicate-publications {
+  grid-template-columns: 1fr;
+}
+
+.duplicate-publications > div + div {
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--color-border);
+}
+
 mark {
   border-radius: 4px;
   background: var(--kw-0-bg);
@@ -781,6 +790,10 @@ table {
   border-spacing: 0;
 }
 
+.table-scroll {
+  overflow-x: auto;
+}
+
 th,
 td {
   padding: 13px var(--space-4);
@@ -813,6 +826,49 @@ thead th {
 tbody th {
   color: var(--color-text-secondary);
   font-weight: 620;
+}
+
+.detail-list {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  column-gap: var(--space-5);
+  row-gap: 0;
+  margin: 0;
+}
+
+.detail-list dt,
+.detail-list dd {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.detail-list dt {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  font-weight: 640;
+  white-space: nowrap;
+}
+
+.detail-list dd {
+  margin: 0;
+  color: var(--color-text);
+}
+
+.detail-list dt:last-of-type,
+.detail-list dd:last-of-type {
+  border-bottom: 0;
+}
+
+@media (max-width: 480px) {
+  .detail-list {
+    grid-template-columns: 1fr;
+    row-gap: var(--space-1);
+  }
+
+  .detail-list dd {
+    padding-top: 0;
+    padding-bottom: var(--space-3);
+  }
 }
 
 .criteria-table td {
@@ -1057,6 +1113,10 @@ tbody th {
   margin-top: 0;
 }
 
+.full-text-history-toggle {
+  margin-top: var(--space-4);
+}
+
 .nested-card {
   padding: var(--space-4);
   border: 1px solid var(--color-border);
@@ -1226,4 +1286,33 @@ tbody th {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
   }
+}
+.dynamic-field {
+  margin-block: 1rem;
+}
+
+.llm-suggestion,
+.llm-helper-panel {
+  border: 1px solid var(--border-color, #ccd4dd);
+  border-left: 4px solid #6656c7;
+  border-radius: 0.35rem;
+  margin: 0.4rem 0 1rem;
+  padding: 0.75rem;
+}
+
+.llm-suggestion--inferred,
+.llm-suggestion--ambiguous {
+  border-left-color: #a46600;
+}
+
+.llm-suggestion__heading {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  justify-content: space-between;
+}
+
+.llm-schema-field {
+  margin-block: 1rem;
 }

@@ -21,6 +21,7 @@ from app.extraction.service import (
     save_draft,
     submit_extraction,
 )
+from app.fulltext.documents import active_document
 from app.projects.dependencies import require_project_manager_csrf
 from app.projects.service import require_project_access
 from app.publications.models import Publication
@@ -33,6 +34,7 @@ def extraction_item_payload(db: Session, item: ExtractionWorkItem) -> dict:
     return {
         "id": item.id,
         "publication_id": item.publication_id,
+        "full_text_available": active_document(db, item.publication_id) is not None,
         "assigned_reviewer_id": item.assigned_reviewer_id,
         "status": item.status,
         "draft": item.draft,

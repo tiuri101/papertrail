@@ -924,8 +924,9 @@ Potential later additions include:
 - AI-assisted duplicate detection
 - AI-assisted relevance suggestions
 - Automated abstract summarization
-- Suggested extraction values with reviewer confirmation
-- PDF upload and annotation
+- PDF upload, protected storage, version history, bulk matching, and manual full-text management (implemented)
+- External-Ollama-assisted structured extraction with page evidence and authoritative reviewer confirmation (implemented)
+- PDF annotation
 - Direct database or reference-manager integrations
 - Zotero synchronization
 - Saved import profiles for recurring custom formats
