@@ -20,6 +20,7 @@ from app.llm.models import (
     LlmFieldSuggestion,
     LlmSchemaField,
     LlmSchemaVersion,
+    LlmTaskType,
     ProcessingStatus,
     SuggestionStatus,
 )
@@ -38,13 +39,8 @@ from app.llm.prompt import (
     output_schema,
 )
 from app.llm.service import full_text_excluded, title_abstract_included
+from app.llm.structured import add_metrics, validated_chat
 from app.llm.validation import ExtractionResult, validate_result
-
-
-def _add_metrics(total: dict[str, int], response: OllamaResponse) -> None:
-    for key, value in response.metrics.items():
-        if value is not None:
-            total[key] = total.get(key, 0) + value
 
 
 def _validated_chat(
@@ -53,23 +49,12 @@ def _validated_chat(
     schema: dict[str, Any],
     fields: list[LlmSchemaField],
 ) -> tuple[ExtractionResult, OllamaResponse]:
-    response = client.chat(messages=messages, output_schema=schema)
-    try:
-        return validate_result(response.content, fields), response
-    except DomainError as first_error:
-        repair_messages = [
-            *messages,
-            {"role": "assistant", "content": str(response.content)},
-            {
-                "role": "user",
-                "content": (
-                    "Your structured response was invalid. Return a corrected response that "
-                    f"strictly matches the JSON schema. Validation error: {first_error}"
-                ),
-            },
-        ]
-        repaired = client.chat(messages=repair_messages, output_schema=schema)
-        return validate_result(repaired.content, fields), repaired
+    return validated_chat(
+        client,
+        messages,
+        schema,
+        lambda payload: validate_result(payload, fields),
+    )
 
 
 def _consolidate_candidates(
@@ -112,7 +97,7 @@ def _consolidate_candidates(
                 schema,
                 fields,
             )
-            _add_metrics(metrics, response)
+            add_metrics(metrics, response)
             next_round.append(result.model_dump(mode="json"))
         current = next_round
     return validate_result(current[0], fields)
@@ -126,9 +111,11 @@ def run_llm_extraction_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
     )
     if run is None:
         return {"status": "cancelled", "reason": "run_missing"}
+    if run.task_type != LlmTaskType.DATA_EXTRACTION:
+        return {"status": "cancelled", "reason": "wrong_task_type"}
     if run.status == ProcessingStatus.COMPLETED:
         return {"runId": run.id, "idempotent": True}
-    document = db.get(PublicationDocument, run.document_id)
+    document = db.get(PublicationDocument, run.document_id) if run.document_id else None
     if (
         document is None
         or not document.is_active
@@ -139,11 +126,22 @@ def run_llm_extraction_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
         run.completed_at = datetime.now(UTC)
         db.flush()
         return {"runId": run.id, "status": "cancelled"}
-    extraction = db.get(DocumentTextExtraction, run.text_extraction_id)
+    extraction = (
+        db.get(DocumentTextExtraction, run.text_extraction_id)
+        if run.text_extraction_id
+        else None
+    )
     if extraction is None or extraction.status != ProcessingStatus.COMPLETED:
         run.status = ProcessingStatus.FAILED
         run.error_type = "text_unavailable"
         run.error_message = "Extracted PDF text is unavailable"
+        run.completed_at = datetime.now(UTC)
+        db.flush()
+        return {"runId": run.id, "status": "failed"}
+    if run.schema_version_id is None:
+        run.status = ProcessingStatus.FAILED
+        run.error_type = "schema_missing"
+        run.error_message = "LLM schema version is unavailable"
         run.completed_at = datetime.now(UTC)
         db.flush()
         return {"runId": run.id, "status": "failed"}
@@ -191,7 +189,7 @@ def run_llm_extraction_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
                 client, extraction_messages(fields, chunk), schema, fields
             )
             candidates.append(result.model_dump(mode="json"))
-            _add_metrics(metrics, response)
+            add_metrics(metrics, response)
         final = _consolidate_candidates(
             client,
             candidates,

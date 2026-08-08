@@ -63,9 +63,9 @@ def work_item_payload(db: Session, item: ScreeningWorkItem) -> dict:
         "project_id": item.project_id,
         "stage": item.stage.value,
         "slot_number": item.slot_number,
-        "reserved_until": item.reserved_until.isoformat()
-        if item.reserved_until
-        else None,
+        "reserved_until": (
+            item.reserved_until.isoformat() if item.reserved_until else None
+        ),
         "draft": item.draft,
         "publication": publication,
         "criteria": criteria,
@@ -97,6 +97,19 @@ def next_item(
     # on every fetch so this can't leave a project permanently short a publication.
     reassign_work_items_from_ineligible_reviewers(db, project_id, stage)
     item = claim_next_work_item(db, project_id, stage, session.user.id)
+    if item is not None:
+        if stage == ScreeningStage.TITLE_ABSTRACT:
+            from app.llm.task_service import queue_title_abstract_suggestion
+
+            queue_title_abstract_suggestion(
+                db, item.publication_id, created_by_id=session.user.id, priority=0
+            )
+        else:
+            from app.llm.task_service import queue_full_text_assistance
+
+            queue_full_text_assistance(
+                db, item.publication_id, created_by_id=session.user.id, priority=0
+            )
     db.commit()
     return work_item_payload(db, item) if item else None
 
@@ -232,9 +245,9 @@ def my_decisions(
         payload_items.append(
             {
                 "work_item_id": item.id,
-                "submitted_at": item.submitted_at.isoformat()
-                if item.submitted_at
-                else None,
+                "submitted_at": (
+                    item.submitted_at.isoformat() if item.submitted_at else None
+                ),
                 "publication": db.get(Publication, item.publication_id),
                 "decision": current,
             }

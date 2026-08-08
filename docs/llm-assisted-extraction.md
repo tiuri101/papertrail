@@ -1,22 +1,24 @@
-# LLM-assisted data extraction
+# LLM-assisted screening and data extraction
 
-Papertrail can prepare structured, evidence-backed extraction suggestions with an external Ollama server. Ollama is a separate service: Papertrail does not install, start, expose, or pull models for it, and browsers never connect to it directly.
+Papertrail can prepare structured screening assistance, evidence-backed extraction suggestions, and optional validation of completed human extractions with an external Ollama server. Ollama is a separate service: Papertrail does not install, start, expose, or pull models for it, and browsers never connect to it directly.
 
-> LLM suggestions are not authoritative review data. A human reviewer remains responsible for the final extraction.
+> LLM suggestions are not authoritative review data. Human reviewers remain responsible for every screening decision and final extraction.
 
 ## Architecture and processing trigger
 
 The normal PostgreSQL-backed worker extracts text from each eligible active PDF with `pypdf`, preserving physical PDF page numbers. A dedicated LLM worker uses the same job table but claims only Ollama inference jobs, which limits GPU concurrency independently from ordinary jobs. Text, immutable runs, validated suggestions, evidence-verification results, runtime metrics, and reviewer-versus-suggestion provenance are stored in PostgreSQL. PDF binaries remain in `papertrail_pdf_data`.
 
-Preparation starts only when all of these are true:
+Title/abstract suggestions use bibliographic metadata and project criteria and can be prepared as soon as title/abstract work exists. Full-text assistance, extraction suggestions, and validation require page-aware PDF text. Expensive PDF processing starts only when all of these are true:
 
 - installation-level LLM support is enabled;
-- the project has enabled LLM assistance and published an LLM schema;
+- the project has enabled at least one relevant full-text capability;
 - the publication has a current title/abstract inclusion decision;
 - an active PDF exists;
 - the publication has not been excluded at full text.
 
-An early bulk-imported PDF therefore remains idle until title/abstract inclusion. If the publication was already included, uploading or replacing its PDF queues processing immediately. Queued inference is cancelled when practical after full-text exclusion; completed historical processing is retained. No LLM output is shown in either screening workflow and it never affects screening, conflict, PRISMA, quality, or project decisions.
+An early bulk-imported PDF therefore remains idle until title/abstract inclusion. If the publication was already included, uploading or replacing its PDF queues processing immediately. Queued full-text inference is cancelled when practical after full-text exclusion; completed historical processing is retained. LLM work never changes screening, conflict, PRISMA, quality, or project decisions.
+
+Projects control title/abstract suggestions, full-text screening assistance, data extraction, and extraction validation independently. New capabilities default to disabled for existing projects.
 
 ## Configuration
 
@@ -57,14 +59,31 @@ Evidence is limited to short quotes and a small number of items. Every quote is 
 
 ## Reviewer workflow and provenance
 
+### Title/abstract screening
+
+Papertrail may prepare a structured include/exclude/uncertain suggestion before the reviewer screens the record, but the result is withheld by the backend until that assigned reviewer has submitted a current decision. The model never receives that human decision. After submission, the page shows the two decisions separately, confidence as an uncalibrated low/medium/high category, and criterion-level assessments. A disagreement is informational and does not reopen or change the human decision.
+
+### Full-text screening
+
+For active PDFs with usable text, the full-text screen shows criterion-by-criterion met/not-met/unclear assistance. Each evidence quote retains its physical PDF page and optional section label, is checked against that page's extracted text, and links to the authenticated PDF viewer. The overall include/exclude/uncertain suggestion is secondary; the reviewer still submits the normal decision. Missing text, model failure, and stale results remain non-blocking.
+
+### Data extraction
+
 Suggestions appear beside their mapped controls in Data Extraction, not as a separate approval phase. Existing drafts always take precedence and late results never overwrite reviewer work. Reviewers can apply/reset a suggestion, freely edit or replace it, inspect evidence, and open the authenticated PDF with a page fragment. Missing, ambiguous, inferred, processing, unavailable, failed, and outdated states are explicit. Helper fields appear in a secondary panel and never enter the official response.
 
 Submitting uses the normal extraction validation, revision, autosave, and export paths. The original validated LLM result remains immutable. Papertrail automatically stores whether each final reviewer value accepted, modified, replaced, or did not use a suggestion. Standard exports continue to contain reviewer-controlled values only.
+
+### Optional extraction validation
+
+When enabled, submitting a human extraction asynchronously queues a separate validation task. It assesses each submitted human value as `supported`, `contradicted`, `uncertain`, or `not_verifiable`, with the same source-verified evidence. It never supplies replacement values or edits the extraction. Reviewers may correct and resubmit normally; the prior validation then becomes stale and a new enabled validation is queued. Ollama failure never blocks submission.
+
+Production prompt identifiers are versioned in backend code (`title_abstract_screening_v1`, `full_text_screening_v1`, `data_extraction_v2`, and `extraction_validation_v1`). Input fingerprints include the relevant metadata, criteria, document/text version, schema, human response, model, and prompt version, so changed inputs are reported as stale rather than silently reused.
+Each immutable run also records its provider, configured model, and non-secret generation configuration (temperature, thinking mode, and context length).
 
 ## Reliability, privacy, and backup
 
 Transient network, timeout, HTTP 5xx, and interruption failures use existing leases and bounded retries. Validation, missing-text, and unsupported-document failures stop cleanly. Ollama downtime never blocks API, screening, extraction, submission, reporting, or exports. Operational logs contain IDs, model, status, counts, durations, and error categories—not full papers, prompts, credentials, or sessions.
 
-The external Ollama service receives full text from the one eligible paper being processed, plus that project's extraction field definitions. It does not receive passwords, sessions, reviewer notes, screening decisions, or other publications. Administrators must assess and secure that network path and Ollama host appropriately.
+The external Ollama service receives only the material needed for the task: title/abstract metadata and criteria for metadata screening, or full text from one eligible paper plus criteria/field definitions/human values for full-text tasks. It does not receive passwords, sessions, reviewer notes, human screening decisions, or other publications. Administrators must assess and secure that network path and Ollama host appropriately.
 
 A complete backup still requires PostgreSQL plus the PDF and import/export volumes. LLM schemas, page text, immutable runs, metrics, evidence, and provenance live in PostgreSQL; source PDFs live in `papertrail_pdf_data`.

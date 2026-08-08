@@ -1300,6 +1300,36 @@ tbody th {
   padding: 0.75rem;
 }
 
+.llm-task-panel,
+.llm-validation-summary,
+.llm-validation {
+  margin-block: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 0.75rem;
+  background: var(--color-primary-container);
+}
+
+.llm-task-panel__heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.llm-task-panel__heading h3 {
+  margin: 0;
+}
+
+.llm-evidence-list blockquote {
+  margin-inline: 0;
+}
+
+.llm-validation--contradicted,
+.llm-validation--uncertain {
+  border-color: var(--color-warning);
+}
+
 .llm-suggestion--inferred,
 .llm-suggestion--ambiguous {
   border-left-color: #a46600;

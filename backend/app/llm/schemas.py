@@ -12,7 +12,16 @@ class ApiModel(BaseModel):
 
 
 class LlmSettingsUpdate(ApiModel):
-    enabled: bool
+    enabled: bool | None = None
+    title_abstract_screening_enabled: bool | None = Field(
+        default=None, alias="titleAbstractScreeningEnabled"
+    )
+    full_text_screening_enabled: bool | None = Field(
+        default=None, alias="fullTextScreeningEnabled"
+    )
+    extraction_validation_enabled: bool | None = Field(
+        default=None, alias="extractionValidationEnabled"
+    )
 
 
 class LlmFieldUpdate(ApiModel):
@@ -44,6 +53,7 @@ class ReanalysisRequest(ApiModel):
 class EvidenceResponse(ApiModel):
     page: int
     quote: str
+    section: str | None = None
     verified: bool
 
 
@@ -69,3 +79,49 @@ class AssistanceResponse(ApiModel):
     outdated: bool = False
     error: str | None = None
     suggestions: list[SuggestionResponse] = Field(default_factory=list)
+
+
+class CriterionSuggestionResponse(ApiModel):
+    criterion_id: str | None = Field(default=None, alias="criterionId")
+    criterion_text: str = Field(alias="criterionText")
+    criterion_kind: str = Field(alias="criterionKind")
+    assessment: str
+    explanation: str
+    evidence: list[EvidenceResponse] = Field(default_factory=list)
+    evidence_validation_status: str = Field(alias="evidenceValidationStatus")
+
+
+class ScreeningAssistanceResponse(ApiModel):
+    state: str
+    hidden: bool = False
+    run_id: str | None = Field(default=None, alias="runId")
+    document_id: str | None = Field(default=None, alias="documentId")
+    model: str | None = None
+    prompt_version: str | None = Field(default=None, alias="promptVersion")
+    stale: bool = False
+    error: str | None = None
+    suggested_decision: str | None = Field(default=None, alias="suggestedDecision")
+    confidence: str | None = None
+    reasoning_summary: str | None = Field(default=None, alias="reasoningSummary")
+    criteria: list[CriterionSuggestionResponse] = Field(default_factory=list)
+
+
+class ValidationResultResponse(ApiModel):
+    field_key: str = Field(alias="fieldKey")
+    field_label: str = Field(alias="fieldLabel")
+    value: Any | None
+    assessment: str
+    explanation: str
+    evidence: list[EvidenceResponse] = Field(default_factory=list)
+    evidence_validation_status: str = Field(alias="evidenceValidationStatus")
+
+
+class ExtractionValidationResponse(ApiModel):
+    state: str
+    run_id: str | None = Field(default=None, alias="runId")
+    response_id: str | None = Field(default=None, alias="responseId")
+    model: str | None = None
+    prompt_version: str | None = Field(default=None, alias="promptVersion")
+    stale: bool = False
+    error: str | None = None
+    results: list[ValidationResultResponse] = Field(default_factory=list)

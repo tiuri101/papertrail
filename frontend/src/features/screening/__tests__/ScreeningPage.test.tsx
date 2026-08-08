@@ -173,7 +173,7 @@ describe('ScreeningPage', () => {
     expect(screen.queryByText('Loading the next publication…')).not.toBeInTheDocument()
   })
 
-  it('automatically fetches the next publication after submitting a decision, with no button in between', async () => {
+  it('reveals assistance after a decision and continues when the reviewer is ready', async () => {
     const fetchMock = renderScreening(async (input, init) => {
       const path = String(input)
       if (path.endsWith('/next') && init?.method === 'POST') return jsonResponse(workItem)
@@ -184,11 +184,13 @@ describe('ScreeningPage', () => {
     await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
     fireEvent.click(screen.getByRole('button', { name: 'Submit Decision' }))
 
+    expect(await screen.findByText('Your decision:')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Continue to next paper' }))
+
     await waitFor(() => {
       const nextCalls = fetchMock.mock.calls.filter(([input, init]) => String(input).endsWith('/next') && init?.method === 'POST')
       expect(nextCalls).toHaveLength(2)
     })
-    expect(screen.queryByRole('button', { name: 'Get next publication' })).not.toBeInTheDocument()
     expect(await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })).toBeInTheDocument()
   })
 

@@ -24,9 +24,13 @@ Papertrail provides DOI and publisher links and stores PDFs supplied by authoriz
 
 Only project members can view PDF metadata or content. Full-text reviewers, project owners, and administrators can upload, replace, and remove PDFs. Papertrail does not automatically download or scrape publisher content; only upload files you are authorized to access and store.
 
-## LLM-assisted data extraction
+When a newly retrieved document is marked available, save that retrieval status first. Papertrail then opens the normal full-text screening item so page-aware LLM assistance can be prepared and shown without combining retrieval and eligibility into one premature decision.
 
-When a project administrator enables the external Ollama integration and publishes an LLM extraction schema, Papertrail prepares suggestions after a paper passes title/abstract screening and has a PDF. Suggestions are deliberately hidden from eligibility screening. In Data Extraction, the assigned reviewer sees each mapped suggestion beside the normal editable field, including explicit/inferred/ambiguous/missing status and verified or unverified page evidence. Existing drafts are never overwritten; apply a suggestion explicitly or enter any different value. LLM-only helper fields are informational and are not submitted or exported. LLM errors never prevent manual extraction.
+## LLM assistance
+
+Administrators can independently enable title/abstract suggestions, full-text assistance, extraction suggestions, and post-extraction validation. A title/abstract result is generated independently and is withheld by the server until the assigned reviewer submits their own decision. It is then shown for comparison and cannot change that decision. Full-text assistance assesses each criterion and points to verified passages and physical PDF pages; the reviewer still makes the final decision.
+
+In Data Extraction, the assigned reviewer sees each mapped suggestion beside the normal editable field, including explicit/inferred/ambiguous/missing status and verified or unverified page evidence. Existing drafts are never overwritten; apply a suggestion explicitly or enter any different value. LLM-only helper fields are informational and are not submitted or exported. Optional validation checks completed human values as supported, contradicted, uncertain, or not verifiable, without changing them. LLM errors never prevent screening or manual extraction.
 
 The normal submitted extraction and exports always use reviewer-controlled values. Papertrail retains the immutable original suggestion separately for audit and evaluation. See [LLM-assisted extraction](llm-assisted-extraction.md) for processing, privacy, and versioning details.
 

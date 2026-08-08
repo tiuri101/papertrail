@@ -1,7 +1,7 @@
 import { Link, useParams } from 'react-router-dom'
 
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
-import { ScreeningItemCard } from './ScreeningItemCard'
+import { ScreeningItemCard, SubmittedScreeningCard } from './ScreeningItemCard'
 import { useScreeningQueue } from './useScreeningQueue'
 
 export function ScreeningPage() {
@@ -20,7 +20,9 @@ export function ScreeningPage() {
         <p className="muted">{queue.progress.completed} of {queue.progress.assigned} assigned papers screened</p>
       ) : null}
       <p><Link to={`/projects/${projectId}/screening/${stage}/my-decisions`}>Review or change my past decisions</Link></p>
-      {!queue.item ? (
+      {queue.submitted ? (
+        <SubmittedScreeningCard queue={queue} />
+      ) : !queue.item ? (
         <>
           {queue.loadingNext ? <p>Loading the next publication…</p> : null}
           {!queue.loadingNext && queue.queueEmpty ? <p>No publications are currently available.</p> : null}

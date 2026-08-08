@@ -16,8 +16,10 @@ Full-text document endpoints are publication-scoped:
 
 PDF content is streamed only after project authorization with `application/pdf` and inline content disposition. API responses never expose filesystem paths. Publication list/detail responses include a compact `fullText` availability object, avoiding one request per list item.
 
-## LLM-assisted extraction
+## LLM assistance
 
-Project-manager endpoints under `/projects/{projectId}/llm` expose installation/project settings (never credentials), connection testing, editable/versioned schema management, and paginated run diagnostics. `/projects/{projectId}/publications/{publicationId}/llm/run` queues an eligible run for a manager or the assigned extraction reviewer. `/projects/{projectId}/extraction/{itemId}/llm-suggestions` exposes the current document/current schema result only to that work item's assigned reviewer or a project manager.
+Project-manager endpoints under `/projects/{projectId}/llm` expose installation/project settings (never credentials), connection testing, capability toggles, editable/versioned extraction-schema management, and paginated task diagnostics. `/projects/{projectId}/publications/{publicationId}/llm/run` queues extraction suggestions for a manager or assigned extractor.
 
-The API never proxies arbitrary browser requests to Ollama. Ollama responses are validated and persisted before any suggestion is returned. Screening endpoints do not include LLM extraction results.
+Assigned screening reviewers use `GET/POST /projects/{projectId}/screening/work-items/{itemId}/llm-title-abstract` and `.../llm-full-text`. The title/abstract GET response is deliberately redacted to a `hidden` state until that reviewer has submitted a current decision; it does not return the run ID, status, model, decision, or reasoning. Extraction suggestions remain at `/projects/{projectId}/extraction/{itemId}/llm-suggestions`; completed-human-value validation uses `GET/POST .../llm-validation`.
+
+The API never proxies arbitrary browser requests to Ollama. Ollama responses are schema-validated, evidence-checked, and persisted before any suggestion is returned. Screening endpoints never return data-extraction results.

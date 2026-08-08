@@ -105,9 +105,9 @@ def update_retrieval(
         note=payload.note,
         user_id=session.user.id,
         decision_outcome=payload.decision.outcome if payload.decision else None,
-        decision_criteria_answers=payload.decision.criteria_answers
-        if payload.decision
-        else None,
+        decision_criteria_answers=(
+            payload.decision.criteria_answers if payload.decision else None
+        ),
         decision_notes=payload.decision.notes if payload.decision else None,
     )
     transition_if_full_text_complete(db, get_project(db, project_id))

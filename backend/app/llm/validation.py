@@ -15,6 +15,7 @@ class EvidenceItem(BaseModel):
 
     page: int = Field(ge=1)
     quote: str = Field(min_length=1)
+    section: str | None = Field(default=None, max_length=300)
 
 
 class FieldResult(BaseModel):

@@ -19,8 +19,8 @@ from app.deduplication.jobs import detect_duplicates_job
 from app.imports.service import process_import_job
 from app.jobs.models import BackgroundJob, JobStatus
 from app.jobs.service import claim_job, renew_job_lease
-from app.llm.extraction import run_llm_extraction_job
 from app.llm.service import LLM_JOB, TEXT_JOB
+from app.llm.task_execution import run_llm_task_job
 from app.llm.text_extraction import extract_document_text_job
 from app.publications.jobs import enrich_publication_job
 from app.reporting.jobs import generate_export_job
@@ -33,7 +33,7 @@ HANDLERS: dict[str, Handler] = {
     "detect_duplicates": detect_duplicates_job,
     "generate_export": generate_export_job,
     TEXT_JOB: extract_document_text_job,
-    LLM_JOB: run_llm_extraction_job,
+    LLM_JOB: run_llm_task_job,
 }
 
 
