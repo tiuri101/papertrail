@@ -86,6 +86,9 @@ def attach_staged_pdf(
             "source": source.value,
         },
     )
+    from app.llm.service import queue_preparation_if_eligible
+
+    queue_preparation_if_eligible(db, publication_id, created_by_id=user_id, priority=0)
     return document
 
 
@@ -108,5 +111,8 @@ def remove_active_pdf(
         summary="Removed active full-text PDF",
         metadata={"publicationId": publication_id, "documentId": current.id},
     )
+    from app.llm.service import cancel_queued_for_publication
+
+    cancel_queued_for_publication(db, publication_id)
     db.flush()
     return current

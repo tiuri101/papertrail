@@ -30,6 +30,9 @@ describe('FullTextDocumentPanel', () => {
     renderWithProviders(<FullTextDocumentPanel projectId="p1" publicationId="pub1" />)
 
     expect(await screen.findByText('No PDF attached')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Document history' })).toHaveClass(
+      'full-text-history-toggle',
+    )
     const file = new File(['pdf'], 'paper.pdf', { type: 'application/pdf' })
     fireEvent.change(screen.getByLabelText('Choose PDF'), { target: { files: [file] } })
 

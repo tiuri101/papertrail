@@ -20,7 +20,9 @@ def pdf_bytes(*, title: str = "Test paper", doi: str = "10.1000/test") -> bytes:
     stream = BytesIO()
     writer = PdfWriter()
     writer.add_blank_page(width=72, height=72)
-    writer.add_metadata({"/Title": title, "/Author": "Doe, Jane", "/Subject": f"doi:{doi}"})
+    writer.add_metadata(
+        {"/Title": title, "/Author": "Doe, Jane", "/Subject": f"doi:{doi}"}
+    )
     writer.write(stream)
     return stream.getvalue()
 
@@ -52,7 +54,9 @@ def setup_project(db):
             can_full_text_screen=True,
         )
     )
-    publication = Publication(project_id=project.id, title="Test paper", doi="10.1000/test")
+    publication = Publication(
+        project_id=project.id, title="Test paper", doi="10.1000/test"
+    )
     db.add(publication)
     db.commit()
     return reviewer, outsider, project, publication
@@ -128,16 +132,24 @@ def test_upload_view_replace_remove_and_history(client, db) -> None:
     previous = db.get(PublicationDocument, document["id"])
     assert previous is not None and previous.is_active is False
     assert previous.replaced_by_document_id == replacement_id
-    assert db.scalar(
-        select(func.count()).select_from(PublicationDocument).where(
-            PublicationDocument.publication_id == publication.id,
-            PublicationDocument.is_active.is_(True),
+    assert (
+        db.scalar(
+            select(func.count())
+            .select_from(PublicationDocument)
+            .where(
+                PublicationDocument.publication_id == publication.id,
+                PublicationDocument.is_active.is_(True),
+            )
         )
-    ) == 1
+        == 1
+    )
 
     history = client.get(f"{endpoint}/history")
     assert history.status_code == 200
-    assert [item["originalFilename"] for item in history.json()] == ["final.pdf", "preprint.pdf"]
+    assert [item["originalFilename"] for item in history.json()] == [
+        "final.pdf",
+        "preprint.pdf",
+    ]
 
     removed = client.delete(endpoint, headers={"X-CSRF-Token": csrf})
     assert removed.status_code == 204

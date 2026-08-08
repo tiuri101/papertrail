@@ -4,8 +4,9 @@ from functools import lru_cache
 from os import getenv
 from pathlib import Path
 from typing import Annotated
+from urllib.parse import urlsplit
 
-from pydantic import field_validator
+from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
@@ -43,6 +44,15 @@ class Settings(BaseSettings):
     worker_threads: int = 4
     job_poll_interval_seconds: float = 1.0
     job_lease_seconds: int = 300
+    llm_enabled: bool = False
+    ollama_base_url: str | None = None
+    ollama_model: str | None = None
+    ollama_request_timeout_seconds: int = 300
+    ollama_api_key: str | None = None
+    llm_max_concurrent_jobs: int = 1
+    llm_context_length: int = 32768
+    llm_max_evidence_items: int = 3
+    llm_max_evidence_quote_chars: int = 500
 
     @field_validator("cors_origins", "allowed_hosts", mode="before")
     @classmethod
@@ -50,6 +60,51 @@ class Settings(BaseSettings):
         if isinstance(value, str):
             return [part.strip() for part in value.split(",") if part.strip()]
         return value
+
+    @field_validator("ollama_base_url")
+    @classmethod
+    def normalize_ollama_base_url(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        return value.strip().rstrip("/")
+
+    @field_validator("ollama_model", "ollama_api_key")
+    @classmethod
+    def normalize_optional_llm_string(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        return value.strip()
+
+    @model_validator(mode="after")
+    def validate_llm_configuration(self) -> Settings:
+        if self.llm_enabled and (not self.ollama_base_url or not self.ollama_model):
+            raise ValueError(
+                "PAPERTRAIL_OLLAMA_BASE_URL and PAPERTRAIL_OLLAMA_MODEL are required "
+                "when PAPERTRAIL_LLM_ENABLED is true"
+            )
+        if self.ollama_base_url:
+            parsed = urlsplit(self.ollama_base_url)
+            if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+                raise ValueError(
+                    "PAPERTRAIL_OLLAMA_BASE_URL must be an HTTP(S) server URL"
+                )
+        if self.llm_max_concurrent_jobs < 1:
+            raise ValueError("PAPERTRAIL_LLM_MAX_CONCURRENT_JOBS must be at least 1")
+        if self.ollama_request_timeout_seconds < 1:
+            raise ValueError(
+                "PAPERTRAIL_OLLAMA_REQUEST_TIMEOUT_SECONDS must be at least 1"
+            )
+        if self.llm_context_length < 4096:
+            raise ValueError("PAPERTRAIL_LLM_CONTEXT_LENGTH must be at least 4096")
+        if not 1 <= self.llm_max_evidence_items <= 10:
+            raise ValueError(
+                "PAPERTRAIL_LLM_MAX_EVIDENCE_ITEMS must be between 1 and 10"
+            )
+        if not 50 <= self.llm_max_evidence_quote_chars <= 2000:
+            raise ValueError(
+                "PAPERTRAIL_LLM_MAX_EVIDENCE_QUOTE_CHARS must be between 50 and 2000"
+            )
+        return self
 
     def ensure_directories(self) -> None:
         self.import_dir.mkdir(parents=True, exist_ok=True)

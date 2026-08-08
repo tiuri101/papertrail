@@ -15,7 +15,8 @@ from app.projects.models import Project, ProjectStage
 from app.publications.models import MetadataConflict, Publication, PublicationSource
 from app.publications.service import IMPORTANT_FIELDS
 
-OTHER_IDENTIFIER_FIELDS = ("isbn", "issn", "pubmed_id", "arxiv_id")
+UNIQUE_IDENTIFIER_FIELDS = ("pubmed_id", "arxiv_id")
+CONTEXT_IDENTIFIER_FIELDS = ("isbn", "issn")
 
 MERGE_FIELDS = (
     "title",
@@ -43,72 +44,120 @@ def normalized_authors(authors: str | None) -> str:
     return re.sub(r"[^a-z0-9]+", " ", (authors or "").lower()).strip()
 
 
+def _pair_key(left_id: str, right_id: str) -> tuple[str, str]:
+    return (left_id, right_id) if left_id < right_id else (right_id, left_id)
+
+
+def _duplicate_assessment(
+    left: Publication, right: Publication
+) -> tuple[list[str], float, float | None, bool | None, float | None]:
+    title_score = float(
+        ratio(normalized_title(left.title), normalized_title(right.title))
+    )
+    author_score = (
+        float(
+            ratio(normalized_authors(left.authors), normalized_authors(right.authors))
+        )
+        if left.authors and right.authors
+        else None
+    )
+    year_agreement = (
+        left.publication_year == right.publication_year
+        if left.publication_year and right.publication_year
+        else None
+    )
+    reasons: list[str] = []
+    if left.doi and right.doi and left.doi == right.doi:
+        reasons.append("exact_doi")
+    for field in UNIQUE_IDENTIFIER_FIELDS:
+        if getattr(left, field) and getattr(left, field) == getattr(right, field):
+            reasons.append(f"exact_{field}")
+    if normalized_title(left.title) == normalized_title(right.title):
+        reasons.append("exact_title")
+    elif title_score >= 92:
+        reasons.append("similar_title")
+    if title_score >= 90 and author_score is not None and author_score >= 80:
+        reasons.append("similar_title_authors")
+    if 80 <= title_score < 92 and year_agreement is True:
+        reasons.append("similar_title_year")
+
+    # ISBN identifies a book/proceedings volume and ISSN identifies a serial,
+    # not an individual article. Keep them only as supporting context after an
+    # independently useful publication-level match has already been found.
+    if reasons:
+        for field in CONTEXT_IDENTIFIER_FIELDS:
+            if getattr(left, field) and getattr(left, field) == getattr(right, field):
+                reasons.append(f"shared_{field}")
+
+    if not reasons:
+        return reasons, title_score, author_score, year_agreement, None
+    strong_identifier_match = "exact_doi" in reasons or any(
+        f"exact_{field}" in reasons for field in UNIQUE_IDENTIFIER_FIELDS
+    )
+    confidence = (
+        1.0
+        if strong_identifier_match
+        else min(0.99, (title_score + (author_score or title_score)) / 200)
+    )
+    return reasons, title_score, author_score, year_agreement, confidence
+
+
 def detect_duplicates(db: Session, project_id: str) -> int:
     publications = list(
         db.scalars(
             select(Publication)
-            .where(Publication.project_id == project_id, Publication.is_active.is_(True))
+            .where(
+                Publication.project_id == project_id, Publication.is_active.is_(True)
+            )
             .order_by(Publication.id)
         )
     )
+    existing_candidates = {
+        _pair_key(candidate.publication_a_id, candidate.publication_b_id): candidate
+        for candidate in db.scalars(
+            select(DuplicateCandidate).where(
+                DuplicateCandidate.project_id == project_id
+            )
+        )
+    }
+    active_pairs: set[tuple[str, str]] = set()
     created = 0
     for left, right in combinations(publications, 2):
-        a_id, b_id = sorted((left.id, right.id))
-        if db.scalar(
-            select(DuplicateCandidate.id).where(
-                DuplicateCandidate.project_id == project_id,
-                DuplicateCandidate.publication_a_id == a_id,
-                DuplicateCandidate.publication_b_id == b_id,
-            )
-        ):
+        a_id, b_id = _pair_key(left.id, right.id)
+        pair = (a_id, b_id)
+        active_pairs.add(pair)
+        existing = existing_candidates.get(pair)
+        if existing is not None and existing.status != "unresolved":
             continue
-        reasons: list[str] = []
-        title_score = float(ratio(normalized_title(left.title), normalized_title(right.title)))
-        author_score = (
-            float(ratio(normalized_authors(left.authors), normalized_authors(right.authors)))
-            if left.authors and right.authors
-            else None
-        )
-        year_agreement = (
-            left.publication_year == right.publication_year
-            if left.publication_year and right.publication_year
-            else None
-        )
-        if left.doi and right.doi and left.doi == right.doi:
-            reasons.append("exact_doi")
-        if normalized_title(left.title) == normalized_title(right.title):
-            reasons.append("exact_title")
-        elif title_score >= 92:
-            reasons.append("similar_title")
-        if title_score >= 90 and author_score is not None and author_score >= 80:
-            reasons.append("similar_title_authors")
-        if 80 <= title_score < 92 and year_agreement is True:
-            reasons.append("similar_title_year")
-        if any(
-            getattr(left, field) and getattr(left, field) == getattr(right, field)
-            for field in OTHER_IDENTIFIER_FIELDS
-        ):
-            reasons.append("other_identifier")
+        (
+            reasons,
+            title_score,
+            author_score,
+            year_agreement,
+            confidence,
+        ) = _duplicate_assessment(left, right)
         if not reasons:
+            if existing is not None:
+                db.delete(existing)
             continue
-        confidence = (
-            1.0
-            if "exact_doi" in reasons or "other_identifier" in reasons
-            else min(0.99, (title_score + (author_score or title_score)) / 200)
-        )
-        db.add(
-            DuplicateCandidate(
+        assert confidence is not None
+        if existing is None:
+            existing = DuplicateCandidate(
                 project_id=project_id,
                 publication_a_id=a_id,
                 publication_b_id=b_id,
-                match_reasons=reasons,
-                title_similarity=title_score,
-                author_similarity=author_score,
-                year_agreement=year_agreement,
-                confidence=confidence,
             )
-        )
-        created += 1
+            db.add(existing)
+            created += 1
+        existing.match_reasons = reasons
+        existing.title_similarity = title_score
+        existing.author_similarity = author_score
+        existing.year_agreement = year_agreement
+        existing.confidence = confidence
+
+    for pair, candidate in existing_candidates.items():
+        if candidate.status == "unresolved" and pair not in active_pairs:
+            db.delete(candidate)
     db.flush()
     return created
 
@@ -178,7 +227,9 @@ def merge_publications(
                 conflicts_created += 1
     sources = list(
         db.scalars(
-            select(PublicationSource).where(PublicationSource.publication_id == duplicate.id)
+            select(PublicationSource).where(
+                PublicationSource.publication_id == duplicate.id
+            )
         )
     )
     moved_source_ids = [source.id for source in sources]
@@ -192,7 +243,9 @@ def merge_publications(
     )
     duplicate_documents = list(
         db.scalars(
-            select(PublicationDocument).where(PublicationDocument.publication_id == duplicate.id)
+            select(PublicationDocument).where(
+                PublicationDocument.publication_id == duplicate.id
+            )
         )
     )
     moved_document_states = [
@@ -231,7 +284,9 @@ def merge_publications(
     return merge
 
 
-def reverse_merge(db: Session, merge: PublicationMerge, reversed_by_id: str | None = None) -> None:
+def reverse_merge(
+    db: Session, merge: PublicationMerge, reversed_by_id: str | None = None
+) -> None:
     if merge.reversed_at is not None:
         raise ConflictError("Merge has already been reversed")
     canonical = db.get(Publication, merge.canonical_publication_id)

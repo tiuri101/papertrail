@@ -21,6 +21,7 @@ from app.fulltext.document_routes import router as fulltext_document_router
 from app.fulltext.routes import router as fulltext_router
 from app.imports.routes import router as imports_router
 from app.jobs.routes import router as jobs_router
+from app.llm.routes import router as llm_router
 from app.projects.routes import router as projects_router
 from app.publications.routes import router as publications_router
 from app.quality.routes import router as quality_router
@@ -56,10 +57,12 @@ def create_app() -> FastAPI:
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"
-        response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
-        response.headers["Content-Security-Policy"] = (
-            "frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
-        )
+        response.headers[
+            "Permissions-Policy"
+        ] = "camera=(), microphone=(), geolocation=()"
+        response.headers[
+            "Content-Security-Policy"
+        ] = "frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
         if request.url.path.startswith(settings.api_prefix):
             response.headers["Cache-Control"] = "no-store"
         return response
@@ -69,6 +72,7 @@ def create_app() -> FastAPI:
     app.include_router(projects_router, prefix=settings.api_prefix)
     app.include_router(imports_router, prefix=settings.api_prefix)
     app.include_router(jobs_router, prefix=settings.api_prefix)
+    app.include_router(llm_router, prefix=settings.api_prefix)
     app.include_router(publications_router, prefix=settings.api_prefix)
     app.include_router(deduplication_router, prefix=settings.api_prefix)
     app.include_router(screening_router, prefix=settings.api_prefix)

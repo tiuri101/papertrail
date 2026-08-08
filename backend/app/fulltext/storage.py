@@ -33,7 +33,9 @@ class StoredPdf:
 
 def safe_display_filename(filename: str | None) -> str:
     value = (filename or "document.pdf").replace("\\", "/").split("/")[-1]
-    value = "".join(char for char in normalize("NFC", value) if char >= " " and char != "\x7f")
+    value = "".join(
+        char for char in normalize("NFC", value) if char >= " " and char != "\x7f"
+    )
     value = value.strip(" .")[:500]
     return value or "document.pdf"
 
@@ -130,7 +132,10 @@ def stage_pdf_stream(
     settings: Settings | None = None,
 ) -> StoredPdf:
     return _stage_stream(
-        stream, filename, import_batch_id=import_batch_id, settings=settings or get_settings()
+        stream,
+        filename,
+        import_batch_id=import_batch_id,
+        settings=settings or get_settings(),
     )
 
 
@@ -184,8 +189,12 @@ async def stage_pdf_upload(
         await upload.close()
 
 
-def promote_pdf(staged_key: str, project_id: str, publication_id: str, document_id: str) -> str:
-    destination_key = f"projects/{project_id}/publications/{publication_id}/{document_id}.pdf"
+def promote_pdf(
+    staged_key: str, project_id: str, publication_id: str, document_id: str
+) -> str:
+    destination_key = (
+        f"projects/{project_id}/publications/{publication_id}/{document_id}.pdf"
+    )
     source = storage_path(staged_key)
     destination = storage_path(destination_key)
     destination.parent.mkdir(parents=True, exist_ok=True)

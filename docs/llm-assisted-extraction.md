@@ -1,0 +1,70 @@
+# LLM-assisted data extraction
+
+Papertrail can prepare structured, evidence-backed extraction suggestions with an external Ollama server. Ollama is a separate service: Papertrail does not install, start, expose, or pull models for it, and browsers never connect to it directly.
+
+> LLM suggestions are not authoritative review data. A human reviewer remains responsible for the final extraction.
+
+## Architecture and processing trigger
+
+The normal PostgreSQL-backed worker extracts text from each eligible active PDF with `pypdf`, preserving physical PDF page numbers. A dedicated LLM worker uses the same job table but claims only Ollama inference jobs, which limits GPU concurrency independently from ordinary jobs. Text, immutable runs, validated suggestions, evidence-verification results, runtime metrics, and reviewer-versus-suggestion provenance are stored in PostgreSQL. PDF binaries remain in `papertrail_pdf_data`.
+
+Preparation starts only when all of these are true:
+
+- installation-level LLM support is enabled;
+- the project has enabled LLM assistance and published an LLM schema;
+- the publication has a current title/abstract inclusion decision;
+- an active PDF exists;
+- the publication has not been excluded at full text.
+
+An early bulk-imported PDF therefore remains idle until title/abstract inclusion. If the publication was already included, uploading or replacing its PDF queues processing immediately. Queued inference is cancelled when practical after full-text exclusion; completed historical processing is retained. No LLM output is shown in either screening workflow and it never affects screening, conflict, PRISMA, quality, or project decisions.
+
+## Configuration
+
+```dotenv
+PAPERTRAIL_LLM_ENABLED=true
+PAPERTRAIL_OLLAMA_BASE_URL=http://ollama.internal:11434
+PAPERTRAIL_OLLAMA_MODEL=qwen3:8b
+PAPERTRAIL_OLLAMA_REQUEST_TIMEOUT_SECONDS=300
+PAPERTRAIL_LLM_MAX_CONCURRENT_JOBS=1
+PAPERTRAIL_LLM_CONTEXT_LENGTH=32768
+PAPERTRAIL_LLM_MAX_EVIDENCE_ITEMS=3
+PAPERTRAIL_LLM_MAX_EVIDENCE_QUOTE_CHARS=500
+# Optional bearer token for a protected reverse proxy:
+# PAPERTRAIL_OLLAMA_API_KEY=secret
+```
+
+`PAPERTRAIL_OLLAMA_BASE_URL` is the server base URL, without `/api/chat`. Papertrail sends native `POST /api/chat` requests with `stream=false`, `think=false`, JSON-schema structured output, temperature zero, and the configured context length. Credentials are backend-only and are neither returned by APIs nor logged. `PAPERTRAIL_LLM_ENABLED=false` leaves every existing workflow fully functional and requires no Ollama or GPU for development and tests.
+
+Ollama must already contain the configured model. The project administration connection test calls Ollama's model-list endpoint and reports reachability and model availability; it never pulls a model. The normal Compose stack does not contain Ollama or GPU configuration.
+
+## Project schema and versioning
+
+Project owners and administrators configure LLM assistance in Project Administration. “Create LLM schema from extraction form” creates one evidence-required LLM field per active extraction field. Each field has a label, explicit extraction instruction, output type, stable-key mapping, options/range, evidence requirement, inference policy, enabled flag, and order. LLM-only helper fields are supported.
+
+Supported types are short text, long text, number, checkbox/boolean, single selection, multiple selection, date, URL, and rating. Mapped field types and selection options must match the active extraction field. Mappings use the extraction field's stable key, so label and order changes survive; archived or type-replaced fields are reported as outdated and block publication until resolved.
+
+Published versions are immutable. Editing a published schema forks a new draft. Publishing makes it current but retains prior versions and runs. Existing runs are marked outdated relative to a newer schema; they are not deleted or silently rerun. Administrators can explicitly queue all title/abstract-eligible papers or only full-text-included papers with the current schema; assigned extraction reviewers can queue/re-run their current paper. Active duplicate runs for the same document/schema pair are prevented.
+
+## Text, prompts, evidence, and long documents
+
+Text is stored page-by-page against the exact stable `document_id`. Image-only/scanned PDFs are marked unsupported with an OCR-required message; Papertrail does not perform OCR. Replacing a PDF creates a new document, text extraction, and LLM run while historical document text and runs remain attached to the old version.
+
+The prompt contains stable system rules, versioned field instructions/options, unmistakable `--- PDF PAGE N ---` boundaries, and a strict response schema. The model returns `explicit`, `inferred`, `ambiguous`, `not_found`, or `not_applicable` per field. Fields that forbid inference cannot accept an inferred result. Responses are validated again by Pydantic and by type/option rules; one structured repair request is attempted before deterministic failure.
+
+Papertrail estimates prompt size conservatively. A fitting paper uses one pass. Longer papers are packed into page-aware chunks without splitting pages where possible, then consolidated through another structured request using only candidate values and candidate evidence. Candidate disagreement is instructed to become ambiguous.
+
+Evidence is limited to short quotes and a small number of items. Every quote is whitespace-normalized and checked against the claimed physical PDF page. Verified, partially verified, and unverified evidence remain distinguishable; missing or fabricated evidence is never presented as verified and does not block manual extraction.
+
+## Reviewer workflow and provenance
+
+Suggestions appear beside their mapped controls in Data Extraction, not as a separate approval phase. Existing drafts always take precedence and late results never overwrite reviewer work. Reviewers can apply/reset a suggestion, freely edit or replace it, inspect evidence, and open the authenticated PDF with a page fragment. Missing, ambiguous, inferred, processing, unavailable, failed, and outdated states are explicit. Helper fields appear in a secondary panel and never enter the official response.
+
+Submitting uses the normal extraction validation, revision, autosave, and export paths. The original validated LLM result remains immutable. Papertrail automatically stores whether each final reviewer value accepted, modified, replaced, or did not use a suggestion. Standard exports continue to contain reviewer-controlled values only.
+
+## Reliability, privacy, and backup
+
+Transient network, timeout, HTTP 5xx, and interruption failures use existing leases and bounded retries. Validation, missing-text, and unsupported-document failures stop cleanly. Ollama downtime never blocks API, screening, extraction, submission, reporting, or exports. Operational logs contain IDs, model, status, counts, durations, and error categories—not full papers, prompts, credentials, or sessions.
+
+The external Ollama service receives full text from the one eligible paper being processed, plus that project's extraction field definitions. It does not receive passwords, sessions, reviewer notes, screening decisions, or other publications. Administrators must assess and secure that network path and Ollama host appropriately.
+
+A complete backup still requires PostgreSQL plus the PDF and import/export volumes. LLM schemas, page text, immutable runs, metrics, evidence, and provenance live in PostgreSQL; source PDFs live in `papertrail_pdf_data`.

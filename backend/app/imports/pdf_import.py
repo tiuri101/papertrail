@@ -21,7 +21,12 @@ from app.fulltext.storage import (
     stage_pdf_stream,
     stage_pdf_upload,
 )
-from app.imports.models import ImportBatch, ImportedRecord, ImportPdfItem, PdfMatchStatus
+from app.imports.models import (
+    ImportBatch,
+    ImportedRecord,
+    ImportPdfItem,
+    PdfMatchStatus,
+)
 from app.imports.pdf_matching import match_pdf
 from app.publications.models import Publication, PublicationSource
 
@@ -54,7 +59,9 @@ def _invalid_item(
     )
 
 
-def _mark_duplicate_in_batch(db: Session, batch: ImportBatch, item: ImportPdfItem) -> None:
+def _mark_duplicate_in_batch(
+    db: Session, batch: ImportBatch, item: ImportPdfItem
+) -> None:
     if not item.sha256:
         return
     duplicate = db.scalar(
@@ -81,11 +88,15 @@ async def stage_bulk_uploads(
     settings = get_settings()
     total_inputs = len(pdfs)
     if total_inputs > settings.max_pdf_batch_files:
-        raise DomainError(f"A PDF batch may contain at most {settings.max_pdf_batch_files} files")
+        raise DomainError(
+            f"A PDF batch may contain at most {settings.max_pdf_batch_files} files"
+        )
     staged_count = 0
     for upload in pdfs:
         try:
-            staged = await stage_pdf_upload(upload, import_batch_id=batch.id, settings=settings)
+            staged = await stage_pdf_upload(
+                upload, import_batch_id=batch.id, settings=settings
+            )
             item = _item_from_staged(batch, staged)
         except Exception as exc:
             item = _invalid_item(batch, upload.filename, exc)
@@ -116,12 +127,15 @@ async def stage_bulk_uploads(
                     )
                 expanded = sum(entry.file_size for entry in infos)
                 if expanded > settings.max_pdf_zip_expanded_bytes:
-                    raise DomainError("PDF ZIP expands beyond the configured safety limit")
+                    raise DomainError(
+                        "PDF ZIP expands beyond the configured safety limit"
+                    )
                 for entry in infos:
                     entry_path = PurePosixPath(entry.filename.replace("\\", "/"))
                     unsafe = entry_path.is_absolute() or ".." in entry_path.parts
                     suspicious = (
-                        entry.compress_size > 0 and entry.file_size / entry.compress_size > 200
+                        entry.compress_size > 0
+                        and entry.file_size / entry.compress_size > 200
                     )
                     if unsafe or suspicious:
                         db.add(
@@ -134,7 +148,11 @@ async def stage_bulk_uploads(
                             )
                         )
                     elif entry_path.suffix.lower() != ".pdf":
-                        db.add(_invalid_item(batch, entry.filename, "ZIP entry is not a PDF"))
+                        db.add(
+                            _invalid_item(
+                                batch, entry.filename, "ZIP entry is not a PDF"
+                            )
+                        )
                     else:
                         try:
                             with archive.open(entry) as stream:
@@ -170,7 +188,10 @@ def batch_publications(db: Session, batch_id: str) -> list[Publication]:
             select(Publication)
             .options(selectinload(Publication.documents))
             .join(PublicationSource, PublicationSource.publication_id == Publication.id)
-            .join(ImportedRecord, ImportedRecord.id == PublicationSource.imported_record_id)
+            .join(
+                ImportedRecord,
+                ImportedRecord.id == PublicationSource.imported_record_id,
+            )
             .where(
                 ImportedRecord.import_batch_id == batch_id,
                 Publication.is_active.is_(True),
@@ -249,7 +270,11 @@ def resolve_pdf_match(
     action: str,
     user_id: str,
 ) -> None:
-    if item.status in {PdfMatchStatus.MATCHED, PdfMatchStatus.DUPLICATE, PdfMatchStatus.INVALID}:
+    if item.status in {
+        PdfMatchStatus.MATCHED,
+        PdfMatchStatus.DUPLICATE,
+        PdfMatchStatus.INVALID,
+    }:
         raise DomainError("This PDF match can no longer be changed")
     if action in {"skip", "keep_existing"}:
         item.status = PdfMatchStatus.SKIPPED
@@ -268,7 +293,9 @@ def resolve_pdf_match(
             )
         )
         if other and not replace:
-            raise DomainError("Another PDF in this batch is already attached to that publication")
+            raise DomainError(
+                "Another PDF in this batch is already attached to that publication"
+            )
         document = attach_staged_pdf(
             db,
             project_id=item.project_id,
@@ -306,7 +333,11 @@ def resolve_pdf_match(
 
 def pdf_summary(db: Session, batch_id: str) -> dict[str, int]:
     items = list(
-        db.scalars(select(ImportPdfItem.status).where(ImportPdfItem.import_batch_id == batch_id))
+        db.scalars(
+            select(ImportPdfItem.status).where(
+                ImportPdfItem.import_batch_id == batch_id
+            )
+        )
     )
     summary = {"total": len(items)}
     for state in PdfMatchStatus:

@@ -32,6 +32,9 @@ class BackgroundJob(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     progress_current: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     progress_total: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     progress_message: Mapped[str | None] = mapped_column(String(500))
+    priority: Mapped[int] = mapped_column(
+        Integer, default=0, index=True, nullable=False
+    )
     created_by_id: Mapped[str | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL")
     )

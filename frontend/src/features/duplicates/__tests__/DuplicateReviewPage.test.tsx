@@ -23,7 +23,7 @@ const candidate = {
     venue: 'CHI Extended Abstracts',
     doi: '10.1000/same',
   },
-  matchReasons: ['exact_doi', 'similar_title_authors'],
+  matchReasons: ['exact_doi', 'similar_title_authors', 'shared_issn'],
   confidence: 0.98,
   status: 'unresolved',
 }
@@ -51,8 +51,12 @@ describe('DuplicateReviewPage', () => {
     expect(doiLinks).toHaveLength(2)
     expect(doiLinks[0]).toHaveAttribute('href', 'https://doi.org/10.1000/same')
     expect(doiLinks[0]).toHaveAttribute('target', '_blank')
-    expect(screen.getByText('Exact DOI, Similar title & authors — 98% match — unresolved')).toBeInTheDocument()
-    expect(screen.getByText('A Study of Urban VR').closest('ul')).toHaveClass('card-list')
+    expect(screen.getByText('Exact DOI, Similar title & authors, Shared ISSN — 98% match — unresolved')).toBeInTheDocument()
+    const candidateList = screen.getByText('A Study of Urban VR').closest('ul')
+    expect(candidateList).toHaveClass('card-list', 'stacked')
+    expect(screen.getByText('A Study of Urban VR').closest('.duplicate-publications')).toBe(
+      screen.getByText('A study of urban VR').closest('.duplicate-publications'),
+    )
 
     fireEvent.click(screen.getByRole('button', { name: 'Not a Duplicate' }))
 

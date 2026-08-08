@@ -89,6 +89,30 @@ def record_final_decision(
     )
     db.add(final)
     db.flush()
+    from app.llm.service import (
+        cancel_queued_for_publication,
+        queue_preparation_if_eligible,
+    )
+
+    if (
+        stage == ScreeningStage.TITLE_ABSTRACT
+        and final.outcome == ScreeningOutcome.INCLUDE
+    ):
+        queue_preparation_if_eligible(
+            db, publication_id, created_by_id=resolved_by_id, priority=0
+        )
+    elif stage == ScreeningStage.TITLE_ABSTRACT:
+        cancel_queued_for_publication(db, publication_id)
+    elif (
+        stage == ScreeningStage.FULL_TEXT and final.outcome == ScreeningOutcome.INCLUDE
+    ):
+        queue_preparation_if_eligible(
+            db, publication_id, created_by_id=resolved_by_id, priority=10
+        )
+    elif (
+        stage == ScreeningStage.FULL_TEXT and final.outcome == ScreeningOutcome.EXCLUDE
+    ):
+        cancel_queued_for_publication(db, publication_id)
     return final
 
 

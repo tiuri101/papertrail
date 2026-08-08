@@ -1,6 +1,6 @@
 # Architecture
 
-Papertrail is an API-first modular monolith. A React/TypeScript single-page application communicates with a FastAPI backend. PostgreSQL is the authoritative store for bibliographic records, PDF metadata and version links, workflow state, sessions, audit events, queue reservations, and background jobs. PDF binaries are held in a dedicated persistent filesystem volume.
+Papertrail is an API-first modular monolith. A React/TypeScript single-page application communicates with a FastAPI backend. PostgreSQL is the authoritative store for bibliographic records, PDF metadata and version links, workflow state, sessions, audit events, queue reservations, background jobs, LLM schemas, page text, immutable LLM runs, suggestions, and reviewer provenance. PDF binaries are held in a dedicated persistent filesystem volume. An optional dedicated worker communicates over HTTP with an independently operated Ollama server; clients never communicate with Ollama.
 
 ```text
 Browser (React/TypeScript)
@@ -31,6 +31,8 @@ Screening, extraction, and quality work items use deterministic ranks derived fr
 ## Data preservation
 
 Imported source rows are immutable and linked to normalized publications. Each PDF version has a stable document ID and generated storage key; one partial unique index permits at most one active PDF per publication. Replacement and logical removal preserve prior metadata and files. Duplicate merges transfer every document to the canonical publication and retain conflicting files as history. Individual reviewer decisions and revisions remain separate from PDF availability and final project decisions. Dynamic forms use immutable versions and stable field identifiers.
+
+LLM extraction keeps HTTP transport, page-aware PDF extraction, schema/version management, prompt construction, evidence verification, orchestration, and reviewer integration separate. Text and runs pin the exact document and schema versions. LLM fields map to stable extraction-field keys, while suggestions remain separate from authoritative extraction responses. Normal workers claim text jobs; the LLM-only worker claims inference jobs with its own concurrency limit through the same leased PostgreSQL queue.
 
 ## Deployment
 

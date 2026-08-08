@@ -301,7 +301,7 @@ def test_detect_duplicates_matches_similar_title_with_year_agreement(db) -> None
     assert candidate.year_agreement is True
 
 
-def test_detect_duplicates_matches_other_shared_identifiers(db) -> None:
+def test_detect_duplicates_matches_unique_publication_identifiers(db) -> None:
     project = Project(
         name="Review",
         review_type=ReviewType.SYSTEMATIC_REVIEW,
@@ -328,8 +328,93 @@ def test_detect_duplicates_matches_other_shared_identifiers(db) -> None:
         select(DuplicateCandidate).where(DuplicateCandidate.project_id == project.id)
     )
     assert candidate is not None
-    assert "other_identifier" in candidate.match_reasons
+    assert "exact_pubmed_id" in candidate.match_reasons
     assert candidate.confidence == 1.0
+
+
+def test_detect_duplicates_does_not_treat_shared_isbn_or_issn_as_proof(db) -> None:
+    project = Project(
+        name="Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.DUPLICATE_REVIEW,
+    )
+    db.add(project)
+    db.flush()
+    pub_a = Publication(
+        project_id=project.id,
+        title="Immersive analytics for energy systems",
+        authors="Doe, Jane",
+        doi="10.1000/energy",
+        isbn="978-1-2345-6789-0",
+        issn="1234-5678",
+    )
+    pub_b = Publication(
+        project_id=project.id,
+        title="A taxonomy of collaborative visualization",
+        authors="Smith, John",
+        doi="10.1000/collaboration",
+        isbn="978-1-2345-6789-0",
+        issn="1234-5678",
+    )
+    db.add_all([pub_a, pub_b])
+    db.commit()
+
+    assert detect_duplicates(db, project.id) == 0
+    assert (
+        db.scalar(
+            select(DuplicateCandidate).where(
+                DuplicateCandidate.project_id == project.id
+            )
+        )
+        is None
+    )
+
+
+def test_detect_duplicates_refreshes_stale_unresolved_candidates(db) -> None:
+    project = Project(
+        name="Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.DUPLICATE_REVIEW,
+    )
+    db.add(project)
+    db.flush()
+    pub_a = Publication(
+        project_id=project.id,
+        title="A Study of Urban VR",
+        doi="10.1000/same",
+    )
+    pub_b = Publication(
+        project_id=project.id,
+        title="A Study of Urban VR",
+        doi="10.1000/same",
+    )
+    db.add_all([pub_a, pub_b])
+    db.commit()
+
+    assert detect_duplicates(db, project.id) == 1
+    candidate = db.scalar(
+        select(DuplicateCandidate).where(DuplicateCandidate.project_id == project.id)
+    )
+    assert candidate is not None
+    assert candidate.confidence == 1.0
+
+    pub_b.doi = "10.1000/different"
+    assert detect_duplicates(db, project.id) == 0
+    assert candidate.match_reasons == ["exact_title"]
+    assert candidate.confidence == 0.99
+
+    pub_b.title = "A completely unrelated publication"
+    assert detect_duplicates(db, project.id) == 0
+    assert (
+        db.scalar(
+            select(DuplicateCandidate).where(
+                DuplicateCandidate.project_id == project.id
+            )
+        )
+        is None
+    )
 
 
 def test_merge_flags_conflicting_important_fields_instead_of_dropping_them(db) -> None:

@@ -88,12 +88,11 @@ def test_queue_claims_independent_slots_and_uses_deterministic_rank(db) -> None:
     db.commit()
     assert first is not None
     assert first.reserved_until > datetime.now(UTC)
-    assert (
-        claim_next_work_item(
-            db, project.id, ScreeningStage.TITLE_ABSTRACT, reviewer1.id
-        )
-        is None
+    resumed = claim_next_work_item(
+        db, project.id, ScreeningStage.TITLE_ABSTRACT, reviewer1.id
     )
+    assert resumed is not None
+    assert resumed.id == first.id
 
     second = claim_next_work_item(
         db, project.id, ScreeningStage.TITLE_ABSTRACT, reviewer2.id
@@ -205,7 +204,7 @@ def test_removing_a_reviewer_reassigns_their_pending_work_items(client, db) -> N
     (
         _,
         project,
-        _,
+        publications,
         reviewer1,
         reviewer2,
         membership2,
@@ -237,7 +236,17 @@ def test_removing_a_reviewer_reassigns_their_pending_work_items(client, db) -> N
         body = response.json()
         assert body is not None
         claimed_titles.add(body["publication"]["title"])
-    assert claimed_titles == {"Paper 0", "Paper 1", "Paper 2"}
+        decision = client.post(
+            f"/api/v1/projects/{project.id}/screening/work-items/{body['id']}/decision",
+            headers={"X-CSRF-Token": reviewer_csrf},
+            json={
+                "outcome": "include",
+                "criteriaAnswers": {},
+                "notes": None,
+            },
+        )
+        assert decision.status_code == 200
+    assert claimed_titles == {publication.title for publication in publications}
 
 
 def test_revoking_a_reviewers_stage_permission_reassigns_their_work_items(
@@ -275,7 +284,7 @@ def test_next_endpoint_self_heals_a_work_item_left_on_an_ineligible_reviewer(
     (
         _,
         project,
-        _,
+        publications,
         reviewer1,
         reviewer2,
         membership2,
@@ -297,7 +306,18 @@ def test_next_endpoint_self_heals_a_work_item_left_on_an_ineligible_reviewer(
         body = response.json()
         assert body is not None
         claimed_titles.add(body["publication"]["title"])
-    assert claimed_titles == {"Paper 0", "Paper 1", "Paper 2"}
+        decision = client.post(
+            f"/api/v1/projects/{project.id}/screening/work-items/{body['id']}/decision",
+            headers={"X-CSRF-Token": csrf},
+            json={
+                "outcome": "include",
+                "criteriaAnswers": {},
+                "notes": None,
+            },
+        )
+        assert decision.status_code == 200
+    assert claimed_titles == {publication.title for publication in publications}
+    assert assignees(db, project.id) == {reviewer1.id}
 
 
 def test_submitted_work_items_are_not_reassigned(db) -> None:
@@ -565,12 +585,12 @@ def test_next_endpoint_returns_a_claimable_work_item_over_http(client, db) -> No
         "exclusion",
     }
 
-    empty = client.post(
+    resumed = client.post(
         f"/api/v1/projects/{project.id}/screening/title_abstract/next",
         headers={"X-CSRF-Token": csrf},
     )
-    assert empty.status_code == 200
-    assert empty.json() is None
+    assert resumed.status_code == 200
+    assert resumed.json()["id"] == body["id"]
 
 
 def test_next_endpoint_backfills_a_publication_left_without_a_work_item(
@@ -580,7 +600,7 @@ def test_next_endpoint_backfills_a_publication_left_without_a_work_item(
     (e.g. added after title/abstract screening had already started, before the
     creation-time fix existed) must still surface to the reviewer, not sit
     permanently invisible in their queue."""
-    project, publication, reviewer1, reviewer2, _ = setup_screening(db)
+    project, publication, reviewer1, reviewer2, criteria = setup_screening(db)
     create_screening_work_items(
         db, project, ScreeningStage.TITLE_ABSTRACT, publication_ids=[publication.id]
     )
@@ -601,18 +621,40 @@ def test_next_endpoint_backfills_a_publication_left_without_a_work_item(
     )
     csrf = login.json()["csrfToken"]
 
-    seen_titles = set()
-    for _ in range(2):
-        response = client.post(
-            f"/api/v1/projects/{project.id}/screening/title_abstract/next",
-            headers={"X-CSRF-Token": csrf},
-        )
-        assert response.status_code == 200
-        body = response.json()
-        assert body is not None
-        seen_titles.add(body["publication"]["title"])
+    first_response = client.post(
+        f"/api/v1/projects/{project.id}/screening/title_abstract/next",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert first_response.status_code == 200
+    first = first_response.json()
+    assert first is not None
 
-    assert seen_titles == {publication.title, "Orphaned paper"}
+    decision = client.post(
+        f"/api/v1/projects/{project.id}/screening/work-items/{first['id']}/decision",
+        headers={"X-CSRF-Token": csrf},
+        json={
+            "outcome": "include",
+            "criteriaAnswers": {
+                criteria[0].id: True,
+                criteria[1].id: False,
+            },
+            "notes": None,
+        },
+    )
+    assert decision.status_code == 200
+
+    second_response = client.post(
+        f"/api/v1/projects/{project.id}/screening/title_abstract/next",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert second_response.status_code == 200
+    second = second_response.json()
+    assert second is not None
+
+    assert {first["publication"]["title"], second["publication"]["title"]} == {
+        publication.title,
+        "Orphaned paper",
+    }
 
 
 def test_progress_endpoint_reports_assigned_and_completed_counts(client, db) -> None:

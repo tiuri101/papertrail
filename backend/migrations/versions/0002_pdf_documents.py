@@ -16,7 +16,9 @@ down_revision: str | None = "0001_initial_schema"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
-json_type = sa.JSON().with_variant(postgresql.JSONB(astext_type=sa.Text()), "postgresql")
+json_type = sa.JSON().with_variant(
+    postgresql.JSONB(astext_type=sa.Text()), "postgresql"
+)
 
 
 def upgrade() -> None:
@@ -54,15 +56,23 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["publication_id"], ["publications.id"], ondelete="CASCADE"),
-        sa.ForeignKeyConstraint(["uploaded_by_user_id"], ["users.id"], ondelete="SET NULL"),
-        sa.ForeignKeyConstraint(["removed_by_user_id"], ["users.id"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(
+            ["publication_id"], ["publications.id"], ondelete="CASCADE"
+        ),
+        sa.ForeignKeyConstraint(
+            ["uploaded_by_user_id"], ["users.id"], ondelete="SET NULL"
+        ),
+        sa.ForeignKeyConstraint(
+            ["removed_by_user_id"], ["users.id"], ondelete="SET NULL"
+        ),
         sa.ForeignKeyConstraint(
             ["replaced_by_document_id"],
             ["publication_documents.id"],
             ondelete="SET NULL",
         ),
-        sa.ForeignKeyConstraint(["import_batch_id"], ["import_batches.id"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(
+            ["import_batch_id"], ["import_batches.id"], ondelete="SET NULL"
+        ),
         sa.PrimaryKeyConstraint("id"),
         sa.UniqueConstraint("storage_key"),
     )
@@ -79,8 +89,15 @@ def upgrade() -> None:
         "publication_documents",
         ["project_id", "sha256"],
     )
-    for column in ("project_id", "publication_id", "uploaded_by_user_id", "import_batch_id"):
-        op.create_index(f"ix_publication_documents_{column}", "publication_documents", [column])
+    for column in (
+        "project_id",
+        "publication_id",
+        "uploaded_by_user_id",
+        "import_batch_id",
+    ):
+        op.create_index(
+            f"ix_publication_documents_{column}", "publication_documents", [column]
+        )
 
     op.create_table(
         "import_pdf_items",
@@ -119,7 +136,9 @@ def upgrade() -> None:
         sa.Column("id", sa.String(length=36), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["import_batch_id"], ["import_batches.id"], ondelete="CASCADE"),
+        sa.ForeignKeyConstraint(
+            ["import_batch_id"], ["import_batches.id"], ondelete="CASCADE"
+        ),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="CASCADE"),
         sa.ForeignKeyConstraint(
             ["matched_publication_id"], ["publications.id"], ondelete="SET NULL"

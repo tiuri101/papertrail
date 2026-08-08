@@ -87,10 +87,14 @@ async def upload_full_text_document(
             replace=active_document(db, publication_id) is not None,
         )
         retrieval = db.scalar(
-            select(FullTextRetrieval).where(FullTextRetrieval.publication_id == publication_id)
+            select(FullTextRetrieval).where(
+                FullTextRetrieval.publication_id == publication_id
+            )
         )
         if retrieval is not None and retrieval.status != RetrievalStatus.AVAILABLE:
-            set_retrieval_status(db, retrieval, RetrievalStatus.AVAILABLE, user_id=reviewer.id)
+            set_retrieval_status(
+                db, retrieval, RetrievalStatus.AVAILABLE, user_id=reviewer.id
+            )
         db.commit()
         db.refresh(document)
         return {"available": True, "document": document}
@@ -134,7 +138,9 @@ def delete_full_text_document(
     db: Session = Depends(get_db),
 ) -> None:
     _publication(db, project_id, publication_id)
-    remove_active_pdf(db, project_id=project_id, publication_id=publication_id, user_id=reviewer.id)
+    remove_active_pdf(
+        db, project_id=project_id, publication_id=publication_id, user_id=reviewer.id
+    )
     db.commit()
 
 
@@ -152,6 +158,8 @@ def full_text_document_history(
     _publication(db, project_id, publication_id)
     return list(
         db.scalars(
-            _document_query(publication_id).order_by(PublicationDocument.uploaded_at.desc())
+            _document_query(publication_id).order_by(
+                PublicationDocument.uploaded_at.desc()
+            )
         ).unique()
     )

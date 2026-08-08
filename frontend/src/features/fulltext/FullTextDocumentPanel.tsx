@@ -128,7 +128,11 @@ export function FullTextDocumentPanel({ projectId, publicationId, onAvailable }:
         onChange={(event) => handleFile(event.target.files?.[0])}
       />
       {upload.isPending ? <p role="status">Uploading…</p> : null}
-      <button type="button" className="link-button" onClick={() => setShowHistory(!showHistory)}>
+      <button
+        type="button"
+        className="link-button full-text-history-toggle"
+        onClick={() => setShowHistory(!showHistory)}
+      >
         {showHistory ? 'Hide document history' : 'Document history'}
       </button>
       {showHistory ? (

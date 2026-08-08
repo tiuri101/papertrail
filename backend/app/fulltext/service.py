@@ -46,7 +46,9 @@ def initialize_full_text_stage(db: Session, project: Project) -> int:
     available_publication_ids: list[str] = []
     for publication_id in title_abstract_included_ids(db, project.id):
         existing = db.scalar(
-            select(FullTextRetrieval.id).where(FullTextRetrieval.publication_id == publication_id)
+            select(FullTextRetrieval.id).where(
+                FullTextRetrieval.publication_id == publication_id
+            )
         )
         if existing:
             continue
@@ -60,7 +62,9 @@ def initialize_full_text_stage(db: Session, project: Project) -> int:
             FullTextRetrieval(
                 project_id=project.id,
                 publication_id=publication_id,
-                status=RetrievalStatus.AVAILABLE if has_pdf else RetrievalStatus.NOT_YET_SOUGHT,
+                status=RetrievalStatus.AVAILABLE
+                if has_pdf
+                else RetrievalStatus.NOT_YET_SOUGHT,
             )
         )
         if has_pdf:
@@ -77,7 +81,9 @@ def initialize_full_text_stage(db: Session, project: Project) -> int:
     return created
 
 
-def claim_next_retrieval(db: Session, project_id: str, user_id: str) -> FullTextRetrieval | None:
+def claim_next_retrieval(
+    db: Session, project_id: str, user_id: str
+) -> FullTextRetrieval | None:
     """Claim the next paper needing full-text retrieval for this reviewer.
 
     Papers aren't distributed up front -- one is reserved only once a reviewer
@@ -97,7 +103,9 @@ def claim_next_retrieval(db: Session, project_id: str, user_id: str) -> FullText
             FullTextRetrieval.claimed_by_id == user_id,
         ),
     ]
-    priority = case((FullTextRetrieval.status == RetrievalStatus.NOT_YET_SOUGHT, 0), else_=1)
+    priority = case(
+        (FullTextRetrieval.status == RetrievalStatus.NOT_YET_SOUGHT, 0), else_=1
+    )
     query = (
         select(FullTextRetrieval)
         .where(*filters)
@@ -132,7 +140,9 @@ def ensure_retrieval_claim(retrieval: FullTextRetrieval, user_id: str) -> None:
         and retrieval.claimed_until is not None
         and retrieval.claimed_until >= utcnow()
     ):
-        raise ForbiddenError("This publication is currently claimed by another reviewer")
+        raise ForbiddenError(
+            "This publication is currently claimed by another reviewer"
+        )
 
 
 def retrieval_progress(db: Session, project_id: str) -> dict[str, int]:
@@ -239,13 +249,17 @@ def resolve_retrieval(
         decision_criteria_answers or {},
         decision_notes,
     )
-    refresh_automatic_final_decision(db, retrieval.publication_id, ScreeningStage.FULL_TEXT)
+    refresh_automatic_final_decision(
+        db, retrieval.publication_id, ScreeningStage.FULL_TEXT
+    )
     return decision
 
 
 def transition_if_full_text_complete(db: Session, project: Project) -> bool:
     retrievals = list(
-        db.scalars(select(FullTextRetrieval).where(FullTextRetrieval.project_id == project.id))
+        db.scalars(
+            select(FullTextRetrieval).where(FullTextRetrieval.project_id == project.id)
+        )
     )
     expected = set(title_abstract_included_ids(db, project.id))
     if {item.publication_id for item in retrievals} != expected:
@@ -257,7 +271,9 @@ def transition_if_full_text_complete(db: Session, project: Project) -> bool:
         }:
             return False
         if retrieval.status == RetrievalStatus.AVAILABLE:
-            final = valid_final_decision(db, retrieval.publication_id, ScreeningStage.FULL_TEXT)
+            final = valid_final_decision(
+                db, retrieval.publication_id, ScreeningStage.FULL_TEXT
+            )
             if final is None:
                 return False
 

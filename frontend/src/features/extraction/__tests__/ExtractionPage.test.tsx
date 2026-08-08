@@ -8,6 +8,7 @@ import { renderWithProviders } from '../../../test/render'
 const workItem = {
   id: 'extraction-1',
   publicationId: 'publication-1',
+  fullTextAvailable: true,
   status: 'reserved',
   draft: {},
   publication: {
@@ -33,6 +34,10 @@ describe('ExtractionPage', () => {
 
     expect(await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })).toBeInTheDocument()
     expect(screen.getByText(/A\. Author/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'View PDF' })).toHaveAttribute(
+      'href',
+      '/api/v1/projects/p1/publications/publication-1/full-text/content',
+    )
     expect(screen.getByRole('link', { name: 'Open DOI' })).toHaveAttribute('href', 'https://doi.org/10.1000/example')
     expect(fetchMock.mock.calls.filter(([input, init]) => String(input).endsWith('/next') && init?.method === 'POST')).toHaveLength(1)
   })
@@ -123,5 +128,77 @@ describe('ExtractionPage', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('does not offer PDF viewing when no stored full text is available', async () => {
+    mockFetch(async (input) => String(input).endsWith('/next')
+      ? jsonResponse({ ...workItem, fullTextAvailable: false })
+      : jsonResponse({}))
+    renderWithProviders(<ExtractionPage />, { route: '/projects/p1/extraction', path: '/projects/:projectId/extraction' })
+
+    await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
+    expect(screen.queryByRole('link', { name: 'View PDF' })).not.toBeInTheDocument()
+  })
+
+  it('shows mapped suggestions, inference status, and verified evidence in context', async () => {
+    mockFetch(async (input) => {
+      const path = String(input)
+      if (path.endsWith('/next')) return jsonResponse(workItem)
+      if (path.endsWith('/llm-suggestions')) return jsonResponse({
+        state: 'ready', runId: 'run-1', documentId: 'doc-1', schemaVersion: 1,
+        model: 'test-model', outdated: false, error: null,
+        suggestions: [{
+          id: 'suggestion-1', mappedExtractionFieldKey: 'sampleSize', label: 'Sample size',
+          value: 24, status: 'inferred', evidenceRequired: true,
+          evidenceValidationStatus: 'verified', helper: false,
+          evidence: [{ page: 8, quote: 'Twenty-four participants took part.', verified: true }],
+        }],
+      })
+      return jsonResponse({})
+    })
+    renderWithProviders(<ExtractionPage />, { route: '/projects/p1/extraction', path: '/projects/:projectId/extraction' })
+
+    expect(await screen.findByText(/LLM suggestion · inferred/i)).toBeInTheDocument()
+    expect(screen.getByText(/paper does not state it directly/i)).toBeInTheDocument()
+    fireEvent.click(screen.getByText('Evidence (1)'))
+    expect(screen.getByText(/Verified evidence/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Open PDF at page 8' })).toHaveAttribute('href', expect.stringContaining('#page=8'))
+  })
+
+  it('never overwrites an existing reviewer draft and applies a suggestion only on request', async () => {
+    mockFetch(async (input) => {
+      const path = String(input)
+      if (path.endsWith('/next')) return jsonResponse({ ...workItem, draft: { sampleSize: 22 } })
+      if (path.endsWith('/llm-suggestions')) return jsonResponse({
+        state: 'ready', runId: 'run-1', documentId: 'doc-1', schemaVersion: 1,
+        model: 'test-model', outdated: false, error: null,
+        suggestions: [{
+          id: 'suggestion-1', mappedExtractionFieldKey: 'sampleSize', label: 'Sample size',
+          value: 24, status: 'explicit', evidenceRequired: false,
+          evidenceValidationStatus: 'not_required', helper: false, evidence: [],
+        }],
+      })
+      return jsonResponse({})
+    })
+    renderWithProviders(<ExtractionPage />, { route: '/projects/p1/extraction', path: '/projects/:projectId/extraction' })
+
+    expect(await screen.findByLabelText('Sample size')).toHaveValue(22)
+    fireEvent.click(await screen.findByRole('button', { name: 'Reset to LLM suggestion' }))
+    expect(screen.getByLabelText('Sample size')).toHaveValue(24)
+    expect(screen.getByText('Reviewer value matches suggestion')).toBeInTheDocument()
+  })
+
+  it('keeps manual extraction usable when LLM processing fails', async () => {
+    mockFetch(async (input) => String(input).endsWith('/next')
+      ? jsonResponse(workItem)
+      : jsonResponse({
+        state: 'failed', runId: 'run-1', documentId: 'doc-1', schemaVersion: 1,
+        model: 'test-model', outdated: false, error: 'Ollama unavailable', suggestions: [],
+      }))
+    renderWithProviders(<ExtractionPage />, { route: '/projects/p1/extraction', path: '/projects/:projectId/extraction' })
+
+    expect(await screen.findByText(/Ollama unavailable/)).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Main finding *'), { target: { value: 'Manual answer' } })
+    expect(screen.getByRole('button', { name: 'Submit Extraction' })).toBeEnabled()
   })
 })

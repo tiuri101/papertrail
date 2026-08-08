@@ -52,7 +52,8 @@ Set-ExecutionPolicy -Scope Process Bypass
 .\scripts\dev.ps1 start
 ```
 
-`start` opens the API, worker, and frontend in separate PowerShell windows. Open:
+`start` opens the API, general worker, resource-limited LLM worker, and frontend in
+separate PowerShell windows. The LLM worker remains idle when LLM assistance is disabled. Open:
 
 - Papertrail: http://localhost:5173
 - FastAPI documentation: http://127.0.0.1:8000/docs
@@ -75,7 +76,7 @@ Stop PostgreSQL when finished:
 .\scripts\dev.ps1 db-down
 ```
 
-Closing the API, worker, and frontend terminals stops those host processes.
+Closing the API, both worker terminals, and frontend terminal stops those host processes.
 
 ## macOS or Linux: recommended setup
 
@@ -190,9 +191,10 @@ Vite serves the frontend at http://localhost:5173 and proxies `/api` requests to
 ```text
 .\scripts\dev.ps1 setup          Initial dependency installation and migration
 .\scripts\dev.ps1 create-admin   Create the local administrator
-.\scripts\dev.ps1 start          Launch API, worker, and frontend windows
+.\scripts\dev.ps1 start          Launch API, both workers, and frontend windows
 .\scripts\dev.ps1 api            Run FastAPI with reload
 .\scripts\dev.ps1 worker         Run the threaded worker
+.\scripts\dev.ps1 llm-worker     Run the resource-limited Ollama worker
 .\scripts\dev.ps1 frontend       Run Vite
 .\scripts\dev.ps1 migrate        Apply Alembic migrations
 .\scripts\dev.ps1 db-up          Start PostgreSQL
@@ -203,7 +205,8 @@ Vite serves the frontend at http://localhost:5173 and proxies `/api` requests to
 .\scripts\dev.ps1 test-e2e       Install Chromium and run Playwright
 ```
 
-The Unix helper provides the same commands except `start`; run the three application processes in separate terminals.
+The Unix helper does not provide `start`; run the API, general worker, LLM worker when needed,
+and frontend in separate terminals.
 
 ## Tests and quality checks
 
@@ -318,6 +321,14 @@ Suggested worker launch command:
 ```text
 python -m app.jobs.worker
 ```
+
+LLM assistance is disabled by default and the general test suite never needs Ollama or a GPU. To develop the optional integration against a separately running Ollama host, set `PAPERTRAIL_LLM_ENABLED=true`, `PAPERTRAIL_OLLAMA_BASE_URL=http://ollama.internal:11434`, and `PAPERTRAIL_OLLAMA_MODEL=qwen3:8b`, then run the resource-limited worker separately:
+
+```text
+python -m app.jobs.worker --llm
+```
+
+Model installation/pulling remains an Ollama administration task. See [LLM-assisted extraction](llm-assisted-extraction.md).
 
 ### PyCharm
 

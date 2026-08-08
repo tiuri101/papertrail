@@ -196,6 +196,32 @@ def claim_next_work_item(
     publication_id: str | None = None,
 ) -> ScreeningWorkItem | None:
     now = utcnow()
+    # A page reload or interrupted browser session can leave the current item
+    # reserved. Resume that item before looking for new work so it does not
+    # disappear from the reviewer queue or accumulate as a hidden reservation.
+    reserved_filters = [
+        ScreeningWorkItem.project_id == project_id,
+        ScreeningWorkItem.stage == stage,
+        ScreeningWorkItem.assigned_reviewer_id == reviewer_id,
+        ScreeningWorkItem.status == WorkItemStatus.RESERVED,
+        ScreeningWorkItem.reserved_by_id == reviewer_id,
+    ]
+    if publication_id is not None:
+        reserved_filters.append(ScreeningWorkItem.publication_id == publication_id)
+    reserved_query = (
+        select(ScreeningWorkItem)
+        .where(*reserved_filters)
+        .order_by(ScreeningWorkItem.random_rank, ScreeningWorkItem.slot_number)
+        .limit(1)
+    )
+    if db.bind is not None and db.bind.dialect.name == "postgresql":
+        reserved_query = reserved_query.with_for_update(skip_locked=True)
+    reserved = db.scalar(reserved_query)
+    if reserved is not None:
+        reserved.reserved_until = now + timedelta(hours=RESERVATION_HOURS)
+        db.flush()
+        return reserved
+
     already_for_publication = select(ScreeningWorkItem.publication_id).where(
         ScreeningWorkItem.project_id == project_id,
         ScreeningWorkItem.stage == stage,

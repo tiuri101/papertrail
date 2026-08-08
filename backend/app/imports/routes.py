@@ -39,7 +39,9 @@ from app.projects.service import get_project, require_project_access
 router = APIRouter(tags=["imports"])
 
 
-@router.get("/projects/{project_id}/searches", response_model=list[SearchSourceResponse])
+@router.get(
+    "/projects/{project_id}/searches", response_model=list[SearchSourceResponse]
+)
 def list_searches(
     project_id: str,
     user: User = Depends(get_current_user),
@@ -280,14 +282,22 @@ def resolve_import_pdf_match(
     db: Session = Depends(get_db),
 ) -> dict[str, str | None]:
     item = db.get(ImportPdfItem, payload.item_id)
-    if item is None or item.project_id != project_id or item.import_batch_id != import_batch_id:
+    if (
+        item is None
+        or item.project_id != project_id
+        or item.import_batch_id != import_batch_id
+    ):
         raise NotFoundError("PDF import item not found")
     publication = None
     if payload.publication_id:
         from app.publications.models import Publication
 
         publication = db.get(Publication, payload.publication_id)
-        if publication is None or publication.project_id != project_id or not publication.is_active:
+        if (
+            publication is None
+            or publication.project_id != project_id
+            or not publication.is_active
+        ):
             raise NotFoundError("Publication not found")
     resolve_pdf_match(
         db,

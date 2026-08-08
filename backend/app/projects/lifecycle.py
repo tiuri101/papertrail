@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.audit.models import AuditEvent
@@ -19,6 +19,7 @@ from app.fulltext.models import FullTextRetrieval
 from app.fulltext.service import initialize_full_text_stage
 from app.imports.models import ImportBatch, ImportedRecord, SearchSource
 from app.jobs.models import BackgroundJob
+from app.llm.models import ExtractionSuggestionReview
 from app.projects.models import Project, ProjectStage, ScreeningStage
 from app.publications.models import MetadataConflict, Publication, PublicationSource
 from app.quality.models import (
@@ -216,6 +217,14 @@ def _wipe_extraction_and_quality(db: Session, project_id: str) -> None:
     )
     quality_item_ids = select(QualityWorkItem.id).where(
         QualityWorkItem.project_id == project_id
+    )
+    response_ids = select(ExtractionResponse.id).where(
+        ExtractionResponse.work_item_id.in_(extraction_item_ids)
+    )
+    db.execute(
+        update(ExtractionSuggestionReview)
+        .where(ExtractionSuggestionReview.extraction_response_id.in_(response_ids))
+        .values(extraction_response_id=None)
     )
     db.execute(
         delete(ExtractionResponse).where(
@@ -419,6 +428,15 @@ def wipe_workflow_data(db: Session, project_id: str) -> None:
     publication_ids = select(Publication.id).where(Publication.project_id == project_id)
     import_batch_ids = select(ImportBatch.id).where(
         ImportBatch.project_id == project_id
+    )
+
+    response_ids = select(ExtractionResponse.id).where(
+        ExtractionResponse.work_item_id.in_(extraction_item_ids)
+    )
+    db.execute(
+        update(ExtractionSuggestionReview)
+        .where(ExtractionSuggestionReview.extraction_response_id.in_(response_ids))
+        .values(extraction_response_id=None)
     )
 
     db.execute(

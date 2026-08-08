@@ -42,9 +42,7 @@ def match_pdf(item: ImportPdfItem, publications: list[Publication]) -> MatchResu
 
     detected_title = normalize_title(item.detected_title)
     filename_title = normalize_title(
-        re.sub(
-            r"[\W_]*\d{4}[\W_]*$", "", item.original_filename.rsplit(".", 1)[0]
-        )
+        re.sub(r"[\W_]*\d{4}[\W_]*$", "", item.original_filename.rsplit(".", 1)[0])
     )
     title = detected_title or filename_title
     if not title:
@@ -64,7 +62,9 @@ def match_pdf(item: ImportPdfItem, publications: list[Publication]) -> MatchResu
         pub_authors = author_tokens(publication.authors)
         author_overlap = bool(pdf_authors and pub_authors and pdf_authors & pub_authors)
         if exact and year_compatible:
-            reason = "exact_metadata_title" if detected_title else "exact_filename_title"
+            reason = (
+                "exact_metadata_title" if detected_title else "exact_filename_title"
+            )
             ranked.append((publication, 99 if detected_title else 92, reason))
         elif score >= 95 and year_compatible and author_overlap:
             ranked.append((publication, score, "strong_title_author"))

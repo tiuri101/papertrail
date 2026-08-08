@@ -9,6 +9,16 @@ from app.forms.models import FormField, FormVersion, ReviewForm
 from app.fulltext.models import FullTextRetrieval, PublicationDocument
 from app.imports.models import ImportBatch, ImportedRecord, ImportPdfItem, SearchSource
 from app.jobs.models import BackgroundJob
+from app.llm.models import (
+    DocumentPageText,
+    DocumentTextExtraction,
+    ExtractionSuggestionReview,
+    LlmExtractionRun,
+    LlmFieldSuggestion,
+    LlmSchemaField,
+    LlmSchemaVersion,
+    ProjectLlmSettings,
+)
 from app.projects.models import (
     Criterion,
     Project,
@@ -24,11 +34,14 @@ from app.screening.models import ScreeningDecision, ScreeningWorkItem
 __all__ = [
     "AuditEvent",
     "BackgroundJob",
+    "DocumentPageText",
+    "DocumentTextExtraction",
     "Criterion",
     "DuplicateCandidate",
     "ExportArtifact",
     "ExtractionResponse",
     "ExtractionWorkItem",
+    "ExtractionSuggestionReview",
     "FinalDecision",
     "FormField",
     "FormVersion",
@@ -38,8 +51,13 @@ __all__ = [
     "ImportPdfItem",
     "ImportedRecord",
     "LoginThrottle",
+    "LlmExtractionRun",
+    "LlmFieldSuggestion",
+    "LlmSchemaField",
+    "LlmSchemaVersion",
     "MetadataConflict",
     "Project",
+    "ProjectLlmSettings",
     "ProjectMembership",
     "Publication",
     "PublicationMerge",

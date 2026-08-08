@@ -24,3 +24,11 @@ def test_development_compose_contains_only_postgresql() -> None:
     assert "  postgres:" in compose
     for production_service in ("api", "worker", "frontend", "gateway", "migrate"):
         assert f"  {production_service}:" not in compose
+
+
+def test_powershell_start_launches_general_and_llm_workers() -> None:
+    script = (PROJECT_ROOT / "scripts" / "dev.ps1").read_text(encoding="utf-8")
+
+    assert "Invoke-BackendPython -m app.jobs.worker\n" in script
+    assert "Invoke-BackendPython -m app.jobs.worker --llm" in script
+    assert '@("api", "worker", "llm-worker", "frontend")' in script
