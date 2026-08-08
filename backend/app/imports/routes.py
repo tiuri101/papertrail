@@ -5,7 +5,7 @@ from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile, status
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.accounts.dependencies import get_current_user
 from app.accounts.models import User
@@ -18,8 +18,20 @@ from app.api.errors import (
 from app.audit.service import record_audit
 from app.core.config import get_settings
 from app.db.session import get_db
-from app.imports.models import ImportBatch, ImportStatus, SearchSource
-from app.imports.schemas import JobAccepted, SearchSourceCreate, SearchSourceResponse
+from app.imports.models import ImportBatch, ImportPdfItem, ImportStatus, SearchSource
+from app.imports.pdf_import import (
+    batch_publications,
+    pdf_summary,
+    process_pdf_matches,
+    resolve_pdf_match,
+    stage_bulk_uploads,
+)
+from app.imports.schemas import (
+    JobAccepted,
+    PdfMatchResolve,
+    SearchSourceCreate,
+    SearchSourceResponse,
+)
 from app.jobs.service import enqueue_job
 from app.projects.dependencies import require_project_member_csrf
 from app.projects.service import get_project, require_project_access
@@ -27,9 +39,7 @@ from app.projects.service import get_project, require_project_access
 router = APIRouter(tags=["imports"])
 
 
-@router.get(
-    "/projects/{project_id}/searches", response_model=list[SearchSourceResponse]
-)
+@router.get("/projects/{project_id}/searches", response_model=list[SearchSourceResponse])
 def list_searches(
     project_id: str,
     user: User = Depends(get_current_user),
@@ -91,6 +101,8 @@ async def upload_import(
     search_source_id: str | None = Form(default=None, alias="searchSourceId"),
     mapping_json: str | None = Form(default=None, alias="mappingJson"),
     file: UploadFile = File(...),
+    pdfs: list[UploadFile] = File(default=[]),
+    pdf_archive: UploadFile | None = File(default=None, alias="pdfArchive"),
     admin: User = Depends(require_project_member_csrf),
     db: Session = Depends(get_db),
 ):
@@ -147,6 +159,7 @@ async def upload_import(
     )
     db.add(batch)
     db.flush()
+    await stage_bulk_uploads(db, batch, pdfs, pdf_archive)
     job = enqueue_job(
         db,
         "parse_import",
@@ -166,6 +179,125 @@ async def upload_import(
     )
     db.commit()
     return JobAccepted(job_id=job.id, import_batch_id=batch.id)
+
+
+@router.post("/projects/{project_id}/imports/{import_batch_id}/pdfs")
+async def upload_import_pdfs(
+    project_id: str,
+    import_batch_id: str,
+    pdfs: list[UploadFile] = File(default=[]),
+    pdf_archive: UploadFile | None = File(default=None, alias="pdfArchive"),
+    admin: User = Depends(require_project_member_csrf),
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    batch = db.get(ImportBatch, import_batch_id)
+    if batch is None or batch.project_id != project_id:
+        raise NotFoundError("Import batch not found")
+    if batch.status != ImportStatus.COMPLETED:
+        raise DomainError("PDFs can be added after the metadata import completes")
+    await stage_bulk_uploads(db, batch, pdfs, pdf_archive)
+    db.commit()
+    summary = process_pdf_matches(db, batch)
+    return {"importBatchId": batch.id, "summary": summary}
+
+
+@router.get("/projects/{project_id}/imports/{import_batch_id}/pdf-matches")
+def list_pdf_matches(
+    project_id: str,
+    import_batch_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    require_project_access(db, project_id, user)
+    batch = db.get(ImportBatch, import_batch_id)
+    if batch is None or batch.project_id != project_id:
+        raise NotFoundError("Import batch not found")
+    items = list(
+        db.scalars(
+            select(ImportPdfItem)
+            .where(ImportPdfItem.import_batch_id == batch.id)
+            .order_by(ImportPdfItem.created_at, ImportPdfItem.id)
+        )
+    )
+    publications = batch_publications(db, batch.id)
+    batch_publication_ids = {publication.id for publication in publications}
+    from app.publications.models import Publication
+
+    publications.extend(
+        db.scalars(
+            select(Publication)
+            .options(selectinload(Publication.documents))
+            .where(
+                Publication.project_id == project_id,
+                Publication.is_active.is_(True),
+                Publication.id.not_in(batch_publication_ids),
+            )
+            .order_by(Publication.title)
+        )
+    )
+    return {
+        "importBatchId": batch.id,
+        "summary": pdf_summary(db, batch.id),
+        "items": [
+            {
+                "id": item.id,
+                "originalFilename": item.original_filename,
+                "fileSize": item.file_size,
+                "sha256": item.sha256,
+                "detectedDoi": item.detected_doi,
+                "detectedTitle": item.detected_title,
+                "detectedAuthors": item.detected_authors,
+                "detectedYear": item.detected_year,
+                "status": item.status.value,
+                "candidates": item.candidate_matches,
+                "matchedPublicationId": item.matched_publication_id,
+                "attachedDocumentId": item.attached_document_id,
+                "errorMessage": item.error_message,
+            }
+            for item in items
+        ],
+        "publications": [
+            {
+                "id": publication.id,
+                "title": publication.title,
+                "authors": publication.authors,
+                "publicationYear": publication.publication_year,
+                "doi": publication.doi,
+                "hasPdf": publication.active_document is not None,
+                "inImportBatch": publication.id in batch_publication_ids,
+            }
+            for publication in publications
+        ],
+    }
+
+
+@router.post("/projects/{project_id}/imports/{import_batch_id}/pdf-matches/resolve")
+def resolve_import_pdf_match(
+    project_id: str,
+    import_batch_id: str,
+    payload: PdfMatchResolve,
+    admin: User = Depends(require_project_member_csrf),
+    db: Session = Depends(get_db),
+) -> dict[str, str | None]:
+    item = db.get(ImportPdfItem, payload.item_id)
+    if item is None or item.project_id != project_id or item.import_batch_id != import_batch_id:
+        raise NotFoundError("PDF import item not found")
+    publication = None
+    if payload.publication_id:
+        from app.publications.models import Publication
+
+        publication = db.get(Publication, payload.publication_id)
+        if publication is None or publication.project_id != project_id or not publication.is_active:
+            raise NotFoundError("Publication not found")
+    resolve_pdf_match(
+        db,
+        item,
+        publication=publication,
+        action=payload.action,
+        user_id=admin.id,
+    )
+    db.commit()
+    return {"status": item.status.value, "documentId": item.attached_document_id}
 
 
 @router.post("/projects/{project_id}/imports/preview")

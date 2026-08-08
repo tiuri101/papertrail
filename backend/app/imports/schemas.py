@@ -4,9 +4,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 
 class ApiModel(BaseModel):
-    model_config = ConfigDict(
-        populate_by_name=True, from_attributes=True, use_enum_values=True
-    )
+    model_config = ConfigDict(populate_by_name=True, from_attributes=True, use_enum_values=True)
 
 
 class SearchSourceCreate(ApiModel):
@@ -29,6 +27,12 @@ class SearchSourceResponse(ApiModel):
 class JobAccepted(ApiModel):
     job_id: str = Field(serialization_alias="jobId")
     import_batch_id: str = Field(serialization_alias="importBatchId")
+
+
+class PdfMatchResolve(ApiModel):
+    item_id: str = Field(alias="itemId")
+    publication_id: str | None = Field(default=None, alias="publicationId")
+    action: str
 
 
 class JobResponse(ApiModel):

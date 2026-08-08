@@ -26,6 +26,7 @@ interface Publication {
   issn: string | null
   pubmedId: string | null
   arxivId: string | null
+  fullText: { available: boolean }
 }
 
 function toDraft(publication: Publication): PublicationDraft {
@@ -152,6 +153,7 @@ function PublicationRow({
       )}
       {' — '}{publication.authors ?? 'Unknown authors'}
       {publication.publicationYear ? ` (${publication.publicationYear})` : ''}
+      {publication.fullText?.available ? <span className="status-badge"> PDF ✓</span> : null}
       {publication.doi ? (
         <> <a href={`https://doi.org/${publication.doi}`} target="_blank" rel="noopener noreferrer">DOI</a></>
       ) : null}

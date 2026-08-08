@@ -6,8 +6,8 @@ from app.conflicts.models import FinalDecision
 from app.deduplication.models import DuplicateCandidate, PublicationMerge
 from app.extraction.models import ExtractionResponse, ExtractionWorkItem
 from app.forms.models import FormField, FormVersion, ReviewForm
-from app.fulltext.models import FullTextRetrieval
-from app.imports.models import ImportBatch, ImportedRecord, SearchSource
+from app.fulltext.models import FullTextRetrieval, PublicationDocument
+from app.imports.models import ImportBatch, ImportedRecord, ImportPdfItem, SearchSource
 from app.jobs.models import BackgroundJob
 from app.projects.models import (
     Criterion,
@@ -33,7 +33,9 @@ __all__ = [
     "FormField",
     "FormVersion",
     "FullTextRetrieval",
+    "PublicationDocument",
     "ImportBatch",
+    "ImportPdfItem",
     "ImportedRecord",
     "LoginThrottle",
     "MetadataConflict",

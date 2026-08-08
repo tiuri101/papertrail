@@ -5,6 +5,7 @@ import { useParams } from 'react-router-dom'
 import { apiRequest } from '../../api/client'
 import { getCsrfToken } from '../auth/session'
 import { BackgroundJob, findJob, hasActiveJob, isJobActive } from '../jobs/jobStatus'
+import { PdfMatchReview, type PdfSummary } from './PdfMatchReview'
 
 interface SearchSource {
   id: string
@@ -14,17 +15,21 @@ interface SearchSource {
   filters: string | null
 }
 
-interface ImportResult { jobId: string }
+interface ImportResult { jobId: string; importBatchId: string }
 
 export function ImportPage() {
   const { projectId = '' } = useParams()
   const queryClient = useQueryClient()
   const [file, setFile] = useState<File | null>(null)
+  const [pdfFiles, setPdfFiles] = useState<File[]>([])
+  const [pdfArchive, setPdfArchive] = useState<File | null>(null)
   const [sourceName, setSourceName] = useState('')
   const [query, setQuery] = useState('')
   const [searchDate, setSearchDate] = useState('')
   const [filters, setFilters] = useState('')
   const [pendingJobId, setPendingJobId] = useState<string | null>(null)
+  const [pendingBatchId, setPendingBatchId] = useState<string | null>(null)
+  const [showPdfReview, setShowPdfReview] = useState(false)
 
   const searches = useQuery({
     queryKey: ['searches', projectId],
@@ -63,6 +68,8 @@ export function ImportPage() {
       const form = new FormData()
       form.append('file', file)
       form.append('searchSourceId', search.id)
+      pdfFiles.forEach((pdf) => form.append('pdfs', pdf))
+      if (pdfArchive) form.append('pdfArchive', pdfArchive)
       const response = await fetch(`/api/v1/projects/${projectId}/imports`, {
         method: 'POST',
         credentials: 'include',
@@ -81,7 +88,10 @@ export function ImportPage() {
       setSearchDate('')
       setFilters('')
       setFile(null)
+      setPdfFiles([])
+      setPdfArchive(null)
       setPendingJobId(result.jobId)
+      setPendingBatchId(result.importBatchId)
       queryClient.invalidateQueries({ queryKey: ['searches', projectId] })
     },
   })
@@ -114,13 +124,59 @@ export function ImportPage() {
           <label>Bibliographic export
             <input type="file" accept=".csv,.tsv,.xlsx,.ris,.bib,.bibtex" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
           </label>
+          <label>Optional full-text PDFs
+            <input
+              type="file"
+              accept="application/pdf,.pdf"
+              multiple
+              onChange={(event) => setPdfFiles(Array.from(event.target.files ?? []))}
+            />
+          </label>
+          <label>Optional PDF ZIP
+            <input
+              type="file"
+              accept="application/zip,.zip"
+              onChange={(event) => setPdfArchive(event.target.files?.[0] ?? null)}
+            />
+          </label>
+          {pdfFiles.length || pdfArchive ? (
+            <p className="muted">
+              {pdfFiles.length} PDF{pdfFiles.length === 1 ? '' : 's'} selected
+              {pdfArchive ? ` · ${pdfArchive.name}` : ''}
+            </p>
+          ) : null}
           <button type="submit" disabled={!file || submit.isPending}>Upload</button>
+          {submit.isPending ? (
+            <p role="status">
+              Uploading metadata{pdfFiles.length ? ` and ${pdfFiles.length} PDFs` : ''}…
+            </p>
+          ) : null}
         </form>
         {submit.data ? (
           !pendingJob || isJobActive(pendingJob.status) ? (
             <p>Import queued: {submit.data.jobId}</p>
           ) : pendingJob.status === 'completed' ? (
-            <p>Import complete.</p>
+            <>
+              <p>Import complete.</p>
+              {(() => {
+                const pdfSummary = pendingJob.result?.pdfs as PdfSummary | undefined
+                if (!pdfSummary?.total) return null
+                const needsReview = (pdfSummary.ambiguous ?? 0)
+                  + (pdfSummary.unmatched ?? 0)
+                  + (pdfSummary.conflict_existing_pdf ?? 0)
+                return (
+                  <div className="import-summary">
+                    <h3>PDF import</h3>
+                    <p>{pdfSummary.total} files processed · {pdfSummary.matched ?? 0} matched · {needsReview} need review · {pdfSummary.duplicate ?? 0} duplicate · {pdfSummary.invalid ?? 0} invalid</p>
+                    {needsReview ? (
+                      <button type="button" onClick={() => setShowPdfReview(true)}>
+                        Review PDF matches
+                      </button>
+                    ) : null}
+                  </div>
+                )
+              })()}
+            </>
           ) : (
             <p className="error" role="alert">
               Import {pendingJob.status}
@@ -141,6 +197,9 @@ export function ImportPage() {
           </>
         ) : null}
       </section>
+      {showPdfReview && pendingBatchId ? (
+        <PdfMatchReview projectId={projectId} importBatchId={pendingBatchId} />
+      ) : null}
     </main>
   )
 }

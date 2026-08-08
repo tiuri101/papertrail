@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.api.errors import ConflictError, NotFoundError
 from app.deduplication.models import DuplicateCandidate, PublicationMerge
+from app.fulltext.models import PublicationDocument
 from app.projects.models import Project, ProjectStage
 from app.publications.models import MetadataConflict, Publication, PublicationSource
 from app.publications.service import IMPORTANT_FIELDS
@@ -46,9 +47,7 @@ def detect_duplicates(db: Session, project_id: str) -> int:
     publications = list(
         db.scalars(
             select(Publication)
-            .where(
-                Publication.project_id == project_id, Publication.is_active.is_(True)
-            )
+            .where(Publication.project_id == project_id, Publication.is_active.is_(True))
             .order_by(Publication.id)
         )
     )
@@ -64,15 +63,9 @@ def detect_duplicates(db: Session, project_id: str) -> int:
         ):
             continue
         reasons: list[str] = []
-        title_score = float(
-            ratio(normalized_title(left.title), normalized_title(right.title))
-        )
+        title_score = float(ratio(normalized_title(left.title), normalized_title(right.title)))
         author_score = (
-            float(
-                ratio(
-                    normalized_authors(left.authors), normalized_authors(right.authors)
-                )
-            )
+            float(ratio(normalized_authors(left.authors), normalized_authors(right.authors)))
             if left.authors and right.authors
             else None
         )
@@ -185,14 +178,38 @@ def merge_publications(
                 conflicts_created += 1
     sources = list(
         db.scalars(
-            select(PublicationSource).where(
-                PublicationSource.publication_id == duplicate.id
-            )
+            select(PublicationSource).where(PublicationSource.publication_id == duplicate.id)
         )
     )
     moved_source_ids = [source.id for source in sources]
     for source in sources:
         source.publication_id = canonical.id
+    canonical_active = db.scalar(
+        select(PublicationDocument).where(
+            PublicationDocument.publication_id == canonical.id,
+            PublicationDocument.is_active.is_(True),
+        )
+    )
+    duplicate_documents = list(
+        db.scalars(
+            select(PublicationDocument).where(PublicationDocument.publication_id == duplicate.id)
+        )
+    )
+    moved_document_states = [
+        {
+            "id": document.id,
+            "is_active": document.is_active,
+            "replaced_by_document_id": document.replaced_by_document_id,
+        }
+        for document in duplicate_documents
+    ]
+    for document in duplicate_documents:
+        document.publication_id = canonical.id
+        if document.is_active and canonical_active is not None:
+            document.is_active = False
+            document.replaced_by_document_id = canonical_active.id
+        elif document.is_active:
+            canonical_active = document
     duplicate.is_active = False
     duplicate.merged_into_id = canonical.id
     candidate.status = "merged"
@@ -206,6 +223,7 @@ def merge_publications(
         canonical_before=canonical_before,
         merged_before=merged_before,
         moved_source_ids=moved_source_ids,
+        moved_document_states=moved_document_states,
     )
     db.add(merge)
     db.flush()
@@ -213,9 +231,7 @@ def merge_publications(
     return merge
 
 
-def reverse_merge(
-    db: Session, merge: PublicationMerge, reversed_by_id: str | None = None
-) -> None:
+def reverse_merge(db: Session, merge: PublicationMerge, reversed_by_id: str | None = None) -> None:
     if merge.reversed_at is not None:
         raise ConflictError("Merge has already been reversed")
     canonical = db.get(Publication, merge.canonical_publication_id)
@@ -246,6 +262,12 @@ def reverse_merge(
         source = db.get(PublicationSource, source_id)
         if source:
             source.publication_id = duplicate.id
+    for state in merge.moved_document_states:
+        document = db.get(PublicationDocument, state["id"])
+        if document:
+            document.publication_id = duplicate.id
+            document.is_active = state["is_active"]
+            document.replaced_by_document_id = state["replaced_by_document_id"]
     if merge.candidate_id:
         candidate = db.get(DuplicateCandidate, merge.candidate_id)
         if candidate:

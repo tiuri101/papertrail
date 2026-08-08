@@ -11,6 +11,7 @@ import type { CriterionAnswer, ScreeningCriterion } from '../screening/useScreen
 import { useScreeningQueue } from '../screening/useScreeningQueue'
 import type { Retrieval } from './useRetrievalQueue'
 import { useRetrievalQueue } from './useRetrievalQueue'
+import { FullTextDocumentPanel } from './FullTextDocumentPanel'
 
 interface ProjectCriteria {
   criteria: ScreeningCriterion[]
@@ -88,13 +89,20 @@ export function FullTextPage() {
         <p className="muted">{progress.addressed} of {progress.total} retrieval decisions made</p>
       ) : null}
       {queue.item ? (
-        <ScreeningItemCard {...queue} highlightKeywords={highlightKeywords} />
+        <>
+          <FullTextDocumentPanel
+            projectId={projectId}
+            publicationId={queue.item.publication.id}
+          />
+          <ScreeningItemCard {...queue} highlightKeywords={highlightKeywords} />
+        </>
       ) : isLoading ? (
         <p>Loading…</p>
       ) : progress?.total === 0 ? (
         <p className="muted">No publications require full-text retrieval.</p>
       ) : retrievalQueue.item ? (
         <RetrievalCard
+          projectId={projectId}
           retrieval={retrievalQueue.item}
           criteria={criteria.data?.criteria ?? []}
           saving={updateRetrieval.isPending}
@@ -107,7 +115,8 @@ export function FullTextPage() {
   )
 }
 
-function RetrievalCard({ retrieval, criteria, saving, onSubmit }: {
+function RetrievalCard({ projectId, retrieval, criteria, saving, onSubmit }: {
+  projectId: string
   retrieval: Retrieval
   criteria: ScreeningCriterion[]
   saving: boolean
@@ -119,9 +128,6 @@ function RetrievalCard({ retrieval, criteria, saving, onSubmit }: {
   const [outcome, setOutcome] = useState('include')
   const [notes, setNotes] = useState('')
   const publication = retrieval.publication
-  const link = publication.doi
-    ? `https://doi.org/${publication.doi}`
-    : isSafeHttpUrl(publication.publisherUrl) ? publication.publisherUrl : null
   const isAvailable = status === 'available'
 
   useEffect(() => {
@@ -172,7 +178,23 @@ function RetrievalCard({ retrieval, criteria, saving, onSubmit }: {
         {publication.authors ?? 'Unknown authors'}
         {publication.publicationYear ? ` (${publication.publicationYear})` : ''}
       </p>
-      {link ? <p><a href={link} target="_blank" rel="noreferrer">View publication</a></p> : null}
+      <div className="toolbar">
+        {publication.doi ? (
+          <a href={`https://doi.org/${publication.doi}`} target="_blank" rel="noreferrer">
+            Open DOI
+          </a>
+        ) : null}
+        {isSafeHttpUrl(publication.publisherUrl) ? (
+          <a href={publication.publisherUrl!} target="_blank" rel="noreferrer">
+            Open publisher page
+          </a>
+        ) : null}
+      </div>
+      <FullTextDocumentPanel
+        projectId={projectId}
+        publicationId={publication.id}
+        onAvailable={() => setStatus('available')}
+      />
       <label>
         Retrieval status for {publication.title}
         <select

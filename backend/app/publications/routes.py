@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Depends, status
 from sqlalchemy import select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.accounts.dependencies import get_current_user
 from app.accounts.models import User
 from app.api.errors import NotFoundError
 from app.audit.service import record_audit
 from app.db.session import get_db
+from app.fulltext.models import PublicationDocument
 from app.jobs.service import enqueue_job
 from app.projects.dependencies import (
     require_project_manager_csrf,
@@ -27,9 +28,7 @@ from app.publications.service import normalize_doi, sync_new_publications_with_s
 router = APIRouter(tags=["publications"])
 
 
-@router.get(
-    "/projects/{project_id}/publications", response_model=list[PublicationResponse]
-)
+@router.get("/projects/{project_id}/publications", response_model=list[PublicationResponse])
 def list_publications(
     project_id: str,
     user: User = Depends(get_current_user),
@@ -39,9 +38,10 @@ def list_publications(
     return list(
         db.scalars(
             select(Publication)
-            .where(
-                Publication.project_id == project_id, Publication.is_active.is_(True)
+            .options(
+                selectinload(Publication.documents).joinedload(PublicationDocument.uploaded_by)
             )
+            .where(Publication.project_id == project_id, Publication.is_active.is_(True))
             .order_by(Publication.title)
         )
     )
@@ -58,7 +58,11 @@ def get_publication(
     db: Session = Depends(get_db),
 ):
     require_project_access(db, project_id, user)
-    publication = db.get(Publication, publication_id)
+    publication = db.scalar(
+        select(Publication)
+        .options(selectinload(Publication.documents).joinedload(PublicationDocument.uploaded_by))
+        .where(Publication.id == publication_id)
+    )
     if publication is None or publication.project_id != project_id:
         raise NotFoundError("Publication not found")
     return publication
@@ -106,11 +110,7 @@ def delete_publication(
     db: Session = Depends(get_db),
 ):
     publication = db.get(Publication, publication_id)
-    if (
-        publication is None
-        or publication.project_id != project_id
-        or not publication.is_active
-    ):
+    if publication is None or publication.project_id != project_id or not publication.is_active:
         raise NotFoundError("Publication not found")
     publication.is_active = False
     record_audit(
@@ -158,9 +158,7 @@ def enrich_publication(
     return {"jobId": job.id}
 
 
-@router.get(
-    "/projects/{project_id}/metadata-conflicts", response_model=list[ConflictResponse]
-)
+@router.get("/projects/{project_id}/metadata-conflicts", response_model=list[ConflictResponse])
 def list_conflicts(
     project_id: str,
     _: User = Depends(require_project_manager_csrf),
@@ -170,9 +168,7 @@ def list_conflicts(
         db.scalars(
             select(MetadataConflict)
             .join(Publication)
-            .where(
-                Publication.project_id == project_id, MetadataConflict.status == "open"
-            )
+            .where(Publication.project_id == project_id, MetadataConflict.status == "open")
         )
     )
 
@@ -245,9 +241,7 @@ def create_manual_publication(
     return publication
 
 
-@router.post(
-    "/projects/{project_id}/publications/enrich", status_code=status.HTTP_202_ACCEPTED
-)
+@router.post("/projects/{project_id}/publications/enrich", status_code=status.HTTP_202_ACCEPTED)
 def bulk_enrich_publications(
     project_id: str,
     payload: BulkEnrichmentRequest,

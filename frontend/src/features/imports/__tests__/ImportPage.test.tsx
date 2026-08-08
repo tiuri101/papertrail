@@ -24,6 +24,8 @@ describe('ImportPage', () => {
     renderWithProviders(<ImportPage />, { route: '/projects/project-1/imports', path: '/projects/:projectId/imports' })
 
     await screen.findByLabelText('Bibliographic export')
+    expect(screen.getByLabelText('Optional full-text PDFs')).toBeInTheDocument()
+    expect(screen.getByLabelText('Optional PDF ZIP')).toBeInTheDocument()
     expect(screen.queryByLabelText('Search')).not.toBeInTheDocument()
     expect(screen.queryByText(/Not documented/)).not.toBeInTheDocument()
   })
@@ -49,6 +51,17 @@ describe('ImportPage', () => {
     fillSearchFields()
     const file = new File(['Title,Authors\nPaper,Author'], 'records.csv', { type: 'text/csv' })
     fireEvent.change(screen.getByLabelText('Bibliographic export'), { target: { files: [file] } })
+    const pdfs = [
+      new File(['pdf-1'], 'paper-1.pdf', { type: 'application/pdf' }),
+      new File(['pdf-2'], 'paper-2.pdf', { type: 'application/pdf' }),
+    ]
+    const archive = new File(['zip'], 'papers.zip', { type: 'application/zip' })
+    fireEvent.change(screen.getByLabelText('Optional full-text PDFs'), {
+      target: { files: pdfs },
+    })
+    fireEvent.change(screen.getByLabelText('Optional PDF ZIP'), {
+      target: { files: [archive] },
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Upload' }))
 
     await waitFor(() => {
@@ -70,6 +83,8 @@ describe('ImportPage', () => {
       expect(new Headers(init?.headers).get('X-CSRF-Token')).toBe('csrf-import')
       expect(init?.body).toBeInstanceOf(FormData)
       expect((init?.body as FormData).get('searchSourceId')).toBe('search-1')
+      expect((init?.body as FormData).getAll('pdfs')).toEqual(pdfs)
+      expect((init?.body as FormData).get('pdfArchive')).toBe(archive)
     })
 
     expect(await screen.findByText('Import queued: job-42')).toBeInTheDocument()
@@ -108,7 +123,7 @@ describe('ImportPage', () => {
       }
       if (url.endsWith('/searches')) return jsonResponse([])
       if (init?.method === 'POST' && url.endsWith('/imports')) {
-        return jsonResponse({ jobId: 'job-77' }, 202)
+        return jsonResponse({ jobId: 'job-77', importBatchId: 'batch-77' }, 202)
       }
       if (url.endsWith('/jobs')) {
         return jsonResponse([
@@ -122,6 +137,18 @@ describe('ImportPage', () => {
             errorMessage: null,
             createdAt: '2026-07-30T09:00:00Z',
             completedAt: null,
+            result: jobStatus === 'completed' ? {
+              pdfs: {
+                total: 5,
+                matched: 2,
+                ambiguous: 1,
+                unmatched: 1,
+                conflict_existing_pdf: 0,
+                duplicate: 1,
+                invalid: 0,
+                skipped: 0,
+              },
+            } : null,
           },
         ])
       }
@@ -141,6 +168,8 @@ describe('ImportPage', () => {
     await queryClient.invalidateQueries({ queryKey: ['jobs', 'project-1'] })
 
     expect(await screen.findByText('Import complete.')).toBeInTheDocument()
+    expect(screen.getByText(/5 files processed · 2 matched · 2 need review/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Review PDF matches' })).toBeInTheDocument()
   })
 
   it('lists previously documented searches for reference', async () => {

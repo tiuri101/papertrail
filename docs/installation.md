@@ -7,7 +7,7 @@
 - Docker Engine 27 or newer
 - Docker Compose v2
 - At least 2 CPU cores and 4 GB RAM
-- A persistent host with enough storage for PostgreSQL, imported source files, and generated exports
+- A persistent host with enough storage for PostgreSQL, imported source files, generated exports, and full-text PDFs
 
 ## Initial installation
 
@@ -21,6 +21,8 @@
 8. Open the configured Papertrail address and sign in.
 
 The one-shot `migrate` container applies all Alembic migrations before the API and worker start. Caddy routes `/api/*` to FastAPI and all other paths to the React application.
+
+Full-text binaries live in the dedicated `papertrail_pdf_data` Docker volume, mounted only in the API and worker containers. `PAPERTRAIL_MAX_PDF_SIZE_MB` controls the per-file server-side limit (50 MB by default in Compose). Host-based deployments must set `PAPERTRAIL_PDF_STORAGE_PATH` to a persistent writable directory. Back up PostgreSQL and this PDF volume together; the database alone is not a complete backup.
 
 ## Production example
 

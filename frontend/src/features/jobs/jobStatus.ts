@@ -8,6 +8,7 @@ export interface BackgroundJob {
   errorMessage: string | null
   createdAt: string
   completedAt: string | null
+  result?: Record<string, unknown> | null
 }
 
 const ACTIVE_STATUSES = new Set(['queued', 'running'])

@@ -10,7 +10,7 @@ from app.imports.models import ImportBatch, ImportedRecord, ImportStatus
 from app.jobs.models import BackgroundJob
 
 
-def process_import_job(db: Session, job: BackgroundJob) -> dict[str, int | str]:
+def process_import_job(db: Session, job: BackgroundJob) -> dict[str, object]:
     batch = db.get(ImportBatch, job.payload["import_batch_id"])
     if batch is None:
         raise ValueError("Import batch no longer exists")
@@ -33,9 +33,7 @@ def process_import_job(db: Session, job: BackgroundJob) -> dict[str, int | str]:
             ImportedRecord(
                 import_batch_id=batch.id,
                 source_row=index + 1,
-                source_key=str(row.get("source_key"))
-                if row.get("source_key")
-                else None,
+                source_key=str(row.get("source_key")) if row.get("source_key") else None,
                 raw_data={str(k): v for k, v in row.items()},
                 parsed_data=parsed,
                 validation_state=state,
@@ -52,9 +50,13 @@ def process_import_job(db: Session, job: BackgroundJob) -> dict[str, int | str]:
 
     normalized = normalize_imported_records(db, batch.id)
     db.commit()
+    from app.imports.pdf_import import process_pdf_matches
+
+    pdfs = process_pdf_matches(db, batch)
     return {
         "importBatchId": batch.id,
         "records": len(rows),
         "invalid": batch.invalid_record_count,
         "normalized": normalized,
+        "pdfs": pdfs,
     }
