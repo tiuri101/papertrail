@@ -86,9 +86,9 @@ class Publication(UUIDPrimaryKeyMixin, TimestampMixin, Base):
                     "import_batch_id": batch.id,
                     "original_filename": batch.original_filename,
                     "search_source_id": batch.search_source_id,
-                    "source_name": batch.search_source.source_name
-                    if batch.search_source
-                    else None,
+                    "source_name": (
+                        batch.search_source.source_name if batch.search_source else None
+                    ),
                 }
             )
         return results

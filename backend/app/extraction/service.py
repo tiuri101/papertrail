@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
@@ -217,7 +218,12 @@ def validate_answers(fields: list[FormField], answers: dict) -> None:
 
 
 def submit_extraction(
-    db: Session, item: ExtractionWorkItem, reviewer_id: str, answers: dict
+    db: Session,
+    item: ExtractionWorkItem,
+    reviewer_id: str,
+    answers: dict,
+    *,
+    suggestion_actions: Mapping[str, str] | None = None,
 ) -> ExtractionResponse:
     if item.assigned_reviewer_id != reviewer_id:
         raise ForbiddenError("Extraction is assigned to another reviewer")
@@ -246,11 +252,22 @@ def submit_extraction(
     db.flush()
     from app.llm.service import record_suggestion_provenance
 
-    record_suggestion_provenance(db, item, response)
+    record_suggestion_provenance(
+        db, item, response, suggestion_actions=suggestion_actions
+    )
     item.status = ExtractionStatus.COMPLETED
     item.reserved_until = None
     item.completed_at = utcnow()
     item.draft = {}
+    from app.llm.task_service import queue_extraction_validation
+
+    queue_extraction_validation(
+        db,
+        item.publication_id,
+        response=response,
+        created_by_id=reviewer_id,
+        priority=10,
+    )
     db.flush()
     return response
 

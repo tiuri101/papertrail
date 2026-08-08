@@ -62,9 +62,11 @@ def initialize_full_text_stage(db: Session, project: Project) -> int:
             FullTextRetrieval(
                 project_id=project.id,
                 publication_id=publication_id,
-                status=RetrievalStatus.AVAILABLE
-                if has_pdf
-                else RetrievalStatus.NOT_YET_SOUGHT,
+                status=(
+                    RetrievalStatus.AVAILABLE
+                    if has_pdf
+                    else RetrievalStatus.NOT_YET_SOUGHT
+                ),
             )
         )
         if has_pdf:

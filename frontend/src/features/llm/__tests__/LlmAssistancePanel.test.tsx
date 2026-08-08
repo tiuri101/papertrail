@@ -7,6 +7,9 @@ import { renderWithProviders } from '../../../test/render'
 
 const settings = {
   enabled: false,
+  titleAbstractScreeningEnabled: false,
+  fullTextScreeningEnabled: false,
+  extractionValidationEnabled: false,
   installationEnabled: true,
   provider: 'Ollama',
   endpoint: 'http://ollama.example:11434',
@@ -31,6 +34,26 @@ describe('LlmAssistancePanel', () => {
     expect(screen.queryByText(/api key/i)).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Test Connection' }))
     expect(await screen.findByText('Available; configured model found.')).toBeInTheDocument()
+  })
+
+  it('updates each optional capability independently', async () => {
+    const fetchMock = mockFetch(async (input, init) => {
+      const path = String(input)
+      if (path.endsWith('/llm/settings') && init?.method === 'PATCH') {
+        return jsonResponse({ ...settings, ...JSON.parse(String(init.body)) })
+      }
+      if (path.endsWith('/llm/settings')) return jsonResponse(settings)
+      if (path.endsWith('/llm/schema')) return jsonResponse({ schema: null, extractionFields: [] })
+      if (path.includes('/llm/runs')) return jsonResponse({ total: 0, counts: {}, statistics: {}, overview: { eligible: 0, missingPdf: 0, outdatedSchema: 0 }, runs: [] })
+      return jsonResponse({})
+    })
+    renderWithProviders(<LlmAssistancePanel projectId="p1" />)
+
+    fireEvent.click(await screen.findByLabelText(/Title\/abstract screening suggestions/))
+    await waitFor(() => {
+      const patchCall = fetchMock.mock.calls.find(([, init]) => init?.method === 'PATCH')
+      expect(JSON.parse(String(patchCall?.[1]?.body))).toEqual({ titleAbstractScreeningEnabled: true })
+    })
   })
 
   it('initializes, edits, maps, and publishes a schema', async () => {

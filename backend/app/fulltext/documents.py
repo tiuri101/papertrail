@@ -66,9 +66,11 @@ def attach_staged_pdf(
     action = audit_action or (
         "pdf.replaced"
         if current
-        else "pdf.attached_bulk"
-        if source == DocumentSource.BULK_IMPORT
-        else "pdf.uploaded_manual"
+        else (
+            "pdf.attached_bulk"
+            if source == DocumentSource.BULK_IMPORT
+            else "pdf.uploaded_manual"
+        )
     )
     record_audit(
         db,
@@ -86,9 +88,9 @@ def attach_staged_pdf(
             "source": source.value,
         },
     )
-    from app.llm.service import queue_preparation_if_eligible
+    from app.llm.task_service import queue_document_processing
 
-    queue_preparation_if_eligible(db, publication_id, created_by_id=user_id, priority=0)
+    queue_document_processing(db, publication_id, created_by_id=user_id, priority=0)
     return document
 
 

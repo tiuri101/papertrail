@@ -291,9 +291,11 @@ def add_research_question(
     item = ResearchQuestion(
         project_id=project_id,
         text=payload.text.strip(),
-        position=payload.position
-        if payload.position is not None
-        else next_position(db, ResearchQuestion, project_id),
+        position=(
+            payload.position
+            if payload.position is not None
+            else next_position(db, ResearchQuestion, project_id)
+        ),
     )
     db.add(item)
     db.flush()
@@ -379,9 +381,11 @@ def add_criterion(
         project_id=project_id,
         kind=payload.kind,
         text=payload.text.strip(),
-        position=payload.position
-        if payload.position is not None
-        else next_position(db, Criterion, project_id),
+        position=(
+            payload.position
+            if payload.position is not None
+            else next_position(db, Criterion, project_id)
+        ),
     )
     db.add(item)
     db.flush()

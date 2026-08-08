@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Mapping
 from datetime import UTC, datetime
 from typing import Any
 
@@ -20,6 +21,7 @@ from app.llm.models import (
     ExtractionSuggestionReview,
     LlmExtractionRun,
     LlmFieldSuggestion,
+    LlmTaskType,
     ProcessingStatus,
     SuggestionDisposition,
 )
@@ -102,39 +104,12 @@ def queue_preparation_if_eligible(
     created_by_id: str | None = None,
     priority: int = 0,
 ) -> BackgroundJob | LlmExtractionRun | None:
-    document = active_document(db, publication_id)
-    if document is None or not title_abstract_included(db, publication_id):
-        return None
-    if full_text_excluded(db, publication_id) or not project_llm_is_enabled(
-        db, document.project_id
-    ):
-        return None
-    extraction = db.scalar(
-        select(DocumentTextExtraction).where(
-            DocumentTextExtraction.document_id == document.id
-        )
-    )
-    if extraction and extraction.status == ProcessingStatus.COMPLETED:
-        return queue_llm_run_after_text(
-            db, extraction, created_by_id=created_by_id, priority=priority
-        )
-    if extraction is None:
-        from app.llm.text_extraction import ensure_text_extraction
+    from app.llm.task_service import queue_document_processing
 
-        extraction = ensure_text_extraction(db, document.id)
-    if extraction.status == ProcessingStatus.UNSUPPORTED:
-        return None
-    pending = _pending_job(db, TEXT_JOB, "document_id", document.id)
-    if pending:
-        pending.priority = max(pending.priority, priority)
-        return pending
-    return enqueue_job(
+    return queue_document_processing(
         db,
-        TEXT_JOB,
-        {"document_id": document.id, "text_extraction_id": extraction.id},
-        project_id=document.project_id,
+        publication_id,
         created_by_id=created_by_id,
-        max_attempts=2,
         priority=priority,
     )
 
@@ -161,10 +136,15 @@ def queue_llm_run_after_text(
     config = get_settings()
     if schema is None or not config.ollama_model:
         return None
+    from app.llm.task_service import data_extraction_fingerprint
+
+    input_fingerprint = data_extraction_fingerprint(document, extraction, schema.id)
     active = db.scalar(
         select(LlmExtractionRun).where(
             LlmExtractionRun.document_id == document.id,
             LlmExtractionRun.schema_version_id == schema.id,
+            LlmExtractionRun.task_type == LlmTaskType.DATA_EXTRACTION,
+            LlmExtractionRun.input_fingerprint == input_fingerprint,
             LlmExtractionRun.status.in_(
                 [ProcessingStatus.PENDING, ProcessingStatus.PROCESSING]
             ),
@@ -182,6 +162,8 @@ def queue_llm_run_after_text(
             .where(
                 LlmExtractionRun.document_id == document.id,
                 LlmExtractionRun.schema_version_id == schema.id,
+                LlmExtractionRun.task_type == LlmTaskType.DATA_EXTRACTION,
+                LlmExtractionRun.input_fingerprint == input_fingerprint,
                 LlmExtractionRun.status == ProcessingStatus.COMPLETED,
             )
             .order_by(LlmExtractionRun.completed_at.desc())
@@ -191,11 +173,18 @@ def queue_llm_run_after_text(
     run = LlmExtractionRun(
         project_id=document.project_id,
         publication_id=document.publication_id,
+        task_type=LlmTaskType.DATA_EXTRACTION,
+        input_fingerprint=input_fingerprint,
         document_id=document.id,
         schema_version_id=schema.id,
         text_extraction_id=extraction.id,
         provider="ollama",
         model=config.ollama_model,
+        model_configuration={
+            "temperature": 0,
+            "think": False,
+            "contextLength": config.llm_context_length,
+        },
         prompt_template_version=PROMPT_TEMPLATE_VERSION,
         status=ProcessingStatus.PENDING,
         queued_at=utcnow(),
@@ -221,6 +210,7 @@ def cancel_queued_for_publication(db: Session, publication_id: str) -> int:
         db.scalars(
             select(LlmExtractionRun).where(
                 LlmExtractionRun.publication_id == publication_id,
+                LlmExtractionRun.task_type != LlmTaskType.TITLE_ABSTRACT_SCREENING,
                 LlmExtractionRun.status == ProcessingStatus.PENDING,
             )
         )
@@ -271,6 +261,7 @@ def latest_current_run(
             LlmExtractionRun.publication_id == publication_id,
             LlmExtractionRun.document_id == document.id,
             LlmExtractionRun.schema_version_id == schema.id,
+            LlmExtractionRun.task_type == LlmTaskType.DATA_EXTRACTION,
         )
         .order_by(LlmExtractionRun.created_at.desc())
     )
@@ -292,6 +283,8 @@ def record_suggestion_provenance(
     db: Session,
     item: ExtractionWorkItem,
     response: ExtractionResponse,
+    *,
+    suggestion_actions: Mapping[str, str] | None = None,
 ) -> None:
     run = latest_current_run(db, item.project_id, item.publication_id)
     run_suggestions = (
@@ -310,7 +303,20 @@ def record_suggestion_provenance(
     }
     for field_key, final_value in response.answers.items():
         suggestion = suggestions.get(field_key)
-        if suggestion is None:
+        action = (suggestion_actions or {}).get(field_key)
+        if action == "manual":
+            disposition = SuggestionDisposition.MANUAL
+        elif action == "ignored":
+            disposition = SuggestionDisposition.NOT_USED
+        elif action == "accepted" and suggestion is not None:
+            disposition = (
+                SuggestionDisposition.ACCEPTED
+                if values_equal(suggestion.value, final_value)
+                else SuggestionDisposition.MODIFIED
+            )
+        elif action == "modified" and suggestion is not None:
+            disposition = SuggestionDisposition.MODIFIED
+        elif suggestion is None:
             disposition = SuggestionDisposition.NOT_USED
         elif values_equal(suggestion.value, final_value):
             disposition = SuggestionDisposition.ACCEPTED
@@ -336,5 +342,20 @@ def record_suggestion_provenance(
                 ).hexdigest(),
                 disposition=disposition,
             )
+        )
+    if suggestion_actions:
+        from collections import Counter
+
+        from app.audit.service import record_audit
+
+        record_audit(
+            db,
+            action="llm.extraction_suggestions_reviewed",
+            entity_type="extraction_response",
+            entity_id=response.id,
+            project_id=item.project_id,
+            actor_id=response.reviewer_id,
+            summary="Reviewed LLM extraction suggestions",
+            metadata={"dispositions": dict(Counter(suggestion_actions.values()))},
         )
     db.flush()

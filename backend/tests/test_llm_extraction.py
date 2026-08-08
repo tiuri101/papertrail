@@ -25,12 +25,15 @@ from app.jobs.service import claim_job
 from app.llm.evidence import verify_evidence
 from app.llm.extraction import run_llm_extraction_job
 from app.llm.models import (
+    CriterionAssessment,
     DocumentPageText,
     DocumentTextExtraction,
     EvidenceStatus,
     ExtractionSuggestionReview,
     LlmExtractionRun,
     LlmFieldSuggestion,
+    LlmTaskType,
+    LlmValidationResult,
     ProcessingStatus,
     ProjectLlmSettings,
     SuggestionDisposition,
@@ -44,10 +47,24 @@ from app.llm.schema_service import (
     publish_schema,
 )
 from app.llm.service import LLM_JOB, TEXT_JOB, queue_preparation_if_eligible
+from app.llm.task_execution import run_llm_task_job
+from app.llm.task_service import (
+    queue_title_abstract_suggestion,
+    run_is_stale,
+)
 from app.llm.text_extraction import extract_document_text_job
 from app.llm.validation import validate_result
-from app.projects.models import Project, ProjectMembership, ReviewType, ScreeningStage
+from app.projects.models import (
+    Criterion,
+    CriterionKind,
+    Project,
+    ProjectMembership,
+    ReviewType,
+    ScreeningStage,
+)
 from app.publications.models import Publication
+from app.screening.models import ScreeningWorkItem
+from app.screening.service import submit_decision
 
 
 def text_pdf(*page_texts: str) -> bytes:
@@ -334,6 +351,11 @@ def test_ollama_job_uses_structured_output_and_verifies_evidence(
     assert run.document_id == document.id
     assert run.schema_version_id == schema.id
     assert run.model == "test-model:latest"
+    assert run.model_configuration == {
+        "temperature": 0,
+        "think": False,
+        "contextLength": 8192,
+    }
     assert run.prompt_eval_count == 200
     suggestion = db.scalar(
         select(LlmFieldSuggestion).where(
@@ -780,3 +802,231 @@ def test_replacing_pdf_creates_new_text_chain_and_preserves_old_text(db) -> None
         )
         != first_extraction.id
     )
+
+
+def test_title_suggestion_is_generated_independently_and_revealed_only_after_decision(
+    client, db, monkeypatch
+) -> None:
+    _, reviewer, project, publication, _, _, _, _ = setup_llm_project(db)
+    membership = db.scalar(
+        select(ProjectMembership).where(
+            ProjectMembership.project_id == project.id,
+            ProjectMembership.user_id == reviewer.id,
+        )
+    )
+    membership.can_title_abstract_screen = True
+    criterion = Criterion(
+        project_id=project.id,
+        kind=CriterionKind.INCLUSION,
+        text="Reports an empirical evaluation",
+        position=0,
+    )
+    db.add(criterion)
+    settings = project_settings(db, project.id)
+    settings.title_abstract_screening_enabled = True
+    item = ScreeningWorkItem(
+        project_id=project.id,
+        publication_id=publication.id,
+        stage=ScreeningStage.TITLE_ABSTRACT,
+        slot_number=1,
+        assigned_reviewer_id=reviewer.id,
+        reserved_by_id=reviewer.id,
+        random_rank="title-llm",
+    )
+    db.add(item)
+    db.commit()
+
+    run = queue_title_abstract_suggestion(db, publication.id)
+    assert run is not None
+    fake = FakeOllama(
+        {
+            "suggested_decision": "uncertain",
+            "confidence": "low",
+            "criteria": {
+                criterion.id: {
+                    "assessment": "unclear",
+                    "explanation": "The abstract does not describe the evaluation.",
+                    "evidence": [],
+                }
+            },
+            "reasoning_summary": "The available metadata is insufficient.",
+        }
+    )
+    monkeypatch.setattr("app.llm.task_execution.create_ollama_client", lambda: fake)
+    job = db.get(BackgroundJob, run.background_job_id)
+    run_llm_task_job(db, job)
+    db.commit()
+
+    csrf = client.post(
+        "/api/v1/auth/login",
+        json={"username": reviewer.username, "password": "reviewer-password"},
+    ).json()["csrfToken"]
+    path = f"/api/v1/projects/{project.id}/screening/work-items/{item.id}/llm-title-abstract"
+    hidden = client.get(path)
+    assert hidden.status_code == 200
+    assert hidden.json() == {
+        "state": "hidden",
+        "hidden": True,
+        "runId": None,
+        "documentId": None,
+        "model": None,
+        "promptVersion": None,
+        "stale": False,
+        "error": None,
+        "suggestedDecision": None,
+        "confidence": None,
+        "reasoningSummary": None,
+        "criteria": [],
+    }
+    assert "uncertain" not in hidden.text
+
+    submit_decision(db, item, reviewer.id, "include", {criterion.id: True}, None)
+    db.commit()
+    revealed = client.get(path, headers={"X-CSRF-Token": csrf})
+    assert revealed.status_code == 200
+    assert revealed.json()["suggestedDecision"] == "uncertain"
+    assert revealed.json()["criteria"][0]["assessment"] == "unclear"
+
+    criterion.text = "Reports an empirical evaluation with participants"
+    db.commit()
+    assert client.get(path).json()["stale"] is True
+
+    outsider = create_user(db, "screening-outsider", "Outsider", "outsider-password")
+    db.commit()
+    client.post(
+        "/api/v1/auth/login",
+        json={"username": outsider.username, "password": "outsider-password"},
+    )
+    assert client.get(path).status_code == 403
+
+
+def test_full_text_assistance_verifies_page_evidence(db, monkeypatch) -> None:
+    _, _, project, publication, _, _, _, _ = setup_llm_project(db)
+    criterion = Criterion(
+        project_id=project.id,
+        kind=CriterionKind.INCLUSION,
+        text="Uses human participants",
+        position=0,
+    )
+    db.add(criterion)
+    settings = project_settings(db, project.id)
+    settings.full_text_screening_enabled = True
+    db.commit()
+    include_title_abstract(db, publication)
+    text_job = db.scalar(
+        select(BackgroundJob).where(BackgroundJob.job_type == TEXT_JOB)
+    )
+    extraction = extract_document_text_job(db, text_job)
+    db.commit()
+    run = db.scalar(
+        select(LlmExtractionRun).where(
+            LlmExtractionRun.task_type == LlmTaskType.FULL_TEXT_SCREENING
+        )
+    )
+    assert run is not None
+    fake = FakeOllama(
+        {
+            "suggested_decision": "include",
+            "confidence": "high",
+            "criteria": {
+                criterion.id: {
+                    "assessment": "met",
+                    "explanation": "Participants are reported.",
+                    "evidence": [
+                        {
+                            "page": 2,
+                            "section": "Methods",
+                            "quote": "Twenty-four participants took part in the study.",
+                        }
+                    ],
+                }
+            },
+            "reasoning_summary": "The eligibility criterion is supported.",
+        }
+    )
+    monkeypatch.setattr("app.llm.task_execution.create_ollama_client", lambda: fake)
+    run_llm_task_job(db, db.get(BackgroundJob, run.background_job_id))
+    db.commit()
+    db.refresh(run)
+    suggestion = run.criterion_suggestions[0]
+    assert extraction["status"] == "completed"
+    assert suggestion.assessment == CriterionAssessment.MET
+    assert suggestion.evidence_validation_status == EvidenceStatus.VERIFIED
+    assert suggestion.evidence[0] == {
+        "page": 2,
+        "quote": "Twenty-four participants took part in the study.",
+        "section": "Methods",
+        "verified": True,
+    }
+
+
+def test_validation_uses_human_values_and_never_changes_extraction(
+    db, monkeypatch
+) -> None:
+    _, reviewer, project, publication, _, _, sample, method = setup_llm_project(db)
+    settings = project_settings(db, project.id)
+    settings.extraction_validation_enabled = True
+    include_title_abstract(db, publication)
+    text_job = db.scalar(
+        select(BackgroundJob).where(BackgroundJob.job_type == TEXT_JOB)
+    )
+    extract_document_text_job(db, text_job)
+    item = ExtractionWorkItem(
+        project_id=project.id,
+        publication_id=publication.id,
+        assigned_reviewer_id=reviewer.id,
+        random_rank="validation",
+    )
+    db.add(item)
+    db.flush()
+    human_answers = {sample.stable_key: 22, method.stable_key: "experiment"}
+    response = submit_extraction(db, item, reviewer.id, human_answers)
+    db.commit()
+    run = db.scalar(
+        select(LlmExtractionRun).where(
+            LlmExtractionRun.task_type == LlmTaskType.EXTRACTION_VALIDATION
+        )
+    )
+    assert run is not None
+    fake = FakeOllama(
+        {
+            "fields": {
+                sample.stable_key: {
+                    "assessment": "contradicted",
+                    "explanation": "The paper reports 24 rather than 22.",
+                    "evidence": [
+                        {
+                            "page": 2,
+                            "section": "Methods",
+                            "quote": "Twenty-four participants took part in the study.",
+                        }
+                    ],
+                },
+                method.stable_key: {
+                    "assessment": "not_verifiable",
+                    "explanation": "No explicit study-method label was found.",
+                    "evidence": [],
+                },
+            }
+        }
+    )
+    monkeypatch.setattr("app.llm.task_execution.create_ollama_client", lambda: fake)
+    run_llm_task_job(db, db.get(BackgroundJob, run.background_job_id))
+    db.commit()
+    db.refresh(response)
+    assert response.answers == human_answers
+    results = {
+        result.extraction_field_key: result
+        for result in db.scalars(
+            select(LlmValidationResult).where(LlmValidationResult.run_id == run.id)
+        )
+    }
+    assert results[sample.stable_key].assessment == "contradicted"
+    assert results[sample.stable_key].value_snapshot == 22
+    assert results[method.stable_key].assessment == "not_verifiable"
+
+    corrected = {sample.stable_key: 24, method.stable_key: "experiment"}
+    submit_extraction(db, item, reviewer.id, corrected)
+    db.commit()
+    assert run_is_stale(db, run) is True
+    assert response.answers == human_answers

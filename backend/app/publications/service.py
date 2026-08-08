@@ -158,11 +158,15 @@ def apply_enrichment(
         proposed_value = (
             parse_year(proposed)
             if field == "publication_year"
-            else normalize_doi(proposed)
-            if field == "doi"
-            else clean_url(proposed)
-            if field == "publisher_url"
-            else clean_text(proposed)
+            else (
+                normalize_doi(proposed)
+                if field == "doi"
+                else (
+                    clean_url(proposed)
+                    if field == "publisher_url"
+                    else clean_text(proposed)
+                )
+            )
         )
         current = getattr(publication, field)
         if current in (None, ""):

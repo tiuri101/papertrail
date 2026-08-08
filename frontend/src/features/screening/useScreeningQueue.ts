@@ -28,6 +28,10 @@ export interface ScreeningWorkItem {
   draft: Record<string, unknown>
 }
 
+interface SubmittedScreeningDecision {
+  outcome: string
+}
+
 export type CriterionAnswer = boolean | null
 
 function defaultAnswerForKind(kind: string): boolean {
@@ -58,6 +62,10 @@ export function useScreeningQueue(projectId: string, stage: string) {
   const [queueEmpty, setQueueEmpty] = useState(false)
   const [loadingNext, setLoadingNext] = useState(true)
   const [nextError, setNextError] = useState<string | null>(null)
+  const [submitted, setSubmitted] = useState<{
+    item: ScreeningWorkItem
+    decision: SubmittedScreeningDecision
+  } | null>(null)
 
   const next = useMutation({
     mutationFn: () => apiRequest<ScreeningWorkItem | null>(
@@ -66,6 +74,7 @@ export function useScreeningQueue(projectId: string, stage: string) {
     ),
     onSuccess: (result) => {
       setItem(result)
+      setSubmitted(null)
       setQueueEmpty(result === null)
       setLoadingNext(false)
     },
@@ -84,7 +93,7 @@ export function useScreeningQueue(projectId: string, stage: string) {
   const submit = useMutation({
     mutationFn: () => {
       if (!item) throw new Error('No screening item is open')
-      return apiRequest(
+      return apiRequest<SubmittedScreeningDecision>(
         `/api/v1/projects/${projectId}/screening/work-items/${item.id}/decision`,
         {
           method: 'POST',
@@ -96,13 +105,19 @@ export function useScreeningQueue(projectId: string, stage: string) {
         },
       )
     },
-    onSuccess: () => {
+    onSuccess: (decision: SubmittedScreeningDecision) => {
+      if (item && stage === 'title_abstract') {
+        setSubmitted({
+          item,
+          decision: { outcome: decision.outcome ?? outcome },
+        })
+      }
       setItem(null)
       setAnswers({})
       setOutcome('include')
       setNotes('')
-      fetchNext()
       queryClient.invalidateQueries({ queryKey: progressQueryKey })
+      if (stage !== 'title_abstract') fetchNext()
     },
   })
 
@@ -182,6 +197,8 @@ export function useScreeningQueue(projectId: string, stage: string) {
   ) ?? false
 
   return {
+    projectId,
+    stage,
     item,
     answers,
     setAnswers,
@@ -196,6 +213,11 @@ export function useScreeningQueue(projectId: string, stage: string) {
     submit,
     criteriaComplete,
     progress: progress.data,
+    submitted,
+    continueAfterDecision: () => {
+      setSubmitted(null)
+      fetchNext()
+    },
   }
 }
 

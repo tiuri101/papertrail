@@ -922,10 +922,11 @@ The first usable release should include:
 Potential later additions include:
 
 - AI-assisted duplicate detection
-- AI-assisted relevance suggestions
+- LLM-assisted title/abstract suggestions with post-decision reveal (implemented)
+- Evidence-backed LLM full-text screening assistance (implemented)
 - Automated abstract summarization
 - PDF upload, protected storage, version history, bulk matching, and manual full-text management (implemented)
-- External-Ollama-assisted structured extraction with page evidence and authoritative reviewer confirmation (implemented)
+- External-Ollama-assisted structured extraction and optional human-value validation with page evidence (implemented)
 - PDF annotation
 - Direct database or reference-manager integrations
 - Zotero synchronization

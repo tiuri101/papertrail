@@ -142,9 +142,11 @@ async def stage_bulk_uploads(
                             _invalid_item(
                                 batch,
                                 entry.filename,
-                                "Unsafe ZIP entry"
-                                if unsafe
-                                else "Suspicious ZIP compression ratio",
+                                (
+                                    "Unsafe ZIP entry"
+                                    if unsafe
+                                    else "Suspicious ZIP compression ratio"
+                                ),
                             )
                         )
                     elif entry_path.suffix.lower() != ".pdf":

@@ -21,6 +21,7 @@ const criteria = [
 const workItem = {
   id: 'work-1',
   publication: {
+    id: 'publication-1',
     title: 'Urban Data in VR',
     authors: 'Doe, Jane',
     abstract: 'A study of urban data in virtual reality.',
@@ -108,7 +109,7 @@ describe('FullTextPage', () => {
     expect(screen.queryByLabelText('Retrieval status for Urban Data in VR')).not.toBeInTheDocument()
   })
 
-  it('does not show screening fields until the report is marked available', async () => {
+  it('hands an available report to screening instead of deciding during retrieval', async () => {
     const retrieval = { id: 'retrieval-1', publicationId: 'publication-1', publication: publicationA, status: 'not_yet_sought', note: null }
     render({ fulltextNext: [retrieval], progress: { total: 1, addressed: 0 } })
 
@@ -117,23 +118,22 @@ describe('FullTextPage', () => {
 
     fireEvent.change(screen.getByLabelText('Retrieval status for Urban Data in VR'), { target: { value: 'available' } })
 
-    expect(await screen.findByText('Criteria')).toBeInTheDocument()
-    expect(screen.getByLabelText('Inclusion: Uses virtual reality — Fulfilled')).toBeInTheDocument()
+    expect(await screen.findByText(/Save the available status to open full-text screening/)).toBeInTheDocument()
+    expect(screen.queryByText('Criteria')).not.toBeInTheDocument()
   })
 
-  it('submits the retrieval status and the screening decision together in a single request', async () => {
+  it('saves retrieval first, then opens the screening item with LLM assistance', async () => {
     const retrieval = { id: 'retrieval-1', publicationId: 'publication-1', publication: publicationA, status: 'not_yet_sought', note: null }
     const fetchMock = render({
       fulltextNext: [retrieval, null],
       progress: { total: 1, addressed: 0 },
-      putResponses: [{ status: 'available', note: null, decisionSubmitted: true }],
+      screeningNext: [null, workItem],
+      putResponses: [{ status: 'available', note: null, decisionSubmitted: false }],
     })
 
     await screen.findByLabelText('Retrieval status for Urban Data in VR')
     fireEvent.change(screen.getByLabelText('Retrieval status for Urban Data in VR'), { target: { value: 'available' } })
-    await screen.findByText('Criteria')
-
-    const submitButton = screen.getByRole('button', { name: 'Submit' })
+    const submitButton = screen.getByRole('button', { name: 'Save and start screening' })
     expect(submitButton).not.toBeDisabled()
     fireEvent.click(submitButton)
 
@@ -143,15 +143,15 @@ describe('FullTextPage', () => {
       expect(JSON.parse(String(putCall?.[1]?.body))).toEqual({
         status: 'available',
         note: null,
-        decision: { outcome: 'include', criteriaAnswers: { 'criterion-1': true }, notes: null },
+        decision: null,
       })
     })
 
-    expect(screen.queryByRole('button', { name: 'Submit Decision' })).not.toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Submit Decision' })).toBeInTheDocument()
     const putCalls = fetchMock.mock.calls.filter(([, init]) => init?.method === 'PUT')
     expect(putCalls).toHaveLength(1)
     const screeningNextCalls = fetchMock.mock.calls.filter(([input, init]) => String(input).endsWith('/screening/full_text/next') && init?.method === 'POST')
-    expect(screeningNextCalls).toHaveLength(1)
+    expect(screeningNextCalls).toHaveLength(2)
   })
 
   it('falls back to the reviewer queue when nobody was assigned to screen the paper just marked available', async () => {
@@ -165,7 +165,7 @@ describe('FullTextPage', () => {
 
     await screen.findByLabelText('Retrieval status for Urban Data in VR')
     fireEvent.change(screen.getByLabelText('Retrieval status for Urban Data in VR'), { target: { value: 'available' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Submit' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save and start screening' }))
 
     expect(await screen.findByRole('button', { name: 'Submit Decision' })).toBeInTheDocument()
     await waitFor(() => {

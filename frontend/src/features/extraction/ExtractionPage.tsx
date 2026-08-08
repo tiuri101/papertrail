@@ -5,6 +5,7 @@ import { useParams } from 'react-router-dom'
 import { apiRequest } from '../../api/client'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { DynamicForm, type DynamicFormField } from '../forms/DynamicForm'
+import { LlmEvidence, type LlmEvidenceItem } from '../llm/LlmTaskComponents'
 
 interface PublicationSummary {
   title: string
@@ -27,6 +28,7 @@ interface WorkItem {
 interface Evidence {
   page: number
   quote: string
+  section: string | null
   verified: boolean
 }
 
@@ -53,6 +55,34 @@ interface LlmAssistance {
   suggestions: LlmSuggestion[]
 }
 
+interface ExtractionResponse {
+  id: string
+  answers: Record<string, unknown>
+  version: number
+  formVersionId: string
+}
+
+interface ValidationResult {
+  fieldKey: string
+  fieldLabel: string
+  value: unknown
+  assessment: 'supported' | 'contradicted' | 'uncertain' | 'not_verifiable'
+  explanation: string
+  evidence: LlmEvidenceItem[]
+  evidenceValidationStatus: string
+}
+
+interface ValidationAssistance {
+  state: string
+  runId: string | null
+  responseId: string | null
+  model: string | null
+  promptVersion: string | null
+  stale: boolean
+  error: string | null
+  results: ValidationResult[]
+}
+
 function isAnswered(value: unknown): boolean {
   if (value === null || value === undefined || value === '') return false
   if (Array.isArray(value)) return value.length > 0
@@ -66,6 +96,8 @@ export function ExtractionPage() {
   const [queueEmpty, setQueueEmpty] = useState(false)
   const [loadingNext, setLoadingNext] = useState(true)
   const [nextError, setNextError] = useState<string | null>(null)
+  const [suggestionActions, setSuggestionActions] = useState<Record<string, 'accepted' | 'modified' | 'ignored' | 'manual'>>({})
+  const [completedResponse, setCompletedResponse] = useState<ExtractionResponse | null>(null)
   const assistance = useQuery({
     queryKey: ['extraction-llm', projectId, item?.id],
     queryFn: () => apiRequest<LlmAssistance>(
@@ -92,6 +124,8 @@ export function ExtractionPage() {
     onSuccess: (result) => {
       setItem(result)
       setAnswers(result?.draft ?? {})
+      setSuggestionActions({})
+      setCompletedResponse(null)
       setQueueEmpty(result === null)
       setLoadingNext(false)
     },
@@ -120,23 +154,42 @@ export function ExtractionPage() {
   const submit = useMutation({
     mutationFn: () => {
       if (!item) throw new Error('No extraction is open')
-      return apiRequest(
+      return apiRequest<ExtractionResponse>(
         `/api/v1/projects/${projectId}/extraction/${item.id}`,
         {
           method: 'POST',
-          body: JSON.stringify({ answers }),
+          body: JSON.stringify({
+            answers,
+            ...(Object.keys(suggestionActions).length ? { suggestionActions } : {}),
+          }),
         },
       )
     },
-    onSuccess: () => {
-      setItem(null)
-      setAnswers({})
-      fetchNext()
+    onSuccess: (response) => {
+      setCompletedResponse(response)
     },
   })
 
+  const validation = useQuery({
+    queryKey: ['extraction-validation', projectId, item?.id, completedResponse?.id],
+    queryFn: () => apiRequest<ValidationAssistance>(
+      `/api/v1/projects/${projectId}/extraction/${item?.id}/llm-validation`,
+    ),
+    enabled: Boolean(item?.id && completedResponse),
+    refetchInterval: (query) => (
+      ['pending', 'queued', 'processing'].includes(query.state.data?.state ?? '') ? 5000 : false
+    ),
+  })
+  const runValidation = useMutation({
+    mutationFn: (force: boolean) => apiRequest(
+      `/api/v1/projects/${projectId}/extraction/${item?.id}/llm-validation`,
+      { method: 'POST', body: JSON.stringify({ force }) },
+    ),
+    onSuccess: () => validation.refetch(),
+  })
+
   useEffect(() => {
-    if (!item) return
+    if (!item || completedResponse) return
     const timer = setTimeout(() => {
       apiRequest(
         `/api/v1/projects/${projectId}/extraction/${item.id}/draft`,
@@ -144,7 +197,7 @@ export function ExtractionPage() {
       ).catch(() => {})
     }, 1000)
     return () => clearTimeout(timer)
-  }, [item, projectId, answers])
+  }, [item, projectId, answers, completedResponse])
 
   const missingRequired = item?.fields.some(
     (field) => field.required && !isAnswered(answers[field.stableKey]),
@@ -156,15 +209,29 @@ export function ExtractionPage() {
       .map((suggestion) => [suggestion.mappedExtractionFieldKey, suggestion]),
   )
   const helpers = (assistance.data?.suggestions ?? []).filter((suggestion) => suggestion.helper)
+  const validationByField = new Map(
+    (validation.data?.results ?? []).map((result) => [result.fieldKey, result]),
+  )
+  const validationCounts = (validation.data?.results ?? []).reduce<Record<string, number>>(
+    (counts, result) => ({
+      ...counts,
+      [result.assessment]: (counts[result.assessment] ?? 0) + 1,
+    }),
+    {},
+  )
 
   const suggestionCard = (field: DynamicFormField) => {
     const suggestion = suggestionByField.get(field.stableKey)
-    if (!suggestion) return null
+    const validationResult = validationByField.get(field.stableKey)
+    if (!suggestion && !validationResult) return null
     const current = answers[field.stableKey]
-    const applied = JSON.stringify(current) === JSON.stringify(suggestion.value)
-    const status = suggestion.status.replace('_', ' ')
+    const applied = suggestion
+      ? JSON.stringify(current) === JSON.stringify(suggestion.value)
+      : false
+    const status = suggestion?.status.replace('_', ' ')
     return (
-      <aside className={`llm-suggestion llm-suggestion--${suggestion.status}`}>
+      <>
+      {suggestion ? <aside className={`llm-suggestion llm-suggestion--${suggestion.status}`}>
         <div className="llm-suggestion__heading">
           <strong>✦ LLM suggestion · {status}</strong>
           {applied ? <span>Reviewer value matches suggestion</span> : null}
@@ -180,11 +247,25 @@ export function ExtractionPage() {
             <button
               type="button"
               className="secondary"
-              onClick={() => setAnswers((values) => ({
-                ...values, [field.stableKey]: suggestion.value,
-              }))}
+              onClick={() => {
+                setAnswers((values) => ({
+                  ...values, [field.stableKey]: suggestion.value,
+                }))
+                setSuggestionActions((actions) => ({
+                  ...actions, [field.stableKey]: 'accepted',
+                }))
+              }}
             >
               {isAnswered(current) ? 'Reset to LLM suggestion' : 'Apply suggestion'}
+            </button>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => setSuggestionActions((actions) => ({
+                ...actions, [field.stableKey]: 'ignored',
+              }))}
+            >
+              Ignore suggestion
             </button>
           </>
         )}
@@ -194,7 +275,7 @@ export function ExtractionPage() {
             {suggestion.evidence.map((evidence, index) => (
               <blockquote key={`${evidence.page}-${index}`}>
                 <p>
-                  p. {evidence.page} · {evidence.verified ? 'Verified evidence' : 'Unverified evidence'}
+                  p. {evidence.page}{evidence.section ? ` · ${evidence.section}` : ''} · {evidence.verified ? 'Verified evidence' : 'Unverified evidence'}
                 </p>
                 <q>{evidence.quote}</q>
                 <p>
@@ -212,7 +293,24 @@ export function ExtractionPage() {
         ) : suggestion.evidenceRequired && suggestion.value != null ? (
           <p className="error">No verified supporting evidence was returned.</p>
         ) : null}
-      </aside>
+      </aside> : null}
+      {validationResult ? (
+        <aside className={`llm-validation llm-validation--${validationResult.assessment}`}>
+          <strong>Validation: {validationResult.assessment.replace('_', ' ')}</strong>
+          <p>{validationResult.explanation}</p>
+          {validationResult.evidence.length ? (
+            <details>
+              <summary>Validation evidence ({validationResult.evidence.length})</summary>
+              <LlmEvidence
+                evidence={validationResult.evidence}
+                projectId={projectId}
+                publicationId={item?.publicationId ?? ''}
+              />
+            </details>
+          ) : null}
+        </aside>
+      ) : null}
+      </>
     )
   }
 
@@ -275,7 +373,13 @@ export function ExtractionPage() {
             <DynamicForm
               fields={item.fields}
               value={answers}
-              onChange={(key, value) => setAnswers((current) => ({ ...current, [key]: value }))}
+              onChange={(key, value) => {
+                setAnswers((current) => ({ ...current, [key]: value }))
+                setSuggestionActions((actions) => ({
+                  ...actions,
+                  [key]: actions[key] === 'accepted' ? 'modified' : 'manual',
+                }))
+              }}
               renderAssistance={suggestionCard}
             />
             {helpers.length ? (
@@ -294,8 +398,56 @@ export function ExtractionPage() {
             ) : null}
             {submit.error ? <p className="error" role="alert">{submit.error.message}</p> : null}
             <button type="submit" disabled={submit.isPending || missingRequired}>
-              Submit Extraction
+              {completedResponse ? 'Save corrected extraction' : 'Submit Extraction'}
             </button>
+            {completedResponse ? (
+              <section className="llm-validation-summary" aria-label="Extraction validation">
+                <h3>LLM extraction validation</h3>
+                {validation.isLoading ? <p>Checking validation status…</p> : null}
+                {validation.data?.stale ? (
+                  <p className="error">Validation is stale because the extraction or source changed.</p>
+                ) : null}
+                {['queued', 'pending', 'processing'].includes(validation.data?.state ?? '') ? (
+                  <p>Validation {validation.data?.state}… Manual work remains available.</p>
+                ) : null}
+                {validation.data?.state === 'ready' ? (
+                  <p>
+                    {validationCounts.supported ?? 0} supported · {' '}
+                    {validationCounts.uncertain ?? 0} uncertain · {' '}
+                    {validationCounts.contradicted ?? 0} contradicted · {' '}
+                    {validationCounts.not_verifiable ?? 0} not verifiable
+                  </p>
+                ) : null}
+                {validation.data?.state === 'disabled' ? (
+                  <p className="muted">Automatic validation is disabled for this project.</p>
+                ) : null}
+                {validation.data?.state === 'failed' ? (
+                  <p className="error">{validation.data.error ?? 'Validation failed.'}</p>
+                ) : null}
+                {runValidation.error ? <p className="error">{runValidation.error.message}</p> : null}
+                <div className="toolbar">
+                  <button
+                    type="button"
+                    className="secondary"
+                    onClick={() => runValidation.mutate(Boolean(validation.data?.runId))}
+                    disabled={runValidation.isPending}
+                  >
+                    {validation.data?.runId ? 'Re-run validation' : 'Validate extraction'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setItem(null)
+                      setAnswers({})
+                      setCompletedResponse(null)
+                      fetchNext()
+                    }}
+                  >
+                    Continue to next paper
+                  </button>
+                </div>
+              </section>
+            ) : null}
           </form>
         </article>
       )}

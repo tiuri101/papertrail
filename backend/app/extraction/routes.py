@@ -89,7 +89,13 @@ def complete_extraction(
     item = db.get(ExtractionWorkItem, item_id)
     if item is None or item.project_id != project_id:
         raise NotFoundError("Extraction work item not found")
-    response = submit_extraction(db, item, session.user.id, payload.answers)
+    response = submit_extraction(
+        db,
+        item,
+        session.user.id,
+        payload.answers,
+        suggestion_actions=payload.suggestion_actions,
+    )
     record_audit(
         db,
         action="extraction.submitted",

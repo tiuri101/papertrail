@@ -5,6 +5,9 @@ import { apiRequest } from '../../api/client'
 
 interface LlmSettings {
   enabled: boolean
+  titleAbstractScreeningEnabled: boolean
+  fullTextScreeningEnabled: boolean
+  extractionValidationEnabled: boolean
   installationEnabled: boolean
   provider: string
   endpoint: string | null
@@ -89,9 +92,10 @@ export function LlmAssistancePanel({ projectId }: { projectId: string }) {
     await queryClient.invalidateQueries({ queryKey: ['llm-runs', projectId] })
   }
   const toggle = useMutation({
-    mutationFn: (enabled: boolean) => apiRequest(
+    mutationFn: (patch: Partial<Pick<LlmSettings,
+      'enabled' | 'titleAbstractScreeningEnabled' | 'fullTextScreeningEnabled' | 'extractionValidationEnabled'>>) => apiRequest(
       `/api/v1/projects/${projectId}/llm/settings`,
-      { method: 'PATCH', body: JSON.stringify({ enabled }) },
+      { method: 'PATCH', body: JSON.stringify(patch) },
     ),
     onSuccess: refresh,
   })
@@ -160,7 +164,7 @@ export function LlmAssistancePanel({ projectId }: { projectId: string }) {
   const currentSchema = schema.data?.schema
   return (
     <section className="card">
-      <h2>LLM-Assisted Data Extraction</h2>
+      <h2>LLM Assistance</h2>
       <p className="muted">
         Suggestions come from the configured external Ollama service. Reviewers remain responsible
         for every submitted extraction value.
@@ -178,14 +182,50 @@ export function LlmAssistancePanel({ projectId }: { projectId: string }) {
         <button
           type="button"
           disabled={!settings.data?.installationEnabled || toggle.isPending}
-          onClick={() => toggle.mutate(!settings.data?.enabled)}
+          onClick={() => toggle.mutate({ enabled: !settings.data?.enabled })}
         >
-          {settings.data?.enabled ? 'Disable Assistance' : 'Anable assistance'}
+          {settings.data?.enabled ? 'Disable LLM data extraction' : 'Enable LLM data extraction'}
         </button>
         <button type="button" onClick={() => test.mutate()} disabled={test.isPending}>
           {test.isPending ? 'Testing…' : 'Test Connection'}
         </button>
       </div>
+      {settings.data ? (
+        <fieldset>
+          <legend>LLM capabilities</legend>
+          <label>
+            <input
+              type="checkbox"
+              checked={settings.data.titleAbstractScreeningEnabled}
+              disabled={!settings.data.installationEnabled || toggle.isPending}
+              onChange={(event) => toggle.mutate({ titleAbstractScreeningEnabled: event.target.checked })}
+            />
+            Title/abstract screening suggestions (revealed only after reviewer decision)
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={settings.data.fullTextScreeningEnabled}
+              disabled={!settings.data.installationEnabled || toggle.isPending}
+              onChange={(event) => toggle.mutate({ fullTextScreeningEnabled: event.target.checked })}
+            />
+            Full-text screening assistance
+          </label>
+          <label>
+            <input type="checkbox" checked={settings.data.enabled} disabled readOnly />
+            LLM data extraction
+          </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={settings.data.extractionValidationEnabled}
+              disabled={!settings.data.installationEnabled || toggle.isPending}
+              onChange={(event) => toggle.mutate({ extractionValidationEnabled: event.target.checked })}
+            />
+            Validate completed human extractions automatically
+          </label>
+        </fieldset>
+      ) : null}
       {connection ? <p role="status">{connection}</p> : null}
 
       <h3>LLM Extraction Schema</h3>

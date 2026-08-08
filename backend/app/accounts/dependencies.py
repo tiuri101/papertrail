@@ -13,8 +13,9 @@ from app.db.session import get_db
 def get_current_session(
     request: Request,
     db: Session = Depends(get_db),
-    session_cookie: str
-    | None = Cookie(default=None, alias=get_settings().session_cookie_name),
+    session_cookie: str | None = Cookie(
+        default=None, alias=get_settings().session_cookie_name
+    ),
 ) -> UserSession:
     session = find_active_session(db, session_cookie)
     if session is None:

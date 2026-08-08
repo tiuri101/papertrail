@@ -28,7 +28,15 @@ def verify_evidence(
         verified = bool(quote.strip()) and normalize_quote(quote) in normalize_quote(
             pages.get(page, "")
         )
-        checked.append({"page": page, "quote": quote, "verified": verified})
+        section = item.get("section")
+        checked.append(
+            {
+                "page": page,
+                "quote": quote,
+                "section": str(section)[:300] if section else None,
+                "verified": verified,
+            }
+        )
     if not checked:
         return (
             checked,

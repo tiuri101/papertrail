@@ -33,9 +33,9 @@ def process_import_job(db: Session, job: BackgroundJob) -> dict[str, object]:
             ImportedRecord(
                 import_batch_id=batch.id,
                 source_row=index + 1,
-                source_key=str(row.get("source_key"))
-                if row.get("source_key")
-                else None,
+                source_key=(
+                    str(row.get("source_key")) if row.get("source_key") else None
+                ),
                 raw_data={str(k): v for k, v in row.items()},
                 parsed_data=parsed,
                 validation_state=state,

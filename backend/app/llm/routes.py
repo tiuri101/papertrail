@@ -15,7 +15,7 @@ from app.audit.service import record_audit
 from app.conflicts.models import FinalDecision
 from app.core.config import get_settings
 from app.db.session import get_db
-from app.extraction.models import ExtractionWorkItem
+from app.extraction.models import ExtractionResponse, ExtractionWorkItem
 from app.forms.schemas import FieldResponse
 from app.fulltext.documents import active_document
 from app.fulltext.models import PublicationDocument
@@ -23,6 +23,7 @@ from app.llm.models import (
     DocumentTextExtraction,
     LlmExtractionRun,
     LlmSchemaVersion,
+    LlmTaskType,
     ProcessingStatus,
 )
 from app.llm.ollama import OllamaError, create_ollama_client
@@ -38,15 +39,25 @@ from app.llm.schema_service import (
 )
 from app.llm.schemas import (
     AssistanceResponse,
+    ExtractionValidationResponse,
     LlmSchemaUpdate,
     LlmSettingsUpdate,
     ManualRunRequest,
     ReanalysisRequest,
+    ScreeningAssistanceResponse,
 )
 from app.llm.service import (
     latest_current_run,
     queue_llm_run_after_text,
     queue_preparation_if_eligible,
+)
+from app.llm.task_service import (
+    feature_enabled,
+    latest_task_run,
+    queue_extraction_validation,
+    queue_full_text_assistance,
+    queue_title_abstract_suggestion,
+    run_is_stale,
 )
 from app.projects.dependencies import (
     require_project_manager,
@@ -55,7 +66,7 @@ from app.projects.dependencies import (
 from app.projects.models import ProjectMembership, ScreeningStage
 from app.projects.service import is_project_manager, require_project_access
 from app.publications.models import Publication
-from app.screening.models import ScreeningOutcome
+from app.screening.models import ScreeningDecision, ScreeningOutcome, ScreeningWorkItem
 
 router = APIRouter(tags=["LLM-assisted extraction"])
 
@@ -111,14 +122,23 @@ def get_llm_settings(
     settings = project_settings(db, project_id)
     return {
         "enabled": bool(settings and settings.enabled),
+        "titleAbstractScreeningEnabled": bool(
+            settings and settings.title_abstract_screening_enabled
+        ),
+        "fullTextScreeningEnabled": bool(
+            settings and settings.full_text_screening_enabled
+        ),
+        "extractionValidationEnabled": bool(
+            settings and settings.extraction_validation_enabled
+        ),
         "installationEnabled": config.llm_enabled,
         "provider": "Ollama",
         "endpoint": _public_endpoint(config.ollama_base_url),
         "model": config.ollama_model,
         "contextLength": config.llm_context_length,
-        "currentSchemaVersionId": settings.current_schema_version_id
-        if settings
-        else None,
+        "currentSchemaVersionId": (
+            settings.current_schema_version_id if settings else None
+        ),
     }
 
 
@@ -129,24 +149,45 @@ def update_llm_settings(
     manager: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
-    if payload.enabled and not get_settings().llm_enabled:
+    changes = payload.model_dump(exclude_none=True)
+    if any(changes.values()) and not get_settings().llm_enabled:
         raise DomainError("LLM support is disabled for this Papertrail installation")
     settings = project_settings(db, project_id, create=True)
     assert settings is not None
-    settings.enabled = payload.enabled
+    for key, value in changes.items():
+        setattr(settings, key, value)
     settings.updated_by_user_id = manager.id
     record_audit(
         db,
-        action="llm.assistance_enabled"
-        if payload.enabled
-        else "llm.assistance_disabled",
+        action="llm.settings_updated",
         entity_type="project_llm_settings",
         entity_id=settings.id,
         project_id=project_id,
         actor_id=manager.id,
-        summary=f"{'Enabled' if payload.enabled else 'Disabled'} LLM-assisted extraction",
+        summary="Updated project LLM assistance settings",
+        metadata={"changes": changes},
     )
-    if payload.enabled and current_schema(db, project_id):
+    if settings.title_abstract_screening_enabled:
+        from app.llm.task_service import queue_title_abstract_suggestion
+
+        publication_ids = list(
+            db.scalars(
+                select(Publication.id).where(
+                    Publication.project_id == project_id,
+                    Publication.is_active.is_(True),
+                    Publication.merged_into_id.is_(None),
+                )
+            )
+        )
+        for publication_id in publication_ids:
+            queue_title_abstract_suggestion(
+                db, publication_id, created_by_id=manager.id, priority=-10
+            )
+    if (
+        settings.enabled
+        or settings.full_text_screening_enabled
+        or settings.extraction_validation_enabled
+    ):
         eligible_ids = list(
             db.scalars(
                 select(FinalDecision.publication_id).where(
@@ -162,7 +203,12 @@ def update_llm_settings(
                 db, publication_id, created_by_id=manager.id, priority=-10
             )
     db.commit()
-    return {"enabled": settings.enabled}
+    return {
+        "enabled": settings.enabled,
+        "titleAbstractScreeningEnabled": settings.title_abstract_screening_enabled,
+        "fullTextScreeningEnabled": settings.full_text_screening_enabled,
+        "extractionValidationEnabled": settings.extraction_validation_enabled,
+    }
 
 
 @router.post("/projects/{project_id}/llm/test")
@@ -389,6 +435,7 @@ def _assistance_payload(
                 LlmExtractionRun.project_id == project_id,
                 LlmExtractionRun.publication_id == publication_id,
                 LlmExtractionRun.document_id == document.id,
+                LlmExtractionRun.task_type == LlmTaskType.DATA_EXTRACTION,
             )
             .order_by(LlmExtractionRun.created_at.desc())
         )
@@ -443,7 +490,9 @@ def _assistance_payload(
         "documentId": run.document_id,
         "schemaVersion": run_schema.version_number if run_schema else None,
         "model": run.model,
-        "outdated": bool(schema and run.schema_version_id != schema.id),
+        "outdated": bool(
+            (schema and run.schema_version_id != schema.id) or run_is_stale(db, run)
+        ),
         "error": run.error_message,
         "suggestions": suggestions,
     }
@@ -474,6 +523,347 @@ def extraction_suggestions(
         if item.assigned_reviewer_id != user.id or membership is None:
             raise ForbiddenError("Extraction is assigned to another eligible reviewer")
     return _assistance_payload(db, project_id, item.publication_id)
+
+
+def _assigned_screening_item(
+    db: Session, project_id: str, item_id: str, user: User
+) -> ScreeningWorkItem:
+    require_project_access(db, project_id, user)
+    item = db.get(ScreeningWorkItem, item_id)
+    if item is None or item.project_id != project_id:
+        raise NotFoundError("Screening work item not found")
+    if item.assigned_reviewer_id != user.id:
+        raise ForbiddenError("Screening work item is assigned to another reviewer")
+    membership = db.scalar(
+        select(ProjectMembership).where(
+            ProjectMembership.project_id == project_id,
+            ProjectMembership.user_id == user.id,
+        )
+    )
+    allowed = bool(
+        membership
+        and (
+            membership.can_title_abstract_screen
+            if item.stage == ScreeningStage.TITLE_ABSTRACT
+            else membership.can_full_text_screen
+        )
+    )
+    if not allowed and not user.is_admin:
+        raise ForbiddenError("Eligible assigned screening reviewer access required")
+    return item
+
+
+def _screening_payload(
+    db: Session,
+    run: LlmExtractionRun | None,
+    *,
+    project_id: str,
+    publication_id: str,
+    task_type: LlmTaskType,
+) -> dict[str, Any]:
+    if run is None:
+        if not feature_enabled(db, project_id, task_type):
+            return {"state": "disabled"}
+        if task_type == LlmTaskType.FULL_TEXT_SCREENING:
+            document = active_document(db, publication_id)
+            if document is None:
+                return {"state": "missing_pdf"}
+            extraction = db.scalar(
+                select(DocumentTextExtraction).where(
+                    DocumentTextExtraction.document_id == document.id
+                )
+            )
+            if extraction and extraction.status in {
+                ProcessingStatus.UNSUPPORTED,
+                ProcessingStatus.FAILED,
+            }:
+                return {
+                    "state": "text_unavailable",
+                    "documentId": document.id,
+                    "error": extraction.error_message,
+                }
+            if extraction and extraction.status in {
+                ProcessingStatus.PENDING,
+                ProcessingStatus.PROCESSING,
+            }:
+                return {"state": "processing", "documentId": document.id}
+        return {"state": "unavailable"}
+    stale = run_is_stale(db, run)
+    raw = run.raw_result or {}
+    return {
+        "state": (
+            "ready"
+            if run.status == ProcessingStatus.COMPLETED
+            else "queued" if run.status == ProcessingStatus.PENDING else run.status
+        ),
+        "runId": run.id,
+        "documentId": run.document_id,
+        "model": run.model,
+        "promptVersion": run.prompt_template_version,
+        "stale": stale,
+        "error": run.error_message,
+        "suggestedDecision": raw.get("suggested_decision"),
+        "confidence": raw.get("confidence"),
+        "reasoningSummary": raw.get("reasoning_summary"),
+        "criteria": [
+            {
+                "criterionId": item.criterion_id,
+                "criterionText": item.criterion_text,
+                "criterionKind": item.criterion_kind,
+                "assessment": item.assessment,
+                "explanation": item.explanation,
+                "evidence": item.evidence,
+                "evidenceValidationStatus": item.evidence_validation_status,
+            }
+            for item in run.criterion_suggestions
+        ],
+    }
+
+
+@router.get(
+    "/projects/{project_id}/screening/work-items/{item_id}/llm-title-abstract",
+    response_model=ScreeningAssistanceResponse,
+)
+def title_abstract_suggestion(
+    project_id: str,
+    item_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    item = _assigned_screening_item(db, project_id, item_id, user)
+    if item.stage != ScreeningStage.TITLE_ABSTRACT:
+        raise NotFoundError("Title/abstract screening item not found")
+    own_decision = db.scalar(
+        select(ScreeningDecision.id).where(
+            ScreeningDecision.work_item_id == item.id,
+            ScreeningDecision.reviewer_id == user.id,
+            ScreeningDecision.is_current.is_(True),
+        )
+    )
+    if own_decision is None:
+        # Deliberately reveal no run ID, model, status, decision, or reasoning.
+        return {"state": "hidden", "hidden": True}
+    run = latest_task_run(db, item.publication_id, LlmTaskType.TITLE_ABSTRACT_SCREENING)
+    return _screening_payload(
+        db,
+        run,
+        project_id=project_id,
+        publication_id=item.publication_id,
+        task_type=LlmTaskType.TITLE_ABSTRACT_SCREENING,
+    )
+
+
+@router.post("/projects/{project_id}/screening/work-items/{item_id}/llm-title-abstract")
+def request_title_abstract_suggestion(
+    project_id: str,
+    item_id: str,
+    payload: ManualRunRequest,
+    session: UserSession = Depends(require_csrf),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    item = _assigned_screening_item(db, project_id, item_id, session.user)
+    if item.stage != ScreeningStage.TITLE_ABSTRACT:
+        raise NotFoundError("Title/abstract screening item not found")
+    run = queue_title_abstract_suggestion(
+        db,
+        item.publication_id,
+        created_by_id=session.user.id,
+        priority=10,
+        force=payload.force,
+    )
+    if run is None:
+        raise DomainError("Title/abstract LLM suggestions are disabled")
+    record_audit(
+        db,
+        action=(
+            "llm.title_abstract_regenerated"
+            if payload.force
+            else "llm.title_abstract_queued"
+        ),
+        entity_type="llm_run",
+        entity_id=run.id,
+        project_id=project_id,
+        actor_id=session.user.id,
+        summary="Queued title/abstract LLM suggestion",
+        metadata={"publicationId": item.publication_id, "taskType": run.task_type},
+    )
+    db.commit()
+    return {"id": run.id, "status": run.status}
+
+
+@router.get(
+    "/projects/{project_id}/screening/work-items/{item_id}/llm-full-text",
+    response_model=ScreeningAssistanceResponse,
+)
+def full_text_assistance(
+    project_id: str,
+    item_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    item = _assigned_screening_item(db, project_id, item_id, user)
+    if item.stage != ScreeningStage.FULL_TEXT:
+        raise NotFoundError("Full-text screening item not found")
+    run = latest_task_run(db, item.publication_id, LlmTaskType.FULL_TEXT_SCREENING)
+    return _screening_payload(
+        db,
+        run,
+        project_id=project_id,
+        publication_id=item.publication_id,
+        task_type=LlmTaskType.FULL_TEXT_SCREENING,
+    )
+
+
+@router.post("/projects/{project_id}/screening/work-items/{item_id}/llm-full-text")
+def request_full_text_assistance(
+    project_id: str,
+    item_id: str,
+    payload: ManualRunRequest,
+    session: UserSession = Depends(require_csrf),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    item = _assigned_screening_item(db, project_id, item_id, session.user)
+    if item.stage != ScreeningStage.FULL_TEXT:
+        raise NotFoundError("Full-text screening item not found")
+    result = queue_full_text_assistance(
+        db,
+        item.publication_id,
+        created_by_id=session.user.id,
+        priority=10,
+        force=payload.force,
+    )
+    if result is None:
+        raise DomainError(
+            "Full-text assistance is disabled or full text is unavailable"
+        )
+    record_audit(
+        db,
+        action="llm.full_text_regenerated" if payload.force else "llm.full_text_queued",
+        entity_type="llm_run",
+        entity_id=result.id,
+        project_id=project_id,
+        actor_id=session.user.id,
+        summary="Queued full-text LLM assistance",
+        metadata={"publicationId": item.publication_id},
+    )
+    db.commit()
+    return {"id": result.id, "status": getattr(result, "status", "queued")}
+
+
+def _assigned_extraction_item(
+    db: Session, project_id: str, item_id: str, user: User
+) -> ExtractionWorkItem:
+    require_project_access(db, project_id, user)
+    item = db.get(ExtractionWorkItem, item_id)
+    if item is None or item.project_id != project_id:
+        raise NotFoundError("Extraction work item not found")
+    if item.assigned_reviewer_id != user.id and not is_project_manager(
+        db, project_id, user
+    ):
+        raise ForbiddenError("Extraction is assigned to another reviewer")
+    return item
+
+
+def _validation_payload(db: Session, item: ExtractionWorkItem) -> dict[str, Any]:
+    response = db.scalar(
+        select(ExtractionResponse)
+        .where(
+            ExtractionResponse.work_item_id == item.id,
+            ExtractionResponse.is_current.is_(True),
+        )
+        .order_by(ExtractionResponse.created_at.desc())
+    )
+    if response is None:
+        return {"state": "not_submitted"}
+    run = latest_task_run(db, item.publication_id, LlmTaskType.EXTRACTION_VALIDATION)
+    if run is None:
+        settings = project_settings(db, item.project_id)
+        if settings is None or not settings.extraction_validation_enabled:
+            return {"state": "disabled", "responseId": response.id}
+        return {"state": "unavailable", "responseId": response.id}
+    stale = run_is_stale(db, run)
+    return {
+        "state": (
+            "ready"
+            if run.status == ProcessingStatus.COMPLETED
+            else "queued" if run.status == ProcessingStatus.PENDING else run.status
+        ),
+        "runId": run.id,
+        "responseId": run.extraction_response_id,
+        "model": run.model,
+        "promptVersion": run.prompt_template_version,
+        "stale": stale,
+        "error": run.error_message,
+        "results": [
+            {
+                "fieldKey": result.extraction_field_key,
+                "fieldLabel": result.field_label,
+                "value": result.value_snapshot,
+                "assessment": result.assessment,
+                "explanation": result.explanation,
+                "evidence": result.evidence,
+                "evidenceValidationStatus": result.evidence_validation_status,
+            }
+            for result in run.validation_results
+        ],
+    }
+
+
+@router.get(
+    "/projects/{project_id}/extraction/{item_id}/llm-validation",
+    response_model=ExtractionValidationResponse,
+)
+def extraction_validation(
+    project_id: str,
+    item_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    return _validation_payload(
+        db, _assigned_extraction_item(db, project_id, item_id, user)
+    )
+
+
+@router.post("/projects/{project_id}/extraction/{item_id}/llm-validation")
+def request_extraction_validation(
+    project_id: str,
+    item_id: str,
+    payload: ManualRunRequest,
+    session: UserSession = Depends(require_csrf),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    item = _assigned_extraction_item(db, project_id, item_id, session.user)
+    response = db.scalar(
+        select(ExtractionResponse).where(
+            ExtractionResponse.work_item_id == item.id,
+            ExtractionResponse.is_current.is_(True),
+        )
+    )
+    if response is None:
+        raise DomainError("Submit the human extraction before validating it")
+    result = queue_extraction_validation(
+        db,
+        item.publication_id,
+        response=response,
+        created_by_id=session.user.id,
+        priority=10,
+        force=payload.force,
+        allow_disabled_manual=True,
+    )
+    if result is None:
+        raise DomainError("Extraction validation requires usable full text")
+    record_audit(
+        db,
+        action="llm.extraction_validation_queued",
+        entity_type="llm_run",
+        entity_id=result.id,
+        project_id=project_id,
+        actor_id=session.user.id,
+        summary="Queued extraction validation",
+        metadata={"publicationId": item.publication_id, "responseId": response.id},
+    )
+    db.commit()
+    return {"id": result.id, "status": getattr(result, "status", "queued")}
 
 
 @router.get("/projects/{project_id}/llm/runs")
@@ -551,6 +941,7 @@ def llm_runs(
                 .select_from(LlmExtractionRun)
                 .where(
                     LlmExtractionRun.project_id == project_id,
+                    LlmExtractionRun.task_type == LlmTaskType.DATA_EXTRACTION,
                     LlmExtractionRun.schema_version_id != current.id,
                 )
             )
@@ -585,9 +976,14 @@ def llm_runs(
                 "publicationId": run.publication_id,
                 "documentId": run.document_id,
                 "schemaVersionId": run.schema_version_id,
+                "taskType": run.task_type,
                 "model": run.model,
                 "status": run.status,
-                "outdated": bool(current and run.schema_version_id != current.id),
+                "outdated": bool(
+                    current
+                    and run.task_type == LlmTaskType.DATA_EXTRACTION
+                    and run.schema_version_id != current.id
+                ),
                 "queuedAt": run.queued_at,
                 "completedAt": run.completed_at,
                 "error": run.error_message,

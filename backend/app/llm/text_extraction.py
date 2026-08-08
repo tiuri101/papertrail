@@ -52,9 +52,9 @@ def extract_document_text_job(db: Session, job: BackgroundJob) -> dict[str, Any]
         return {"status": "cancelled", "reason": "document_missing"}
     extraction = ensure_text_extraction(db, document_id)
     if extraction.status == ProcessingStatus.COMPLETED:
-        from app.llm.service import queue_llm_run_after_text
+        from app.llm.task_service import queue_tasks_after_text
 
-        queue_llm_run_after_text(db, extraction, created_by_id=job.created_by_id)
+        queue_tasks_after_text(db, extraction, created_by_id=job.created_by_id)
         return {"textExtractionId": extraction.id, "idempotent": True}
     path = storage_path(document.storage_key)
     if not path.is_file():
@@ -106,9 +106,9 @@ def extract_document_text_job(db: Session, job: BackgroundJob) -> dict[str, Any]
         }
     extraction.status = ProcessingStatus.COMPLETED
     db.flush()
-    from app.llm.service import queue_llm_run_after_text
+    from app.llm.task_service import queue_tasks_after_text
 
-    run = queue_llm_run_after_text(db, extraction, created_by_id=job.created_by_id)
+    run = queue_tasks_after_text(db, extraction, created_by_id=job.created_by_id)
     return {
         "textExtractionId": extraction.id,
         "status": extraction.status,

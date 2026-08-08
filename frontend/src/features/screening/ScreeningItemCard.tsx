@@ -2,6 +2,7 @@ import { HighlightedText } from '../../components/HighlightedText'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { CriteriaAnswerFields } from './CriteriaAnswerFields'
 import type { ScreeningQueue } from './useScreeningQueue'
+import { ScreeningLlmPanel } from '../llm/LlmTaskComponents'
 
 export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: string[] }) {
   const { item, answers, setAnswers, outcome, setOutcome, notes, setNotes, criteriaComplete, submit, highlightKeywords } = queue
@@ -36,6 +37,12 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
           </a>
         ) : null}
       </div>
+      <ScreeningLlmPanel
+        projectId={queue.projectId}
+        publicationId={item.publication.id}
+        itemId={item.id}
+        stage={queue.stage as 'title_abstract' | 'full_text'}
+      />
       <CriteriaAnswerFields
         criteria={item.criteria}
         answers={answers}
@@ -58,6 +65,25 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
       >
         Submit Decision
       </button>
+    </article>
+  )
+}
+
+export function SubmittedScreeningCard({ queue }: { queue: ScreeningQueue }) {
+  const submitted = queue.submitted
+  if (!submitted) return null
+  return (
+    <article className="card">
+      <h2>{submitted.item.publication.title}</h2>
+      <p><strong>Your decision:</strong> {submitted.decision.outcome}</p>
+      <ScreeningLlmPanel
+        projectId={queue.projectId}
+        publicationId={submitted.item.publication.id}
+        itemId={submitted.item.id}
+        stage={queue.stage as 'title_abstract' | 'full_text'}
+        humanDecision={submitted.decision.outcome}
+      />
+      <button type="button" onClick={queue.continueAfterDecision}>Continue to next paper</button>
     </article>
   )
 }

@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.forms.schemas import FieldResponse
@@ -10,6 +12,9 @@ class ApiModel(BaseModel):
 
 class ExtractionSubmit(ApiModel):
     answers: dict
+    suggestion_actions: dict[
+        str, Literal["accepted", "modified", "ignored", "manual"]
+    ] = Field(default_factory=dict, alias="suggestionActions")
 
 
 class ExtractionDraftUpdate(ApiModel):

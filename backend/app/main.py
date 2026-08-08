@@ -57,12 +57,12 @@ def create_app() -> FastAPI:
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"
-        response.headers[
-            "Permissions-Policy"
-        ] = "camera=(), microphone=(), geolocation=()"
-        response.headers[
-            "Content-Security-Policy"
-        ] = "frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
+        response.headers["Permissions-Policy"] = (
+            "camera=(), microphone=(), geolocation=()"
+        )
+        response.headers["Content-Security-Policy"] = (
+            "frame-ancestors 'none'; base-uri 'self'; object-src 'none'"
+        )
         if request.url.path.startswith(settings.api_prefix):
             response.headers["Cache-Control"] = "no-store"
         return response
