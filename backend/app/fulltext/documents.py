@@ -54,12 +54,18 @@ def attach_staged_pdf(
         source=source,
         import_batch_id=import_batch_id,
     )
-    db.add(document)
-    if current:
-        current.is_active = False
-        current.replaced_by_document_id = document.id
     try:
+        if current:
+            # PostgreSQL checks the replacement foreign key immediately, while the
+            # partial unique index allows only one active document. Deactivate the
+            # old row before inserting and linking its replacement.
+            current.is_active = False
+            db.flush()
+        db.add(document)
         db.flush()
+        if current:
+            current.replaced_by_document_id = document.id
+            db.flush()
     except Exception:
         discard_pdf(final_key)
         raise
