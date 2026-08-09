@@ -60,8 +60,8 @@ See the [local-development guide](docs/local-development.md) for manual setup, t
 
 ```bash
 cp .env.example .env
-# Replace all example passwords and configure the public hostname.
-docker compose up -d --build
+# Replace all example passwords, set PAPERTRAIL_IMAGE_TAG, and configure the public hostname.
+docker compose up -d
 scripts/create_admin.sh
 ```
 
