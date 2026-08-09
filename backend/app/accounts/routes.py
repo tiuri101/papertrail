@@ -12,8 +12,10 @@ from app.accounts.dependencies import (
 )
 from app.accounts.models import User, UserSession
 from app.accounts.schemas import (
+    ForgotPasswordRequest,
     LoginRequest,
     LoginResponse,
+    ResetPasswordRequest,
     SelfUpdate,
     UserCreate,
     UserResponse,
@@ -22,12 +24,18 @@ from app.accounts.schemas import (
 from app.accounts.service import (
     authenticate,
     clear_login_failures,
+    consume_password_reset_token,
+    create_password_reset_token,
     create_session,
     create_user,
     ensure_login_allowed,
+    ensure_password_reset_allowed,
+    find_valid_password_reset_token,
     get_user_or_raise,
+    normalize_email_address,
     password_hasher,
     record_login_failure,
+    record_password_reset_attempt,
     revoke_session,
     set_user_email,
     verify_password,
@@ -36,11 +44,27 @@ from app.api.errors import DomainError
 from app.audit.service import record_audit
 from app.core.config import get_settings
 from app.db.session import get_db
-from app.notifications.service import queue_account_created_email
+from app.notifications.service import (
+    queue_account_created_email,
+    queue_password_reset_email,
+)
 
 router = APIRouter()
 auth_router = APIRouter(prefix="/auth", tags=["authentication"])
 users_router = APIRouter(prefix="/users", tags=["users"])
+
+
+def _set_session_cookie(response: Response, raw_token: str) -> None:
+    settings = get_settings()
+    response.set_cookie(
+        key=settings.session_cookie_name,
+        value=raw_token,
+        httponly=True,
+        secure=settings.session_cookie_secure,
+        samesite="lax",
+        max_age=settings.session_ttl_hours * 3600,
+        path="/",
+    )
 
 
 @auth_router.post("/login", response_model=LoginResponse)
@@ -63,16 +87,7 @@ def login(
     clear_login_failures(db, payload.username, client_address)
     created = create_session(db, user)
     db.commit()
-    settings = get_settings()
-    response.set_cookie(
-        key=settings.session_cookie_name,
-        value=created.raw_token,
-        httponly=True,
-        secure=settings.session_cookie_secure,
-        samesite="lax",
-        max_age=settings.session_ttl_hours * 3600,
-        path="/",
-    )
+    _set_session_cookie(response, created.raw_token)
     return LoginResponse(
         user=UserResponse.model_validate(user), csrf_token=created.session.csrf_token
     )
@@ -87,6 +102,65 @@ def logout(
     revoke_session(session)
     db.commit()
     response.delete_cookie(get_settings().session_cookie_name, path="/")
+
+
+@auth_router.post("/forgot-password", status_code=status.HTTP_204_NO_CONTENT)
+def forgot_password(
+    payload: ForgotPasswordRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+) -> None:
+    client_address = request.client.host if request.client else "unknown"
+    normalized_email = normalize_email_address(payload.email)
+    if normalized_email is not None:
+        ensure_password_reset_allowed(db, normalized_email, client_address)
+        record_password_reset_attempt(db, normalized_email, client_address)
+        if get_settings().email_enabled:
+            user = db.scalar(
+                select(User).where(
+                    User.email == normalized_email, User.is_active.is_(True)
+                )
+            )
+            if user is not None:
+                created = create_password_reset_token(db, user)
+                queue_password_reset_email(db, user, created.raw_token)
+    db.commit()
+    return None
+
+
+@auth_router.post("/reset-password", response_model=LoginResponse)
+def reset_password(
+    payload: ResetPasswordRequest,
+    response: Response,
+    db: Session = Depends(get_db),
+) -> LoginResponse:
+    token = find_valid_password_reset_token(db, payload.token)
+    if token is None:
+        error = DomainError("This password reset link is invalid or has expired")
+        error.status_code = 400
+        error.code = "invalid_reset_token"
+        raise error
+    user = token.user
+    user.password_hash = password_hasher.hash(payload.new_password)
+    user.must_change_password = False
+    consume_password_reset_token(db, token)
+    for other_session in user.sessions:
+        if other_session.revoked_at is None:
+            revoke_session(other_session)
+    record_audit(
+        db,
+        action="user.password_reset",
+        entity_type="user",
+        entity_id=user.id,
+        actor_id=user.id,
+        summary=f"{user.username} reset their password via emailed link",
+    )
+    created = create_session(db, user)
+    db.commit()
+    _set_session_cookie(response, created.raw_token)
+    return LoginResponse(
+        user=UserResponse.model_validate(user), csrf_token=created.session.csrf_token
+    )
 
 
 @auth_router.get("/me", response_model=UserResponse)

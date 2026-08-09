@@ -24,6 +24,7 @@ from app.screening.service import (
     decisions_visible,
     my_submitted_work_items,
     reassign_work_items_from_ineligible_reviewers,
+    rebalance_pending_work_items,
     stage_completed,
     submit_decision,
 )
@@ -353,6 +354,102 @@ def test_submitted_work_items_are_not_reassigned(db) -> None:
     still_assigned = db.get(ScreeningWorkItem, reviewer2_item.id)
     assert still_assigned.assigned_reviewer_id == reviewer2.id
     assert still_assigned.status == WorkItemStatus.SUBMITTED
+
+
+def test_rebalance_spreads_backlog_onto_a_newly_added_reviewer(db) -> None:
+    (
+        _,
+        project,
+        publications,
+        reviewer1,
+        reviewer2,
+        _,
+    ) = setup_three_publications_two_reviewers(db)
+
+    def counts() -> dict[str, int]:
+        tally: dict[str, int] = {}
+        for item in db.scalars(
+            select(ScreeningWorkItem).where(ScreeningWorkItem.project_id == project.id)
+        ):
+            tally[item.assigned_reviewer_id] = tally.get(item.assigned_reviewer_id, 0) + 1
+        return tally
+
+    before = counts()
+    assert before == {reviewer1.id: 2, reviewer2.id: 1}
+
+    reviewer3 = create_user(db, "reviewer3", "Reviewer 3", "password-3")
+    db.add(
+        ProjectMembership(
+            project_id=project.id, user_id=reviewer3.id, can_title_abstract_screen=True
+        )
+    )
+    db.commit()
+
+    reassigned = rebalance_pending_work_items(
+        db, project.id, ScreeningStage.TITLE_ABSTRACT
+    )
+    db.commit()
+
+    assert reassigned > 0
+    after = counts()
+    assert after == {reviewer1.id: 1, reviewer2.id: 1, reviewer3.id: 1}
+
+
+def test_rebalance_never_gives_a_reviewer_two_slots_of_the_same_publication(db) -> None:
+    admin = create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    reviewer1 = create_user(db, "reviewer1", "Reviewer 1", "password-1")
+    reviewer2 = create_user(db, "reviewer2", "Reviewer 2", "password-2")
+    project = Project(
+        name="Test",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.TITLE_ABSTRACT,
+    )
+    db.add(project)
+    db.flush()
+    db.add_all(
+        [
+            ProjectMembership(
+                project_id=project.id,
+                user_id=reviewer1.id,
+                can_title_abstract_screen=True,
+            ),
+            ProjectMembership(
+                project_id=project.id,
+                user_id=reviewer2.id,
+                can_title_abstract_screen=True,
+            ),
+        ]
+    )
+    db.add(
+        ScreeningConfig(
+            project_id=project.id,
+            stage=ScreeningStage.TITLE_ABSTRACT,
+            required_reviewers=2,
+            allocation_mode=AllocationMode.INDEPENDENT,
+        )
+    )
+    publication = Publication(project_id=project.id, title="Paper 0")
+    db.add(publication)
+    db.commit()
+    create_screening_work_items(db, project, ScreeningStage.TITLE_ABSTRACT)
+    db.commit()
+
+    slot1, slot2 = list(
+        db.scalars(
+            select(ScreeningWorkItem)
+            .where(ScreeningWorkItem.project_id == project.id)
+            .order_by(ScreeningWorkItem.slot_number)
+        )
+    )
+    submit_decision(db, slot1, slot1.assigned_reviewer_id, "include", {}, None)
+    db.commit()
+
+    rebalance_pending_work_items(db, project.id, ScreeningStage.TITLE_ABSTRACT)
+    db.commit()
+
+    db.refresh(slot2)
+    assert slot2.assigned_reviewer_id != slot1.assigned_reviewer_id
 
 
 def test_admin_can_manually_reassign_a_work_item_to_a_project_member(

@@ -146,6 +146,17 @@ def render_email(template: str, context: dict[str, Any]) -> RenderedEmail:
         action_label = "Open Papertrail"
         action_url = context["login_url"]
         summary_items = [("Username", str(context["username"]), "#172033")]
+    elif template == "password_reset":
+        subject = "Reset your Papertrail password"
+        paragraphs = [
+            f"Hello {context['recipient_name']},",
+            "We received a request to reset the password for your Papertrail account.",
+            f"This link expires in {context['expires_in_minutes']} minutes and can only "
+            "be used once. If you did not request this, you can safely ignore this email.",
+        ]
+        action_label = "Reset password"
+        action_url = context["reset_url"]
+        summary_items = []
     elif template == "project_created":
         subject = f'New project created: "{context["project_name"]}"'
         paragraphs = [
