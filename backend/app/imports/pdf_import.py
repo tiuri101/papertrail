@@ -25,6 +25,7 @@ from app.imports.models import (
     ImportBatch,
     ImportedRecord,
     ImportPdfItem,
+    ImportStatus,
     PdfMatchStatus,
 )
 from app.imports.pdf_matching import match_pdf
@@ -206,7 +207,43 @@ async def stage_bulk_uploads(
     return staged_count
 
 
+PDF_ONLY_FILE_TYPE = "pdf_only"
+
+
+def create_pdf_only_batch(db: Session, project_id: str, user_id: str) -> ImportBatch:
+    """A batch for PDFs uploaded directly against a project's existing publications.
+
+    Unlike a metadata-import batch, it has no source file or imported records, so
+    matching is performed against every active publication in the project.
+    """
+    batch = ImportBatch(
+        project_id=project_id,
+        original_filename="Manual PDF upload",
+        stored_path="",
+        file_type=PDF_ONLY_FILE_TYPE,
+        status=ImportStatus.COMPLETED,
+        created_by_id=user_id,
+        completed_at=datetime.now(UTC),
+    )
+    db.add(batch)
+    db.flush()
+    return batch
+
+
 def batch_publications(db: Session, batch_id: str) -> list[Publication]:
+    batch = db.get(ImportBatch, batch_id)
+    if batch is not None and batch.file_type == PDF_ONLY_FILE_TYPE:
+        return list(
+            db.scalars(
+                select(Publication)
+                .options(selectinload(Publication.documents))
+                .where(
+                    Publication.project_id == batch.project_id,
+                    Publication.is_active.is_(True),
+                )
+                .order_by(Publication.title)
+            )
+        )
     return list(
         db.scalars(
             select(Publication)

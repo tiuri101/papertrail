@@ -41,6 +41,7 @@ def create_user(
     *,
     is_admin: bool = False,
     email: str | None = None,
+    must_change_password: bool = False,
 ) -> User:
     normalized_username = username.strip().lower()
     if db.scalar(select(User).where(User.username == normalized_username)):
@@ -56,6 +57,7 @@ def create_user(
         password_hash=password_hasher.hash(password),
         is_admin=is_admin,
         email=normalized_email,
+        must_change_password=must_change_password,
     )
     db.add(user)
     db.flush()

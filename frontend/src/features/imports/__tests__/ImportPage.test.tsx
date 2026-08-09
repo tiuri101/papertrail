@@ -217,4 +217,62 @@ describe('ImportPage', () => {
     expect(await screen.findByText('Previously Documented Searches')).toBeInTheDocument()
     expect(screen.getByText(/IEEE Xplore/)).toBeInTheDocument()
   })
+
+  it('allows bulk-attaching PDFs to a search documented in an earlier session', async () => {
+    setCsrfToken('csrf-import')
+    const fetchMock = mockFetch((input, init) => {
+      const url = String(input)
+      if (url.endsWith('/projects/project-1')) return jsonResponse({ id: 'project-1', canManage: true })
+      if (url.endsWith('/searches')) {
+        return jsonResponse([
+          {
+            id: 'search-1',
+            sourceName: 'IEEE Xplore',
+            query: 'virtual reality AND urban',
+            searchDate: '2026-07-30',
+            filters: null,
+            importBatches: [
+              {
+                id: 'batch-1',
+                originalFilename: 'records.csv',
+                status: 'completed',
+                recordCount: 12,
+                completedAt: '2026-07-30T09:00:00Z',
+              },
+            ],
+          },
+        ])
+      }
+      if (init?.method === 'POST' && url.endsWith('/imports/batch-1/pdfs')) {
+        return jsonResponse({
+          importBatchId: 'batch-1',
+          summary: { total: 1, matched: 1, ambiguous: 0, unmatched: 0, duplicate: 0, conflict_existing_pdf: 0, invalid: 0, skipped: 0 },
+        })
+      }
+      if (url.includes('/pdf-matches')) {
+        return jsonResponse({ importBatchId: 'batch-1', summary: { total: 1, matched: 1, ambiguous: 0, unmatched: 0, duplicate: 0, conflict_existing_pdf: 0, invalid: 0, skipped: 0 }, items: [], publications: [] })
+      }
+      return jsonResponse({})
+    })
+    renderWithProviders(<ImportPage />, { route: '/projects/project-1/imports', path: '/projects/:projectId/imports' })
+
+    expect(await screen.findByText('records.csv · 12 records')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Attach PDFs' }))
+
+    const pdf = new File(['pdf-1'], 'paper-1.pdf', { type: 'application/pdf' })
+    fireEvent.change(screen.getByLabelText('PDF files'), { target: { files: [pdf] } })
+    fireEvent.click(screen.getByRole('button', { name: 'Upload PDFs' }))
+
+    await waitFor(() => {
+      const uploadCall = fetchMock.mock.calls.find(([callInput]) => String(callInput) === '/api/v1/projects/project-1/imports/batch-1/pdfs')
+      expect(uploadCall).toBeTruthy()
+      const [, init] = uploadCall!
+      expect(init?.credentials).toBe('include')
+      expect(new Headers(init?.headers).get('X-CSRF-Token')).toBe('csrf-import')
+      expect((init?.body as FormData).getAll('pdfs')).toEqual([pdf])
+    })
+
+    expect(await screen.findByText('1 files processed · 1 matched')).toBeInTheDocument()
+    expect(screen.getByText('Review PDF matches')).toBeInTheDocument()
+  })
 })

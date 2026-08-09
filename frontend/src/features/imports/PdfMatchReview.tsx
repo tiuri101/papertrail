@@ -165,6 +165,7 @@ export function PdfMatchReview({ projectId, importBatchId }: {
                     ) : null}
                     <button
                       type="button"
+                      className="button-secondary"
                       disabled={resolve.isPending}
                       onClick={() => resolve.mutate({
                         itemId: item.id,

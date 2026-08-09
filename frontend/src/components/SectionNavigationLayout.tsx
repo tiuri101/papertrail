@@ -1,6 +1,6 @@
-import { type ReactNode, useEffect, useLayoutEffect, useState } from 'react'
+import { type ReactNode, useLayoutEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { Link, useOutletContext } from 'react-router-dom'
+import { Link } from 'react-router-dom'
 
 import { MOBILE_MENU_SECTION_SLOT_ID, useCloseMobileMenu } from './mobileMenu'
 
@@ -13,15 +13,6 @@ export interface SectionNavigationItem {
 
 export interface SectionNavigationContextValue {
   setSectionItems: (items: SectionNavigationItem[]) => void
-}
-
-// Lets a page nested inside a SectionNavigationLayout's Outlet contribute its own "On this page" links.
-export function useRegisterSectionItems(items: SectionNavigationItem[]) {
-  const context = useOutletContext<SectionNavigationContextValue | null>()
-  useEffect(() => {
-    context?.setSectionItems(items)
-    return () => context?.setSectionItems([])
-  }, [context, items])
 }
 
 interface SectionNavigationLayoutProps {

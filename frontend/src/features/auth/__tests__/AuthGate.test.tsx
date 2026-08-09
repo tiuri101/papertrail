@@ -48,4 +48,29 @@ describe('AuthGate', () => {
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('The session could not be loaded.'))
   })
+
+  it('redirects a user who must change their password', async () => {
+    mockFetch(() => jsonResponse({
+      user: {
+        id: 'u1',
+        username: 'newbie',
+        displayName: 'Newbie',
+        isAdmin: false,
+        isActive: true,
+        mustChangePassword: true,
+      },
+      csrfToken: 'csrf-session',
+    }))
+
+    renderWithProviders(
+      <Routes>
+        <Route element={<AuthGate />}>
+          <Route path="/" element={<p>Protected content</p>} />
+          <Route path="/change-password" element={<p>Change password destination</p>} />
+        </Route>
+      </Routes>,
+    )
+
+    expect(await screen.findByText('Change password destination')).toBeInTheDocument()
+  })
 })

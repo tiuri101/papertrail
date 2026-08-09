@@ -84,6 +84,21 @@ def update_progress(
     db.commit()
 
 
+def restart_job(db: Session, job: BackgroundJob) -> None:
+    job.status = JobStatus.QUEUED
+    job.attempts = 0
+    job.error_message = None
+    job.result = None
+    job.started_at = None
+    job.completed_at = None
+    job.lease_until = None
+    job.locked_by = None
+    job.progress_current = 0
+    job.progress_total = 0
+    job.progress_message = None
+    db.flush()
+
+
 def renew_job_lease(
     db: Session,
     job_id: str,

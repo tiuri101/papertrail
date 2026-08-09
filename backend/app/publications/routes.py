@@ -1,6 +1,6 @@
 from typing import Any
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, File, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
@@ -10,6 +10,11 @@ from app.api.errors import NotFoundError
 from app.audit.service import record_audit
 from app.db.session import get_db
 from app.fulltext.models import PublicationDocument
+from app.imports.pdf_import import (
+    create_pdf_only_batch,
+    process_pdf_matches,
+    stage_bulk_uploads,
+)
 from app.jobs.service import enqueue_job
 from app.projects.dependencies import (
     require_project_manager_csrf,
@@ -18,6 +23,7 @@ from app.projects.dependencies import (
 from app.projects.service import require_project_access
 from app.publications.models import MetadataConflict, Publication
 from app.publications.schemas import (
+    BulkDeleteRequest,
     BulkEnrichmentRequest,
     ConflictResolve,
     ConflictResponse,
@@ -45,7 +51,8 @@ def list_publications(
             .options(
                 selectinload(Publication.documents).joinedload(
                     PublicationDocument.uploaded_by
-                )
+                ),
+                selectinload(Publication.final_decisions),
             )
             .where(
                 Publication.project_id == project_id, Publication.is_active.is_(True)
@@ -139,6 +146,37 @@ def delete_publication(
         summary=f"Deleted publication {publication.title}",
     )
     db.commit()
+
+
+@router.post("/projects/{project_id}/publications/delete")
+def bulk_delete_publications(
+    project_id: str,
+    payload: BulkDeleteRequest,
+    admin: User = Depends(require_project_manager_csrf),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    publications = list(
+        db.scalars(
+            select(Publication).where(
+                Publication.project_id == project_id,
+                Publication.id.in_(payload.publication_ids),
+                Publication.is_active.is_(True),
+            )
+        )
+    )
+    for publication in publications:
+        publication.is_active = False
+        record_audit(
+            db,
+            action="publication.deleted",
+            entity_type="publication",
+            entity_id=publication.id,
+            project_id=project_id,
+            actor_id=admin.id,
+            summary=f"Deleted publication {publication.title}",
+        )
+    db.commit()
+    return {"deletedCount": len(publications)}
 
 
 @router.post(
@@ -307,3 +345,31 @@ def bulk_enrich_publications(
     )
     db.commit()
     return {"jobIds": [job.id for job in jobs]}
+
+
+@router.post(
+    "/projects/{project_id}/publications/pdfs", status_code=status.HTTP_201_CREATED
+)
+async def bulk_upload_publication_pdfs(
+    project_id: str,
+    pdfs: list[UploadFile] = File(default=[]),
+    pdf_archives: list[UploadFile] = File(default=[], alias="pdfArchive"),
+    admin: User = Depends(require_project_member_csrf),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    batch = create_pdf_only_batch(db, project_id, admin.id)
+    await stage_bulk_uploads(db, batch, pdfs, pdf_archives)
+    db.commit()
+    summary = process_pdf_matches(db, batch)
+    record_audit(
+        db,
+        action="pdf.bulk_uploaded",
+        entity_type="import_batch",
+        entity_id=batch.id,
+        project_id=project_id,
+        actor_id=admin.id,
+        summary="Bulk-uploaded PDFs for matching against existing publications",
+        metadata={"summary": summary},
+    )
+    db.commit()
+    return {"importBatchId": batch.id, "summary": summary}

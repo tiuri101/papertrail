@@ -10,6 +10,7 @@ from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from app.db.types import JSONType
 
 if TYPE_CHECKING:
+    from app.conflicts.models import FinalDecision
     from app.fulltext.models import PublicationDocument
     from app.imports.models import ImportedRecord
 
@@ -56,6 +57,7 @@ class Publication(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     documents: Mapped[list[PublicationDocument]] = relationship(
         back_populates="publication", cascade="all, delete-orphan"
     )
+    final_decisions: Mapped[list[FinalDecision]] = relationship(viewonly=True)
 
     @property
     def active_document(self) -> PublicationDocument | None:
@@ -67,6 +69,20 @@ class Publication(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     def full_text(self) -> dict[str, object]:
         document = self.active_document
         return {"available": document is not None, "document": document}
+
+    @property
+    def screening_status(self) -> dict[str, str | None]:
+        """The current, valid final decision for each screening stage this
+        publication has reached (None if that stage hasn't produced one yet,
+        e.g. it's still awaiting review or hasn't advanced to full text)."""
+        status: dict[str, str | None] = {"title_abstract": None, "full_text": None}
+        for decision in self.final_decisions:
+            if not decision.is_valid:
+                continue
+            key = str(decision.stage)
+            if key in status and status[key] is None:
+                status[key] = str(decision.outcome)
+        return status
 
     @property
     def search_sources(self) -> list[dict[str, Any]]:

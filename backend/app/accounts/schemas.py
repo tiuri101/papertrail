@@ -24,6 +24,7 @@ class UserResponse(ApiModel):
     email: str | None = None
     is_admin: bool = Field(serialization_alias="isAdmin")
     is_active: bool = Field(serialization_alias="isActive")
+    must_change_password: bool = Field(serialization_alias="mustChangePassword")
 
 
 class UserCreate(ApiModel):

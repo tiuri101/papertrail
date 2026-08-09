@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
-import { useRegisterSectionItems } from '../../components/SectionNavigationLayout'
+import { useRegisterSectionItems } from '../../components/sectionNavigation'
 import { useProjectManageState } from '../../hooks/useCanManageProject'
 import { DynamicForm } from './DynamicForm'
 import {

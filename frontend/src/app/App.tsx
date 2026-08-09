@@ -16,10 +16,11 @@ import { CollapsibleSection } from '../components/CollapsibleSection'
 import {
   type SectionNavigationItem,
   SectionNavigationLayout,
-  useRegisterSectionItems,
 } from '../components/SectionNavigationLayout'
+import { useRegisterSectionItems } from '../components/sectionNavigation'
 import { AdminGate } from '../features/auth/AdminGate'
 import { AuthGate } from '../features/auth/AuthGate'
+import { ChangePasswordPage } from '../features/auth/ChangePasswordPage'
 import { LoginPage } from '../features/auth/LoginPage'
 import { ConflictResolutionPage } from '../features/conflicts/ConflictResolutionPage'
 import { DuplicateReviewPage } from '../features/duplicates/DuplicateReviewPage'
@@ -129,6 +130,7 @@ export function App() {
     <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route element={<AuthGate />}>
+        <Route path="/change-password" element={<ChangePasswordPage />} />
         <Route element={<AppShell />}>
           <Route path="/" element={<ProjectsPage />} />
           <Route path="/account" element={<AccountSettingsPage />} />

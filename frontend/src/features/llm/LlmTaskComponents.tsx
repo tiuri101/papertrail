@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 
 import { apiRequest } from '../../api/client'
+import type { CriterionAnswer } from '../screening/useScreeningQueue'
 
 export interface LlmEvidenceItem {
   page: number
@@ -74,6 +75,14 @@ function statusText(state: string) {
   return state.replaceAll('_', ' ')
 }
 
+function criterionComparison(
+  assessment: string,
+  humanAnswer: CriterionAnswer | undefined,
+): 'match' | 'mismatch' | null {
+  if (humanAnswer === undefined || humanAnswer === null || assessment === 'unclear') return null
+  return (assessment === 'met') === humanAnswer ? 'match' : 'mismatch'
+}
+
 function LlmAssistanceHeading({ qualifier }: { qualifier?: string }) {
   return (
     <h3>
@@ -89,12 +98,14 @@ export function ScreeningLlmPanel({
   itemId,
   stage,
   humanDecision,
+  criteriaAnswers,
 }: {
   projectId: string
   publicationId: string
   itemId: string
   stage: 'title_abstract' | 'full_text'
   humanDecision?: string
+  criteriaAnswers?: Record<string, CriterionAnswer>
 }) {
   const suffix = stage === 'title_abstract' ? 'llm-title-abstract' : 'llm-full-text'
   const endpoint = `/api/v1/projects/${projectId}/screening/work-items/${itemId}/${suffix}`
@@ -224,19 +235,33 @@ export function ScreeningLlmPanel({
         {data.confidence ? ` · ${data.confidence} confidence` : ''}
       </p>
       {data.reasoningSummary ? <p>{data.reasoningSummary}</p> : null}
-      {(data.criteria ?? []).map((criterion) => (
-        <details key={criterion.criterionId ?? criterion.criterionText} open={stage === 'full_text'}>
-          <summary>{criterion.criterionText} · {statusText(criterion.assessment)}</summary>
-          <p>{criterion.explanation}</p>
-          {stage === 'full_text' ? (
-            <LlmEvidence
-              evidence={criterion.evidence}
-              projectId={projectId}
-              publicationId={publicationId}
-            />
-          ) : null}
-        </details>
-      ))}
+      {(data.criteria ?? []).map((criterion) => {
+        const comparison = criterion.criterionId
+          ? criterionComparison(criterion.assessment, criteriaAnswers?.[criterion.criterionId])
+          : null
+        return (
+          <details
+            key={criterion.criterionId ?? criterion.criterionText}
+            open={stage === 'full_text'}
+            className={comparison ? `llm-criterion llm-criterion--${comparison}` : 'llm-criterion'}
+          >
+            <summary>
+              {criterion.criterionText} · {statusText(criterion.assessment)}
+              {comparison === 'mismatch' ? (
+                <span className="llm-criterion__flag"> ⚠ Differs from your answer</span>
+              ) : null}
+            </summary>
+            <p>{criterion.explanation}</p>
+            {stage === 'full_text' ? (
+              <LlmEvidence
+                evidence={criterion.evidence}
+                projectId={projectId}
+                publicationId={publicationId}
+              />
+            ) : null}
+          </details>
+        )
+      })}
     </aside>
   )
 }

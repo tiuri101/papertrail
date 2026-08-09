@@ -157,6 +157,163 @@ describe('JobsPage', () => {
     await waitFor(() => {
       expect(screen.getByRole('row', { name: /detect_duplicates/ })).toHaveTextContent('completed')
     })
-    expect(fetchMock).toHaveBeenCalledTimes(2)
+    const jobsCalls = fetchMock.mock.calls.filter(([input]) => String(input).endsWith('/projects/p1/jobs'))
+    expect(jobsCalls).toHaveLength(2)
+  })
+
+  it('filters jobs by status and job type', async () => {
+    mockFetch((input) => {
+      const url = String(input)
+      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: false })
+      return jsonResponse([
+        {
+          id: 'job-1',
+          jobType: 'parse_import',
+          status: 'completed',
+          progressCurrent: 10,
+          progressTotal: 10,
+          progressMessage: null,
+          errorMessage: null,
+          createdAt: '2026-07-30T10:00:00Z',
+          completedAt: '2026-07-30T10:00:05Z',
+        },
+        {
+          id: 'job-2',
+          jobType: 'enrich_publication',
+          status: 'failed',
+          progressCurrent: 0,
+          progressTotal: 0,
+          progressMessage: null,
+          errorMessage: 'Timed out',
+          createdAt: '2026-07-30T11:00:00Z',
+          completedAt: null,
+        },
+      ])
+    })
+    renderWithProviders(<JobsPage />, { route: '/projects/p1/jobs', path: '/projects/:projectId/jobs' })
+
+    await screen.findByRole('row', { name: /parse_import/ })
+    expect(screen.getByRole('row', { name: /enrich_publication/ })).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'failed' } })
+    expect(screen.queryByRole('row', { name: /parse_import/ })).not.toBeInTheDocument()
+    expect(screen.getByRole('row', { name: /enrich_publication/ })).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Status'), { target: { value: '' } })
+    fireEvent.change(screen.getByLabelText('Job type'), { target: { value: 'parse_import' } })
+    expect(screen.getByRole('row', { name: /parse_import/ })).toBeInTheDocument()
+    expect(screen.queryByRole('row', { name: /enrich_publication/ })).not.toBeInTheDocument()
+  })
+
+  it('lets a manager restart a single failed job', async () => {
+    let status = 'failed'
+    const fetchMock = mockFetch((input, init) => {
+      const url = String(input)
+      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
+      if (url.endsWith('/jobs/job-2/restart') && init?.method === 'POST') {
+        status = 'queued'
+        return jsonResponse({ id: 'job-2', jobType: 'enrich_publication', status: 'queued' })
+      }
+      return jsonResponse([
+        {
+          id: 'job-2',
+          jobType: 'enrich_publication',
+          status,
+          progressCurrent: 0,
+          progressTotal: 0,
+          progressMessage: null,
+          errorMessage: status === 'failed' ? 'Timed out' : null,
+          createdAt: '2026-07-30T11:00:00Z',
+          completedAt: null,
+        },
+      ])
+    })
+    renderWithProviders(<JobsPage />, { route: '/projects/p1/jobs', path: '/projects/:projectId/jobs' })
+
+    const row = await screen.findByRole('row', { name: /enrich_publication/ })
+    fireEvent.click(within(row).getByRole('button', { name: 'Restart' }))
+
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find(([callInput, callInit]) => String(callInput).endsWith('/jobs/job-2/restart') && callInit?.method === 'POST')
+      expect(call).toBeTruthy()
+      expect(call?.[1]?.credentials).toBe('include')
+    })
+    await waitFor(() => {
+      expect(screen.getByRole('row', { name: /enrich_publication/ })).toHaveTextContent('queued')
+    })
+  })
+
+  it('lets a manager bulk-restart selected failed jobs', async () => {
+    const fetchMock = mockFetch((input, init) => {
+      const url = String(input)
+      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
+      if (url.endsWith('/projects/p1/jobs/restart') && init?.method === 'POST') {
+        return jsonResponse([{ id: 'job-2', jobType: 'enrich_publication', status: 'queued' }])
+      }
+      return jsonResponse([
+        {
+          id: 'job-1',
+          jobType: 'parse_import',
+          status: 'completed',
+          progressCurrent: 10,
+          progressTotal: 10,
+          progressMessage: null,
+          errorMessage: null,
+          createdAt: '2026-07-30T10:00:00Z',
+          completedAt: '2026-07-30T10:00:05Z',
+        },
+        {
+          id: 'job-2',
+          jobType: 'enrich_publication',
+          status: 'failed',
+          progressCurrent: 0,
+          progressTotal: 0,
+          progressMessage: null,
+          errorMessage: 'Timed out',
+          createdAt: '2026-07-30T11:00:00Z',
+          completedAt: null,
+        },
+      ])
+    })
+    renderWithProviders(<JobsPage />, { route: '/projects/p1/jobs', path: '/projects/:projectId/jobs' })
+
+    await screen.findByRole('row', { name: /parse_import/ })
+    expect(screen.getByRole('button', { name: 'Restart Selected (0)' })).toBeDisabled()
+    expect(screen.queryByLabelText('Select parse_import job')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText('Select enrich_publication job'))
+    fireEvent.click(screen.getByRole('button', { name: 'Restart Selected (1)' }))
+
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find(([callInput, callInit]) => String(callInput).endsWith('/projects/p1/jobs/restart') && callInit?.method === 'POST')
+      expect(call).toBeTruthy()
+      expect(JSON.parse(String(call?.[1]?.body))).toEqual({ jobIds: ['job-2'] })
+    })
+  })
+
+  it('hides restart controls from users without manage access', async () => {
+    mockFetch((input) => {
+      const url = String(input)
+      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: false })
+      return jsonResponse([
+        {
+          id: 'job-2',
+          jobType: 'enrich_publication',
+          status: 'failed',
+          progressCurrent: 0,
+          progressTotal: 0,
+          progressMessage: null,
+          errorMessage: 'Timed out',
+          createdAt: '2026-07-30T11:00:00Z',
+          completedAt: null,
+        },
+      ])
+    })
+    renderWithProviders(<JobsPage />, { route: '/projects/p1/jobs', path: '/projects/:projectId/jobs' })
+
+    await screen.findByRole('row', { name: /enrich_publication/ })
+    expect(screen.queryByRole('button', { name: 'Restart' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Restart Selected/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Restart All Failed/ })).not.toBeInTheDocument()
   })
 })

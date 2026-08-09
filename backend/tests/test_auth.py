@@ -144,3 +144,78 @@ def test_reviewer_can_update_own_display_name_and_password(client, db) -> None:
         json={"username": "reviewer", "password": "new-password-1"},
     )
     assert new_password_accepted.status_code == 200
+
+
+def test_admin_created_user_must_change_password_on_first_login(client, db) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    db.commit()
+    admin_login = client.post(
+        "/api/v1/auth/login", json={"username": "admin", "password": "secret-password"}
+    )
+    admin_csrf = admin_login.json()["csrfToken"]
+
+    created = client.post(
+        "/api/v1/users",
+        json={
+            "username": "newbie",
+            "displayName": "Newbie",
+            "password": "temporary-password",
+        },
+        headers={"X-CSRF-Token": admin_csrf},
+    )
+    assert created.status_code == 201
+    assert created.json()["mustChangePassword"] is True
+
+    client.cookies.clear()
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"username": "newbie", "password": "temporary-password"},
+    )
+    assert login.status_code == 200
+    assert login.json()["user"]["mustChangePassword"] is True
+    csrf = login.json()["csrfToken"]
+
+    changed = client.patch(
+        "/api/v1/auth/me",
+        json={
+            "currentPassword": "temporary-password",
+            "newPassword": "chosen-password",
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert changed.status_code == 200
+    assert changed.json()["mustChangePassword"] is False
+
+    client.cookies.clear()
+    relogin = client.post(
+        "/api/v1/auth/login",
+        json={"username": "newbie", "password": "chosen-password"},
+    )
+    assert relogin.status_code == 200
+    assert relogin.json()["user"]["mustChangePassword"] is False
+
+
+def test_admin_password_reset_forces_change_on_next_login(client, db) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    reviewer = create_user(db, "reviewer", "Reviewer", "reviewer-password")
+    db.commit()
+    admin_login = client.post(
+        "/api/v1/auth/login", json={"username": "admin", "password": "secret-password"}
+    )
+    admin_csrf = admin_login.json()["csrfToken"]
+
+    reset = client.patch(
+        f"/api/v1/users/{reviewer.id}",
+        json={"password": "reset-password"},
+        headers={"X-CSRF-Token": admin_csrf},
+    )
+    assert reset.status_code == 200
+    assert reset.json()["mustChangePassword"] is True
+
+    client.cookies.clear()
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"username": "reviewer", "password": "reset-password"},
+    )
+    assert login.status_code == 200
+    assert login.json()["user"]["mustChangePassword"] is True

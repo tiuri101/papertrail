@@ -11,6 +11,11 @@ class ApiModel(BaseModel):
     model_config = ConfigDict(populate_by_name=True, from_attributes=True)
 
 
+class ScreeningStatusResponse(ApiModel):
+    title_abstract: str | None = Field(serialization_alias="titleAbstract")
+    full_text: str | None = Field(serialization_alias="fullText")
+
+
 class PublicationResponse(ApiModel):
     id: str
     project_id: str = Field(serialization_alias="projectId")
@@ -29,6 +34,9 @@ class PublicationResponse(ApiModel):
     arxiv_id: str | None = Field(serialization_alias="arxivId")
     is_active: bool = Field(serialization_alias="isActive")
     full_text: FullTextDocumentResponse = Field(serialization_alias="fullText")
+    screening_status: ScreeningStatusResponse = Field(
+        serialization_alias="screeningStatus"
+    )
 
 
 class PublicationUpdate(ApiModel):
@@ -78,3 +86,7 @@ class PublicationCreate(PublicationUpdate):
 class BulkEnrichmentRequest(ApiModel):
     publication_ids: list[str] | None = Field(default=None, alias="publicationIds")
     missing_only: bool = Field(default=True, alias="missingOnly")
+
+
+class BulkDeleteRequest(ApiModel):
+    publication_ids: list[str] = Field(min_length=1, alias="publicationIds")

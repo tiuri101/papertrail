@@ -11,6 +11,13 @@ from app.projects.models import Project, ProjectStage, ReviewType
 from app.publications.models import Publication
 
 
+def login(client) -> str:
+    response = client.post(
+        "/api/v1/auth/login", json={"username": "admin", "password": "secret-password"}
+    )
+    return response.json()["csrfToken"]
+
+
 def test_failed_job_diagnostic_traceback_can_be_retrieved(
     client, session_factory, monkeypatch
 ) -> None:
@@ -67,6 +74,114 @@ def test_failed_job_diagnostic_traceback_can_be_retrieved(
     assert body["errorType"] == "RuntimeError"
     assert body["errorMessage"] == "Diagnostic failure"
     assert "RuntimeError: Diagnostic failure" in body["errorDetails"]
+
+
+def test_a_failed_job_can_be_manually_restarted(
+    client, db, session_factory, monkeypatch
+) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    project = Project(
+        name="Review", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed"
+    )
+    db.add(project)
+    db.commit()
+    csrf = login(client)
+
+    job = enqueue_job(
+        db,
+        "generate_export",
+        {"export_type": "xlsx", "scope": "included"},
+        project_id=project.id,
+        created_by_id=None,
+        max_attempts=1,
+    )
+    job_id = job.id
+    db.commit()
+
+    def fail_job(db, job):
+        raise RuntimeError("boom")
+
+    monkeypatch.setitem(HANDLERS, "generate_export", fail_job)
+    assert execute_next_job(session_factory, "test-worker") is True
+
+    with session_factory() as check:
+        failed_job = check.get(BackgroundJob, job_id)
+        assert failed_job is not None
+        assert failed_job.status == JobStatus.FAILED
+
+    not_failed = client.post(
+        f"/api/v1/projects/{project.id}/jobs/{job_id}/restart",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert not_failed.status_code == 200
+    assert not_failed.json()["status"] == "queued"
+
+    with session_factory() as check:
+        restarted = check.get(BackgroundJob, job_id)
+        assert restarted is not None
+        assert restarted.status == JobStatus.QUEUED
+        assert restarted.attempts == 0
+        assert restarted.error_message is None
+        assert restarted.completed_at is None
+
+    already_queued = client.post(
+        f"/api/v1/projects/{project.id}/jobs/{job_id}/restart",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert already_queued.status_code == 400
+
+
+def test_bulk_restart_only_restarts_failed_jobs(
+    client, db, session_factory, monkeypatch
+) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    project = Project(
+        name="Review", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed"
+    )
+    db.add(project)
+    db.commit()
+    csrf = login(client)
+
+    failing_job = enqueue_job(
+        db,
+        "generate_export",
+        {"export_type": "xlsx", "scope": "included"},
+        project_id=project.id,
+        created_by_id=None,
+        max_attempts=1,
+    )
+    running_job = enqueue_job(
+        db,
+        "generate_export",
+        {"export_type": "xlsx", "scope": "included"},
+        project_id=project.id,
+        created_by_id=None,
+        max_attempts=1,
+    )
+    db.commit()
+    failing_job_id = failing_job.id
+    running_job_id = running_job.id
+
+    def fail_job(db, job):
+        raise RuntimeError("boom")
+
+    monkeypatch.setitem(HANDLERS, "generate_export", fail_job)
+    assert execute_next_job(session_factory, "test-worker") is True
+
+    response = client.post(
+        f"/api/v1/projects/{project.id}/jobs/restart",
+        json={"jobIds": [failing_job_id, running_job_id]},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 200
+    restarted_ids = [job["id"] for job in response.json()]
+    assert restarted_ids == [failing_job_id]
+
+    with session_factory() as check:
+        still_queued = check.get(BackgroundJob, running_job_id)
+        assert still_queued is not None
+        assert still_queued.status == JobStatus.QUEUED
+        assert still_queued.attempts == 0
 
 
 def test_llm_job_diagnostics_identify_the_exact_task_stage_and_publication(db) -> None:

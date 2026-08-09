@@ -1,9 +1,19 @@
 import { Fragment, useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { useCanManageProject } from '../../hooks/useCanManageProject'
 import { BackgroundJob, hasActiveJob } from './jobStatus'
+
+const STATUS_FILTER_OPTIONS = [
+  { value: '', label: 'All' },
+  { value: 'queued', label: 'Queued' },
+  { value: 'running', label: 'Running' },
+  { value: 'completed', label: 'Completed' },
+  { value: 'failed', label: 'Failed' },
+  { value: 'cancelled', label: 'Cancelled' },
+]
 
 type SortKey = 'jobType' | 'status' | 'progress' | 'message' | 'createdAt' | 'completedAt'
 type SortDirection = 'asc' | 'desc'
@@ -137,8 +147,13 @@ function JobFailureDetails({ job }: { job: BackgroundJob }) {
 
 export function JobsPage() {
   const { projectId = '' } = useParams()
+  const queryClient = useQueryClient()
+  const canManage = useCanManageProject(projectId)
   const [sortKey, setSortKey] = useState<SortKey>('createdAt')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [jobTypeFilter, setJobTypeFilter] = useState('')
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const jobs = useQuery({
     queryKey: ['jobs', projectId],
     queryFn: () => apiRequest<BackgroundJob[]>(`/api/v1/projects/${projectId}/jobs`),
@@ -146,8 +161,19 @@ export function JobsPage() {
     refetchInterval: (query) => (hasActiveJob(query.state.data) ? 3000 : false),
   })
 
+  const jobTypeOptions = useMemo(() => (
+    Array.from(new Set((jobs.data ?? []).map((job) => job.jobType))).sort()
+  ), [jobs.data])
+
+  const filteredJobs = useMemo(() => (
+    (jobs.data ?? []).filter((job) => (
+      (!statusFilter || job.status === statusFilter)
+      && (!jobTypeFilter || job.jobType === jobTypeFilter)
+    ))
+  ), [jobs.data, statusFilter, jobTypeFilter])
+
   const sortedJobs = useMemo(() => {
-    const result = [...(jobs.data ?? [])]
+    const result = [...filteredJobs]
     result.sort((left, right) => {
       const leftValue = sortValue(left, sortKey)
       const rightValue = sortValue(right, sortKey)
@@ -159,7 +185,7 @@ export function JobsPage() {
       return sortDirection === 'asc' ? comparison : -comparison
     })
     return result
-  }, [jobs.data, sortDirection, sortKey])
+  }, [filteredJobs, sortDirection, sortKey])
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -170,18 +196,93 @@ export function JobsPage() {
     }
   }
 
+  const toggleSelected = (id: string) => setSelectedIds((current) => {
+    const next = new Set(current)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    return next
+  })
+
+  const failedJobIds = useMemo(() => (
+    (jobs.data ?? []).filter((job) => job.status === 'failed').map((job) => job.id)
+  ), [jobs.data])
+
+  const restartOne = useMutation({
+    mutationFn: (jobId: string) => apiRequest<BackgroundJob>(
+      `/api/v1/projects/${projectId}/jobs/${jobId}/restart`,
+      { method: 'POST' },
+    ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['jobs', projectId] })
+    },
+  })
+
+  const restartMany = useMutation({
+    mutationFn: (jobIds: string[]) => apiRequest<BackgroundJob[]>(
+      `/api/v1/projects/${projectId}/jobs/restart`,
+      { method: 'POST', body: JSON.stringify({ jobIds }) },
+    ),
+    onSuccess: () => {
+      setSelectedIds(new Set())
+      queryClient.invalidateQueries({ queryKey: ['jobs', projectId] })
+    },
+  })
+
   return (
     <main className="page">
       <h1>Jobs</h1>
       {jobs.error ? <p className="error" role="alert">{jobs.error.message}</p> : null}
+      {restartOne.error ? <p className="error" role="alert">{restartOne.error.message}</p> : null}
+      {restartMany.error ? <p className="error" role="alert">{restartMany.error.message}</p> : null}
       {jobs.isLoading ? <p>Loading…</p> : null}
       {jobs.data && jobs.data.length === 0 ? <p className="muted">No background jobs have run for this project yet.</p> : null}
+      {jobs.data && jobs.data.length > 0 ? (
+        <div className="toolbar">
+          <label>
+            Status
+            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+              {STATUS_FILTER_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </label>
+          <label>
+            Job type
+            <select value={jobTypeFilter} onChange={(event) => setJobTypeFilter(event.target.value)}>
+              <option value="">All</option>
+              {jobTypeOptions.map((jobType) => (
+                <option key={jobType} value={jobType}>{jobType}</option>
+              ))}
+            </select>
+          </label>
+          {canManage ? (
+            <>
+              <button
+                type="button"
+                disabled={selectedIds.size === 0 || restartMany.isPending}
+                onClick={() => restartMany.mutate(Array.from(selectedIds))}
+              >
+                Restart Selected ({selectedIds.size})
+              </button>
+              <button
+                type="button"
+                className="button-secondary"
+                disabled={failedJobIds.length === 0 || restartMany.isPending}
+                onClick={() => restartMany.mutate(failedJobIds)}
+              >
+                Restart All Failed ({failedJobIds.length})
+              </button>
+            </>
+          ) : null}
+        </div>
+      ) : null}
       {sortedJobs.length ? (
         <div className="table-scroll">
           <table>
             <caption className="visually-hidden">Background jobs</caption>
             <thead>
               <tr>
+                {canManage ? <th scope="col">Select</th> : null}
                 {COLUMNS.map((column) => {
                   const active = sortKey === column.key
                   return (
@@ -196,26 +297,59 @@ export function JobsPage() {
                     </th>
                   )
                 })}
+                {canManage ? <th scope="col">Actions</th> : null}
               </tr>
             </thead>
             <tbody>
-              {sortedJobs.map((job) => (
-                <tr key={job.id}>
-                  <th scope="row">{job.jobType}</th>
-                  <td>{job.status}</td>
-                  <td>{job.progressTotal ? `${job.progressCurrent} / ${job.progressTotal}` : '—'}</td>
-                  <td>
-                    {job.errorMessage ? <JobFailureDetails job={job} /> : null}
-                    {!job.errorMessage && job.progressMessage ? job.progressMessage : null}
-                    {!job.errorMessage && !job.progressMessage ? '—' : null}
-                  </td>
-                  <td>{formatDate(job.createdAt)}</td>
-                  <td>{formatDate(job.completedAt)}</td>
-                </tr>
-              ))}
+              {sortedJobs.map((job) => {
+                const failed = job.status === 'failed'
+                return (
+                  <tr key={job.id}>
+                    {canManage ? (
+                      <td>
+                        {failed ? (
+                          <input
+                            type="checkbox"
+                            checked={selectedIds.has(job.id)}
+                            onChange={() => toggleSelected(job.id)}
+                            aria-label={`Select ${job.jobType} job`}
+                          />
+                        ) : null}
+                      </td>
+                    ) : null}
+                    <th scope="row">{job.jobType}</th>
+                    <td>{job.status}</td>
+                    <td>{job.progressTotal ? `${job.progressCurrent} / ${job.progressTotal}` : '—'}</td>
+                    <td>
+                      {job.errorMessage ? <JobFailureDetails job={job} /> : null}
+                      {!job.errorMessage && job.progressMessage ? job.progressMessage : null}
+                      {!job.errorMessage && !job.progressMessage ? '—' : null}
+                    </td>
+                    <td>{formatDate(job.createdAt)}</td>
+                    <td>{formatDate(job.completedAt)}</td>
+                    {canManage ? (
+                      <td>
+                        {failed ? (
+                          <button
+                            type="button"
+                            className="button-secondary"
+                            disabled={restartOne.isPending}
+                            onClick={() => restartOne.mutate(job.id)}
+                          >
+                            Restart
+                          </button>
+                        ) : null}
+                      </td>
+                    ) : null}
+                  </tr>
+                )
+              })}
             </tbody>
           </table>
         </div>
+      ) : null}
+      {jobs.data && jobs.data.length > 0 && sortedJobs.length === 0 ? (
+        <p className="muted">No jobs match your filters.</p>
       ) : null}
     </main>
   )

@@ -114,6 +114,7 @@ def update_me(
         if not verify_password(user, payload.current_password):
             raise DomainError("Current password is incorrect")
         user.password_hash = password_hasher.hash(payload.new_password)
+        user.must_change_password = False
         changed_fields.append("password")
         for other_session in user.sessions:
             if other_session.revoked_at is None and other_session.id != session.id:
@@ -154,6 +155,11 @@ def list_users(
             email=user.email if caller.is_admin or caller.id == user.id else None,
             is_admin=user.is_admin if caller.is_admin else False,
             is_active=user.is_active,
+            must_change_password=(
+                user.must_change_password
+                if caller.is_admin or caller.id == user.id
+                else False
+            ),
         )
         for user in users
     ]
@@ -171,6 +177,7 @@ def add_user(
         payload.display_name,
         payload.password,
         email=payload.email,
+        must_change_password=True,
     )
     record_audit(
         db,
@@ -213,6 +220,7 @@ def update_user(
                     revoke_session(session)
     if payload.password is not None:
         user.password_hash = password_hasher.hash(payload.password)
+        user.must_change_password = True
         changed_fields.append("password")
         for session in user.sessions:
             if session.revoked_at is None:

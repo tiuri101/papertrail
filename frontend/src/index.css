@@ -1066,6 +1066,12 @@ form .toolbar,
   font-size: 0.82rem;
 }
 
+.publication-list__bulk-actions button {
+  min-height: 32px;
+  padding: 5px 10px;
+  font-size: 0.82rem;
+}
+
 .publication-card--manageable .publication-card__abstract {
   margin-left: calc(1rem + var(--space-3));
 }
@@ -1802,6 +1808,36 @@ tbody th {
   margin-top: 0;
 }
 
+.full-text-document .toolbar a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 40px;
+  padding: 9px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-raised);
+  color: var(--color-text-secondary);
+  font-weight: 680;
+  line-height: 1.2;
+  text-decoration: none;
+  box-shadow: none;
+  transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease;
+}
+
+.full-text-document .toolbar a:hover {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+}
+
+.publication-card .full-text-document .toolbar > * {
+  min-height: 32px;
+  padding: 5px 10px;
+  font-size: 0.82rem;
+}
+
 .full-text-history-toggle {
   margin-top: var(--space-4);
 }
@@ -2034,6 +2070,28 @@ tbody th {
 .llm-task-panel--mismatch {
   border-color: var(--color-danger);
   box-shadow: 0 0 0 1px var(--color-danger);
+}
+
+.llm-criterion {
+  margin-block: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-radius: 0.5rem;
+  border: 1px solid transparent;
+}
+
+.llm-criterion--match {
+  border-color: var(--color-success);
+  background: var(--color-success-container);
+}
+
+.llm-criterion--mismatch {
+  border-color: var(--color-danger);
+  background: var(--color-danger-container);
+}
+
+.llm-criterion__flag {
+  color: var(--color-danger);
+  font-weight: 650;
 }
 
 .llm-evidence-list blockquote {
