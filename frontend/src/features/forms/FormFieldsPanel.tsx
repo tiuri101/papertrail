@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { ConfirmButton } from '../../components/ConfirmButton'
+import { IconCheckCircle, IconPlus, IconTrash } from '../../components/icons'
 import { DynamicForm } from './DynamicForm'
 import {
   buildScoring,
@@ -159,12 +161,18 @@ export function FormFieldsPanel({
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['form-fields', existingForm?.id] }),
   })
   const saveQualityConfig = useMutation({
-    mutationFn: () => apiRequest(`/api/v1/projects/${projectId}/quality-config`, {
-      method: 'PUT',
-      body: JSON.stringify({ enabled: qcEnabled, mode: qcMode, aggregation: qcAggregation }),
-    }),
+    mutationFn: (next: { enabled: boolean; mode: string; aggregation: string }) => apiRequest(
+      `/api/v1/projects/${projectId}/quality-config`,
+      { method: 'PUT', body: JSON.stringify(next) },
+    ),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['quality-config', projectId] }),
   })
+  const updateQualityConfig = (next: { enabled: boolean; mode: string; aggregation: string }) => {
+    setQcEnabled(next.enabled)
+    setQcMode(next.mode)
+    setQcAggregation(next.aggregation)
+    if (qualityConfigSeeded.current) saveQualityConfig.mutate(next)
+  }
 
   const mutationError = createForm.error ?? addField.error ?? renameField.error ?? archiveField.error
   const activeFields = fields.data?.filter((field) => !field.isArchived) ?? []
@@ -177,18 +185,21 @@ export function FormFieldsPanel({
       {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
 
       {isQualityForm ? (
-        <form onSubmit={(event) => { event.preventDefault(); saveQualityConfig.mutate() }}>
+        <div>
           <label>
             <input
               type="checkbox"
               checked={qcEnabled}
-              onChange={(event) => setQcEnabled(event.target.checked)}
+              onChange={(event) => updateQualityConfig({ enabled: event.target.checked, mode: qcMode, aggregation: qcAggregation })}
             />
             Enable quality assessment
           </label>
           <label>
             Mode
-            <select value={qcMode} onChange={(event) => setQcMode(event.target.value)}>
+            <select
+              value={qcMode}
+              onChange={(event) => updateQualityConfig({ enabled: qcEnabled, mode: event.target.value, aggregation: qcAggregation })}
+            >
               <option value="qualitative">Qualitative only</option>
               <option value="numeric">Numerical scoring only</option>
               <option value="both">Both</option>
@@ -196,15 +207,20 @@ export function FormFieldsPanel({
           </label>
           <label>
             Aggregation
-            <select value={qcAggregation} onChange={(event) => setQcAggregation(event.target.value)}>
+            <select
+              value={qcAggregation}
+              onChange={(event) => updateQualityConfig({ enabled: qcEnabled, mode: qcMode, aggregation: event.target.value })}
+            >
               <option value="sum">Simple sum</option>
               <option value="average">Average</option>
               <option value="weighted_average">Weighted average</option>
             </select>
           </label>
           {saveQualityConfig.error ? <p className="error" role="alert">{saveQualityConfig.error.message}</p> : null}
-          <button type="submit" disabled={saveQualityConfig.isPending}>Save Quality Settings</button>
-        </form>
+          <p className="muted" aria-live="polite">
+            {saveQualityConfig.isPending ? 'Saving…' : saveQualityConfig.isSuccess ? 'Saved.' : ' '}
+          </p>
+        </div>
       ) : null}
 
       {!existingForm ? (
@@ -224,6 +240,7 @@ export function FormFieldsPanel({
           </label>
           {templates.error ? <p className="error" role="alert">{templates.error.message}</p> : null}
           <button type="submit" disabled={createForm.isPending}>
+            <IconPlus />
             Create {isQualityForm ? 'Quality' : 'Extraction'} Form
           </button>
         </form>
@@ -307,7 +324,7 @@ export function FormFieldsPanel({
                 </label>
               </>
             ) : null}
-            <button type="submit" disabled={addField.isPending}>Add Field</button>
+            <button type="submit" disabled={addField.isPending}><IconPlus />Add Field</button>
           </form>
 
           <h3>Fields</h3>
@@ -344,6 +361,7 @@ export function FormFieldsPanel({
                             disabled={renameField.isPending}
                             onClick={() => renameField.mutate({ stableKey: field.stableKey, label: editingLabel })}
                           >
+                            <IconCheckCircle />
                             Save
                           </button>
                           <button type="button" className="button-secondary" onClick={() => setEditingKey(null)}>Cancel</button>
@@ -356,17 +374,15 @@ export function FormFieldsPanel({
                           >
                             Edit
                           </button>
-                          <button
-                            type="button"
-                            className="button-danger"
-                            onClick={() => {
-                              if (window.confirm(`Archive field "${field.label}"? It will be removed from new submissions.`)) {
-                                archiveField.mutate(field.stableKey)
-                              }
-                            }}
-                          >
-                            Archive
-                          </button>
+                          <ConfirmButton
+                            label="Archive"
+                            confirmLabel="Archive Field"
+                            warning={`Archive field "${field.label}"? It will be removed from new submissions.`}
+                            onConfirm={() => archiveField.mutate(field.stableKey)}
+                            disabled={archiveField.isPending}
+                            variant="danger"
+                            icon={<IconTrash />}
+                          />
                         </div>
                       )}
                     </td>

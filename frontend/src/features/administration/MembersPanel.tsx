@@ -1,9 +1,10 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { ConfirmButton } from '../../components/ConfirmButton'
+import { IconCheckCircle, IconPlus, IconTrash } from '../../components/icons'
 import type { User } from '../auth/types'
 
 type RoleKey =
@@ -52,15 +53,22 @@ function MemberRow({
   onSave,
   onDelete,
   pending,
+  onDirtyChange,
 }: {
   label: string
   membership: Membership
   onSave: (roles: Record<RoleKey, boolean>) => void
   onDelete: () => void
   pending: boolean
+  onDirtyChange?: (dirty: boolean) => void
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<Record<RoleKey, boolean>>(rolesOf(membership))
+
+  useEffect(() => {
+    const saved = rolesOf(membership)
+    onDirtyChange?.(editing && ROLE_FIELDS.some(([field]) => draft[field] !== saved[field]))
+  }, [editing, draft, membership, onDirtyChange])
 
   if (editing) {
     return (
@@ -88,7 +96,7 @@ function MemberRow({
               ))}
             </fieldset>
             <div className="toolbar">
-              <button type="submit" disabled={pending}>Save</button>
+              <button type="submit" disabled={pending}><IconCheckCircle />Save</button>
               <button
                 type="button"
                 className="button-secondary"
@@ -119,6 +127,8 @@ function MemberRow({
             warning="Remove this reviewer from the project? This cannot be undone."
             onConfirm={onDelete}
             disabled={pending}
+            variant="danger"
+            icon={<IconTrash />}
           />
         </div>
       </td>
@@ -126,7 +136,13 @@ function MemberRow({
   )
 }
 
-export function MembersPanel({ projectId }: { projectId: string }) {
+export function MembersPanel({
+  projectId,
+  onDirtyChange,
+}: {
+  projectId: string
+  onDirtyChange?: (dirty: boolean) => void
+}) {
   const queryClient = useQueryClient()
   const project = useQuery({
     queryKey: ['project', projectId],
@@ -140,6 +156,11 @@ export function MembersPanel({ projectId }: { projectId: string }) {
 
   const [selectedUserId, setSelectedUserId] = useState('')
   const [roles, setRoles] = useState<Record<RoleKey, boolean>>(emptyRoles)
+  const [dirtyRows, setDirtyRows] = useState<Record<string, boolean>>({})
+
+  useEffect(() => {
+    onDirtyChange?.(selectedUserId !== '' || Object.values(dirtyRows).some(Boolean))
+  }, [selectedUserId, dirtyRows, onDirtyChange])
 
   const refresh = () => queryClient.invalidateQueries({ queryKey: ['project', projectId] })
 
@@ -177,7 +198,9 @@ export function MembersPanel({ projectId }: { projectId: string }) {
 
   const usersById = new Map((users.data ?? []).map((user) => [user.id, user]))
   const memberIds = new Set(project.data.memberships.map((membership) => membership.userId))
-  const availableUsers = (users.data ?? []).filter((user) => !memberIds.has(user.id))
+  const availableUsers = (users.data ?? []).filter(
+    (user) => !memberIds.has(user.id) && user.isActive,
+  )
   const memberPending = updateMember.isPending || removeMember.isPending
   const mutationError = addMember.error ?? updateMember.error ?? removeMember.error
 
@@ -210,6 +233,9 @@ export function MembersPanel({ projectId }: { projectId: string }) {
                 pending={memberPending}
                 onSave={(nextRoles) => updateMember.mutate({ id: membership.id, roles: nextRoles })}
                 onDelete={() => removeMember.mutate(membership.id)}
+                onDirtyChange={(rowDirty) => setDirtyRows((current) => (
+                  current[membership.id] === rowDirty ? current : { ...current, [membership.id]: rowDirty }
+                ))}
               />
             )
           })}
@@ -245,6 +271,7 @@ export function MembersPanel({ projectId }: { projectId: string }) {
           </fieldset>
         ) : null}
         <button type="submit" disabled={addMember.isPending || selectedUserId === ''}>
+          <IconPlus />
           Add Member
         </button>
       </form>

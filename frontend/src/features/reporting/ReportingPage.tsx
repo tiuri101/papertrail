@@ -4,6 +4,7 @@ import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { ConfirmButton } from '../../components/ConfirmButton'
+import { IconDownload, IconTrash } from '../../components/icons'
 import { useCanManageProject } from '../../hooks/useCanManageProject'
 import { BackgroundJob, findJob, hasActiveJob, isJobActive } from '../jobs/jobStatus'
 
@@ -98,6 +99,7 @@ export function ReportingPage() {
           onClick={() => createExport.mutate('prisma_svg')}
           disabled={createExport.isPending}
         >
+          <IconDownload />
           Generate PRISMA SVG
         </button>
         <button
@@ -105,6 +107,7 @@ export function ReportingPage() {
           onClick={() => createExport.mutate('xlsx')}
           disabled={createExport.isPending}
         >
+          <IconDownload />
           Generate Excel Workbook
         </button>
         <button
@@ -112,6 +115,7 @@ export function ReportingPage() {
           onClick={() => createExport.mutate('prisma_tables')}
           disabled={createExport.isPending}
         >
+          <IconDownload />
           Generate PRISMA Supporting Tables
         </button>
         <button
@@ -119,6 +123,7 @@ export function ReportingPage() {
           onClick={() => createExport.mutate('bibtex')}
           disabled={createExport.isPending}
         >
+          <IconDownload />
           Generate BibTeX
         </button>
       </div>
@@ -138,6 +143,7 @@ export function ReportingPage() {
                 variant="danger"
                 disabled={deleteExport.isPending}
                 onConfirm={() => deleteExport.mutate(artifact.id)}
+                icon={<IconTrash />}
               />
             ) : null}
           </li>

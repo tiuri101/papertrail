@@ -30,9 +30,7 @@ def main() -> int:
                 findings.append(f"{path}: module has {len(lines)} lines")
             for number, line in enumerate(lines, start=1):
                 if len(line) > MAX_LINE_LENGTH:
-                    findings.append(
-                        f"{path}:{number}: line has {len(line)} characters"
-                    )
+                    findings.append(f"{path}:{number}: line has {len(line)} characters")
             for node in ast.walk(tree):
                 if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     if node.end_lineno is None:

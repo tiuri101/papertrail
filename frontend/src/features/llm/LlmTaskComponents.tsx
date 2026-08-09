@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 
 import { apiRequest } from '../../api/client'
+import { IconRestart } from '../../components/icons'
 import type { CriterionAnswer } from '../screening/useScreeningQueue'
 
 export interface LlmEvidenceItem {
@@ -205,6 +206,7 @@ export function ScreeningLlmPanel({
         <LlmAssistanceHeading qualifier="is stale" />
         <p className="muted">The source changed before this result completed.</p>
         <button type="button" onClick={() => regenerate.mutate()} disabled={regenerate.isPending}>
+          <IconRestart />
           Regenerate
         </button>
       </aside>

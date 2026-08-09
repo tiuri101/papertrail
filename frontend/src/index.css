@@ -510,6 +510,13 @@ button {
   transition: transform 120ms ease, background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease, opacity 140ms ease;
 }
 
+button:not(.icon-button) svg {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  fill: currentColor;
+}
+
 button:hover:not(:disabled) {
   background: var(--color-primary-strong);
   box-shadow: var(--shadow-md);
@@ -676,12 +683,20 @@ form button[type='button']:hover:not(:disabled),
 .nav-link {
   display: inline-flex;
   align-items: center;
+  gap: var(--space-2);
   min-height: 40px;
   padding: 0 var(--space-4);
   border-radius: var(--radius-sm);
   color: var(--color-text-secondary);
   font-size: 0.92rem;
   font-weight: 650;
+}
+
+.nav-link svg {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 auto;
+  fill: currentColor;
 }
 
 .nav-link:hover {
@@ -879,6 +894,23 @@ form .toolbar,
 .mobile-drawer__sign-out-button {
   width: 100%;
   min-height: 40px;
+}
+
+.modal-backdrop {
+  position: fixed;
+  z-index: 200;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-5);
+  background: var(--color-overlay);
+}
+
+.modal {
+  width: min(440px, 100%);
+  max-height: calc(100vh - var(--space-8));
+  overflow-y: auto;
 }
 
 .section-navigation__label {
@@ -1353,6 +1385,46 @@ tbody th {
 .criterion-badge--exclusion {
   background: var(--color-danger-container);
   color: var(--color-danger);
+}
+
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-height: 22px;
+  border-radius: 999px;
+  padding: 2px 9px 2px 7px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.status-badge svg {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+  fill: currentColor;
+}
+
+.status-badge--success {
+  background: var(--color-success-container);
+  color: var(--color-success);
+}
+
+.status-badge--danger {
+  background: var(--color-danger-container);
+  color: var(--color-danger);
+}
+
+.status-badge--warning {
+  background: var(--color-warning-container);
+  color: var(--color-warning);
+}
+
+.status-badge--neutral,
+.status-badge--pending {
+  background: var(--color-surface-hover);
+  color: var(--color-text-secondary);
 }
 
 .stage-badge {

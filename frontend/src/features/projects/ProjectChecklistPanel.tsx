@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { IconArrowRight } from '../../components/icons'
 import { STAGES } from './StageProgress'
 
 interface ChecklistItem {
@@ -100,6 +101,7 @@ export function ProjectChecklistPanel({ projectId, canManage }: { projectId: str
           disabled={markReady.isPending || !allItemsDone}
         >
           {nextStageLabel ? `Move Project to ${nextStageLabel}` : 'Mark Project Ready'}
+          <IconArrowRight />
         </button>
       ) : null}
       {currentStage.autoAdvances ? (

@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { ConfirmButton } from '../../components/ConfirmButton'
+import { IconTrash, IconUpload } from '../../components/icons'
 
 interface DocumentUser {
   id: string
@@ -71,12 +73,7 @@ export function FullTextDocumentPanel({ projectId, publicationId, onAvailable, o
   })
 
   const active = document.data?.document
-  const chooseFile = () => {
-    if (active && !window.confirm(
-      'Replace full text? The previous PDF will be retained in document history.',
-    )) return
-    inputRef.current?.click()
-  }
+  const openFilePicker = () => inputRef.current?.click()
   const handleFile = (file: File | undefined) => {
     if (file) upload.mutate(file)
     if (inputRef.current) inputRef.current.value = ''
@@ -101,25 +98,32 @@ export function FullTextDocumentPanel({ projectId, publicationId, onAvailable, o
           </p>
           <div className="toolbar">
             <a href={`${endpoint}/content`} target="_blank" rel="noreferrer">View PDF</a>
-            <button type="button" onClick={chooseFile} disabled={upload.isPending}>Replace PDF</button>
-            <button
-              type="button"
-              className="button-danger"
-              onClick={() => {
-                if (window.confirm('Remove the active PDF? Document history will be retained.')) {
-                  remove.mutate()
-                }
-              }}
+            <ConfirmButton
+              label="Replace PDF"
+              confirmLabel="Replace PDF"
+              warning="Replace full text? The previous PDF will be retained in document history."
+              onConfirm={openFilePicker}
+              disabled={upload.isPending}
+              icon={<IconUpload />}
+            />
+            <ConfirmButton
+              label="Remove PDF"
+              confirmLabel="Remove PDF"
+              warning="Remove the active PDF? Document history will be retained."
+              onConfirm={() => remove.mutate()}
               disabled={remove.isPending}
-            >
-              Remove PDF
-            </button>
+              variant="danger"
+              icon={<IconTrash />}
+            />
           </div>
         </>
       ) : document.data ? (
         <>
           <p className="muted">No PDF attached</p>
-          <button type="button" onClick={chooseFile} disabled={upload.isPending}>Upload PDF</button>
+          <button type="button" onClick={openFilePicker} disabled={upload.isPending}>
+            <IconUpload />
+            Upload PDF
+          </button>
         </>
       ) : null}
       <input

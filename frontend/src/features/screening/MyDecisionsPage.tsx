@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { ConfirmButton } from '../../components/ConfirmButton'
+import { OutcomeBadge } from '../../components/OutcomeBadge'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { CriteriaAnswerFields } from './CriteriaAnswerFields'
 import type { CriterionAnswer, ScreeningCriterion } from './useScreeningQueue'
@@ -168,7 +169,11 @@ function DecisionCard({
       ) : (
         <>
           <p>
-            <strong>Decision:</strong> {outcomeLabels[item.decision.outcome] ?? item.decision.outcome}
+            <strong>Decision:</strong>{' '}
+            <OutcomeBadge
+              outcome={item.decision.outcome}
+              label={outcomeLabels[item.decision.outcome] ?? item.decision.outcome}
+            />
             {item.decision.version > 1 ? <span className="muted"> (revised, v{item.decision.version})</span> : null}
           </p>
           {item.decision.notes ? <p><strong>Notes:</strong> {item.decision.notes}</p> : null}

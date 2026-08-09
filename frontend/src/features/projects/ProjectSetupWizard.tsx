@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { IconArrowRight, IconCheckCircle } from '../../components/icons'
 import { CriteriaPanel, ResearchQuestionsPanel } from '../administration/ResearchAgendaPanel'
 import { HighlightKeywordsPanel } from '../administration/HighlightKeywordsPanel'
 import { MembersPanel } from '../administration/MembersPanel'
@@ -146,6 +148,7 @@ function ProjectDetailsStep({
           {error ? <p className="error" role="alert">{error.message}</p> : null}
           <button type="submit" disabled={pending || name.trim().length === 0}>
             {projectId ? 'Save & Continue' : 'Create Project & Continue'}
+            <IconArrowRight />
           </button>
         </form>
       )}
@@ -158,6 +161,8 @@ export function ProjectSetupWizard() {
   const navigate = useNavigate()
   const [createdProjectId, setCreatedProjectId] = useState<string | null>(null)
   const [step, setStep] = useState(0)
+  const [stepDirty, setStepDirty] = useState(false)
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null)
   const projectId = routeProjectId ?? createdProjectId ?? ''
   const currentStepRef = useRef<HTMLLIElement>(null)
 
@@ -171,10 +176,25 @@ export function ProjectSetupWizard() {
     enabled: Boolean(projectId),
   })
 
-  const goTo = (index: number) => setStep(Math.max(0, Math.min(WIZARD_STEPS.length - 1, index)))
+  const guardedNavigate = (action: () => void) => {
+    if (!stepDirty) {
+      action()
+      return
+    }
+    setPendingAction(() => action)
+  }
+
+  const goTo = (index: number) => {
+    guardedNavigate(() => {
+      setStepDirty(false)
+      setStep(Math.max(0, Math.min(WIZARD_STEPS.length - 1, index)))
+    })
+  }
   const isLastStep = step === WIZARD_STEPS.length - 1
 
-  const finish = () => navigate(`/projects/${projectId}`)
+  const finish = () => {
+    guardedNavigate(() => navigate(`/projects/${projectId}`))
+  }
 
   return (
     <main className="page">
@@ -225,17 +245,23 @@ export function ProjectSetupWizard() {
           onContinue={() => goTo(1)}
         />
       ) : null}
-      {WIZARD_STEPS[step].key === 'questions' ? <ResearchQuestionsPanel projectId={projectId} /> : null}
-      {WIZARD_STEPS[step].key === 'criteria' ? <CriteriaPanel projectId={projectId} /> : null}
+      {WIZARD_STEPS[step].key === 'questions' ? (
+        <ResearchQuestionsPanel projectId={projectId} onDirtyChange={setStepDirty} />
+      ) : null}
+      {WIZARD_STEPS[step].key === 'criteria' ? (
+        <CriteriaPanel projectId={projectId} onDirtyChange={setStepDirty} />
+      ) : null}
       {WIZARD_STEPS[step].key === 'reviewers' ? (
         <>
           <p className="muted">
             Add the reviewers who will work on this project and choose which stages each one can take part in.
           </p>
-          <MembersPanel projectId={projectId} />
+          <MembersPanel projectId={projectId} onDirtyChange={setStepDirty} />
         </>
       ) : null}
-      {WIZARD_STEPS[step].key === 'screening' ? <ScreeningConfigPanel projectId={projectId} /> : null}
+      {WIZARD_STEPS[step].key === 'screening' ? (
+        <ScreeningConfigPanel projectId={projectId} onDirtyChange={setStepDirty} />
+      ) : null}
       {WIZARD_STEPS[step].key === 'extraction' ? (
         <FormFieldsPanel
           projectId={projectId}
@@ -252,14 +278,16 @@ export function ProjectSetupWizard() {
           description="Optionally define a form for assessing the methodological quality of included publications."
         />
       ) : null}
-      {WIZARD_STEPS[step].key === 'keywords' ? <HighlightKeywordsPanel projectId={projectId} /> : null}
+      {WIZARD_STEPS[step].key === 'keywords' ? (
+        <HighlightKeywordsPanel projectId={projectId} />
+      ) : null}
       {WIZARD_STEPS[step].key === 'llm' ? (
         <>
           <p className="muted">
             LLM assistance is optional. You can enable it now or come back to it later from the project&apos;s
             Administration page.
           </p>
-          <LlmAssistancePanel projectId={projectId} showProcessingStatus={false} />
+          <LlmAssistancePanel projectId={projectId} showProcessingStatus={false} onDirtyChange={setStepDirty} />
         </>
       ) : null}
 
@@ -269,13 +297,25 @@ export function ProjectSetupWizard() {
             Back
           </button>
           {isLastStep ? (
-            <button type="button" onClick={finish}>Finish Setup</button>
+            <button type="button" onClick={finish}>
+              <IconCheckCircle />
+              Finish Setup
+            </button>
           ) : (
             <button type="button" onClick={() => goTo(step + 1)}>
               {WIZARD_STEPS[step].optional ? 'Skip / Next' : 'Next'}
+              <IconArrowRight />
             </button>
           )}
-          <Link to={`/projects/${projectId}`} className="link-button wizard-exit">
+          <Link
+            to={`/projects/${projectId}`}
+            className="link-button wizard-exit"
+            onClick={(event) => {
+              if (!stepDirty) return
+              event.preventDefault()
+              guardedNavigate(() => navigate(`/projects/${projectId}`))
+            }}
+          >
             Finish later
           </Link>
         </div>
@@ -286,6 +326,21 @@ export function ProjectSetupWizard() {
           </div>
         ) : null
       )}
+      {pendingAction ? (
+        <ConfirmDialog
+          title="Discard unsaved changes?"
+          message="You have unsaved changes on this step that require their own Save/Publish button to keep. Leaving now will discard them."
+          confirmLabel="Discard & Continue"
+          cancelLabel="Stay on this step"
+          variant="danger"
+          onConfirm={() => {
+            const action = pendingAction
+            setPendingAction(null)
+            action()
+          }}
+          onCancel={() => setPendingAction(null)}
+        />
+      ) : null}
     </main>
   )
 }

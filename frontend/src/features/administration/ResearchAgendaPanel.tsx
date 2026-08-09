@@ -1,8 +1,9 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { ConfirmButton } from '../../components/ConfirmButton'
+import { IconCheckCircle, IconPlus, IconTrash } from '../../components/icons'
 
 type CriterionKind = 'inclusion' | 'exclusion'
 
@@ -29,15 +30,21 @@ function ResearchQuestionRow({
   onSave,
   onDelete,
   pending,
+  onDirtyChange,
 }: {
   number: string
   question: ResearchQuestion
   onSave: (text: string) => void
   onDelete: () => void
   pending: boolean
+  onDirtyChange?: (dirty: boolean) => void
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState(question.text)
+
+  useEffect(() => {
+    onDirtyChange?.(editing && draft !== question.text)
+  }, [editing, draft, question.text, onDirtyChange])
 
   if (editing) {
     return (
@@ -52,7 +59,7 @@ function ResearchQuestionRow({
           >
             <input value={draft} onChange={(event) => setDraft(event.target.value)} required />
             <div className="toolbar">
-              <button type="submit" disabled={pending}>Save</button>
+              <button type="submit" disabled={pending}><IconCheckCircle />Save</button>
               <button type="button" className="button-secondary" onClick={() => { setDraft(question.text); setEditing(false) }}>Cancel</button>
             </div>
           </form>
@@ -73,6 +80,8 @@ function ResearchQuestionRow({
             warning="Delete this research question? This cannot be undone."
             onConfirm={onDelete}
             disabled={pending}
+            variant="danger"
+            icon={<IconTrash />}
           />
         </div>
       </td>
@@ -86,16 +95,22 @@ function CriterionRow({
   onSave,
   onDelete,
   pending,
+  onDirtyChange,
 }: {
   number: string
   criterion: Criterion
   onSave: (kind: CriterionKind, text: string) => void
   onDelete: () => void
   pending: boolean
+  onDirtyChange?: (dirty: boolean) => void
 }) {
   const [editing, setEditing] = useState(false)
   const [draftKind, setDraftKind] = useState<CriterionKind>(criterion.kind)
   const [draftText, setDraftText] = useState(criterion.text)
+
+  useEffect(() => {
+    onDirtyChange?.(editing && (draftKind !== criterion.kind || draftText !== criterion.text))
+  }, [editing, draftKind, draftText, criterion.kind, criterion.text, onDirtyChange])
 
   if (editing) {
     return (
@@ -117,7 +132,7 @@ function CriterionRow({
             </label>
             <input value={draftText} onChange={(event) => setDraftText(event.target.value)} required />
             <div className="toolbar">
-              <button type="submit" disabled={pending}>Save</button>
+              <button type="submit" disabled={pending}><IconCheckCircle />Save</button>
               <button
                 type="button"
                 className="button-secondary"
@@ -146,6 +161,8 @@ function CriterionRow({
             warning="Delete this criterion? This cannot be undone."
             onConfirm={onDelete}
             disabled={pending}
+            variant="danger"
+            icon={<IconTrash />}
           />
         </div>
       </td>
@@ -153,9 +170,16 @@ function CriterionRow({
   )
 }
 
-export function ResearchQuestionsPanel({ projectId }: { projectId: string }) {
+export function ResearchQuestionsPanel({
+  projectId,
+  onDirtyChange,
+}: {
+  projectId: string
+  onDirtyChange?: (dirty: boolean) => void
+}) {
   const queryClient = useQueryClient()
   const [newQuestion, setNewQuestion] = useState('')
+  const [dirtyRows, setDirtyRows] = useState<Record<string, boolean>>({})
 
   const project = useQuery({
     queryKey: ['project', projectId],
@@ -188,6 +212,10 @@ export function ResearchQuestionsPanel({ projectId }: { projectId: string }) {
 
   const mutationError = addQuestion.error ?? updateQuestion.error ?? deleteQuestion.error
 
+  useEffect(() => {
+    onDirtyChange?.(newQuestion.trim() !== '' || Object.values(dirtyRows).some(Boolean))
+  }, [newQuestion, dirtyRows, onDirtyChange])
+
   if (project.isLoading) return <p>Loading research questions…</p>
   if (project.isError || !project.data) return <p className="error" role="alert">Research questions could not be loaded.</p>
 
@@ -214,6 +242,9 @@ export function ResearchQuestionsPanel({ projectId }: { projectId: string }) {
               pending={questionPending}
               onSave={(text) => updateQuestion.mutate({ id: question.id, text })}
               onDelete={() => deleteQuestion.mutate(question.id)}
+              onDirtyChange={(rowDirty) => setDirtyRows((current) => (
+                current[question.id] === rowDirty ? current : { ...current, [question.id]: rowDirty }
+              ))}
             />
           ))}
         </tbody>
@@ -227,16 +258,23 @@ export function ResearchQuestionsPanel({ projectId }: { projectId: string }) {
             required
           />
         </label>
-        <button type="submit" disabled={addQuestion.isPending}>Add Research Question</button>
+        <button type="submit" disabled={addQuestion.isPending}><IconPlus />Add Research Question</button>
       </form>
     </section>
   )
 }
 
-export function CriteriaPanel({ projectId }: { projectId: string }) {
+export function CriteriaPanel({
+  projectId,
+  onDirtyChange,
+}: {
+  projectId: string
+  onDirtyChange?: (dirty: boolean) => void
+}) {
   const queryClient = useQueryClient()
   const [newCriterionKind, setNewCriterionKind] = useState<CriterionKind>('inclusion')
   const [newCriterionText, setNewCriterionText] = useState('')
+  const [dirtyRows, setDirtyRows] = useState<Record<string, boolean>>({})
 
   const project = useQuery({
     queryKey: ['project', projectId],
@@ -268,6 +306,10 @@ export function CriteriaPanel({ projectId }: { projectId: string }) {
   })
 
   const mutationError = addCriterion.error ?? updateCriterion.error ?? deleteCriterion.error
+
+  useEffect(() => {
+    onDirtyChange?.(newCriterionText.trim() !== '' || Object.values(dirtyRows).some(Boolean))
+  }, [newCriterionText, dirtyRows, onDirtyChange])
 
   if (project.isLoading) return <p>Loading criteria…</p>
   if (project.isError || !project.data) return <p className="error" role="alert">Criteria could not be loaded.</p>
@@ -310,6 +352,9 @@ export function CriteriaPanel({ projectId }: { projectId: string }) {
               pending={criterionPending}
               onSave={(kind, text) => updateCriterion.mutate({ id: criterion.id, kind, text })}
               onDelete={() => deleteCriterion.mutate(criterion.id)}
+              onDirtyChange={(rowDirty) => setDirtyRows((current) => (
+                current[criterion.id] === rowDirty ? current : { ...current, [criterion.id]: rowDirty }
+              ))}
             />
           ))}
           <tr>
@@ -328,6 +373,9 @@ export function CriteriaPanel({ projectId }: { projectId: string }) {
               pending={criterionPending}
               onSave={(kind, text) => updateCriterion.mutate({ id: criterion.id, kind, text })}
               onDelete={() => deleteCriterion.mutate(criterion.id)}
+              onDirtyChange={(rowDirty) => setDirtyRows((current) => (
+                current[criterion.id] === rowDirty ? current : { ...current, [criterion.id]: rowDirty }
+              ))}
             />
           ))}
         </tbody>
@@ -351,7 +399,7 @@ export function CriteriaPanel({ projectId }: { projectId: string }) {
             required
           />
         </label>
-        <button type="submit" disabled={addCriterion.isPending}>Add Criterion</button>
+        <button type="submit" disabled={addCriterion.isPending}><IconPlus />Add Criterion</button>
       </form>
     </section>
   )

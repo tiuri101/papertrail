@@ -154,6 +154,8 @@ def list_projects_for_user(db: Session, user: User) -> list[Project]:
 def add_membership(
     db: Session, project: Project, user: User, **eligibility: bool
 ) -> ProjectMembership:
+    if not user.is_active:
+        raise ConflictError("Cannot add a deactivated user to a project")
     existing = db.scalar(
         select(ProjectMembership).where(
             ProjectMembership.project_id == project.id,

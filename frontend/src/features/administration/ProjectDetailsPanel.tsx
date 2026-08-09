@@ -28,9 +28,9 @@ export function ProjectDetailsPanel({ projectId }: { projectId: string }) {
   }, [project.data])
 
   const save = useMutation({
-    mutationFn: () => apiRequest<ProjectDetails>(`/api/v1/projects/${projectId}`, {
+    mutationFn: (next: { name: string; description: string }) => apiRequest<ProjectDetails>(`/api/v1/projects/${projectId}`, {
       method: 'PATCH',
-      body: JSON.stringify({ name, description: description.trim() || null }),
+      body: JSON.stringify({ name: next.name, description: next.description.trim() || null }),
     }),
     onSuccess: (result) => {
       queryClient.setQueryData(['project', projectId], (previous: unknown) => ({
@@ -41,34 +41,41 @@ export function ProjectDetailsPanel({ projectId }: { projectId: string }) {
     },
   })
 
+  const saveIfChanged = () => {
+    if (!project.data) return
+    if (name.trim().length === 0) return
+    if (name === project.data.name && description === (project.data.description ?? '')) return
+    save.mutate({ name, description })
+  }
+
   return (
     <CollapsibleSection id="section-project-details" title="Project Details">
+      <p className="muted">Changes save automatically when you leave a field.</p>
       {project.error ? <p className="error" role="alert">{project.error.message}</p> : null}
-      <form onSubmit={(event) => { event.preventDefault(); save.mutate() }}>
-        <label>
-          Name
-          <input
-            type="text"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            required
-            maxLength={250}
-          />
-        </label>
-        <label>
-          Description
-          <textarea
-            value={description}
-            onChange={(event) => setDescription(event.target.value)}
-            rows={3}
-          />
-        </label>
-        {save.error ? <p className="error" role="alert">{save.error.message}</p> : null}
-        {save.isSuccess ? <p>Project details saved.</p> : null}
-        <button type="submit" disabled={save.isPending || name.trim().length === 0}>
-          Save Changes
-        </button>
-      </form>
+      <label>
+        Name
+        <input
+          type="text"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          onBlur={saveIfChanged}
+          required
+          maxLength={250}
+        />
+      </label>
+      <label>
+        Description
+        <textarea
+          value={description}
+          onChange={(event) => setDescription(event.target.value)}
+          onBlur={saveIfChanged}
+          rows={3}
+        />
+      </label>
+      {save.error ? <p className="error" role="alert">{save.error.message}</p> : null}
+      <p className="muted" aria-live="polite">
+        {save.isPending ? 'Saving…' : save.isSuccess ? 'Saved.' : ' '}
+      </p>
     </CollapsibleSection>
   )
 }

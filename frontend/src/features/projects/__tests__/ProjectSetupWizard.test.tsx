@@ -67,7 +67,9 @@ describe('ProjectSetupWizard', () => {
         })
       }
       if (url === '/api/v1/users') {
-        return jsonResponse([{ id: 'u1', displayName: 'Ada Lovelace', username: 'ada' }])
+        return jsonResponse([
+          { id: 'u1', displayName: 'Ada Lovelace', username: 'ada', isAdmin: false, isActive: true },
+        ])
       }
       if (url === '/api/v1/projects/p1/llm/settings') {
         return jsonResponse({

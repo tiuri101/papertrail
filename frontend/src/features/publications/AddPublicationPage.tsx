@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { IconPlus } from '../../components/icons'
 import { PublicationFieldInputs } from './publicationFields'
 import { emptyPublicationDraft, PublicationDraft, toPayload } from './publicationFieldsData'
 
@@ -34,7 +35,7 @@ export function AddPublicationPage() {
           <PublicationFieldInputs draft={draft} setField={setField} />
           {create.error ? <p className="error" role="alert">{create.error.message}</p> : null}
           {create.isSuccess ? <p>Publication added.</p> : null}
-          <button type="submit" disabled={create.isPending || !draft.title.trim()}>Add Publication</button>
+          <button type="submit" disabled={create.isPending || !draft.title.trim()}><IconPlus />Add Publication</button>
         </form>
       </section>
     </main>

@@ -16,7 +16,7 @@ from app.llm.models import LlmExtractionRun, LlmTaskType, ProcessingStatus
 from app.notifications.mailer import send_smtp_email
 from app.notifications.models import EmailDeliveryStatus, EmailNotification
 from app.notifications.templates import render_email
-from app.projects.models import Project, ProjectMembership
+from app.projects.models import Project, ProjectMembership, ProjectStage
 
 SEND_EMAIL_JOB = "send_email"
 CHECK_LLM_STAGE_EMAIL_JOB = "check_llm_stage_email"
@@ -221,6 +221,53 @@ def queue_project_completed_emails(
     return notifications
 
 
+def queue_project_stage_completed_emails(
+    db: Session, project: Project, completed_stage: ProjectStage, completed_at: datetime
+) -> list[EmailNotification]:
+    """Notify active project owners once when a workflow stage finishes.
+
+    Distinct from ``queue_project_completed_emails``, which fires when the
+    whole project reaches ``ProjectStage.COMPLETED``: this fires for each
+    intermediate stage transition (e.g. duplicate review -> title/abstract).
+    """
+    from app.projects.checklist import STAGE_LABELS
+
+    owners = list(
+        db.scalars(
+            select(User)
+            .join(ProjectMembership, ProjectMembership.user_id == User.id)
+            .where(
+                ProjectMembership.project_id == project.id,
+                ProjectMembership.is_owner.is_(True),
+            )
+        )
+    )
+    settings = get_settings()
+    notifications: list[EmailNotification] = []
+    stage_key = completed_stage.value
+    completion_key = completed_at.isoformat()
+    for owner in owners:
+        notification = queue_email_notification(
+            db,
+            recipient=owner,
+            template="project_stage_completed",
+            deduplication_key=(
+                f"project-stage-completed:{project.id}:{stage_key}:"
+                f"{completion_key}:{owner.id}"
+            ),
+            context={
+                "recipient_name": owner.display_name,
+                "project_name": project.name,
+                "stage_label": STAGE_LABELS[completed_stage],
+                "project_url": f"{settings.public_base_url}/projects/{project.id}",
+            },
+            project_id=project.id,
+        )
+        if notification:
+            notifications.append(notification)
+    return notifications
+
+
 def queue_llm_bulk_completion_emails(
     db: Session, project_id: str, bulk_id: str
 ) -> list[EmailNotification]:
@@ -322,6 +369,17 @@ def queue_llm_bulk_completion_check(
     db: Session, *, project_id: str, bulk_id: str
 ) -> BackgroundJob | None:
     if not get_settings().email_enabled:
+        return None
+    existing = db.scalars(
+        select(BackgroundJob).where(
+            BackgroundJob.project_id == project_id,
+            BackgroundJob.job_type == CHECK_LLM_STAGE_EMAIL_JOB,
+            BackgroundJob.status == JobStatus.QUEUED,
+        )
+    )
+    if any(job.payload.get("bulk_id") == bulk_id for job in existing):
+        # A still-queued check will re-read live run state when it executes,
+        # so piling on another one per publication is pure job-table churn.
         return None
     return enqueue_job(
         db,

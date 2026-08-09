@@ -3,6 +3,7 @@ import { useEffect, useId, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 
 import { apiRequest } from '../api/client'
+import { IconFolder, IconPerson, IconUsers } from '../components/icons'
 import { MOBILE_MENU_SECTION_SLOT_ID, MobileMenuContext } from '../components/mobileMenu'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { setCsrfToken } from '../features/auth/session'
@@ -48,6 +49,7 @@ export function AppShell() {
           <div className="app-header__actions">
             <nav aria-label="Primary navigation">
               <NavLink to="/projects" className={({ isActive }) => isActive ? 'nav-link nav-link--active' : 'nav-link'}>
+                <IconFolder />
                 Projects
               </NavLink>
               {session?.user.isAdmin ? (
@@ -57,6 +59,7 @@ export function AppShell() {
                     isActive ? 'nav-link nav-link--active nav-link--collapsible' : 'nav-link nav-link--collapsible'
                   }
                 >
+                  <IconUsers />
                   Users
                 </NavLink>
               ) : null}
@@ -66,6 +69,7 @@ export function AppShell() {
                   isActive ? 'nav-link nav-link--active nav-link--collapsible' : 'nav-link nav-link--collapsible'
                 }
               >
+                <IconPerson />
                 Account
               </NavLink>
             </nav>
@@ -125,10 +129,12 @@ export function AppShell() {
           <nav className="mobile-drawer__nav-links">
             {session?.user.isAdmin ? (
               <NavLink to="/users" className="nav-link" onClick={() => setMobileMenuOpen(false)}>
+                <IconUsers />
                 Users
               </NavLink>
             ) : null}
             <NavLink to="/account" className="nav-link" onClick={() => setMobileMenuOpen(false)}>
+              <IconPerson />
               Account
             </NavLink>
           </nav>

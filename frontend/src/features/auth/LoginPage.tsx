@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { IconArrowRight } from '../../components/icons'
 import { ThemeToggle } from '../../components/ThemeToggle'
 import { setCsrfToken } from './session'
 import type { LoginResponse } from './types'
@@ -42,7 +43,6 @@ export function LoginPage() {
         <div className="login-heading">
           <p className="eyebrow">Academic review workspace</p>
           <h1 id="login-title">Sign In to Papertrail</h1>
-          <p className="muted">Continue to your literature review projects.</p>
         </div>
         <form onSubmit={(event) => { event.preventDefault(); login.mutate() }}>
           <label>
@@ -67,6 +67,7 @@ export function LoginPage() {
           {login.error ? <p className="error alert" role="alert">{login.error.message}</p> : null}
           <button type="submit" disabled={login.isPending}>
             {login.isPending ? 'Signing In…' : 'Sign In'}
+            <IconArrowRight />
           </button>
         </form>
         <Link to="/forgot-password" className="link-button">Forgot your password?</Link>

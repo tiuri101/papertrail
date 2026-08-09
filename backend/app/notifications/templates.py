@@ -196,6 +196,17 @@ def render_email(template: str, context: dict[str, Any]) -> RenderedEmail:
         action_label = "Open completed project"
         action_url = context["project_url"]
         summary_items = [("Status", "Completed", "#147a59")]
+    elif template == "project_stage_completed":
+        subject = f'"{context["stage_label"]}" complete in "{context["project_name"]}"'
+        paragraphs = [
+            f"Hello {context['recipient_name']},",
+            f'The "{context["stage_label"]}" stage of the Papertrail project '
+            f'"{context["project_name"]}" has been completed.',
+            "The project has automatically advanced to its next stage.",
+        ]
+        action_label = "Open project"
+        action_url = context["project_url"]
+        summary_items = [("Stage complete", str(context["stage_label"]), "#147a59")]
     elif template == "llm_stage_completed":
         subject = f'LLM processing bulk finished for "{context["project_name"]}"'
         paragraphs = [

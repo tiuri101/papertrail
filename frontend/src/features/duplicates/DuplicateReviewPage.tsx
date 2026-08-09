@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { IconCheckCircle } from '../../components/icons'
 
 interface CandidatePublication {
   id: string
@@ -111,6 +112,7 @@ export function DuplicateReviewPage() {
                       onClick={() => merge.mutate({ id: candidate.id, canonical: candidate.publicationA.id })}
                       disabled={pending}
                     >
+                      <IconCheckCircle />
                       Keep This One
                     </button>
                   </div>
@@ -125,6 +127,7 @@ export function DuplicateReviewPage() {
                       onClick={() => merge.mutate({ id: candidate.id, canonical: candidate.publicationB.id })}
                       disabled={pending}
                     >
+                      <IconCheckCircle />
                       Keep This One
                     </button>
                   </div>

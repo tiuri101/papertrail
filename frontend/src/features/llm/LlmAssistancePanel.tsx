@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
+import { IconCheckCircle, IconTrash } from '../../components/icons'
 
 interface LlmSettings {
   enabled: boolean
@@ -71,9 +72,11 @@ const FIELD_TYPES = [
 export function LlmAssistancePanel({
   projectId,
   showProcessingStatus = true,
+  onDirtyChange,
 }: {
   projectId: string
   showProcessingStatus?: boolean
+  onDirtyChange?: (dirty: boolean) => void
 }) {
   const queryClient = useQueryClient()
   const settings = useQuery({
@@ -93,6 +96,11 @@ export function LlmAssistancePanel({
   const [connection, setConnection] = useState<{ message: string; ok: boolean } | null>(null)
 
   useEffect(() => setFields(schema.data?.schema?.fields ?? []), [schema.data?.schema])
+
+  useEffect(() => {
+    const saved = schema.data?.schema?.fields ?? []
+    onDirtyChange?.(JSON.stringify(fields) !== JSON.stringify(saved))
+  }, [fields, schema.data?.schema, onDirtyChange])
 
   const refresh = async () => {
     await queryClient.invalidateQueries({ queryKey: ['llm-schema', projectId] })
@@ -328,7 +336,10 @@ export function LlmAssistancePanel({
                   return next
                 })}>Move down</button>
               </div>
-              <button type="button" className="button-danger" onClick={() => setFields((current) => current.filter((_, i) => i !== index))}>Remove field</button>
+              <button type="button" className="button-danger" onClick={() => setFields((current) => current.filter((_, i) => i !== index))}>
+                <IconTrash />
+                Remove field
+              </button>
               </div>
             </details>
             )
@@ -345,6 +356,7 @@ export function LlmAssistancePanel({
               onClick={() => publish.mutate()}
               disabled={publish.isPending || currentSchema.status !== 'draft'}
             >
+              <IconCheckCircle />
               Publish version
             </button>
           </div>

@@ -364,6 +364,37 @@ describe('ScreeningPage', () => {
     })
   })
 
+  it('advances to the next full-text item after a single Submit click, without a confirmation step', async () => {
+    let decisionPosts = 0
+    const fetchMock = renderScreening(async (input, init) => {
+      const path = String(input)
+      if (path.endsWith('/next') && init?.method === 'POST') return jsonResponse(workItem)
+      if (path.endsWith('/decision') && init?.method === 'POST') {
+        decisionPosts += 1
+        return jsonResponse({ id: 'decision-1' }, 201)
+      }
+      if (path.endsWith('/llm-full-text')) {
+        return jsonResponse({
+          state: 'ready', hidden: false, stale: false,
+          suggestedDecision: 'include', confidence: 'high',
+          reasoningSummary: 'The paper meets the criteria.', criteria: [],
+        })
+      }
+      return jsonResponse({})
+    }, 'full_text')
+
+    await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
+    expect(await screen.findByText(/LLM suggestion:/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Decision' }))
+
+    await waitFor(() => {
+      const nextCalls = fetchMock.mock.calls.filter(([input, init]) => String(input).endsWith('/next') && init?.method === 'POST')
+      expect(nextCalls).toHaveLength(2)
+    })
+    expect(decisionPosts).toBe(1)
+  })
+
   it('autosaves draft content shortly after the reviewer edits it', async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true })
     try {

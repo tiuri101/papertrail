@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { IconUpload } from '../../components/icons'
 import { FileDropZone } from './FileDropZone'
 import { PdfMatchReview, type PdfSummary } from './PdfMatchReview'
 
@@ -68,6 +69,7 @@ export function AttachPdfsPanel({ projectId, importBatchId, onClose }: {
           disabled={(!pdfFiles.length && !pdfArchives.length) || upload.isPending}
           onClick={() => upload.mutate()}
         >
+          <IconUpload />
           {upload.isPending ? 'Uploading…' : 'Upload PDFs'}
         </button>
         <button type="button" onClick={onClose}>Close</button>

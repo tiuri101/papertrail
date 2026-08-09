@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
+import { IconSwap } from '../../components/icons'
 import type { User } from '../auth/types'
 
 type RoleKey = 'canTitleAbstractScreen' | 'canFullTextScreen'
@@ -145,6 +146,7 @@ function ReassignRow({
                 setSelectedReviewer('')
               }}
             >
+              <IconSwap />
               Reassign
             </button>
           </div>
@@ -362,6 +364,7 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
               disabled={!bulkReviewerId || selectedCount === 0 || bulkReassign.isPending}
               onClick={() => bulkReassign.mutate()}
             >
+              <IconSwap />
               {bulkReassign.isPending ? 'Reassigning…' : `Reassign selected (${selectedCount})`}
             </button>
           </div>

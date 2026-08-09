@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { ConfirmButton } from '../../components/ConfirmButton'
+import { IconRestart, IconTrash } from '../../components/icons'
 
 export function DangerZonePanel({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient()
@@ -41,6 +42,7 @@ export function DangerZonePanel({ projectId }: { projectId: string }) {
           onConfirm={() => reset.mutate()}
           disabled={reset.isPending || deleteProject.isPending}
           variant="danger"
+          icon={<IconRestart />}
         />
         <ConfirmButton
           label="Delete Project"
@@ -49,6 +51,7 @@ export function DangerZonePanel({ projectId }: { projectId: string }) {
           onConfirm={() => deleteProject.mutate()}
           disabled={reset.isPending || deleteProject.isPending}
           variant="danger"
+          icon={<IconTrash />}
         />
       </div>
     </CollapsibleSection>

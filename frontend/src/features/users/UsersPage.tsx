@@ -3,6 +3,7 @@ import { useState } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { ConfirmButton } from '../../components/ConfirmButton'
+import { IconPlus, IconRestart, IconTrash } from '../../components/icons'
 import type { LoginResponse, User } from '../auth/types'
 
 export function UsersPage() {
@@ -83,14 +84,14 @@ export function UsersPage() {
               />
             </label>
             <div className="toolbar">
-              <button type="submit" disabled={create.isPending}>Create Reviewer</button>
+              <button type="submit" disabled={create.isPending}><IconPlus />Create Reviewer</button>
               <button type="button" className="button-secondary" onClick={() => setShowCreateForm(false)}>Cancel</button>
             </div>
           </form>
         </section>
       ) : (
         <div className="toolbar">
-          <button type="button" onClick={() => setShowCreateForm(true)}>Add Reviewer</button>
+          <button type="button" onClick={() => setShowCreateForm(true)}><IconPlus />Add Reviewer</button>
         </div>
       )}
       {create.error ? <p className="error" role="alert">{create.error.message}</p> : null}
@@ -123,6 +124,7 @@ export function UsersPage() {
                       onConfirm={() => setActive.mutate({ id: user.id, isActive: false })}
                       disabled={setActive.isPending}
                       variant="danger"
+                      icon={<IconTrash />}
                     />
                   ) : (
                     <button
@@ -130,6 +132,7 @@ export function UsersPage() {
                       onClick={() => setActive.mutate({ id: user.id, isActive: true })}
                       disabled={setActive.isPending}
                     >
+                      <IconRestart />
                       Reactivate
                     </button>
                   )}

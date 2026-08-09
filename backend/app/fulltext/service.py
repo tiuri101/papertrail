@@ -293,5 +293,11 @@ def transition_if_full_text_complete(db: Session, project: Project) -> bool:
         initialize_quality(db, project)
     except DomainError:
         raise
+
+    from app.notifications.service import queue_project_stage_completed_emails
+
+    queue_project_stage_completed_emails(
+        db, project, ProjectStage.FULL_TEXT, datetime.now(UTC)
+    )
     db.flush()
     return True

@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { IconPlus } from '../../components/icons'
 import { STAGES } from './StageProgress'
 
 interface Project {
@@ -79,7 +80,10 @@ export function ProjectsPage() {
           </li>
         ))}
       </ul>
-      <button type="button" onClick={() => navigate('/projects/new')}>New Project</button>
+      <button type="button" onClick={() => navigate('/projects/new')}>
+        <IconPlus />
+        New Project
+      </button>
     </main>
   )
 }

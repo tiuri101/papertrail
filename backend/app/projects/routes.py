@@ -186,20 +186,20 @@ def _reconcile_work_assignments(db: Session, project_id: str) -> None:
     whoever was eligible when the stage started.
     """
     from app.extraction.service import (
-        rebalance_pending_work_items as rebalance_extraction,
-    )
-    from app.extraction.service import (
         reassign_work_items_from_ineligible_reviewers as reassign_extraction,
     )
-    from app.quality.service import (
-        rebalance_pending_work_items as rebalance_quality,
+    from app.extraction.service import (
+        rebalance_pending_work_items as rebalance_extraction,
     )
     from app.quality.service import (
         reassign_work_items_from_ineligible_reviewers as reassign_quality,
     )
+    from app.quality.service import (
+        rebalance_pending_work_items as rebalance_quality,
+    )
     from app.screening.service import (
-        rebalance_pending_work_items,
         reassign_work_items_from_ineligible_reviewers,
+        rebalance_pending_work_items,
     )
 
     for stage in (ScreeningStage.TITLE_ABSTRACT, ScreeningStage.FULL_TEXT):

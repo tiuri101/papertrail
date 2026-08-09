@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { IconArrowRight } from '../../components/icons'
 import { ThemeToggle } from '../../components/ThemeToggle'
 
 export function ForgotPasswordPage() {
@@ -50,6 +51,7 @@ export function ForgotPasswordPage() {
             ) : null}
             <button type="submit" disabled={requestReset.isPending || !email}>
               {requestReset.isPending ? 'Sending…' : 'Send Reset Link'}
+              <IconArrowRight />
             </button>
           </form>
         )}

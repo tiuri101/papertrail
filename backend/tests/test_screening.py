@@ -103,6 +103,95 @@ def test_queue_claims_independent_slots_and_uses_deterministic_rank(db) -> None:
     assert second.id != first.id
 
 
+def test_claim_next_work_item_prefers_publication_with_completed_llm_suggestion(
+    db, monkeypatch
+) -> None:
+    from datetime import UTC as _UTC
+    from datetime import datetime as _datetime
+
+    from app.core.config import get_settings
+    from app.llm.models import LlmExtractionRun, LlmTaskType, ProcessingStatus
+    from app.llm.task_service import project_settings
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "llm_enabled", True)
+    monkeypatch.setattr(settings, "ollama_model", "test-model:latest")
+
+    reviewer = create_user(db, "reviewer1", "Reviewer 1", "password-1")
+    project = Project(
+        name="Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="global-seed",
+        stage=ProjectStage.TITLE_ABSTRACT,
+    )
+    db.add(project)
+    db.flush()
+    db.add(
+        ProjectMembership(
+            project_id=project.id,
+            user_id=reviewer.id,
+            can_title_abstract_screen=True,
+        )
+    )
+    db.add(
+        ScreeningConfig(
+            project_id=project.id,
+            stage=ScreeningStage.TITLE_ABSTRACT,
+            required_reviewers=1,
+            allocation_mode=AllocationMode.INDEPENDENT,
+        )
+    )
+    db.add(
+        Criterion(
+            project_id=project.id,
+            kind=CriterionKind.INCLUSION,
+            text="Relevant topic",
+            position=0,
+        )
+    )
+    pub_ready = Publication(project_id=project.id, title="Ready paper", abstract="A")
+    pub_pending = Publication(
+        project_id=project.id, title="Pending paper", abstract="B"
+    )
+    db.add_all([pub_ready, pub_pending])
+    db.commit()
+
+    llm_settings = project_settings(db, project.id, create=True)
+    llm_settings.title_abstract_screening_enabled = True
+    db.commit()
+
+    assert create_screening_work_items(db, project, ScreeningStage.TITLE_ABSTRACT) == 2
+    db.commit()
+    items = {
+        item.publication_id: item for item in db.scalars(select(ScreeningWorkItem))
+    }
+    # Force the LLM-ready publication's rank to sort *after* the pending one, so
+    # the assertion below can only pass because of LLM-readiness, not luck.
+    items[pub_ready.id].random_rank = "f" * 64
+    items[pub_pending.id].random_rank = "0" * 64
+    db.add(
+        LlmExtractionRun(
+            project_id=project.id,
+            publication_id=pub_ready.id,
+            task_type=LlmTaskType.TITLE_ABSTRACT_SCREENING,
+            input_fingerprint="fp",
+            provider="ollama",
+            model="test-model:latest",
+            model_configuration={},
+            prompt_template_version="v1",
+            status=ProcessingStatus.COMPLETED,
+            queued_at=_datetime.now(_UTC),
+        )
+    )
+    db.commit()
+
+    claimed = claim_next_work_item(
+        db, project.id, ScreeningStage.TITLE_ABSTRACT, reviewer.id
+    )
+    assert claimed is not None
+    assert claimed.publication_id == pub_ready.id
+
+
 def test_submission_requires_all_criteria_and_hides_decisions_until_complete(
     db,
 ) -> None:
@@ -371,7 +460,9 @@ def test_rebalance_spreads_backlog_onto_a_newly_added_reviewer(db) -> None:
         for item in db.scalars(
             select(ScreeningWorkItem).where(ScreeningWorkItem.project_id == project.id)
         ):
-            tally[item.assigned_reviewer_id] = tally.get(item.assigned_reviewer_id, 0) + 1
+            tally[item.assigned_reviewer_id] = (
+                tally.get(item.assigned_reviewer_id, 0) + 1
+            )
         return tally
 
     before = counts()
@@ -396,7 +487,7 @@ def test_rebalance_spreads_backlog_onto_a_newly_added_reviewer(db) -> None:
 
 
 def test_rebalance_never_gives_a_reviewer_two_slots_of_the_same_publication(db) -> None:
-    admin = create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
     reviewer1 = create_user(db, "reviewer1", "Reviewer 1", "password-1")
     reviewer2 = create_user(db, "reviewer2", "Reviewer 2", "password-2")
     project = Project(

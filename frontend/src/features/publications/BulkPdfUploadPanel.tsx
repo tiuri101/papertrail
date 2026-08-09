@@ -3,6 +3,7 @@ import { useState } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
+import { IconUpload } from '../../components/icons'
 import { FileDropZone } from '../imports/FileDropZone'
 import { PdfMatchReview, type PdfSummary } from '../imports/PdfMatchReview'
 
@@ -79,6 +80,7 @@ export function BulkPdfUploadPanel({ projectId }: { projectId: string }) {
           disabled={(!pdfFiles.length && !pdfArchives.length) || upload.isPending}
           onClick={() => upload.mutate()}
         >
+          <IconUpload />
           {upload.isPending ? 'Uploading…' : 'Upload PDFs'}
         </button>
       </div>
