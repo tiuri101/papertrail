@@ -478,6 +478,7 @@ def test_list_assignments_returns_publication_and_reviewer_details(client, db) -
     assert response.status_code == 200
     body = response.json()
     assert body["total"] == 3
+    assert body["reassignableTotal"] == 3
     assert body["page"] == 1
     assert body["pageSize"] == 20
     titles = {row["publicationTitle"] for row in body["items"]}
@@ -556,6 +557,56 @@ def test_assignments_pagination_sorting_and_filtering(client, db) -> None:
         headers={"X-CSRF-Token": csrf},
     ).json()
     assert by_status["total"] == 3
+
+
+def test_bulk_reassignment_selects_all_filtered_assignments_across_pages(
+    client, db
+) -> None:
+    _, project, _, reviewer1, reviewer2, _ = setup_three_publications_two_reviewers(db)
+    excluded = db.scalar(
+        select(ScreeningWorkItem).where(
+            ScreeningWorkItem.project_id == project.id,
+            ScreeningWorkItem.assigned_reviewer_id == reviewer1.id,
+        )
+    )
+    assert excluded is not None
+
+    login = client.post(
+        "/api/v1/auth/login", json={"username": "admin", "password": "secret-password"}
+    )
+    csrf = login.json()["csrfToken"]
+    first_page = client.get(
+        f"/api/v1/projects/{project.id}/screening/title_abstract/assignments"
+        "?search=Paper&page=1&pageSize=1",
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+    assert len(first_page["items"]) == 1
+    assert first_page["reassignableTotal"] == 3
+
+    response = client.patch(
+        f"/api/v1/projects/{project.id}/screening/title_abstract/assignments/reassign",
+        json={
+            "reviewerId": reviewer2.id,
+            "selectAllFiltered": True,
+            "excludedWorkItemIds": [excluded.id],
+            "search": "Paper",
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {"reassigned": 2}
+    db.refresh(excluded)
+    assert excluded.assigned_reviewer_id == reviewer1.id
+    included = list(
+        db.scalars(
+            select(ScreeningWorkItem).where(
+                ScreeningWorkItem.project_id == project.id,
+                ScreeningWorkItem.id != excluded.id,
+            )
+        )
+    )
+    assert {item.assigned_reviewer_id for item in included} == {reviewer2.id}
 
 
 def test_next_endpoint_returns_a_claimable_work_item_over_http(client, db) -> None:

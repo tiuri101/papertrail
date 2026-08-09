@@ -35,6 +35,8 @@ Papertrail should:
 8. Generate PRISMA 2020 counts and an SVG flow diagram.
 9. Export review data in practical academic formats.
 10. Remain suitable for self-hosting and local user management.
+11. Store full text PDFs.
+12. Provide users with LLM-support during screening and data extraction.
 
 ---
 
@@ -42,8 +44,7 @@ Papertrail should:
 
 The initial version will not:
 
-- Retrieve, download, or store publication full texts.
-- Provide AI-assisted screening, summarization, or extraction.
+- Retrieve or download publication full texts.
 - Automatically include or exclude records.
 - Search academic databases directly.
 - Manage repeated or updated search runs over time.
@@ -539,11 +540,7 @@ Supported field types are:
 
 Each field can be required or optional.
 
-Conditional field logic is not required.
-
 Extraction is intended primarily for summarized findings and project-specific qualitative or quantitative dimensions.
-
-Extraction fields do not need to be explicitly linked to individual research questions.
 
 ### 17.2 Editing and reopening
 
@@ -933,7 +930,7 @@ Potential later additions include:
 - Saved import profiles for recurring custom formats
 - Inter-rater agreement statistics
 - Screening calibration rounds
-- Email or in-application notifications
+- In-application notifications (email notifications are implemented)
 - Public project reports
 - Protocol registration support
 - Additional reporting standards

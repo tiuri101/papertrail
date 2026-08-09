@@ -29,12 +29,14 @@ from app.accounts.service import (
     password_hasher,
     record_login_failure,
     revoke_session,
+    set_user_email,
     verify_password,
 )
 from app.api.errors import DomainError
 from app.audit.service import record_audit
 from app.core.config import get_settings
 from app.db.session import get_db
+from app.notifications.service import queue_account_created_email
 
 router = APIRouter()
 auth_router = APIRouter(prefix="/auth", tags=["authentication"])
@@ -71,7 +73,9 @@ def login(
         max_age=settings.session_ttl_hours * 3600,
         path="/",
     )
-    return LoginResponse(user=user, csrf_token=created.session.csrf_token)
+    return LoginResponse(
+        user=UserResponse.model_validate(user), csrf_token=created.session.csrf_token
+    )
 
 
 @auth_router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
@@ -101,6 +105,9 @@ def update_me(
     if payload.display_name is not None:
         user.display_name = payload.display_name.strip()
         changed_fields.append("display_name")
+    if payload.email is not None:
+        set_user_email(db, user, payload.email)
+        changed_fields.append("email")
     if payload.new_password is not None:
         if not payload.current_password:
             raise DomainError("Current password is required to set a new password")
@@ -129,7 +136,9 @@ def update_me(
 def browser_session(
     session: UserSession = Depends(get_current_session),
 ) -> LoginResponse:
-    return LoginResponse(user=session.user, csrf_token=session.csrf_token)
+    return LoginResponse(
+        user=UserResponse.model_validate(session.user), csrf_token=session.csrf_token
+    )
 
 
 @users_router.get("", response_model=list[UserResponse])
@@ -142,6 +151,7 @@ def list_users(
             id=user.id,
             username=user.username,
             display_name=user.display_name,
+            email=user.email if caller.is_admin or caller.id == user.id else None,
             is_admin=user.is_admin if caller.is_admin else False,
             is_active=user.is_active,
         )
@@ -155,7 +165,13 @@ def add_user(
     admin: User = Depends(require_admin_csrf),
     db: Session = Depends(get_db),
 ) -> User:
-    user = create_user(db, payload.username, payload.display_name, payload.password)
+    user = create_user(
+        db,
+        payload.username,
+        payload.display_name,
+        payload.password,
+        email=payload.email,
+    )
     record_audit(
         db,
         action="user.created",
@@ -164,6 +180,7 @@ def add_user(
         actor_id=admin.id,
         summary=f"Created user {user.username}",
     )
+    queue_account_created_email(db, user)
     db.commit()
     return user
 
@@ -180,6 +197,9 @@ def update_user(
     if payload.display_name is not None:
         user.display_name = payload.display_name.strip()
         changed_fields.append("display_name")
+    if payload.email is not None:
+        set_user_email(db, user, payload.email)
+        changed_fields.append("email")
     if payload.is_active is not None:
         if user.id == admin.id and not payload.is_active:
             raise DomainError(

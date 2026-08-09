@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { Route, Routes } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 
@@ -63,5 +63,51 @@ describe('AppShell', () => {
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Logout failed'))
     expect(screen.getByText('Dashboard')).toBeInTheDocument()
+  })
+
+  it('exposes Account (and Users, for admins) from the mobile menu', () => {
+    renderShell({
+      ...reviewerSession,
+      user: { ...reviewerSession.user, id: 'admin', username: 'admin', isAdmin: true },
+    })
+
+    fireEvent.click(screen.getByRole('button', { name: 'Main menu' }))
+    const drawer = screen.getByRole('dialog', { name: 'Main menu' })
+    expect(within(drawer).getByRole('link', { name: 'Users' })).toHaveAttribute('href', '/users')
+    expect(within(drawer).getByRole('link', { name: 'Account' })).toHaveAttribute('href', '/account')
+  })
+
+  it('hides Users from the mobile menu for reviewers', () => {
+    renderShell(reviewerSession)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Main menu' }))
+    const drawer = screen.getByRole('dialog', { name: 'Main menu' })
+    expect(within(drawer).queryByRole('link', { name: 'Users' })).not.toBeInTheDocument()
+    expect(within(drawer).getByRole('link', { name: 'Account' })).toBeInTheDocument()
+  })
+
+  it('signs out from the mobile menu', async () => {
+    setCsrfToken('csrf')
+    const fetchMock = mockFetch(() => emptyResponse())
+    const { queryClient } = renderShell(reviewerSession)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Main menu' }))
+    const drawer = screen.getByRole('dialog', { name: 'Main menu' })
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Sign Out' }))
+
+    expect(await screen.findByText('Login page')).toBeInTheDocument()
+    expect(queryClient.getQueryData(['session'])).toBeUndefined()
+    expect(getCsrfToken()).toBeNull()
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/auth/logout', expect.objectContaining({ method: 'POST' }))
+  })
+
+  it('closes the mobile menu with Escape', () => {
+    renderShell(reviewerSession)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Main menu' }))
+    expect(screen.getByRole('dialog', { name: 'Main menu' })).toBeInTheDocument()
+
+    fireEvent.keyDown(window, { key: 'Escape' })
+    expect(screen.queryByRole('dialog', { name: 'Main menu' })).not.toBeInTheDocument()
   })
 })

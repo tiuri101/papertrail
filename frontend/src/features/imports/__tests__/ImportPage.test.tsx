@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import { ImportPage } from '../ImportPage'
@@ -6,10 +6,37 @@ import { setCsrfToken } from '../../auth/session'
 import { jsonResponse, mockFetch } from '../../../test/http'
 import { renderWithProviders } from '../../../test/render'
 
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+]
+
+function selectDate(labelText: string, iso: string) {
+  const [yearStr, monthStr, dayStr] = iso.split('-')
+  const targetYear = Number(yearStr)
+  const targetMonth = Number(monthStr) - 1
+  const day = String(Number(dayStr))
+
+  fireEvent.click(screen.getByLabelText(labelText))
+  const dialog = screen.getByRole('dialog', { name: `${labelText} calendar` })
+  const monthLabel = dialog.querySelector('.date-field__month')
+  const [monthName, yearText] = (monthLabel?.textContent ?? '').split(' ')
+  const monthsToMove = (targetYear - Number(yearText)) * 12 + (targetMonth - MONTHS.indexOf(monthName))
+  const navButtonName = monthsToMove < 0 ? 'Previous month' : 'Next month'
+  for (let step = 0; step < Math.abs(monthsToMove); step += 1) {
+    fireEvent.click(within(dialog).getByRole('button', { name: navButtonName }))
+  }
+
+  const daysGrid = dialog.querySelector('.date-field__days') as HTMLElement
+  const dayButtons = within(daysGrid).getAllByRole('button', { name: day })
+  const targetButton = dayButtons.find((button) => !button.className.includes('date-field__day--outside'))
+  fireEvent.click(targetButton ?? dayButtons[0])
+}
+
 function fillSearchFields() {
   fireEvent.change(screen.getByLabelText('Database'), { target: { value: 'IEEE Xplore' } })
   fireEvent.change(screen.getByLabelText('Search string'), { target: { value: 'virtual reality AND urban' } })
-  fireEvent.change(screen.getByLabelText('Search date'), { target: { value: '2026-07-30' } })
+  selectDate('Search date', '2026-07-30')
 }
 
 describe('ImportPage', () => {
@@ -25,7 +52,9 @@ describe('ImportPage', () => {
 
     await screen.findByLabelText('Bibliographic export')
     expect(screen.getByLabelText('Optional full-text PDFs')).toBeInTheDocument()
-    expect(screen.getByLabelText('Optional PDF ZIP')).toBeInTheDocument()
+    const zipInput = screen.getByLabelText('Optional PDF ZIPs')
+    expect(zipInput).toBeInTheDocument()
+    expect(zipInput).toHaveAttribute('multiple')
     expect(screen.queryByLabelText('Search')).not.toBeInTheDocument()
     expect(screen.queryByText(/Not documented/)).not.toBeInTheDocument()
   })
@@ -55,13 +84,20 @@ describe('ImportPage', () => {
       new File(['pdf-1'], 'paper-1.pdf', { type: 'application/pdf' }),
       new File(['pdf-2'], 'paper-2.pdf', { type: 'application/pdf' }),
     ]
-    const archive = new File(['zip'], 'papers.zip', { type: 'application/zip' })
+    const archives = [
+      new File(['zip-1'], 'papers-1.zip', { type: 'application/zip' }),
+      new File(['zip-2'], 'papers-2.zip', { type: 'application/zip' }),
+    ]
     fireEvent.change(screen.getByLabelText('Optional full-text PDFs'), {
       target: { files: pdfs },
     })
-    fireEvent.change(screen.getByLabelText('Optional PDF ZIP'), {
-      target: { files: [archive] },
+    fireEvent.change(screen.getByLabelText('Optional PDF ZIPs'), {
+      target: { files: archives },
     })
+    expect(screen.getByText('paper-1.pdf')).toBeInTheDocument()
+    expect(screen.getByText('paper-2.pdf')).toBeInTheDocument()
+    expect(screen.getByText('papers-1.zip')).toBeInTheDocument()
+    expect(screen.getByText('papers-2.zip')).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Upload' }))
 
     await waitFor(() => {
@@ -84,7 +120,7 @@ describe('ImportPage', () => {
       expect(init?.body).toBeInstanceOf(FormData)
       expect((init?.body as FormData).get('searchSourceId')).toBe('search-1')
       expect((init?.body as FormData).getAll('pdfs')).toEqual(pdfs)
-      expect((init?.body as FormData).get('pdfArchive')).toBe(archive)
+      expect((init?.body as FormData).getAll('pdfArchive')).toEqual(archives)
     })
 
     expect(await screen.findByText('Import queued: job-42')).toBeInTheDocument()

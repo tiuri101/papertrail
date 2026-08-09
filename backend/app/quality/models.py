@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import enum
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import (
     Boolean,
@@ -58,7 +59,9 @@ class QualityWorkItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     status: Mapped[QualityStatus] = mapped_column(
         default=QualityStatus.AVAILABLE, index=True, nullable=False
     )
-    draft: Mapped[dict] = mapped_column(JSONType, default=dict, nullable=False)
+    draft: Mapped[dict[str, Any]] = mapped_column(
+        JSONType, default=dict, nullable=False
+    )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     responses: Mapped[list[QualityResponse]] = relationship(
@@ -83,7 +86,7 @@ class QualityResponse(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     form_version_id: Mapped[str] = mapped_column(
         ForeignKey("form_versions.id"), index=True
     )
-    answers: Mapped[dict] = mapped_column(JSONType, nullable=False)
+    answers: Mapped[dict[str, Any]] = mapped_column(JSONType, nullable=False)
     total_score: Mapped[float | None] = mapped_column(Float)
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     is_current: Mapped[bool] = mapped_column(

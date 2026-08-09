@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -34,13 +36,13 @@ class WorkItemResponse(ApiModel):
     stage: str
     slot_number: int = Field(serialization_alias="slotNumber")
     reserved_until: str | None = Field(serialization_alias="reservedUntil")
-    draft: dict
+    draft: dict[str, Any]
     publication: PublicationItem
     criteria: list[CriterionItem]
 
 
 class DraftUpdate(ApiModel):
-    draft: dict
+    draft: dict[str, Any]
 
 
 class DecisionSubmit(ApiModel):
@@ -92,8 +94,25 @@ class ReassignRequest(ApiModel):
     reviewer_id: str = Field(alias="reviewerId")
 
 
+class BulkReassignRequest(ApiModel):
+    reviewer_id: str = Field(alias="reviewerId")
+    work_item_ids: list[str] = Field(default_factory=list, alias="workItemIds")
+    select_all_filtered: bool = Field(default=False, alias="selectAllFiltered")
+    excluded_work_item_ids: list[str] = Field(
+        default_factory=list, alias="excludedWorkItemIds"
+    )
+    search: str | None = None
+    status: str | None = None
+    filter_reviewer_id: str | None = Field(default=None, alias="filterReviewerId")
+
+
+class BulkReassignResponse(ApiModel):
+    reassigned: int
+
+
 class AssignmentsPage(ApiModel):
     items: list[AssignmentItem]
     total: int
+    reassignable_total: int = Field(serialization_alias="reassignableTotal")
     page: int
     page_size: int = Field(serialization_alias="pageSize")

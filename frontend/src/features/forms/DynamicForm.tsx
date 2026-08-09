@@ -135,15 +135,12 @@ function DynamicField({ field, value, onChange }: {
     }
     case 'date':
       return (
-        <label>
-          {labelText}
-          <input
-            type="date"
-            value={typeof value === 'string' ? value : ''}
-            onChange={(event) => onChange(event.target.value)}
-            required={field.required}
-          />
-        </label>
+        <DateField
+          label={labelText}
+          value={typeof value === 'string' ? value : ''}
+          onChange={onChange}
+          required={field.required}
+        />
       )
     case 'url':
       return (
@@ -178,3 +175,4 @@ function DynamicField({ field, value, onChange }: {
   }
 }
 import type { ReactNode } from 'react'
+import { DateField } from '../../components/DateField'

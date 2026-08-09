@@ -44,7 +44,7 @@ router = APIRouter(tags=["forms"])
 @router.get("/form-templates", response_model=list[FormResponse])
 def list_templates(
     _: User = Depends(require_any_project_manager), db: Session = Depends(get_db)
-):
+) -> list[ReviewForm]:
     return list(
         db.scalars(
             select(ReviewForm)
@@ -61,7 +61,7 @@ def add_template(
     payload: FormCreate,
     admin: User = Depends(require_admin_csrf),
     db: Session = Depends(get_db),
-):
+) -> ReviewForm:
     form = create_form(db, payload.name, FormKind(payload.kind), is_template=True)
     record_audit(
         db,
@@ -85,7 +85,7 @@ def add_project_form(
     payload: FormCreate,
     admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
-):
+) -> ReviewForm:
     get_project(db, project_id)
     kind = FormKind(payload.kind)
     existing = db.scalar(
@@ -123,7 +123,7 @@ def delete_form_endpoint(
     form_id: str,
     session: UserSession = Depends(require_csrf),
     db: Session = Depends(get_db),
-):
+) -> None:
     admin = session.user
     form = db.get(ReviewForm, form_id)
     if form is None:
@@ -152,7 +152,7 @@ def add_form_field(
     payload: FieldCreate,
     session: UserSession = Depends(require_csrf),
     db: Session = Depends(get_db),
-):
+) -> FormField:
     admin = session.user
     form = db.get(ReviewForm, form_id)
     if form is None:
@@ -185,7 +185,7 @@ def list_project_forms(
     project_id: str,
     _: User = Depends(require_project_manager),
     db: Session = Depends(get_db),
-):
+) -> list[ReviewForm]:
     get_project(db, project_id)
     return list(
         db.scalars(
@@ -201,7 +201,7 @@ def list_form_fields(
     form_id: str,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> list[FormField]:
     form = db.get(ReviewForm, form_id)
     if form is None or not form.active_version_id:
         raise NotFoundError("Form not found")
@@ -222,7 +222,7 @@ def update_form_field(
     payload: FieldUpdate,
     session: UserSession = Depends(require_csrf),
     db: Session = Depends(get_db),
-):
+) -> FormField:
     admin = session.user
     form = db.get(ReviewForm, form_id)
     if form is None:
@@ -259,7 +259,7 @@ def save_form_as_template_endpoint(
     payload: SaveAsTemplateRequest,
     session: UserSession = Depends(require_csrf),
     db: Session = Depends(get_db),
-):
+) -> ReviewForm:
     admin = session.user
     form = db.get(ReviewForm, form_id)
     if form is None:
@@ -288,7 +288,7 @@ def replace_form_field(
     payload: FieldReplace,
     session: UserSession = Depends(require_csrf),
     db: Session = Depends(get_db),
-):
+) -> FormField:
     admin = session.user
     form = db.get(ReviewForm, form_id)
     if form is None:

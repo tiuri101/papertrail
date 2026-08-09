@@ -233,6 +233,7 @@ class LlmExtractionRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     task_type: Mapped[LlmTaskType] = mapped_column(
         String(40), default=LlmTaskType.DATA_EXTRACTION, index=True, nullable=False
     )
+    bulk_id: Mapped[str | None] = mapped_column(String(36), index=True)
     input_fingerprint: Mapped[str | None] = mapped_column(String(64), index=True)
     document_id: Mapped[str | None] = mapped_column(
         ForeignKey("publication_documents.id", ondelete="CASCADE"), index=True

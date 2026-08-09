@@ -179,7 +179,9 @@ def run_llm_extraction_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
     run.started_at = datetime.now(UTC)
     run.error_type = None
     run.error_message = None
-    db.flush()
+    # Ollama calls can take minutes. Commit the processing state first so the
+    # transaction does not retain run and foreign-key locks during inference.
+    db.commit()
     metrics: dict[str, int] = {}
     try:
         client = create_ollama_client()

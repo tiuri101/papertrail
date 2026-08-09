@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import enum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import Boolean, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -39,7 +39,7 @@ class Publication(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     issn: Mapped[str | None] = mapped_column(String(100))
     pubmed_id: Mapped[str | None] = mapped_column(String(100))
     arxiv_id: Mapped[str | None] = mapped_column(String(100))
-    other_identifiers: Mapped[dict] = mapped_column(
+    other_identifiers: Mapped[dict[str, Any]] = mapped_column(
         JSONType, default=dict, nullable=False
     )
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
@@ -69,12 +69,12 @@ class Publication(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         return {"available": document is not None, "document": document}
 
     @property
-    def search_sources(self) -> list[dict]:
+    def search_sources(self) -> list[dict[str, Any]]:
         """The search imports (and, transitively, searches) that brought in
         this publication. A publication can trace back to more than one
         when a duplicate merge combines records pulled in separately."""
         seen: set[str] = set()
-        results: list[dict] = []
+        results: list[dict[str, Any]] = []
         for source in self.sources:
             record = source.imported_record
             batch = record.import_batch if record else None

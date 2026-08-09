@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
@@ -30,7 +32,7 @@ def list_retrievals(
     project_id: str,
     session: UserSession = Depends(require_csrf),
     db: Session = Depends(get_db),
-):
+) -> list[FullTextRetrieval]:
     require_project_access(db, project_id, session.user)
     return list(
         db.scalars(
@@ -49,7 +51,7 @@ def next_retrieval(
     project_id: str,
     session: UserSession = Depends(require_csrf),
     db: Session = Depends(get_db),
-):
+) -> FullTextRetrieval | None:
     require_project_access(db, project_id, session.user)
     retrieval = claim_next_retrieval(db, project_id, session.user.id)
     db.commit()
@@ -62,7 +64,7 @@ def release_retrieval(
     retrieval_id: str,
     session: UserSession = Depends(require_csrf),
     db: Session = Depends(get_db),
-):
+) -> dict[str, Any]:
     retrieval = db.get(FullTextRetrieval, retrieval_id)
     if retrieval is None or retrieval.project_id != project_id:
         raise NotFoundError("Full-text retrieval record not found")
@@ -79,7 +81,7 @@ def full_text_progress(
     project_id: str,
     session: UserSession = Depends(require_csrf),
     db: Session = Depends(get_db),
-):
+) -> dict[str, int]:
     require_project_access(db, project_id, session.user)
     return retrieval_progress(db, project_id)
 
@@ -93,7 +95,7 @@ def update_retrieval(
     payload: RetrievalUpdate,
     session: UserSession = Depends(require_csrf),
     db: Session = Depends(get_db),
-):
+) -> FullTextRetrieval:
     require_project_access(db, project_id, session.user)
     retrieval = db.get(FullTextRetrieval, retrieval_id)
     if retrieval is None or retrieval.project_id != project_id:
@@ -135,6 +137,6 @@ def update_retrieval(
                 "criteriaAnswers": decision.criteria_answers,
             },
         )
-    retrieval.decision_submitted = decision is not None
+    retrieval.decision_submitted = decision is not None  # type: ignore[attr-defined]
     db.commit()
     return retrieval

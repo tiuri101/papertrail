@@ -5,6 +5,12 @@ from app.audit.models import AuditEvent
 from app.conflicts.models import FinalDecision
 from app.conflicts.service import record_final_decision
 from app.extraction.models import ExtractionStatus, ExtractionWorkItem
+from app.fulltext.models import PublicationDocument
+from app.llm.models import (
+    DocumentTextExtraction,
+    ProcessingStatus,
+    ProjectLlmSettings,
+)
 from app.projects.lifecycle import (
     evaluate_project_completion,
     move_project_back,
@@ -65,6 +71,53 @@ def test_project_completes_and_can_be_reopened_without_deleting_work(db) -> None
         "project.completed",
         "project.reopened",
     }
+
+
+def test_project_waits_for_enabled_validation_cohort_but_not_unusable_text(db) -> None:
+    admin, project, publication = create_included_project(db)
+    db.add(
+        ExtractionWorkItem(
+            project_id=project.id,
+            publication_id=publication.id,
+            assigned_reviewer_id=admin.id,
+            random_rank="rank",
+            status=ExtractionStatus.COMPLETED,
+        )
+    )
+    document = PublicationDocument(
+        project_id=project.id,
+        publication_id=publication.id,
+        original_filename="paper.pdf",
+        storage_key=f"projects/{project.id}/paper.pdf",
+        mime_type="application/pdf",
+        file_size=100,
+        sha256="a" * 64,
+        uploaded_by_user_id=admin.id,
+    )
+    db.add(document)
+    db.flush()
+    extraction = DocumentTextExtraction(
+        document_id=document.id,
+        status=ProcessingStatus.PENDING,
+        extractor="pypdf",
+        extractor_version="1",
+    )
+    db.add(extraction)
+    db.add(
+        ProjectLlmSettings(
+            project_id=project.id,
+            extraction_validation_enabled=True,
+        )
+    )
+    db.flush()
+
+    assert evaluate_project_completion(db, project) is False
+    assert project.stage == ProjectStage.EXTRACTION
+
+    extraction.status = ProcessingStatus.UNSUPPORTED
+    db.flush()
+    assert evaluate_project_completion(db, project) is True
+    assert project.stage == ProjectStage.COMPLETED
 
 
 def test_move_project_back_deletes_downstream_data_and_resets_target_stage(db) -> None:

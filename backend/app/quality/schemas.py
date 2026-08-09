@@ -1,3 +1,5 @@
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.forms.schemas import FieldResponse
@@ -21,24 +23,24 @@ class QualityConfigResponse(ApiModel):
 
 
 class QualitySubmit(ApiModel):
-    answers: dict
+    answers: dict[str, Any]
 
 
 class QualityDraftUpdate(ApiModel):
-    draft: dict
+    draft: dict[str, Any]
 
 
 class QualityItemResponse(ApiModel):
     id: str
     publication_id: str = Field(serialization_alias="publicationId")
     status: str
-    draft: dict
+    draft: dict[str, Any]
     publication: PublicationItem
     fields: list[FieldResponse]
 
 
 class QualityResponseModel(ApiModel):
     id: str
-    answers: dict
+    answers: dict[str, Any]
     total_score: float | None = Field(serialization_alias="totalScore")
     version: int

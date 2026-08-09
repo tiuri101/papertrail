@@ -79,7 +79,7 @@ function PublicationEditForm({
       {update.error ? <p className="error" role="alert">{update.error.message}</p> : null}
       <div className="toolbar">
         <button type="submit" disabled={update.isPending}>Save</button>
-        <button type="button" onClick={onDone}>Cancel</button>
+        <button type="button" className="button-secondary" onClick={onDone}>Cancel</button>
       </div>
     </form>
   )
@@ -135,33 +135,42 @@ function PublicationRow({
   }
 
   return (
-    <li className="card">
+    <li className={`card publication-card${canManage ? ' publication-card--manageable' : ''}${selected ? ' publication-card--selected' : ''}`}>
+      <div className="publication-card__summary">
+        {canManage ? (
+          <input
+            className="publication-card__checkbox"
+            type="checkbox"
+            checked={selected}
+            onChange={onToggleSelected}
+            aria-label={`Select ${publication.title}`}
+          />
+        ) : null}
+        <div>
+          {canManage ? (
+            <button type="button" className="link-button" onClick={() => setEditing(true)}>
+              <strong><HighlightedText text={publication.title} keywords={highlightKeywords} /></strong>
+            </button>
+          ) : (
+            <strong><HighlightedText text={publication.title} keywords={highlightKeywords} /></strong>
+          )}
+          {' — '}{publication.authors ?? 'Unknown authors'}
+          {publication.publicationYear ? ` (${publication.publicationYear})` : ''}
+          {publication.fullText?.available ? <span className="status-badge"> PDF ✓</span> : null}
+          {publication.doi ? (
+            <> <a href={`https://doi.org/${publication.doi}`} target="_blank" rel="noopener noreferrer">DOI</a></>
+          ) : null}
+          {isSafeHttpUrl(publication.publisherUrl) ? (
+            <> <a href={publication.publisherUrl} target="_blank" rel="noopener noreferrer">Publisher link</a></>
+          ) : null}
+        </div>
+      </div>
+      <details className="publication-card__abstract">
+        <summary>Abstract</summary>
+        <p>{publication.abstract?.trim() || 'No abstract available.'}</p>
+      </details>
       {canManage ? (
-        <>
-          <label>
-            <input type="checkbox" checked={selected} onChange={onToggleSelected} aria-label={`Select ${publication.title}`} />
-          </label>
-          {' '}
-        </>
-      ) : null}
-      {canManage ? (
-        <button type="button" className="link-button" onClick={() => setEditing(true)}>
-          <strong><HighlightedText text={publication.title} keywords={highlightKeywords} /></strong>
-        </button>
-      ) : (
-        <strong><HighlightedText text={publication.title} keywords={highlightKeywords} /></strong>
-      )}
-      {' — '}{publication.authors ?? 'Unknown authors'}
-      {publication.publicationYear ? ` (${publication.publicationYear})` : ''}
-      {publication.fullText?.available ? <span className="status-badge"> PDF ✓</span> : null}
-      {publication.doi ? (
-        <> <a href={`https://doi.org/${publication.doi}`} target="_blank" rel="noopener noreferrer">DOI</a></>
-      ) : null}
-      {isSafeHttpUrl(publication.publisherUrl) ? (
-        <> <a href={publication.publisherUrl} target="_blank" rel="noopener noreferrer">Publisher link</a></>
-      ) : null}
-      {canManage ? (
-        <div className="toolbar">
+        <div className="toolbar publication-card__actions">
           <button type="button" onClick={() => setEditing(true)}>Edit</button>
           <button type="button" onClick={() => enrich.mutate()} disabled={enrich.isPending || !publication.doi}>
             Enrich Metadata
@@ -319,7 +328,7 @@ export function PublicationsPage() {
         </section>
       ) : null}
       {canManage ? <MetadataConflictsPanel projectId={projectId} /> : null}
-      <ul className="card-list stacked">
+      <ul className="card-list stacked publication-list">
         {query.data?.map((publication) => (
           <PublicationRow
             key={publication.id}

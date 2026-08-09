@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import secrets
+from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import Select, func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.accounts.models import User
@@ -57,10 +58,13 @@ def create_project(
         )
     )
     db.flush()
+    from app.notifications.service import queue_project_created_emails
+
+    queue_project_created_emails(db, project, owner)
     return project
 
 
-def project_query():
+def project_query() -> Select[tuple[Project]]:
     return select(Project).options(
         selectinload(Project.memberships),
         selectinload(Project.research_questions),
@@ -206,7 +210,11 @@ def serialize_highlight_keywords(keywords: list[str]) -> str:
 
 
 def next_position(
-    db: Session, model: type, project_id: str, *, stage: ScreeningStage | None = None
+    db: Session,
+    model: type[Any],
+    project_id: str,
+    *,
+    stage: ScreeningStage | None = None,
 ) -> int:
     query = select(func.coalesce(func.max(model.position), -1) + 1).where(
         model.project_id == project_id

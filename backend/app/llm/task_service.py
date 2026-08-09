@@ -2,15 +2,21 @@ from __future__ import annotations
 
 import hashlib
 import json
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
+from uuid import uuid4
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.conflicts.models import FinalDecision
 from app.core.config import get_settings
-from app.extraction.models import ExtractionResponse, ExtractionWorkItem
+from app.extraction.models import (
+    ExtractionResponse,
+    ExtractionStatus,
+    ExtractionWorkItem,
+)
 from app.fulltext.documents import active_document
 from app.fulltext.models import PublicationDocument
 from app.jobs.models import BackgroundJob, JobStatus
@@ -31,6 +37,20 @@ from app.llm.task_prompt import (
 from app.projects.models import Criterion, ScreeningStage
 from app.publications.models import Publication
 from app.screening.models import ScreeningOutcome
+
+
+@dataclass(frozen=True)
+class ValidationProgress:
+    total: int
+    completed: int
+    pending: int
+    failed: int
+    unavailable: int
+    outstanding: int
+
+    @property
+    def settled(self) -> bool:
+        return self.total == (self.completed + self.failed + self.unavailable)
 
 
 def _canonical(value: Any) -> str:
@@ -183,6 +203,7 @@ def _create_run(
     created_by_id: str | None,
     priority: int,
     force: bool,
+    bulk_id: str | None = None,
     document: PublicationDocument | None = None,
     extraction: DocumentTextExtraction | None = None,
     extraction_response: ExtractionResponse | None = None,
@@ -191,6 +212,21 @@ def _create_run(
         db, publication.id, task_type, input_fingerprint, force=force
     )
     if existing is not None:
+        if bulk_id and existing.bulk_id is None:
+            existing.bulk_id = bulk_id
+        # A low-priority precomputed run may already exist by the time a reviewer
+        # opens the publication. Promote its still-queued job so the suggestion is
+        # ready when the independent human decision is submitted.
+        if existing.background_job_id is not None:
+            job = db.get(BackgroundJob, existing.background_job_id)
+            if (
+                job is not None
+                and job.status == JobStatus.QUEUED
+                and job.priority < priority
+            ):
+                job.priority = priority
+            if job is not None and bulk_id and not job.payload.get("bulk_id"):
+                job.payload = {**job.payload, "bulk_id": bulk_id}
         return existing
     model = _model()
     if model is None:
@@ -199,6 +235,7 @@ def _create_run(
         project_id=publication.project_id,
         publication_id=publication.id,
         task_type=task_type,
+        bulk_id=bulk_id,
         input_fingerprint=input_fingerprint,
         document_id=document.id if document else None,
         text_extraction_id=extraction.id if extraction else None,
@@ -221,7 +258,7 @@ def _create_run(
     job = enqueue_job(
         db,
         LLM_JOB,
-        {"run_id": run.id},
+        {"run_id": run.id, **({"bulk_id": bulk_id} if bulk_id else {})},
         project_id=publication.project_id,
         created_by_id=created_by_id,
         max_attempts=3,
@@ -239,6 +276,7 @@ def queue_title_abstract_suggestion(
     created_by_id: str | None = None,
     priority: int = 0,
     force: bool = False,
+    bulk_id: str | None = None,
 ) -> LlmExtractionRun | None:
     publication = db.get(Publication, publication_id)
     if (
@@ -258,6 +296,7 @@ def queue_title_abstract_suggestion(
         created_by_id=created_by_id,
         priority=priority,
         force=force,
+        bulk_id=bulk_id,
     )
 
 
@@ -297,6 +336,7 @@ def queue_full_text_assistance(
     priority: int = 0,
     force: bool = False,
     extraction: DocumentTextExtraction | None = None,
+    bulk_id: str | None = None,
 ) -> LlmExtractionRun | BackgroundJob | None:
     publication = db.get(Publication, publication_id)
     if (
@@ -322,6 +362,7 @@ def queue_full_text_assistance(
             publication_id,
             created_by_id=created_by_id,
             priority=priority,
+            bulk_id=bulk_id,
         )
     return _create_run(
         db,
@@ -332,6 +373,7 @@ def queue_full_text_assistance(
         created_by_id=created_by_id,
         priority=priority,
         force=force,
+        bulk_id=bulk_id,
         document=document,
         extraction=extraction,
     )
@@ -349,6 +391,128 @@ def _current_response(db: Session, publication_id: str) -> ExtractionResponse | 
     )
 
 
+def project_extractions_completed(db: Session, project_id: str) -> bool:
+    items = list(
+        db.scalars(
+            select(ExtractionWorkItem).where(
+                ExtractionWorkItem.project_id == project_id
+            )
+        )
+    )
+    return bool(items) and all(
+        item.status == ExtractionStatus.COMPLETED for item in items
+    )
+
+
+def current_validation_run(
+    db: Session, item: ExtractionWorkItem
+) -> LlmExtractionRun | None:
+    response = db.scalar(
+        select(ExtractionResponse)
+        .where(
+            ExtractionResponse.work_item_id == item.id,
+            ExtractionResponse.is_current.is_(True),
+        )
+        .order_by(ExtractionResponse.created_at.desc())
+    )
+    document = active_document(db, item.publication_id)
+    if response is None or document is None:
+        return None
+    return db.scalar(
+        select(LlmExtractionRun)
+        .options(selectinload(LlmExtractionRun.validation_results))
+        .where(
+            LlmExtractionRun.project_id == item.project_id,
+            LlmExtractionRun.publication_id == item.publication_id,
+            LlmExtractionRun.document_id == document.id,
+            LlmExtractionRun.extraction_response_id == response.id,
+            LlmExtractionRun.task_type == LlmTaskType.EXTRACTION_VALIDATION,
+        )
+        .order_by(LlmExtractionRun.created_at.desc())
+    )
+
+
+def project_validation_progress(db: Session, project_id: str) -> ValidationProgress:
+    items = list(
+        db.scalars(
+            select(ExtractionWorkItem)
+            .where(ExtractionWorkItem.project_id == project_id)
+            .order_by(ExtractionWorkItem.random_rank)
+        )
+    )
+    completed = pending = failed = unavailable = outstanding = 0
+    for item in items:
+        if item.status != ExtractionStatus.COMPLETED:
+            outstanding += 1
+            continue
+        document = active_document(db, item.publication_id)
+        if document is None:
+            unavailable += 1
+            continue
+        text_extraction = db.scalar(
+            select(DocumentTextExtraction).where(
+                DocumentTextExtraction.document_id == document.id
+            )
+        )
+        if text_extraction is not None and text_extraction.status in {
+            ProcessingStatus.FAILED,
+            ProcessingStatus.UNSUPPORTED,
+        }:
+            unavailable += 1
+            continue
+        run = current_validation_run(db, item)
+        if run is None or run.status == ProcessingStatus.STALE:
+            outstanding += 1
+        elif run.status == ProcessingStatus.COMPLETED:
+            completed += 1
+        elif run.status in {ProcessingStatus.PENDING, ProcessingStatus.PROCESSING}:
+            pending += 1
+        else:
+            failed += 1
+    return ValidationProgress(
+        total=len(items),
+        completed=completed,
+        pending=pending,
+        failed=failed,
+        unavailable=unavailable,
+        outstanding=outstanding,
+    )
+
+
+def queue_project_extraction_validations(
+    db: Session,
+    project_id: str,
+    *,
+    created_by_id: str | None = None,
+    priority: int = 10,
+) -> list[LlmExtractionRun | BackgroundJob]:
+    if not project_extractions_completed(db, project_id) or not feature_enabled(
+        db, project_id, LlmTaskType.EXTRACTION_VALIDATION
+    ):
+        return []
+    queued: list[LlmExtractionRun | BackgroundJob] = []
+    bulk_id = str(uuid4())
+    publication_ids = list(
+        db.scalars(
+            select(ExtractionWorkItem.publication_id).where(
+                ExtractionWorkItem.project_id == project_id,
+                ExtractionWorkItem.status == ExtractionStatus.COMPLETED,
+            )
+        )
+    )
+    for publication_id in publication_ids:
+        result = queue_extraction_validation(
+            db,
+            publication_id,
+            created_by_id=created_by_id,
+            priority=priority,
+            bulk_id=bulk_id,
+        )
+        if result is not None:
+            queued.append(result)
+    return queued
+
+
 def queue_extraction_validation(
     db: Session,
     publication_id: str,
@@ -359,6 +523,7 @@ def queue_extraction_validation(
     force: bool = False,
     extraction: DocumentTextExtraction | None = None,
     allow_disabled_manual: bool = False,
+    bulk_id: str | None = None,
 ) -> LlmExtractionRun | BackgroundJob | None:
     publication = db.get(Publication, publication_id)
     if publication is None:
@@ -384,6 +549,7 @@ def queue_extraction_validation(
             publication_id,
             created_by_id=created_by_id,
             priority=priority,
+            bulk_id=bulk_id,
         )
     return _create_run(
         db,
@@ -394,6 +560,7 @@ def queue_extraction_validation(
         created_by_id=created_by_id,
         priority=priority,
         force=force,
+        bulk_id=bulk_id,
         document=document,
         extraction=extraction,
         extraction_response=response,
@@ -406,6 +573,7 @@ def queue_document_processing(
     *,
     created_by_id: str | None = None,
     priority: int = 0,
+    bulk_id: str | None = None,
 ) -> LlmExtractionRun | BackgroundJob | None:
     publication = db.get(Publication, publication_id)
     if publication is None or not _title_included(db, publication_id):
@@ -431,7 +599,11 @@ def queue_document_processing(
     )
     if extraction and extraction.status == ProcessingStatus.COMPLETED:
         return queue_tasks_after_text(
-            db, extraction, created_by_id=created_by_id, priority=priority
+            db,
+            extraction,
+            created_by_id=created_by_id,
+            priority=priority,
+            bulk_id=bulk_id,
         )
     if extraction is None:
         from app.llm.text_extraction import ensure_text_extraction
@@ -455,11 +627,17 @@ def queue_document_processing(
     )
     if pending:
         pending.priority = max(pending.priority, priority)
+        if bulk_id and not pending.payload.get("bulk_id"):
+            pending.payload = {**pending.payload, "bulk_id": bulk_id}
         return pending
     return enqueue_job(
         db,
         TEXT_JOB,
-        {"document_id": document.id, "text_extraction_id": extraction.id},
+        {
+            "document_id": document.id,
+            "text_extraction_id": extraction.id,
+            **({"bulk_id": bulk_id} if bulk_id else {}),
+        },
         project_id=publication.project_id,
         created_by_id=created_by_id,
         max_attempts=2,
@@ -473,6 +651,7 @@ def queue_tasks_after_text(
     *,
     created_by_id: str | None,
     priority: int = 0,
+    bulk_id: str | None = None,
 ) -> LlmExtractionRun | None:
     document = db.get(PublicationDocument, extraction.document_id)
     if document is None or not document.is_active:
@@ -484,18 +663,23 @@ def queue_tasks_after_text(
         created_by_id=created_by_id,
         priority=priority,
         extraction=extraction,
+        bulk_id=bulk_id,
     )
     if isinstance(full, LlmExtractionRun):
         queued = full
     from app.llm.service import queue_llm_run_after_text
 
     extraction_run = queue_llm_run_after_text(
-        db, extraction, created_by_id=created_by_id, priority=priority
+        db,
+        extraction,
+        created_by_id=created_by_id,
+        priority=priority,
+        bulk_id=bulk_id,
     )
     if extraction_run is not None:
         queued = extraction_run
     response = _current_response(db, document.publication_id)
-    if response is not None:
+    if response is not None and project_extractions_completed(db, document.project_id):
         validation = queue_extraction_validation(
             db,
             document.publication_id,
@@ -503,6 +687,7 @@ def queue_tasks_after_text(
             created_by_id=created_by_id,
             priority=max(priority, 10),
             extraction=extraction,
+            bulk_id=bulk_id,
         )
         if isinstance(validation, LlmExtractionRun):
             queued = validation

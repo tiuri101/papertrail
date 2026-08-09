@@ -1,8 +1,9 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
+import type { CSSProperties } from 'react'
+import { Link, useNavigate } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { STAGES } from './StageProgress'
 
 interface Project {
   id: string
@@ -36,25 +37,20 @@ function formatStage(stage: string) {
   return stageLabels[stage] ?? stage
 }
 
+const stageColors: Record<string, string> = Object.fromEntries(
+  STAGES.map((step) => [step.value, step.color]),
+)
+
+function stageBadgeStyle(stage: string): CSSProperties {
+  const color = stageColors[stage]
+  return color ? ({ '--stage-color': color } as CSSProperties) : {}
+}
+
 export function ProjectsPage() {
-  const queryClient = useQueryClient()
-  const [showForm, setShowForm] = useState(false)
-  const [name, setName] = useState('')
-  const [reviewType, setReviewType] = useState('systematic_review')
+  const navigate = useNavigate()
   const projects = useQuery({
     queryKey: ['projects'],
     queryFn: () => apiRequest<Project[]>('/api/v1/projects'),
-  })
-  const create = useMutation({
-    mutationFn: () => apiRequest<Project>('/api/v1/projects', {
-      method: 'POST',
-      body: JSON.stringify({ name, reviewType }),
-    }),
-    onSuccess: () => {
-      setName('')
-      setShowForm(false)
-      queryClient.invalidateQueries({ queryKey: ['projects'] })
-    },
   })
 
   return (
@@ -74,45 +70,16 @@ export function ProjectsPage() {
             <h2><Link to={`/projects/${project.id}`}>{project.name}</Link></h2>
             {project.description ? <p className="muted">{project.description}</p> : null}
             <p>
-              <span className="stage-badge">{formatStage(project.stage)}</span>
+              <span className="stage-badge" style={stageBadgeStyle(project.stage)}>
+                {formatStage(project.stage)}
+              </span>
               {' '}
               <span className="muted">{formatReviewType(project.reviewType)}</span>
             </p>
           </li>
         ))}
       </ul>
-      {showForm ? (
-        <section className="card">
-          <h2>Create Project</h2>
-          <form onSubmit={(event) => { event.preventDefault(); create.mutate() }}>
-            <label>
-              Project name
-              <input
-                value={name}
-                onChange={(event) => setName(event.target.value)}
-                required
-              />
-            </label>
-            <label>
-              Review type
-              <select
-                value={reviewType}
-                onChange={(event) => setReviewType(event.target.value)}
-              >
-                <option value="systematic_review">Systematic review</option>
-                <option value="scoping_review">Scoping review</option>
-                <option value="systematic_mapping">Systematic mapping study</option>
-                <option value="other">Other</option>
-              </select>
-            </label>
-            <button type="submit" disabled={create.isPending}>Create</button>
-            <button type="button" onClick={() => setShowForm(false)}>Cancel</button>
-          </form>
-          {create.error ? <p className="error" role="alert">{create.error.message}</p> : null}
-        </section>
-      ) : (
-        <button type="button" onClick={() => setShowForm(true)}>New Project</button>
-      )}
+      <button type="button" onClick={() => navigate('/projects/new')}>New Project</button>
     </main>
   )
 }

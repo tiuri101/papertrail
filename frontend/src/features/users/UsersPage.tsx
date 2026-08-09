@@ -11,6 +11,7 @@ export function UsersPage() {
   const [showCreateForm, setShowCreateForm] = useState(false)
   const [username, setUsername] = useState('')
   const [displayName, setDisplayName] = useState('')
+  const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const users = useQuery({
     queryKey: ['users'],
@@ -19,11 +20,12 @@ export function UsersPage() {
   const create = useMutation({
     mutationFn: () => apiRequest<User>('/api/v1/users', {
       method: 'POST',
-      body: JSON.stringify({ username, displayName, password }),
+      body: JSON.stringify({ username, displayName, email, password }),
     }),
     onSuccess: () => {
       setUsername('')
       setDisplayName('')
+      setEmail('')
       setPassword('')
       setShowCreateForm(false)
       queryClient.invalidateQueries({ queryKey: ['users'] })
@@ -61,6 +63,16 @@ export function UsersPage() {
               />
             </label>
             <label>
+              Email address
+              <input
+                type="email"
+                value={email}
+                onChange={(event) => setEmail(event.target.value)}
+                placeholder="reviewer@example.org"
+              />
+              <small>Optional. Notifications are sent only when email is configured.</small>
+            </label>
+            <label>
               Temporary password
               <input
                 type="password"
@@ -72,7 +84,7 @@ export function UsersPage() {
             </label>
             <div className="toolbar">
               <button type="submit" disabled={create.isPending}>Create Reviewer</button>
-              <button type="button" onClick={() => setShowCreateForm(false)}>Cancel</button>
+              <button type="button" className="button-secondary" onClick={() => setShowCreateForm(false)}>Cancel</button>
             </div>
           </form>
         </section>
@@ -91,6 +103,7 @@ export function UsersPage() {
             <tr>
               <th scope="col">Display name</th>
               <th scope="col">Username</th>
+              <th scope="col">Email</th>
               <th scope="col">Status</th>
               <th scope="col">Actions</th>
             </tr>
@@ -100,6 +113,7 @@ export function UsersPage() {
               <tr key={user.id}>
                 <td>{user.displayName}</td>
                 <td>{user.username}</td>
+                <td>{user.email || '—'}</td>
                 <td>{user.isActive ? 'active' : 'disabled'}</td>
                 <td>
                   {user.id === session?.user.id ? null : user.isActive ? (

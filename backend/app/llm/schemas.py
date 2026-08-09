@@ -125,3 +125,41 @@ class ExtractionValidationResponse(ApiModel):
     stale: bool = False
     error: str | None = None
     results: list[ValidationResultResponse] = Field(default_factory=list)
+
+
+class ValidationReviewPublication(ApiModel):
+    id: str
+    title: str
+    authors: str | None = None
+    publication_year: int | None = Field(default=None, alias="publicationYear")
+
+
+class ValidationReviewItem(ApiModel):
+    work_item_id: str = Field(alias="workItemId")
+    publication_id: str = Field(alias="publicationId")
+    assigned_reviewer_id: str = Field(alias="assignedReviewerId")
+    response_id: str | None = Field(default=None, alias="responseId")
+    full_text_available: bool = Field(alias="fullTextAvailable")
+    state: str
+    run_id: str | None = Field(default=None, alias="runId")
+    model: str | None = None
+    prompt_version: str | None = Field(default=None, alias="promptVersion")
+    error: str | None = None
+    publication: ValidationReviewPublication
+    results: list[ValidationResultResponse] = Field(default_factory=list)
+
+
+class ValidationProgressResponse(ApiModel):
+    total: int
+    completed: int
+    pending: int
+    failed: int
+    unavailable: int
+    outstanding: int
+    settled: bool
+
+
+class ValidationReviewResponse(ApiModel):
+    enabled: bool
+    progress: ValidationProgressResponse
+    items: list[ValidationReviewItem] = Field(default_factory=list)

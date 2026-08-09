@@ -44,6 +44,16 @@ class Settings(BaseSettings):
     worker_threads: int = 4
     job_poll_interval_seconds: float = 1.0
     job_lease_seconds: int = 300
+    email_enabled: bool = False
+    public_base_url: str = "http://localhost:5173"
+    smtp_host: str | None = None
+    smtp_port: int = 587
+    smtp_username: str | None = None
+    smtp_password: str | None = None
+    smtp_from_address: str | None = None
+    smtp_starttls: bool = True
+    smtp_use_ssl: bool = False
+    smtp_timeout_seconds: int = 30
     llm_enabled: bool = False
     ollama_base_url: str | None = None
     ollama_model: str | None = None
@@ -68,7 +78,19 @@ class Settings(BaseSettings):
             return None
         return value.strip().rstrip("/")
 
-    @field_validator("ollama_model", "ollama_api_key")
+    @field_validator("public_base_url")
+    @classmethod
+    def normalize_public_base_url(cls, value: str) -> str:
+        return value.strip().rstrip("/")
+
+    @field_validator(
+        "ollama_model",
+        "ollama_api_key",
+        "smtp_host",
+        "smtp_username",
+        "smtp_password",
+        "smtp_from_address",
+    )
     @classmethod
     def normalize_optional_llm_string(cls, value: str | None) -> str | None:
         if value is None or not value.strip():
@@ -76,7 +98,26 @@ class Settings(BaseSettings):
         return value.strip()
 
     @model_validator(mode="after")
-    def validate_llm_configuration(self) -> Settings:
+    def validate_external_service_configuration(self) -> Settings:
+        if self.email_enabled and (not self.smtp_host or not self.smtp_from_address):
+            raise ValueError(
+                "PAPERTRAIL_SMTP_HOST and PAPERTRAIL_SMTP_FROM_ADDRESS are required "
+                "when PAPERTRAIL_EMAIL_ENABLED is true"
+            )
+        if self.smtp_starttls and self.smtp_use_ssl:
+            raise ValueError(
+                "PAPERTRAIL_SMTP_STARTTLS and PAPERTRAIL_SMTP_USE_SSL cannot both be true"
+            )
+        if not 1 <= self.smtp_port <= 65535:
+            raise ValueError("PAPERTRAIL_SMTP_PORT must be a valid TCP port")
+        if self.smtp_timeout_seconds < 1:
+            raise ValueError("PAPERTRAIL_SMTP_TIMEOUT_SECONDS must be at least 1")
+        parsed_public_url = urlsplit(self.public_base_url)
+        if (
+            parsed_public_url.scheme not in {"http", "https"}
+            or not parsed_public_url.netloc
+        ):
+            raise ValueError("PAPERTRAIL_PUBLIC_BASE_URL must be an HTTP(S) URL")
         if self.llm_enabled and (not self.ollama_base_url or not self.ollama_model):
             raise ValueError(
                 "PAPERTRAIL_OLLAMA_BASE_URL and PAPERTRAIL_OLLAMA_MODEL are required "
@@ -115,6 +156,6 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     if getenv("PAPERTRAIL_ENV") == "test":
-        return Settings(_env_file=None)
+        return Settings(_env_file=None)  # type: ignore[call-arg]
 
     return Settings()

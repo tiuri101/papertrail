@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { ScreeningLlmPanel } from '../LlmTaskComponents'
 import { jsonResponse, mockFetch } from '../../../test/http'
@@ -18,6 +18,7 @@ describe('ScreeningLlmPanel', () => {
     )
 
     expect(await screen.findByText(/Hidden until you submit your own screening decision/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'LLM assistance' })).toHaveTextContent('✦ LLM assistance')
     expect(screen.queryByText(/LLM suggestion:/)).not.toBeInTheDocument()
   })
 
@@ -44,8 +45,36 @@ describe('ScreeningLlmPanel', () => {
 
     expect(await screen.findByText(/LLM suggestion:/)).toBeInTheDocument()
     expect(screen.getByText(/exclude · medium confidence/)).toBeInTheDocument()
-    expect(screen.getByText(/suggestion differ/)).toBeInTheDocument()
+    expect(screen.getByRole('complementary', { name: /differs from your decision/ })).toHaveClass(
+      'llm-task-panel--mismatch',
+    )
+    expect(screen.queryByText(/suggestion differ/)).not.toBeInTheDocument()
     expect(screen.getByText(/Population is in scope/)).toBeInTheDocument()
+  })
+
+  it('marks a matching title/abstract decision and scrolls the revealed result into view', async () => {
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+    mockFetch(async () => jsonResponse({
+      state: 'ready', hidden: false, runId: 'run-1', stale: false,
+      suggestedDecision: 'include', confidence: 'high',
+      reasoningSummary: 'All criteria are fulfilled.', criteria: [],
+    }))
+    renderWithProviders(
+      <ScreeningLlmPanel
+        projectId="project-1"
+        publicationId="publication-1"
+        itemId="item-1"
+        stage="title_abstract"
+        humanDecision="include"
+      />,
+    )
+
+    const panel = await screen.findByRole('complementary', { name: /matches your decision/ })
+    expect(panel).toHaveClass('llm-task-panel--match')
+    await waitFor(() => {
+      expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' })
+    })
   })
 
   it('shows verified page evidence and a stale warning for full-text assistance', async () => {

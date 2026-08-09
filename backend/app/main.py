@@ -1,9 +1,10 @@
 from __future__ import annotations
 
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from uuid import uuid4
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
@@ -30,7 +31,7 @@ from app.screening.routes import router as screening_router
 
 
 @asynccontextmanager
-async def lifespan(_: FastAPI):
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     settings = get_settings()
     settings.ensure_directories()
     yield
@@ -50,7 +51,9 @@ def create_app() -> FastAPI:
     )
 
     @app.middleware("http")
-    async def request_id(request: Request, call_next):
+    async def request_id(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
         request_id = request.headers.get("X-Request-ID", str(uuid4()))
         response = await call_next(request)
         response.headers["X-Request-ID"] = request_id

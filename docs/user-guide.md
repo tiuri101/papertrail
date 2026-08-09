@@ -2,11 +2,11 @@
 
 Reviewers only see projects in which they are members and activities for which they are eligible. The interface only shows actions you're allowed to take — for example, project setup and administration pages are only visible to that project's owner or an administrator.
 
-Any project member, not just the project owner or administrator, can edit the project's research questions and inclusion/exclusion criteria; document a database search and upload its import file; resolve duplicate candidates; and generate and download exports (PRISMA outputs, the Excel workbook, and BibTeX).
+Any project member can edit the project's research questions and inclusion/exclusion criteria, document a database search and upload its import file, resolve duplicate candidates, and generate and download exports (PRISMA outputs, the Excel workbook, and BibTeX).
 
 ## Search documentation and imports
 
-Record the database, search string, date, and any filters used for each search, and upload the corresponding export file. You may select multiple PDFs and/or a ZIP of PDFs in the same form. After import, review only ambiguous, unmatched, or existing-PDF conflicts; high-confidence DOI and title matches are attached automatically. Unrecognized metadata columns can be mapped to a normalized field before import.
+Record the database, search string, date, and any filters used for each search, and upload the corresponding export file. You may select multiple PDFs and/or multiple ZIP archives of PDFs in the same form. After import, review only ambiguous, unmatched, or existing-PDF conflicts; high-confidence DOI and title matches are attached automatically. Unrecognized metadata columns can be mapped to a normalized field before import.
 
 ## Duplicate review
 
@@ -28,11 +28,15 @@ When a newly retrieved document is marked available, save that retrieval status 
 
 ## LLM assistance
 
-Administrators can independently enable title/abstract suggestions, full-text assistance, extraction suggestions, and post-extraction validation. A title/abstract result is generated independently and is withheld by the server until the assigned reviewer submits their own decision. It is then shown for comparison and cannot change that decision. Full-text assistance assesses each criterion and points to verified passages and physical PDF pages; the reviewer still makes the final decision.
+Administrators can independently enable title/abstract suggestions, full-text assistance, extraction suggestions, and post-extraction validation. A title/abstract result is generated independently as soon as screening work is created and is withheld by the server until the assigned reviewer submits their own decision. The suggestion panel appears below Notes on the same form. After **Submit Decision**, it is revealed and the action changes to **Submit Decision**; the reviewer can change their answers before confirming, but the LLM never changes them automatically. Full-text screening uses the same submit-and-confirm interaction, while its evidence assistance remains visible during review and points to verified passages and physical PDF pages.
 
-In Data Extraction, the assigned reviewer sees each mapped suggestion beside the normal editable field, including explicit/inferred/ambiguous/missing status and verified or unverified page evidence. Existing drafts are never overwritten; apply a suggestion explicitly or enter any different value. LLM-only helper fields are informational and are not submitted or exported. Optional validation checks completed human values as supported, contradicted, uncertain, or not verifiable, without changing them. LLM errors never prevent screening or manual extraction.
+In Data Extraction, the assigned reviewer sees each mapped suggestion beside the normal editable field, including explicit/inferred/ambiguous/missing status and verified or unverified page evidence. Existing drafts are never overwritten; apply a suggestion explicitly or enter any different value. LLM-only helper fields are informational and are not submitted or exported. If optional extraction validation is enabled, it starts only after every paper has been manually extracted. Its progress appears as a separate extraction-stage checklist item. Use **Review LLM Extraction Validation** on the project page to inspect contradicted, uncertain, or unverifiable values and reopen the normal human extraction for correction. Validation never changes reviewer data, and LLM errors never prevent screening or manual extraction.
 
 The normal submitted extraction and exports always use reviewer-controlled values. Papertrail retains the immutable original suggestion separately for audit and evaluation. See [LLM-assisted extraction](llm-assisted-extraction.md) for processing, privacy, and versioning details.
+
+## Email notifications
+
+If the installation administrator enables email and records your address, Papertrail emails you when your account is created and when you are added to or removed from a project. Administrators are notified whenever a new project is created. Project owners also receive a summary after all currently scheduled LLM jobs for a task stage have finished. You can update or clear your address under Account Settings.
 
 ## Extraction and quality assessment
 

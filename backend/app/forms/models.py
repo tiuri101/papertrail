@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import enum
+from typing import Any
 from uuid import uuid4
 
 from sqlalchemy import Boolean, Enum, ForeignKey, Integer, String, UniqueConstraint
@@ -84,8 +85,10 @@ class FormField(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     field_type: Mapped[FieldType] = mapped_column(Enum(FieldType), nullable=False)
     required: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     position: Mapped[int] = mapped_column(Integer, nullable=False)
-    options: Mapped[list] = mapped_column(JSONType, default=list, nullable=False)
-    scoring: Mapped[dict] = mapped_column(JSONType, default=dict, nullable=False)
+    options: Mapped[list[Any]] = mapped_column(JSONType, default=list, nullable=False)
+    scoring: Mapped[dict[str, Any]] = mapped_column(
+        JSONType, default=dict, nullable=False
+    )
     is_archived: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
     version: Mapped[FormVersion] = relationship(back_populates="fields")

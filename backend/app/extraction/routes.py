@@ -1,12 +1,19 @@
+from typing import Any
+
 from fastapi import APIRouter, Depends
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.accounts.dependencies import require_csrf
+from app.accounts.dependencies import get_current_user, require_csrf
 from app.accounts.models import User, UserSession
-from app.api.errors import NotFoundError
+from app.api.errors import ForbiddenError, NotFoundError
 from app.audit.service import record_audit
 from app.db.session import get_db
-from app.extraction.models import ExtractionWorkItem
+from app.extraction.models import (
+    ExtractionResponse,
+    ExtractionStatus,
+    ExtractionWorkItem,
+)
 from app.extraction.schemas import (
     ExtractionDraftUpdate,
     ExtractionItemResponse,
@@ -23,24 +30,68 @@ from app.extraction.service import (
 )
 from app.fulltext.documents import active_document
 from app.projects.dependencies import require_project_manager_csrf
-from app.projects.service import require_project_access
+from app.projects.models import ProjectMembership
+from app.projects.service import (
+    is_project_manager,
+    require_project_access,
+)
 from app.publications.models import Publication
 
 router = APIRouter(tags=["extraction"])
 
 
-def extraction_item_payload(db: Session, item: ExtractionWorkItem) -> dict:
+def extraction_item_payload(
+    db: Session, item: ExtractionWorkItem, *, include_response: bool = False
+) -> dict[str, Any]:
     form = project_form(db, item.project_id)
+    response = None
+    if include_response:
+        response = db.scalar(
+            select(ExtractionResponse)
+            .where(
+                ExtractionResponse.work_item_id == item.id,
+                ExtractionResponse.is_current.is_(True),
+            )
+            .order_by(ExtractionResponse.created_at.desc())
+        )
     return {
         "id": item.id,
         "publication_id": item.publication_id,
         "full_text_available": active_document(db, item.publication_id) is not None,
         "assigned_reviewer_id": item.assigned_reviewer_id,
         "status": item.status,
-        "draft": item.draft,
+        "draft": response.answers if response is not None else item.draft,
         "publication": db.get(Publication, item.publication_id),
         "fields": active_fields(db, form) if form else [],
+        "current_response": response,
     }
+
+
+@router.get(
+    "/projects/{project_id}/extraction/{item_id}",
+    response_model=ExtractionItemResponse,
+)
+def get_extraction_for_review(
+    project_id: str,
+    item_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    require_project_access(db, project_id, user)
+    item = db.get(ExtractionWorkItem, item_id)
+    if item is None or item.project_id != project_id:
+        raise NotFoundError("Extraction work item not found")
+    if not is_project_manager(db, project_id, user):
+        membership = db.scalar(
+            select(ProjectMembership).where(
+                ProjectMembership.project_id == project_id,
+                ProjectMembership.user_id == user.id,
+                ProjectMembership.can_extract.is_(True),
+            )
+        )
+        if membership is None or item.assigned_reviewer_id != user.id:
+            raise ForbiddenError("Extraction is assigned to another reviewer")
+    return extraction_item_payload(db, item, include_response=True)
 
 
 @router.post(
@@ -51,7 +102,7 @@ def next_extraction(
     project_id: str,
     session: UserSession = Depends(require_csrf),
     db: Session = Depends(get_db),
-):
+) -> dict[str, Any] | None:
     require_project_access(db, project_id, session.user)
     reassign_work_items_from_ineligible_reviewers(db, project_id)
     item = claim_next_extraction(db, project_id, session.user.id)
@@ -66,7 +117,7 @@ def update_extraction_draft(
     payload: ExtractionDraftUpdate,
     session: UserSession = Depends(require_csrf),
     db: Session = Depends(get_db),
-):
+) -> dict[str, Any]:
     item = db.get(ExtractionWorkItem, item_id)
     if item is None or item.project_id != project_id:
         raise NotFoundError("Extraction work item not found")
@@ -85,7 +136,7 @@ def complete_extraction(
     payload: ExtractionSubmit,
     session: UserSession = Depends(require_csrf),
     db: Session = Depends(get_db),
-):
+) -> ExtractionResponse:
     item = db.get(ExtractionWorkItem, item_id)
     if item is None or item.project_id != project_id:
         raise NotFoundError("Extraction work item not found")
@@ -120,11 +171,11 @@ def reopen_extraction(
     item_id: str,
     admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
-):
+) -> dict[str, Any]:
     item = db.get(ExtractionWorkItem, item_id)
     if item is None or item.project_id != project_id:
         raise NotFoundError("Extraction work item not found")
-    item.status = "available"
+    item.status = ExtractionStatus.AVAILABLE
     item.completed_at = None
     item.reserved_until = None
     record_audit(

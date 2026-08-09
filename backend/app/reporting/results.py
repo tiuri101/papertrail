@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -16,10 +18,13 @@ from app.quality.service import quality_form
 
 
 def _user_names(db: Session) -> dict[str, str]:
-    return dict(db.execute(select(User.id, User.display_name)).all())
+    return {
+        row.id: row.display_name
+        for row in db.execute(select(User.id, User.display_name))
+    }
 
 
-def _field_meta(fields: list[FormField]) -> list[dict]:
+def _field_meta(fields: list[FormField]) -> list[dict[str, Any]]:
     return [
         {
             "stableKey": field.stable_key,
@@ -30,7 +35,7 @@ def _field_meta(fields: list[FormField]) -> list[dict]:
     ]
 
 
-def build_final_results(db: Session, project_id: str) -> dict:
+def build_final_results(db: Session, project_id: str) -> dict[str, Any]:
     publication_ids = included_publication_ids(db, project_id)
     publications = list(
         db.scalars(
@@ -110,13 +115,15 @@ def build_final_results(db: Session, project_id: str) -> dict:
         if quality_enabled:
             quality_item = quality_items.get(publication.id)
             if quality_item is not None:
-                response = quality_responses.get(quality_item.id)
+                quality_response = quality_responses.get(quality_item.id)
                 quality_payload = {
                     "status": quality_item.status,
                     "completedAt": quality_item.completed_at,
                     "reviewerName": user_names.get(quality_item.assigned_reviewer_id),
-                    "totalScore": response.total_score if response else None,
-                    "answers": response.answers if response else {},
+                    "totalScore": (
+                        quality_response.total_score if quality_response else None
+                    ),
+                    "answers": quality_response.answers if quality_response else {},
                 }
 
         items.append(

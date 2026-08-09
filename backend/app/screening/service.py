@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import hashlib
 from datetime import UTC, datetime, timedelta
+from typing import Any
+from uuid import uuid4
 
 from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session, joinedload, selectinload
@@ -93,6 +95,7 @@ def create_screening_work_items(
         query = query.where(Publication.id.in_(publication_ids))
     publications = list(db.scalars(query.order_by(Publication.id)))
     created = 0
+    newly_eligible_publication_ids: set[str] = set()
     for publication_index, publication in enumerate(publications):
         rank = rank_for(project, publication.id, stage)
         for slot in range(config.required_reviewers):
@@ -119,7 +122,20 @@ def create_screening_work_items(
                 )
             )
             created += 1
+            newly_eligible_publication_ids.add(publication.id)
     db.flush()
+    if stage == ScreeningStage.TITLE_ABSTRACT:
+        # Precompute suggestions as soon as publications enter screening. The
+        # result endpoint still enforces the independent-decision reveal gate.
+        # Queueing once per publication (rather than per reviewer slot) also
+        # avoids duplicate inference when a project uses dual screening.
+        from app.llm.task_service import queue_title_abstract_suggestion
+
+        bulk_id = str(uuid4())
+        for publication_id in newly_eligible_publication_ids:
+            queue_title_abstract_suggestion(
+                db, publication_id, priority=0, bulk_id=bulk_id
+            )
     return created
 
 
@@ -186,6 +202,30 @@ def reassign_work_item(
     item.reserved_until = None
     db.flush()
     return item
+
+
+def bulk_reassign_work_items(
+    db: Session, items: list[ScreeningWorkItem], reviewer_id: str
+) -> int:
+    """Reassign a validated collection with a single eligibility lookup."""
+    if not items:
+        return 0
+    project_id = items[0].project_id
+    stage = items[0].stage
+    if any(item.project_id != project_id or item.stage != stage for item in items):
+        raise DomainError("Bulk reassignment must contain one project and stage")
+    if any(item.status == WorkItemStatus.SUBMITTED for item in items):
+        raise DomainError("Submitted work items can't be reassigned")
+    if reviewer_id not in eligible_reviewer_ids(db, project_id, stage):
+        raise DomainError("That reviewer isn't eligible for this stage on this project")
+
+    for item in items:
+        item.assigned_reviewer_id = reviewer_id
+        item.status = WorkItemStatus.AVAILABLE
+        item.reserved_by_id = None
+        item.reserved_until = None
+    db.flush()
+    return len(items)
 
 
 def claim_next_work_item(
@@ -276,7 +316,9 @@ def release_work_item(item: ScreeningWorkItem, reviewer_id: str) -> None:
     item.reserved_until = None
 
 
-def save_draft(item: ScreeningWorkItem, reviewer_id: str, draft: dict) -> None:
+def save_draft(
+    item: ScreeningWorkItem, reviewer_id: str, draft: dict[str, Any]
+) -> None:
     if item.reserved_by_id != reviewer_id or item.status == WorkItemStatus.SUBMITTED:
         raise ForbiddenError("This work item cannot be edited")
     item.draft = draft

@@ -4,6 +4,8 @@ import { afterEach } from 'vitest'
 
 import { setCsrfToken } from '../features/auth/session'
 
+window.scrollTo = () => {}
+
 afterEach(() => {
   cleanup()
   setCsrfToken(null)

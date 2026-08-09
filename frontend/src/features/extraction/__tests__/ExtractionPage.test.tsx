@@ -64,7 +64,7 @@ describe('ExtractionPage', () => {
     expect(screen.getByRole('button', { name: 'Submit Extraction' })).toBeEnabled()
   })
 
-  it('submits human answers, then continues after optional validation', async () => {
+  it('submits human answers and immediately advances without per-paper validation', async () => {
     const fetchMock = mockFetch(async (input, init) => {
       const path = String(input)
       if (path.endsWith('/next') && init?.method === 'POST') return jsonResponse(workItem)
@@ -86,11 +86,13 @@ describe('ExtractionPage', () => {
         suggestionActions: { finding: 'manual', sampleSize: 'manual' },
       })
     })
-    fireEvent.click(await screen.findByRole('button', { name: 'Continue to next paper' }))
+    expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith('/llm-validation'))).toBe(false)
     await waitFor(() => {
       const nextCalls = fetchMock.mock.calls.filter(([input, init]) => String(input).endsWith('/next') && init?.method === 'POST')
       expect(nextCalls).toHaveLength(2)
     })
+    expect(screen.queryByText('Extraction saved')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Continue to next paper' })).not.toBeInTheDocument()
   })
 
   it('reports that no extraction work is currently available', async () => {
@@ -226,14 +228,18 @@ describe('ExtractionPage', () => {
   })
 
   it('shows extraction validation without changing the human values', async () => {
-    mockFetch(async (input, init) => {
+    mockFetch(async (input) => {
       const path = String(input)
-      if (path.endsWith('/next')) return jsonResponse(workItem)
-      if (path.endsWith('/extraction/extraction-1') && init?.method === 'POST') {
+      if (path.endsWith('/extraction/extraction-1')) {
         return jsonResponse({
-          id: 'response-1', answers: { finding: 'Human finding' },
-          version: 1, formVersionId: 'v1',
-        }, 201)
+          ...workItem,
+          status: 'completed',
+          draft: { finding: 'Human finding' },
+          currentResponse: {
+            id: 'response-1', answers: { finding: 'Human finding' },
+            version: 1, formVersionId: 'v1',
+          },
+        })
       }
       if (path.endsWith('/llm-validation')) return jsonResponse({
         state: 'ready', runId: 'validation-1', responseId: 'response-1',
@@ -248,15 +254,19 @@ describe('ExtractionPage', () => {
       })
       return jsonResponse({})
     })
-    renderWithProviders(<ExtractionPage />, { route: '/projects/p1/extraction', path: '/projects/:projectId/extraction' })
-
-    fireEvent.change(await screen.findByLabelText('Main finding *'), { target: { value: 'Human finding' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Submit Extraction' }))
+    renderWithProviders(<ExtractionPage />, {
+      route: '/projects/p1/extraction/review/extraction-1',
+      path: '/projects/:projectId/extraction/review/:itemId',
+    })
 
     expect(await screen.findByText(/1 contradicted/)).toBeInTheDocument()
     expect(screen.getByText(/Validation: contradicted/)).toBeInTheDocument()
     expect(screen.getByLabelText('Main finding *')).toHaveValue('Human finding')
     expect(screen.getByRole('link', { name: 'Open PDF at page 8' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Back to validation review' })).toHaveAttribute(
+      'href',
+      '/projects/p1/extraction/validation',
+    )
   })
 
   it('keeps manual extraction usable when LLM processing fails', async () => {

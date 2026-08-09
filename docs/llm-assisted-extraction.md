@@ -1,6 +1,6 @@
 # LLM-assisted screening and data extraction
 
-Papertrail can prepare structured screening assistance, evidence-backed extraction suggestions, and optional validation of completed human extractions with an external Ollama server. Ollama is a separate service: Papertrail does not install, start, expose, or pull models for it, and browsers never connect to it directly.
+Papertrail can prepare structured screening assistance, evidence-backed extraction suggestions, and optional validation of completed human extractions with an external Ollama server.
 
 > LLM suggestions are not authoritative review data. Human reviewers remain responsible for every screening decision and final extraction.
 
@@ -8,7 +8,7 @@ Papertrail can prepare structured screening assistance, evidence-backed extracti
 
 The normal PostgreSQL-backed worker extracts text from each eligible active PDF with `pypdf`, preserving physical PDF page numbers. A dedicated LLM worker uses the same job table but claims only Ollama inference jobs, which limits GPU concurrency independently from ordinary jobs. Text, immutable runs, validated suggestions, evidence-verification results, runtime metrics, and reviewer-versus-suggestion provenance are stored in PostgreSQL. PDF binaries remain in `papertrail_pdf_data`.
 
-Title/abstract suggestions use bibliographic metadata and project criteria and can be prepared as soon as title/abstract work exists. Full-text assistance, extraction suggestions, and validation require page-aware PDF text. Expensive PDF processing starts only when all of these are true:
+Title/abstract suggestions use bibliographic metadata and project criteria and are queued when title/abstract work items are created, before a reviewer opens or decides a paper. Opening a paper promotes its queued job so the result is more likely to be ready immediately after the independent human decision. The API still returns only a redacted `hidden` state until that reviewer submits a current decision. Full-text assistance, extraction suggestions, and validation require page-aware PDF text. Expensive PDF processing starts only when all of these are true:
 
 - installation-level LLM support is enabled;
 - the project has enabled at least one relevant full-text capability;
@@ -16,7 +16,7 @@ Title/abstract suggestions use bibliographic metadata and project criteria and c
 - an active PDF exists;
 - the publication has not been excluded at full text.
 
-An early bulk-imported PDF therefore remains idle until title/abstract inclusion. If the publication was already included, uploading or replacing its PDF queues processing immediately. Queued full-text inference is cancelled when practical after full-text exclusion; completed historical processing is retained. LLM work never changes screening, conflict, PRISMA, quality, or project decisions.
+An early bulk-imported PDF therefore remains idle until title/abstract inclusion. If the publication was already included, uploading or replacing its PDF queues processing immediately. Queued full-text inference is cancelled when practical after full-text exclusion; completed historical processing is retained.
 
 Projects control title/abstract suggestions, full-text screening assistance, data extraction, and extraction validation independently. New capabilities default to disabled for existing projects.
 
@@ -61,7 +61,7 @@ Evidence is limited to short quotes and a small number of items. Every quote is 
 
 ### Title/abstract screening
 
-Papertrail may prepare a structured include/exclude/uncertain suggestion before the reviewer screens the record, but the result is withheld by the backend until that assigned reviewer has submitted a current decision. The model never receives that human decision. After submission, the page shows the two decisions separately, confidence as an uncalibrated low/medium/high category, and criterion-level assessments. A disagreement is informational and does not reopen or change the human decision.
+Papertrail may prepare a structured include/exclude/uncertain suggestion before the reviewer screens the record, but the result is withheld by the backend until that assigned reviewer has submitted a current decision. The model never receives that human decision. The hidden panel sits below Notes on the screening form. After the first submission, the same form remains open, reveals the comparison, and keeps its action labeled **Submit Decision**. The reviewer can adjust any answer before confirming; changed values create a normal versioned revision, while an unchanged confirmation advances without another write. Full-text screening uses the same confirmation interaction, although its evidence assistance remains visible before submission because it is intended to help locate eligibility evidence. Confidence remains an uncalibrated low/medium/high category, and a disagreement never changes the human decision automatically.
 
 ### Full-text screening
 
@@ -69,13 +69,13 @@ For active PDFs with usable text, the full-text screen shows criterion-by-criter
 
 ### Data extraction
 
-Suggestions appear beside their mapped controls in Data Extraction, not as a separate approval phase. Existing drafts always take precedence and late results never overwrite reviewer work. Reviewers can apply/reset a suggestion, freely edit or replace it, inspect evidence, and open the authenticated PDF with a page fragment. Missing, ambiguous, inferred, processing, unavailable, failed, and outdated states are explicit. Helper fields appear in a secondary panel and never enter the official response.
+Suggestions appear beside their mapped controls in Data Extraction. Existing drafts always take precedence and late results never overwrite reviewer work. Reviewers can apply/reset a suggestion, freely edit or replace it, inspect evidence, and open the authenticated PDF with a page fragment. Missing, ambiguous, inferred, processing, unavailable, failed, and outdated states are explicit. Helper fields appear in a secondary panel and never enter the official response.
 
 Submitting uses the normal extraction validation, revision, autosave, and export paths. The original validated LLM result remains immutable. Papertrail automatically stores whether each final reviewer value accepted, modified, replaced, or did not use a suggestion. Standard exports continue to contain reviewer-controlled values only.
 
 ### Optional extraction validation
 
-When enabled, submitting a human extraction asynchronously queues a separate validation task. It assesses each submitted human value as `supported`, `contradicted`, `uncertain`, or `not_verifiable`, with the same source-verified evidence. It never supplies replacement values or edits the extraction. Reviewers may correct and resubmit normally; the prior validation then becomes stale and a new enabled validation is queued. Ollama failure never blocks submission.
+When enabled, validation waits until every included publication has been manually extracted. Submitting the final human extraction queues the project validation cohort; Papertrail does not run validation after each individual paper. Each task assesses the submitted human values as `supported`, `contradicted`, `uncertain`, or `not_verifiable`, with the same source-verified evidence. It never supplies replacement values or edits the extraction. The extraction-stage checklist tracks cohort completion, and the project page provides **Review LLM Extraction Validation** for revisiting contradicted, uncertain, and unverifiable fields. Reviewers can open the original extraction, correct it through the normal revision path, and receive a validation run for the new response. Ollama failure never blocks submission; failed or text-unavailable validations remain visible in the review overview.
 
 Production prompt identifiers are versioned in backend code (`title_abstract_screening_v1`, `full_text_screening_v1`, `data_extraction_v2`, and `extraction_validation_v1`). Input fingerprints include the relevant metadata, criteria, document/text version, schema, human response, model, and prompt version, so changed inputs are reported as stale rather than silently reused.
 Each immutable run also records its provider, configured model, and non-secret generation configuration (temperature, thinking mode, and context length).

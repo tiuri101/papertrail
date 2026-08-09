@@ -1,6 +1,6 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
@@ -23,6 +23,7 @@ interface WorkItem {
   draft: Record<string, unknown>
   publication: PublicationSummary
   fields: DynamicFormField[]
+  currentResponse: ExtractionResponse | null
 }
 
 interface Evidence {
@@ -90,7 +91,7 @@ function isAnswered(value: unknown): boolean {
 }
 
 export function ExtractionPage() {
-  const { projectId = '' } = useParams()
+  const { projectId = '', itemId } = useParams()
   const [item, setItem] = useState<WorkItem | null>(null)
   const [answers, setAnswers] = useState<Record<string, unknown>>({})
   const [queueEmpty, setQueueEmpty] = useState(false)
@@ -117,16 +118,20 @@ export function ExtractionPage() {
   })
 
   const next = useMutation({
-    mutationFn: () => apiRequest<WorkItem | null>(
-      `/api/v1/projects/${projectId}/extraction/next`,
-      { method: 'POST' },
+    mutationFn: () => (
+      itemId
+        ? apiRequest<WorkItem>(`/api/v1/projects/${projectId}/extraction/${itemId}`)
+        : apiRequest<WorkItem | null>(
+          `/api/v1/projects/${projectId}/extraction/next`,
+          { method: 'POST' },
+        )
     ),
     onSuccess: (result) => {
       setItem(result)
       setAnswers(result?.draft ?? {})
       setSuggestionActions({})
-      setCompletedResponse(null)
-      setQueueEmpty(result === null)
+      setCompletedResponse(result?.currentResponse ?? null)
+      setQueueEmpty(!itemId && result === null)
       setLoadingNext(false)
     },
     onError: (error) => {
@@ -144,12 +149,13 @@ export function ExtractionPage() {
 
   const autoFetchKey = useRef<string | null>(null)
   useEffect(() => {
-    if (autoFetchKey.current !== projectId) {
-      autoFetchKey.current = projectId
+    const key = `${projectId}:${itemId ?? 'next'}`
+    if (autoFetchKey.current !== key) {
+      autoFetchKey.current = key
       fetchNext()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId])
+  }, [projectId, itemId])
 
   const submit = useMutation({
     mutationFn: () => {
@@ -166,7 +172,15 @@ export function ExtractionPage() {
       )
     },
     onSuccess: (response) => {
-      setCompletedResponse(response)
+      if (itemId) {
+        setCompletedResponse(response)
+        return
+      }
+      setItem(null)
+      setAnswers({})
+      setSuggestionActions({})
+      setCompletedResponse(null)
+      fetchNext()
     },
   })
 
@@ -175,19 +189,11 @@ export function ExtractionPage() {
     queryFn: () => apiRequest<ValidationAssistance>(
       `/api/v1/projects/${projectId}/extraction/${item?.id}/llm-validation`,
     ),
-    enabled: Boolean(item?.id && completedResponse),
+    enabled: Boolean(item?.id && completedResponse && itemId),
     refetchInterval: (query) => (
       ['pending', 'queued', 'processing'].includes(query.state.data?.state ?? '') ? 5000 : false
     ),
   })
-  const runValidation = useMutation({
-    mutationFn: (force: boolean) => apiRequest(
-      `/api/v1/projects/${projectId}/extraction/${item?.id}/llm-validation`,
-      { method: 'POST', body: JSON.stringify({ force }) },
-    ),
-    onSuccess: () => validation.refetch(),
-  })
-
   useEffect(() => {
     if (!item || completedResponse) return
     const timer = setTimeout(() => {
@@ -246,7 +252,7 @@ export function ExtractionPage() {
             <p><code>{JSON.stringify(suggestion.value)}</code></p>
             <button
               type="button"
-              className="secondary"
+              className="button-secondary"
               onClick={() => {
                 setAnswers((values) => ({
                   ...values, [field.stableKey]: suggestion.value,
@@ -260,7 +266,7 @@ export function ExtractionPage() {
             </button>
             <button
               type="button"
-              className="secondary"
+              className="button-secondary"
               onClick={() => setSuggestionActions((actions) => ({
                 ...actions, [field.stableKey]: 'ignored',
               }))}
@@ -361,12 +367,12 @@ export function ExtractionPage() {
           ) : null}
           {assistance.data?.outdated ? <p className="muted">LLM result uses an older schema version.</p> : null}
           {assistance.data && ['unavailable', 'failed', 'cancelled'].includes(assistance.data.state) ? (
-            <button type="button" className="secondary" onClick={() => runLlm.mutate(assistance.data?.state === 'failed')} disabled={runLlm.isPending}>
+            <button type="button" className="button-secondary" onClick={() => runLlm.mutate(assistance.data?.state === 'failed')} disabled={runLlm.isPending}>
               {runLlm.isPending ? 'Queueing…' : assistance.data.state === 'failed' ? 'Re-run LLM extraction' : 'Run LLM extraction'}
             </button>
           ) : null}
           {assistance.data?.outdated ? (
-            <button type="button" className="secondary" onClick={() => runLlm.mutate(true)} disabled={runLlm.isPending}>Re-run with current schema</button>
+            <button type="button" className="button-secondary" onClick={() => runLlm.mutate(true)} disabled={runLlm.isPending}>Re-run with current schema</button>
           ) : null}
           {runLlm.error ? <p className="error" role="alert">{runLlm.error.message}</p> : null}
           <form onSubmit={(event) => { event.preventDefault(); submit.mutate() }}>
@@ -400,7 +406,7 @@ export function ExtractionPage() {
             <button type="submit" disabled={submit.isPending || missingRequired}>
               {completedResponse ? 'Save corrected extraction' : 'Submit Extraction'}
             </button>
-            {completedResponse ? (
+            {completedResponse && itemId ? (
               <section className="llm-validation-summary" aria-label="Extraction validation">
                 <h3>LLM extraction validation</h3>
                 {validation.isLoading ? <p>Checking validation status…</p> : null}
@@ -418,34 +424,12 @@ export function ExtractionPage() {
                     {validationCounts.not_verifiable ?? 0} not verifiable
                   </p>
                 ) : null}
-                {validation.data?.state === 'disabled' ? (
-                  <p className="muted">Automatic validation is disabled for this project.</p>
-                ) : null}
                 {validation.data?.state === 'failed' ? (
                   <p className="error">{validation.data.error ?? 'Validation failed.'}</p>
                 ) : null}
-                {runValidation.error ? <p className="error">{runValidation.error.message}</p> : null}
-                <div className="toolbar">
-                  <button
-                    type="button"
-                    className="secondary"
-                    onClick={() => runValidation.mutate(Boolean(validation.data?.runId))}
-                    disabled={runValidation.isPending}
-                  >
-                    {validation.data?.runId ? 'Re-run validation' : 'Validate extraction'}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setItem(null)
-                      setAnswers({})
-                      setCompletedResponse(null)
-                      fetchNext()
-                    }}
-                  >
-                    Continue to next paper
-                  </button>
-                </div>
+                <Link to={`/projects/${projectId}/extraction/validation`}>
+                  Back to validation review
+                </Link>
               </section>
             ) : null}
           </form>

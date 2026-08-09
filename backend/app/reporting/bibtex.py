@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -46,7 +47,7 @@ def publications_for_scope(
     db: Session,
     project_id: str,
     scope: str,
-    status_filter: dict | None = None,
+    status_filter: dict[str, Any] | None = None,
 ) -> list[Publication]:
     if scope not in SCOPES:
         raise ValueError(f"Unsupported BibTeX export scope: {scope}")
@@ -96,7 +97,7 @@ def build_bibtex(
     db: Session,
     project_id: str,
     scope: str = "included",
-    status_filter: dict | None = None,
+    status_filter: dict[str, Any] | None = None,
 ) -> str:
     entries: list[str] = []
     used: set[str] = set()

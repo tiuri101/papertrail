@@ -30,7 +30,7 @@ def mark_project_ready(
     project_id: str,
     admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
-):
+) -> dict[str, str]:
     from app.projects.checklist import project_checklist
 
     project = get_project(db, project_id)
@@ -73,7 +73,7 @@ def list_candidates(
     project_id: str,
     _: User = Depends(require_project_member_csrf),
     db: Session = Depends(get_db),
-):
+) -> list[DuplicateCandidate]:
     return list(
         db.scalars(
             select(DuplicateCandidate)
@@ -97,7 +97,7 @@ def resolve_not_duplicate(
     payload: ResolutionNote,
     admin: User = Depends(require_project_member_csrf),
     db: Session = Depends(get_db),
-):
+) -> DuplicateCandidate:
     candidate = db.get(DuplicateCandidate, candidate_id)
     if candidate is None or candidate.project_id != project_id:
         raise NotFoundError("Duplicate candidate not found")
@@ -123,7 +123,7 @@ def resolve_merge(
     payload: MergeRequest,
     admin: User = Depends(require_project_member_csrf),
     db: Session = Depends(get_db),
-):
+) -> dict[str, str]:
     candidate = db.get(DuplicateCandidate, candidate_id)
     if candidate is None or candidate.project_id != project_id:
         raise NotFoundError("Duplicate candidate not found")
@@ -157,7 +157,7 @@ def undo_merge(
     merge_id: str,
     admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
-):
+) -> dict[str, str]:
     merge = db.get(PublicationMerge, merge_id)
     if merge is None or merge.project_id != project_id:
         raise NotFoundError("Merge not found")

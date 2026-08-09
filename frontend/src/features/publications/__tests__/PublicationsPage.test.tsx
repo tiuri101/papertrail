@@ -10,7 +10,7 @@ const publications = [
     id: 'publication-1',
     title: 'Urban Data in VR',
     authors: 'A. Author',
-    abstract: null,
+    abstract: 'A compact abstract for the immersive analytics study.',
     publicationYear: 2025,
     venue: null,
     publicationType: null,
@@ -59,6 +59,16 @@ describe('PublicationsPage', () => {
     expect(noDoiCard).toHaveTextContent('Unknown authors')
 
     expect(screen.getByText('2 publications in this project')).toBeInTheDocument()
+
+    const publicationCard = screen.getByText('Urban Data in VR').closest('li') as HTMLElement
+    const abstract = within(publicationCard).getByText('Abstract').closest('details') as HTMLDetailsElement
+    expect(abstract).not.toHaveAttribute('open')
+    expect(within(abstract).getByText('A compact abstract for the immersive analytics study.')).toBeInTheDocument()
+    fireEvent.click(within(abstract).getByText('Abstract'))
+    expect(abstract).toHaveAttribute('open')
+
+    const noAbstractCard = screen.getByText('Paper without DOI').closest('li') as HTMLElement
+    expect(within(noAbstractCard).getByText('No abstract available.')).toBeInTheDocument()
   })
 
   it('hides the multi-select checkbox and management controls from regular users', async () => {
@@ -168,7 +178,11 @@ describe('PublicationsPage', () => {
     await screen.findByText('Urban Data in VR')
     expect(screen.getByRole('button', { name: 'Enrich Selected (0)' })).toBeDisabled()
 
-    fireEvent.click(screen.getByLabelText('Select Urban Data in VR'))
+    const checkbox = screen.getByLabelText('Select Urban Data in VR')
+    const card = screen.getByText('Urban Data in VR').closest('li') as HTMLElement
+    expect(checkbox.compareDocumentPosition(screen.getByText('Urban Data in VR')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    fireEvent.click(checkbox)
+    expect(card).toHaveClass('publication-card--selected')
     fireEvent.click(screen.getByRole('button', { name: 'Enrich Selected (1)' }))
 
     await waitFor(() => {

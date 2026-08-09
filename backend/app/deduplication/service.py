@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from datetime import UTC, datetime
 from itertools import combinations
+from typing import Any
 
 from rapidfuzz.fuzz import ratio
 from sqlalchemy import func, select
@@ -162,7 +163,7 @@ def detect_duplicates(db: Session, project_id: str) -> int:
     return created
 
 
-def snapshot(publication: Publication) -> dict:
+def snapshot(publication: Publication) -> dict[str, Any]:
     return {field: getattr(publication, field) for field in MERGE_FIELDS} | {
         "is_active": publication.is_active,
         "merged_into_id": publication.merged_into_id,

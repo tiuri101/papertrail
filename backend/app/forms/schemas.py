@@ -1,3 +1,5 @@
+from typing import Any
+
 from pydantic import BaseModel, ConfigDict, Field
 
 
@@ -17,8 +19,8 @@ class FieldCreate(ApiModel):
     label: str
     field_type: str = Field(alias="fieldType")
     required: bool = False
-    options: list = []
-    scoring: dict = {}
+    options: list[Any] = []
+    scoring: dict[str, Any] = {}
 
 
 class FieldResponse(ApiModel):
@@ -28,8 +30,8 @@ class FieldResponse(ApiModel):
     field_type: str = Field(serialization_alias="fieldType")
     required: bool
     position: int
-    options: list
-    scoring: dict
+    options: list[Any]
+    scoring: dict[str, Any]
     is_archived: bool = Field(serialization_alias="isArchived")
 
 
@@ -55,5 +57,5 @@ class FieldReplace(ApiModel):
     field_type: str = Field(alias="fieldType")
     label: str | None = None
     required: bool = False
-    options: list = []
-    scoring: dict = {}
+    options: list[Any] = []
+    scoring: dict[str, Any] = {}

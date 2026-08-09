@@ -146,6 +146,26 @@ def test_save_draft_persists_in_progress_answers(db) -> None:
         save_draft(item, r1.id, {required.stable_key: "Too late"})
 
 
+def test_claim_next_extraction_resumes_reviewers_existing_reservation(db) -> None:
+    project, _, _, _, _, r1, _ = setup_extraction(db)
+    initialize_extraction(db, project)
+    db.commit()
+
+    first = claim_next_extraction(db, project.id, r1.id)
+    assert first is not None
+    first_reservation = first.reserved_until
+    db.commit()
+
+    resumed = claim_next_extraction(db, project.id, r1.id)
+
+    assert resumed is not None
+    assert resumed.id == first.id
+    assert resumed.status == ExtractionStatus.RESERVED
+    assert resumed.reserved_until is not None
+    assert first_reservation is not None
+    assert resumed.reserved_until >= first_reservation
+
+
 def test_new_required_field_reopens_completed_extractions(db) -> None:
     project, form, required, _, _, r1, _ = setup_extraction(db)
     initialize_extraction(db, project)
@@ -301,3 +321,10 @@ def test_next_extraction_endpoint_returns_the_publication_and_active_fields(
         required.stable_key,
         optional.stable_key,
     }
+
+    resumed_response = client.post(
+        f"/api/v1/projects/{project.id}/extraction/next",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert resumed_response.status_code == 200
+    assert resumed_response.json()["id"] == body["id"]

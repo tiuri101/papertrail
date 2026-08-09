@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import { ProjectLifecyclePanel } from '../ProjectLifecyclePanel'
@@ -15,10 +15,18 @@ describe('ProjectLifecyclePanel', () => {
     renderWithProviders(<ProjectLifecyclePanel projectId="p1" />)
 
     expect(await screen.findByText('Two duplicate candidates remain.')).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Reopen Project' })).toBeInTheDocument()
+    const integritySection = screen.getByRole('heading', { name: 'Workflow Integrity' }).closest('section')
+    const reopenSection = screen.getByRole('heading', { name: 'Reopen Project' }).closest('section')
+    expect(integritySection).toHaveClass('card')
+    expect(reopenSection).toHaveClass('card')
+    expect(reopenSection).not.toBe(integritySection)
     expect(screen.getByRole('option', { name: 'Duplicate Review' })).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Move back to'), { target: { value: 'duplicate_review' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Reopen Project' }))
+    const reopenButtons = within(reopenSection as HTMLElement).getAllByRole(
+      'button',
+      { name: 'Reopen Project' },
+    )
+    fireEvent.click(reopenButtons.find((button) => !button.hasAttribute('aria-expanded'))!)
 
     await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(true))
     const call = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')
@@ -44,7 +52,13 @@ describe('ProjectLifecyclePanel', () => {
     })
     renderWithProviders(<ProjectLifecyclePanel projectId="p1" />)
 
-    expect(await screen.findByRole('heading', { name: 'Move Project Back' })).toBeInTheDocument()
+    const moveBackSection = (await screen.findByRole('heading', { name: 'Move Project Back' }))
+      .closest('section')
+    const integritySection = screen.getByRole('heading', { name: 'Workflow Integrity' })
+      .closest('section')
+    expect(moveBackSection).toHaveClass('card')
+    expect(integritySection).toHaveClass('card')
+    expect(moveBackSection).not.toBe(integritySection)
     expect(screen.getByRole('option', { name: 'Duplicate Review' })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'Title Abstract Screening' })).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: 'Extraction Quality' })).not.toBeInTheDocument()

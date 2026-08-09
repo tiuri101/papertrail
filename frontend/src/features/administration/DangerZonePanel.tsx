@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { ConfirmButton } from '../../components/ConfirmButton'
 
 export function DangerZonePanel({ projectId }: { projectId: string }) {
@@ -29,8 +30,7 @@ export function DangerZonePanel({ projectId }: { projectId: string }) {
   const mutationError = reset.error ?? deleteProject.error
 
   return (
-    <section className="card danger-zone">
-      <h2>Danger Zone</h2>
+    <CollapsibleSection id="section-danger-zone" title="Danger Zone" className="danger-zone">
       {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
       {reset.isSuccess ? <p>Project has been reset to draft.</p> : null}
       <div className="toolbar">
@@ -45,12 +45,12 @@ export function DangerZonePanel({ projectId }: { projectId: string }) {
         <ConfirmButton
           label="Delete Project"
           confirmLabel="Permanently Delete"
-          warning="This permanently deletes the entire project, including its configuration, publications, and all progress. This cannot be undone."
+          warning="This permanently deletes the entire project, including its configuration, publications, stored PDFs, import files, generated exports, and all progress. This cannot be undone."
           onConfirm={() => deleteProject.mutate()}
           disabled={reset.isPending || deleteProject.isPending}
           variant="danger"
         />
       </div>
-    </section>
+    </CollapsibleSection>
   )
 }

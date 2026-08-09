@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -8,6 +10,7 @@ from app.deduplication.models import DuplicateCandidate
 from app.extraction.models import ExtractionStatus, ExtractionWorkItem
 from app.fulltext.models import FullTextRetrieval, RetrievalStatus
 from app.jobs.models import BackgroundJob, JobStatus
+from app.llm.models import ProjectLlmSettings
 from app.projects.models import (
     CriterionKind,
     Project,
@@ -48,15 +51,15 @@ STAGE_ACTIONS = {
 }
 
 
-def _item(key: str, label: str, done: bool, detail: str) -> dict:
+def _item(key: str, label: str, done: bool, detail: str) -> dict[str, Any]:
     return {"key": key, "label": label, "done": done, "detail": detail}
 
 
-def _count(db: Session, *clauses) -> int:
+def _count(db: Session, *clauses: Any) -> int:
     return db.scalar(select(func.count()).select_from(Publication).where(*clauses)) or 0
 
 
-def _draft_items(db: Session, project: Project) -> list[dict]:
+def _draft_items(db: Session, project: Project) -> list[dict[str, Any]]:
     rq_count = sum(1 for item in project.research_questions if item.is_active)
     inclusion_count = sum(
         1
@@ -107,7 +110,7 @@ def _draft_items(db: Session, project: Project) -> list[dict]:
     ]
 
 
-def _duplicate_review_items(db: Session, project: Project) -> list[dict]:
+def _duplicate_review_items(db: Session, project: Project) -> list[dict[str, Any]]:
     latest_job = db.scalar(
         select(BackgroundJob)
         .where(
@@ -154,7 +157,7 @@ def _duplicate_review_items(db: Session, project: Project) -> list[dict]:
     ]
 
 
-def _title_abstract_items(db: Session, project: Project) -> list[dict]:
+def _title_abstract_items(db: Session, project: Project) -> list[dict[str, Any]]:
     total = _count(
         db,
         Publication.project_id == project.id,
@@ -175,7 +178,7 @@ def _title_abstract_items(db: Session, project: Project) -> list[dict]:
     ]
 
 
-def _full_text_items(db: Session, project: Project) -> list[dict]:
+def _full_text_items(db: Session, project: Project) -> list[dict[str, Any]]:
     from app.extraction.service import project_form
 
     retrievals = list(
@@ -224,7 +227,7 @@ def _full_text_items(db: Session, project: Project) -> list[dict]:
     ]
 
 
-def _extraction_items(db: Session, project: Project) -> list[dict]:
+def _extraction_items(db: Session, project: Project) -> list[dict[str, Any]]:
     extraction_total = (
         db.scalar(
             select(func.count())
@@ -252,6 +255,28 @@ def _extraction_items(db: Session, project: Project) -> list[dict]:
             f"{extraction_done} of {extraction_total} extracted",
         ),
     ]
+    llm_settings = db.scalar(
+        select(ProjectLlmSettings).where(ProjectLlmSettings.project_id == project.id)
+    )
+    if llm_settings is not None and llm_settings.extraction_validation_enabled:
+        from app.llm.task_service import project_validation_progress
+
+        validation = project_validation_progress(db, project.id)
+        details = [f"{validation.completed} of {validation.total} validated"]
+        if validation.pending:
+            details.append(f"{validation.pending} processing")
+        if validation.failed:
+            details.append(f"{validation.failed} failed")
+        if validation.unavailable:
+            details.append(f"{validation.unavailable} unavailable")
+        items.append(
+            _item(
+                "llm_extraction_validation",
+                "Complete LLM validation of the human extractions",
+                validation.settled,
+                ", ".join(details),
+            )
+        )
     config = db.scalar(
         select(QualityConfig).where(QualityConfig.project_id == project.id)
     )
@@ -295,7 +320,7 @@ STAGE_BUILDERS = {
 }
 
 
-def project_checklist(db: Session, project: Project) -> dict:
+def project_checklist(db: Session, project: Project) -> dict[str, Any]:
     current_index = STAGE_ORDER.index(project.stage)
     stages = []
     for index, stage in enumerate(STAGE_ORDER):

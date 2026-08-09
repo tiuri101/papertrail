@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -172,7 +173,7 @@ def claim_next_quality(
     return item
 
 
-def save_draft(item: QualityWorkItem, reviewer_id: str, draft: dict) -> None:
+def save_draft(item: QualityWorkItem, reviewer_id: str, draft: dict[str, Any]) -> None:
     if (
         item.assigned_reviewer_id != reviewer_id
         or item.status == QualityStatus.COMPLETED
@@ -195,7 +196,7 @@ def active_fields(db: Session, form: ReviewForm) -> list[FormField]:
 
 
 def score_response(
-    fields: list[FormField], answers: dict, aggregation: str
+    fields: list[FormField], answers: dict[str, Any], aggregation: str
 ) -> float | None:
     weighted_values: list[tuple[float, float]] = []
     for field in fields:
@@ -231,7 +232,7 @@ def score_response(
 
 
 def submit_quality(
-    db: Session, item: QualityWorkItem, reviewer_id: str, answers: dict
+    db: Session, item: QualityWorkItem, reviewer_id: str, answers: dict[str, Any]
 ) -> QualityResponse:
     if item.assigned_reviewer_id != reviewer_id:
         raise ForbiddenError("Quality assessment is assigned to another reviewer")

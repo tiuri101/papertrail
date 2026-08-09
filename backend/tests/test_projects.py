@@ -1,4 +1,11 @@
+from sqlalchemy import select
+
+from app.accounts.models import User
 from app.accounts.service import create_user
+from app.audit.models import AuditEvent
+from app.core.config import get_settings
+from app.imports.models import ImportBatch
+from app.jobs.models import BackgroundJob, JobStatus
 
 
 def login(client, username: str, password: str) -> str:
@@ -343,7 +350,12 @@ def test_admin_sets_highlight_keywords_and_reviewer_can_read_them(client, db) ->
     assert forbidden.status_code == 403
 
 
-def test_delete_project_removes_it_entirely(client, db) -> None:
+def test_delete_project_removes_it_entirely(client, db, tmp_path, monkeypatch) -> None:
+    settings = get_settings()
+    monkeypatch.setattr(settings, "pdf_storage_path", tmp_path / "pdfs")
+    monkeypatch.setattr(settings, "import_dir", tmp_path / "imports")
+    monkeypatch.setattr(settings, "export_dir", tmp_path / "exports")
+    settings.ensure_directories()
     create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
     db.commit()
     csrf = login(client, "admin", "secret-password")
@@ -352,11 +364,47 @@ def test_delete_project_removes_it_entirely(client, db) -> None:
         json={"name": "Disposable Review", "reviewType": "scoping_review"},
         headers={"X-CSRF-Token": csrf},
     ).json()["id"]
-    client.post(
+    publication = client.post(
         f"/api/v1/projects/{project_id}/publications",
         json={"title": "Some paper"},
         headers={"X-CSRF-Token": csrf},
+    ).json()
+
+    admin = db.scalar(select(User).where(User.username == "admin"))
+    assert admin is not None
+    import_directory = settings.import_dir / project_id
+    import_directory.mkdir(parents=True)
+    import_file = import_directory / "source.ris"
+    import_file.write_text("TY  - JOUR", encoding="utf-8")
+    batch = ImportBatch(
+        project_id=project_id,
+        original_filename="source.ris",
+        stored_path=str(import_file),
+        file_type="ris",
+        created_by_id=admin.id,
     )
+    db.add(batch)
+    db.commit()
+
+    pdf_directory = (
+        settings.pdf_storage_path
+        / "projects"
+        / project_id
+        / "publications"
+        / publication["id"]
+    )
+    pdf_directory.mkdir(parents=True)
+    (pdf_directory / "paper.pdf").write_bytes(b"project PDF")
+    staging_directory = settings.pdf_storage_path / "staging" / "imports" / batch.id
+    staging_directory.mkdir(parents=True)
+    (staging_directory / "unmatched.pdf").write_bytes(b"staged PDF")
+    export_directory = settings.export_dir / project_id
+    export_directory.mkdir(parents=True)
+    (export_directory / "results.xlsx").write_bytes(b"export")
+    unrelated_directory = settings.pdf_storage_path / "projects" / "another-project"
+    unrelated_directory.mkdir(parents=True)
+    unrelated_file = unrelated_directory / "keep.pdf"
+    unrelated_file.write_bytes(b"keep")
 
     deleted = client.delete(
         f"/api/v1/projects/{project_id}", headers={"X-CSRF-Token": csrf}
@@ -365,3 +413,44 @@ def test_delete_project_removes_it_entirely(client, db) -> None:
 
     assert client.get(f"/api/v1/projects/{project_id}").status_code == 404
     assert [p["id"] for p in client.get("/api/v1/projects").json()] == []
+    assert not (settings.pdf_storage_path / "projects" / project_id).exists()
+    assert not staging_directory.exists()
+    assert not import_directory.exists()
+    assert not export_directory.exists()
+    assert unrelated_file.read_bytes() == b"keep"
+
+    db.expire_all()
+    retained_events = list(db.scalars(select(AuditEvent)))
+    assert all(event.project_id != project_id for event in retained_events)
+    assert all(event.entity_id != project_id for event in retained_events)
+    assert all("Disposable Review" not in event.summary for event in retained_events)
+
+
+def test_delete_project_waits_for_running_jobs(client, db) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    db.commit()
+    csrf = login(client, "admin", "secret-password")
+    project_id = client.post(
+        "/api/v1/projects",
+        json={"name": "Busy Review", "reviewType": "scoping_review"},
+        headers={"X-CSRF-Token": csrf},
+    ).json()["id"]
+    db.add(
+        BackgroundJob(
+            project_id=project_id,
+            job_type="generate_export",
+            payload={},
+            status=JobStatus.RUNNING,
+        )
+    )
+    db.commit()
+
+    response = client.delete(
+        f"/api/v1/projects/{project_id}", headers={"X-CSRF-Token": csrf}
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["message"] == (
+        "Wait for running background jobs to finish before deleting the project"
+    )
+    assert client.get(f"/api/v1/projects/{project_id}").status_code == 200

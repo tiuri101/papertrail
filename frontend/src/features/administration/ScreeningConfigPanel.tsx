@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { CollapsibleSection } from '../../components/CollapsibleSection'
 
 type AllocationMode = 'independent' | 'divided'
 type ResolutionMethod =
@@ -86,7 +87,7 @@ function StageConfigForm({
       }}
     >
       <fieldset>
-        <legend>{label}</legend>
+        <legend className="subsection-heading">{label}</legend>
         <label>
           Reviewers required per publication
           <input
@@ -160,16 +161,21 @@ export function ScreeningConfigPanel({ projectId }: { projectId: string }) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['project', projectId] }),
   })
 
-  if (project.isLoading) return <section className="card"><h2>Screening Configuration</h2><p>Loading…</p></section>
+  if (project.isLoading) {
+    return <CollapsibleSection id="section-screening-configuration" title="Screening Configuration"><p>Loading…</p></CollapsibleSection>
+  }
   if (project.isError || !project.data) {
-    return <section className="card"><h2>Screening Configuration</h2><p className="error" role="alert">Screening configuration could not be loaded.</p></section>
+    return (
+      <CollapsibleSection id="section-screening-configuration" title="Screening Configuration">
+        <p className="error" role="alert">Screening configuration could not be loaded.</p>
+      </CollapsibleSection>
+    )
   }
 
   const configsByStage = new Map(project.data.screeningConfigs.map((config) => [config.stage, config]))
 
   return (
-    <section className="card">
-      <h2>Screening Configuration</h2>
+    <CollapsibleSection id="section-screening-configuration" title="Screening Configuration">
       <p className="muted">
         Set how many reviewers must independently screen each publication. Once every required
         reviewer has decided, publications where they didn&apos;t reach the same decision are
@@ -189,6 +195,6 @@ export function ScreeningConfigPanel({ projectId }: { projectId: string }) {
           />
         )
       })}
-    </section>
+    </CollapsibleSection>
   )
 }

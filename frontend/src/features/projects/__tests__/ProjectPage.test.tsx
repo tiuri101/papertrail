@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { screen, waitFor } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import { ProjectPage } from '../ProjectPage'
@@ -28,6 +28,7 @@ describe('ProjectPage', () => {
       if (url.endsWith('/dashboard')) {
         return jsonResponse({ stage: 'title_abstract_screening', unresolvedDuplicates: 0 })
       }
+      if (url.endsWith('/integrity')) return jsonResponse({ issues: [] })
       return jsonResponse({
         id: 'p1',
         name: 'Immersive analytics review',
@@ -49,7 +50,7 @@ describe('ProjectPage', () => {
     expect(await screen.findByText("What's Next: Title/Abstract Screening")).toBeInTheDocument()
     expect(screen.getByText(/Reach a final decision for every publication/)).toBeInTheDocument()
 
-    expect(await screen.findByText('Project Status')).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Project Status' })).toBeInTheDocument()
     expect(screen.getByRole('rowheader', { name: 'Unresolved duplicates' })).toBeInTheDocument()
 
     const currentGroupHeading = screen
@@ -72,5 +73,94 @@ describe('ProjectPage', () => {
     const disabledExtraction = screen.getByText('Data Extraction')
     expect(disabledExtraction.tagName).toBe('SPAN')
     expect(disabledExtraction).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('shows workflow integrity errors on the project main page', async () => {
+    mockFetch((input) => {
+      const url = String(input)
+      if (url.endsWith('/integrity')) {
+        return jsonResponse({
+          issues: [
+            {
+              code: 'missing_extraction_item',
+              entityId: 'publication-1',
+              message: 'Included publication has no extraction work item.',
+            },
+          ],
+        })
+      }
+      if (url.endsWith('/checklist')) {
+        return jsonResponse({ stage: 'extraction_quality', stages: [] })
+      }
+      if (url.endsWith('/dashboard')) {
+        return jsonResponse({ stage: 'extraction_quality' })
+      }
+      return jsonResponse({
+        id: 'p1',
+        name: 'Review',
+        stage: 'extraction_quality',
+        canManage: true,
+        extractionValidationEnabled: false,
+      })
+    })
+    renderWithProviders(<ProjectPage />, { route: '/projects/p1', path: '/projects/:projectId' })
+
+    const alert = await screen.findByRole('alert')
+    expect(alert).toHaveTextContent('Workflow integrity issue')
+    expect(alert).toHaveTextContent('Included publication has no extraction work item.')
+  })
+
+  it('renders no workflow-integrity status when the project is valid', async () => {
+    const fetchMock = mockFetch((input) => {
+      const url = String(input)
+      if (url.endsWith('/integrity')) return jsonResponse({ issues: [] })
+      if (url.endsWith('/checklist')) return jsonResponse({ stage: 'draft', stages: [] })
+      if (url.endsWith('/dashboard')) return jsonResponse({ stage: 'draft' })
+      return jsonResponse({
+        id: 'p1',
+        name: 'Valid Review',
+        stage: 'draft',
+        canManage: true,
+        extractionValidationEnabled: false,
+      })
+    })
+    renderWithProviders(<ProjectPage />, { route: '/projects/p1', path: '/projects/:projectId' })
+
+    await screen.findByRole('heading', { name: 'Valid Review' })
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(([input]) => String(input).endsWith('/integrity')),
+      ).toBe(true)
+    })
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    expect(screen.queryByText(/consistency issues detected/i)).not.toBeInTheDocument()
+  })
+
+  it('shows the validation review action only when extraction validation is enabled', async () => {
+    mockFetch((input) => {
+      const url = String(input)
+      if (url.endsWith('/checklist')) {
+        return jsonResponse({
+          stage: 'extraction_quality',
+          stages: [{
+            stage: 'extraction_quality', label: 'Data Extraction and Quality Assessment',
+            isCurrent: true, isComplete: false, autoAdvances: true, action: null, items: [],
+          }],
+        })
+      }
+      if (url.endsWith('/dashboard')) return jsonResponse({ stage: 'extraction_quality' })
+      if (url.endsWith('/integrity')) return jsonResponse({ issues: [] })
+      return jsonResponse({
+        id: 'p1', name: 'Review', stage: 'extraction_quality', canManage: true,
+        extractionValidationEnabled: true,
+      })
+    })
+    renderWithProviders(<ProjectPage />, { route: '/projects/p1', path: '/projects/:projectId' })
+
+    expect(await screen.findByRole('link', { name: 'Review LLM Extraction Validation' })).toHaveAttribute(
+      'href',
+      '/projects/p1/extraction/validation',
+    )
   })
 })

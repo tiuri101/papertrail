@@ -53,7 +53,9 @@ export function CriteriaAnswerFields({
         <tbody>
           {sortedByKind(criteria).map((criterion) => (
             <tr key={criterion.id}>
-              <th scope="row">{numbers[criterion.id]}: {criterion.text}</th>
+              <th scope="row">
+                <span className={`criterion-badge criterion-badge--${criterion.kind}`}>{numbers[criterion.id]}</span>: {criterion.text}
+              </th>
               <td>
                 <input
                   type="checkbox"

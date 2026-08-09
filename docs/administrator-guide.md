@@ -26,7 +26,11 @@ An administrator is not automatically a reviewer on a project — reviewer eligi
 
 ## Accounts
 
-Only the administrator creates and disables user accounts. Disable accounts rather than deleting them when historical decisions must remain attributable. Password resets replace the password while retaining the account identity.
+Only the administrator creates and disables user accounts. An email address is optional; when email support is enabled, creating an account with an address queues a welcome message containing the username and login link, but never the temporary password. Users may maintain their own address in Account Settings. Disable accounts rather than deleting them when historical decisions must remain attributable. Password resets replace the password while retaining the account identity.
+
+## Email notifications
+
+Email is opt-in at installation level through SMTP configuration. The initial notification set covers account creation, notifying active administrators when a project is created, being added to or removed from a project (permission-only edits deliberately do not send mail), and a project-owner summary when all currently scheduled LLM jobs for one task stage reach a terminal state. Failed LLM jobs are counted separately in that summary. Each event has a durable, deduplicated notification record and is delivered by the normal worker with retries; SMTP downtime does not roll back the originating account, project, membership, or LLM operation.
 
 ## Lifecycle changes
 
@@ -34,4 +38,4 @@ Papertrail advances stages automatically when their completion rules are satisfi
 
 ## Background jobs
 
-Imports, enrichment, duplicate detection, and exports are durable PostgreSQL jobs processed by the threaded worker. Inspect failed jobs before retrying. Restarting the API does not lose queued jobs.
+Imports, enrichment, duplicate detection, exports, and email delivery are durable PostgreSQL jobs processed by the threaded worker. Inspect failed jobs before retrying. Restarting the API does not lose queued jobs.

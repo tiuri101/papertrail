@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import APIRouter, Depends, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
@@ -35,7 +37,7 @@ def list_publications(
     project_id: str,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> list[Publication]:
     require_project_access(db, project_id, user)
     return list(
         db.scalars(
@@ -62,7 +64,7 @@ def get_publication(
     publication_id: str,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> Publication:
     require_project_access(db, project_id, user)
     publication = db.scalar(
         select(Publication)
@@ -88,7 +90,7 @@ def update_publication(
     payload: PublicationUpdate,
     admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
-):
+) -> Publication:
     publication = db.get(Publication, publication_id)
     if publication is None or publication.project_id != project_id:
         raise NotFoundError("Publication not found")
@@ -118,7 +120,7 @@ def delete_publication(
     publication_id: str,
     admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
-):
+) -> None:
     publication = db.get(Publication, publication_id)
     if (
         publication is None
@@ -148,7 +150,7 @@ def enrich_publication(
     publication_id: str,
     admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
-):
+) -> dict[str, Any]:
     publication = db.get(Publication, publication_id)
     if publication is None or publication.project_id != project_id:
         raise NotFoundError("Publication not found")
@@ -179,7 +181,7 @@ def list_conflicts(
     project_id: str,
     _: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
-):
+) -> list[MetadataConflict]:
     return list(
         db.scalars(
             select(MetadataConflict)
@@ -201,14 +203,15 @@ def resolve_conflict(
     payload: ConflictResolve,
     admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
-):
+) -> MetadataConflict:
     conflict = db.get(MetadataConflict, conflict_id)
     if conflict is None or conflict.publication.project_id != project_id:
         raise NotFoundError("Metadata conflict not found")
     if payload.accept_proposed:
-        value = conflict.proposed_value
+        proposed_value = conflict.proposed_value
+        value: str | int | None = proposed_value
         if conflict.field_name == "publication_year":
-            value = int(value) if value else None
+            value = int(proposed_value) if proposed_value else None
         setattr(conflict.publication, conflict.field_name, value)
         conflict.status = "accept_proposed"
     else:
@@ -237,7 +240,7 @@ def create_manual_publication(
     payload: PublicationCreate,
     admin: User = Depends(require_project_member_csrf),
     db: Session = Depends(get_db),
-):
+) -> Publication:
     project = require_project_access(db, project_id, admin)
     values = payload.model_dump(exclude_unset=True)
     if values.get("doi"):
@@ -267,7 +270,7 @@ def bulk_enrich_publications(
     payload: BulkEnrichmentRequest,
     admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
-):
+) -> dict[str, Any]:
     require_project_access(db, project_id, admin)
     query = select(Publication).where(
         Publication.project_id == project_id,

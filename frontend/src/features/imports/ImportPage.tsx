@@ -3,8 +3,10 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { DateField } from '../../components/DateField'
 import { getCsrfToken } from '../auth/session'
 import { BackgroundJob, findJob, hasActiveJob, isJobActive } from '../jobs/jobStatus'
+import { FileDropZone } from './FileDropZone'
 import { PdfMatchReview, type PdfSummary } from './PdfMatchReview'
 
 interface SearchSource {
@@ -22,7 +24,7 @@ export function ImportPage() {
   const queryClient = useQueryClient()
   const [file, setFile] = useState<File | null>(null)
   const [pdfFiles, setPdfFiles] = useState<File[]>([])
-  const [pdfArchive, setPdfArchive] = useState<File | null>(null)
+  const [pdfArchives, setPdfArchives] = useState<File[]>([])
   const [sourceName, setSourceName] = useState('')
   const [query, setQuery] = useState('')
   const [searchDate, setSearchDate] = useState('')
@@ -69,7 +71,7 @@ export function ImportPage() {
       form.append('file', file)
       form.append('searchSourceId', search.id)
       pdfFiles.forEach((pdf) => form.append('pdfs', pdf))
-      if (pdfArchive) form.append('pdfArchive', pdfArchive)
+      pdfArchives.forEach((archive) => form.append('pdfArchive', archive))
       const response = await fetch(`/api/v1/projects/${projectId}/imports`, {
         method: 'POST',
         credentials: 'include',
@@ -89,7 +91,7 @@ export function ImportPage() {
       setFilters('')
       setFile(null)
       setPdfFiles([])
-      setPdfArchive(null)
+      setPdfArchives([])
       setPendingJobId(result.jobId)
       setPendingBatchId(result.importBatchId)
       queryClient.invalidateQueries({ queryKey: ['searches', projectId] })
@@ -113,42 +115,43 @@ export function ImportPage() {
             Search string
             <textarea value={query} onChange={(event) => setQuery(event.target.value)} rows={2} required />
           </label>
-          <label>
-            Search date
-            <input type="date" value={searchDate} onChange={(event) => setSearchDate(event.target.value)} required />
-          </label>
+          <DateField label="Search date" value={searchDate} onChange={setSearchDate} required />
           <label>
             Filters applied (optional)
             <input value={filters} onChange={(event) => setFilters(event.target.value)} />
           </label>
-          <label>Bibliographic export
-            <input type="file" accept=".csv,.tsv,.xlsx,.ris,.bib,.bibtex" onChange={(event) => setFile(event.target.files?.[0] ?? null)} />
-          </label>
-          <label>Optional full-text PDFs
-            <input
-              type="file"
-              accept="application/pdf,.pdf"
-              multiple
-              onChange={(event) => setPdfFiles(Array.from(event.target.files ?? []))}
-            />
-          </label>
-          <label>Optional PDF ZIP
-            <input
-              type="file"
-              accept="application/zip,.zip"
-              onChange={(event) => setPdfArchive(event.target.files?.[0] ?? null)}
-            />
-          </label>
-          {pdfFiles.length || pdfArchive ? (
-            <p className="muted">
-              {pdfFiles.length} PDF{pdfFiles.length === 1 ? '' : 's'} selected
-              {pdfArchive ? ` · ${pdfArchive.name}` : ''}
-            </p>
-          ) : null}
+          <FileDropZone
+            id="bibliographic-export"
+            label="Bibliographic export"
+            hint="CSV, TSV, XLSX, RIS, or BibTeX"
+            accept=".csv,.tsv,.xlsx,.ris,.bib,.bibtex"
+            files={file ? [file] : []}
+            onChange={(files) => setFile(files[0] ?? null)}
+          />
+          <FileDropZone
+            id="fulltext-pdfs"
+            label="Optional full-text PDFs"
+            hint="PDF files"
+            accept="application/pdf,.pdf"
+            multiple
+            files={pdfFiles}
+            onChange={setPdfFiles}
+          />
+          <FileDropZone
+            id="pdf-archives"
+            label="Optional PDF ZIPs"
+            hint="ZIP archives of PDF files"
+            accept="application/zip,.zip"
+            multiple
+            files={pdfArchives}
+            onChange={setPdfArchives}
+          />
           <button type="submit" disabled={!file || submit.isPending}>Upload</button>
           {submit.isPending ? (
             <p role="status">
-              Uploading metadata{pdfFiles.length ? ` and ${pdfFiles.length} PDFs` : ''}…
+              Uploading metadata
+              {pdfFiles.length ? `, ${pdfFiles.length} PDFs` : ''}
+              {pdfArchives.length ? `, ${pdfArchives.length} ZIP archives` : ''}…
             </p>
           ) : null}
         </form>

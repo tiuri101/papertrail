@@ -44,6 +44,7 @@ describe('DangerZonePanel', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete Project' }))
     expect(screen.getByRole('alert')).toHaveTextContent(/permanently deletes the entire project/)
+    expect(screen.getByRole('alert')).toHaveTextContent(/stored PDFs, import files, generated exports/)
 
     fireEvent.click(screen.getByRole('button', { name: 'Permanently Delete' }))
     await waitFor(() => {

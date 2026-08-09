@@ -20,11 +20,13 @@
 7. Remove `PAPERTRAIL_ADMIN_PASSWORD` from `.env` after the account has been created.
 8. Open the configured Papertrail address and sign in.
 
-The one-shot `migrate` container applies all Alembic migrations before the API and worker start. Caddy routes `/api/*` to FastAPI and all other paths to the React application.
+The one-shot `migrate` container applies all Alembic migrations before the API and worker start.
 
 Full-text binaries live in the dedicated `papertrail_pdf_data` Docker volume, mounted only in the API and worker containers. `PAPERTRAIL_MAX_PDF_SIZE_MB` controls the per-file server-side limit (50 MB by default in Compose). Host-based deployments must set `PAPERTRAIL_PDF_STORAGE_PATH` to a persistent writable directory. Back up PostgreSQL and this PDF volume together; the database alone is not a complete backup.
 
 LLM-assisted extraction is optional and uses a separately operated Ollama server. Set `PAPERTRAIL_LLM_ENABLED=true`, `PAPERTRAIL_OLLAMA_BASE_URL`, and `PAPERTRAIL_OLLAMA_MODEL`; tune the timeout, context length, and dedicated LLM concurrency with the variables documented in [LLM-assisted extraction](llm-assisted-extraction.md). Compose adds a Papertrail `llm-worker` using the backend image and PostgreSQL queue, but does not add Ollama, model installation, or GPU configuration. Ensure the worker host can reach the configured Ollama URL and secure that route because it carries full paper text.
+
+Email notifications are optional and are delivered asynchronously by the normal worker. Set `PAPERTRAIL_EMAIL_ENABLED=true`, the externally reachable `PAPERTRAIL_PUBLIC_BASE_URL`, `PAPERTRAIL_SMTP_HOST`, and `PAPERTRAIL_SMTP_FROM_ADDRESS`. Configure `PAPERTRAIL_SMTP_PORT` (587 by default), optional username/password, and exactly one of STARTTLS or implicit SSL as required by the mail provider. SMTP credentials are backend/worker-only and are not exposed to the frontend. Papertrail retries transient delivery failures through the PostgreSQL job queue.
 
 ## Production example
 
@@ -33,9 +35,8 @@ PAPERTRAIL_SITE_ADDRESS=papertrail.example.org
 PAPERTRAIL_SESSION_COOKIE_SECURE=true
 PAPERTRAIL_ALLOWED_HOSTS=papertrail.example.org
 PAPERTRAIL_CORS_ORIGINS=https://papertrail.example.org
+PAPERTRAIL_PUBLIC_BASE_URL=https://papertrail.example.org
 ```
-
-Caddy obtains and renews TLS certificates automatically when the hostname resolves to the server and ports 80 and 443 are reachable.
 
 ## Verification
 

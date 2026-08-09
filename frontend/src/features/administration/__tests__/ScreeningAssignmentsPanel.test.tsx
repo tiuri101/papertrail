@@ -56,11 +56,35 @@ const assignments = [
   },
 ]
 
-function page(items: typeof assignments, overrides: Partial<{ total: number; page: number; pageSize: number }> = {}) {
-  return { items, total: items.length, page: 1, pageSize: 20, ...overrides }
+function page(items: typeof assignments, overrides: Partial<{
+  total: number
+  reassignableTotal: number
+  page: number
+  pageSize: number
+}> = {}) {
+  return {
+    items,
+    total: items.length,
+    reassignableTotal: items.filter((item) => item.status !== 'submitted').length,
+    page: 1,
+    pageSize: 20,
+    ...overrides,
+  }
 }
 
 describe('ScreeningAssignmentsPanel', () => {
+  it('is collapsed by default', async () => {
+    mockFetch((input) => {
+      const url = String(input)
+      if (url.endsWith('/users')) return jsonResponse(users)
+      if (url.includes('/assignments')) return jsonResponse(page(assignments))
+      return jsonResponse(projectDetail)
+    })
+    renderWithProviders(<ScreeningAssignmentsPanel projectId="p1" />)
+
+    expect(screen.getByRole('button', { name: /Screening Assignments/ })).toHaveAttribute('aria-expanded', 'false')
+  })
+
   it('lists assignments with their current reviewer and status', async () => {
     mockFetch((input) => {
       const url = String(input)
@@ -105,6 +129,7 @@ describe('ScreeningAssignmentsPanel', () => {
       return jsonResponse(projectDetail)
     })
     renderWithProviders(<ScreeningAssignmentsPanel projectId="p1" />)
+    fireEvent.click(screen.getByRole('button', { name: /Screening Assignments/ }))
 
     await screen.findByText('Immersive Analytics Study')
     fireEvent.change(screen.getByLabelText('Reassign Immersive Analytics Study'), { target: { value: 'u2' } })
@@ -144,6 +169,7 @@ describe('ScreeningAssignmentsPanel', () => {
       return jsonResponse(projectDetail)
     })
     renderWithProviders(<ScreeningAssignmentsPanel projectId="p1" />)
+    fireEvent.click(screen.getByRole('button', { name: /Screening Assignments/ }))
     await screen.findByText('Immersive Analytics Study')
 
     const header = screen.getByRole('columnheader', { name: /Publication/ })
@@ -165,6 +191,7 @@ describe('ScreeningAssignmentsPanel', () => {
       return jsonResponse(projectDetail)
     })
     renderWithProviders(<ScreeningAssignmentsPanel projectId="p1" />)
+    fireEvent.click(screen.getByRole('button', { name: /Screening Assignments/ }))
     await screen.findByText('Immersive Analytics Study')
 
     fireEvent.click(screen.getByRole('button', { name: 'Status' }))
@@ -228,6 +255,7 @@ describe('ScreeningAssignmentsPanel', () => {
       return jsonResponse(projectDetail)
     })
     renderWithProviders(<ScreeningAssignmentsPanel projectId="p1" />)
+    fireEvent.click(screen.getByRole('button', { name: /Screening Assignments/ }))
     await screen.findByText('Immersive Analytics Study')
 
     expect(screen.getByText('Page 1 of 3 (45 total)')).toBeInTheDocument()
@@ -238,5 +266,44 @@ describe('ScreeningAssignmentsPanel', () => {
     await waitFor(() => {
       expect(fetchMock.mock.calls.some(([input]) => String(input).includes('page=2'))).toBe(true)
     })
+  })
+
+  it('bulk reassigns all filtered assignments across pages with individual exclusions', async () => {
+    const fetchMock = mockFetch((input, init) => {
+      const url = String(input)
+      if (url.endsWith('/assignments/reassign') && init?.method === 'PATCH') {
+        return jsonResponse({ reassigned: 39 })
+      }
+      if (url.endsWith('/users')) return jsonResponse(users)
+      if (url.includes('/assignments')) {
+        return jsonResponse(page([assignments[0]], { total: 40, reassignableTotal: 40 }))
+      }
+      return jsonResponse(projectDetail)
+    })
+    renderWithProviders(<ScreeningAssignmentsPanel projectId="p1" />)
+    fireEvent.click(screen.getByRole('button', { name: /Screening Assignments/ }))
+
+    await screen.findByText('Immersive Analytics Study')
+    fireEvent.click(screen.getByLabelText('Select all 40 filtered assignments'))
+    expect(screen.getByRole('button', { name: 'Reassign selected (40)' })).toBeDisabled()
+
+    fireEvent.click(screen.getByLabelText('Select Immersive Analytics Study, slot 1'))
+    fireEvent.change(screen.getByLabelText('Reassign selected to'), { target: { value: 'u2' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Reassign selected (39)' }))
+
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find(([input, init]) => (
+        String(input).endsWith('/screening/title_abstract/assignments/reassign')
+        && init?.method === 'PATCH'
+      ))
+      expect(call).toBeTruthy()
+      expect(JSON.parse(String(call?.[1]?.body))).toMatchObject({
+        reviewerId: 'u2',
+        selectAllFiltered: true,
+        workItemIds: [],
+        excludedWorkItemIds: ['w1'],
+      })
+    })
+    expect(await screen.findByText('Reassigned 39 assignments.')).toBeInTheDocument()
   })
 })

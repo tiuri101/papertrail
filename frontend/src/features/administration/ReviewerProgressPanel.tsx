@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 
 import { apiRequest } from '../../api/client'
+import { CollapsibleSection } from '../../components/CollapsibleSection'
 
 interface ReviewerCount {
   reviewerId: string
@@ -25,8 +26,7 @@ export function ReviewerProgressPanel({ projectId }: { projectId: string }) {
   })
 
   return (
-    <section className="card">
-      <h2>Reviewer Progress</h2>
+    <CollapsibleSection id="section-reviewer-progress" title="Reviewer Progress">
       <p className="muted">
         How many papers each reviewer has been assigned per stage, and how many they've completed.
       </p>
@@ -59,6 +59,6 @@ export function ReviewerProgressPanel({ projectId }: { projectId: string }) {
           )}
         </div>
       ))}
-    </section>
+    </CollapsibleSection>
   )
 }

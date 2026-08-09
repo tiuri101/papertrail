@@ -28,14 +28,36 @@ export interface ScreeningWorkItem {
   draft: Record<string, unknown>
 }
 
+interface ScreeningDecisionResponse {
+  outcome: string
+  criteriaAnswers?: Record<string, CriterionAnswer>
+  notes?: string | null
+}
+
 interface SubmittedScreeningDecision {
   outcome: string
+  criteriaAnswers: Record<string, CriterionAnswer>
+  notes: string | null
 }
 
 export type CriterionAnswer = boolean | null
 
 function defaultAnswerForKind(kind: string): boolean {
   return kind === 'inclusion'
+}
+
+function decisionsMatch(
+  current: SubmittedScreeningDecision,
+  submitted: SubmittedScreeningDecision,
+): boolean {
+  const currentKeys = Object.keys(current.criteriaAnswers)
+  const submittedKeys = Object.keys(submitted.criteriaAnswers)
+  return current.outcome === submitted.outcome
+    && current.notes === submitted.notes
+    && currentKeys.length === submittedKeys.length
+    && currentKeys.every(
+      (criterionId) => current.criteriaAnswers[criterionId] === submitted.criteriaAnswers[criterionId],
+    )
 }
 
 // React 18 StrictMode's double-invoked mount effects can desync
@@ -93,7 +115,7 @@ export function useScreeningQueue(projectId: string, stage: string) {
   const submit = useMutation({
     mutationFn: () => {
       if (!item) throw new Error('No screening item is open')
-      return apiRequest<SubmittedScreeningDecision>(
+      return apiRequest<ScreeningDecisionResponse>(
         `/api/v1/projects/${projectId}/screening/work-items/${item.id}/decision`,
         {
           method: 'POST',
@@ -105,21 +127,68 @@ export function useScreeningQueue(projectId: string, stage: string) {
         },
       )
     },
-    onSuccess: (decision: SubmittedScreeningDecision) => {
-      if (item && stage === 'title_abstract') {
+    onSuccess: (decision: ScreeningDecisionResponse) => {
+      if (item) {
         setSubmitted({
           item,
-          decision: { outcome: decision.outcome ?? outcome },
+          decision: {
+            outcome: decision.outcome ?? outcome,
+            criteriaAnswers: decision.criteriaAnswers ?? answers,
+            notes: decision.notes ?? (notes || null),
+          },
         })
+        queryClient.invalidateQueries({ queryKey: progressQueryKey })
+        return
       }
-      setItem(null)
-      setAnswers({})
-      setOutcome('include')
-      setNotes('')
-      queryClient.invalidateQueries({ queryKey: progressQueryKey })
-      if (stage !== 'title_abstract') fetchNext()
     },
   })
+
+  const reviseDecision = useMutation({
+    mutationFn: (revision: SubmittedScreeningDecision) => {
+      if (!submitted) throw new Error('No submitted screening decision is open')
+      return apiRequest<ScreeningDecisionResponse>(
+        `/api/v1/projects/${projectId}/screening/work-items/${submitted.item.id}/decision`,
+        {
+          method: 'POST',
+          body: JSON.stringify(revision),
+        },
+      )
+    },
+    onSuccess: (decision, revision) => {
+      setSubmitted((current) => current ? {
+        ...current,
+        decision: {
+          outcome: decision.outcome ?? revision.outcome,
+          criteriaAnswers: decision.criteriaAnswers ?? revision.criteriaAnswers,
+          notes: decision.notes ?? revision.notes,
+        },
+      } : null)
+      queryClient.invalidateQueries({ queryKey: progressQueryKey })
+    },
+  })
+
+  const continueAfterDecision = () => {
+    setItem(null)
+    setSubmitted(null)
+    setAnswers({})
+    setOutcome('include')
+    setNotes('')
+    fetchNext()
+  }
+
+  const confirmDecision = () => {
+    if (!submitted) return
+    const current = {
+      outcome,
+      criteriaAnswers: answers,
+      notes: notes || null,
+    }
+    if (decisionsMatch(current, submitted.decision)) {
+      continueAfterDecision()
+      return
+    }
+    reviseDecision.mutate(current, { onSuccess: continueAfterDecision })
+  }
 
   const autoFetchKey = useRef<string | null>(null)
   useEffect(() => {
@@ -133,8 +202,8 @@ export function useScreeningQueue(projectId: string, stage: string) {
 
   const activeItemRef = useRef<ScreeningWorkItem | null>(null)
   useEffect(() => {
-    activeItemRef.current = item
-  }, [item])
+    activeItemRef.current = submitted ? null : item
+  }, [item, submitted])
 
   useEffect(() => {
     return () => {
@@ -176,7 +245,7 @@ export function useScreeningQueue(projectId: string, stage: string) {
   }, [answers, item])
 
   useEffect(() => {
-    if (!item) return
+    if (!item || submitted) return
     const timer = setTimeout(() => {
       apiRequest(
         `/api/v1/projects/${projectId}/screening/work-items/${item.id}/draft`,
@@ -189,7 +258,7 @@ export function useScreeningQueue(projectId: string, stage: string) {
       ).catch(() => {})
     }, 1000)
     return () => clearTimeout(timer)
-  }, [item, projectId, answers, outcome, notes])
+  }, [item, projectId, answers, outcome, notes, submitted])
 
   const criteriaComplete = item?.criteria.every(
     (criterion) => answers[criterion.id] !== null
@@ -214,10 +283,8 @@ export function useScreeningQueue(projectId: string, stage: string) {
     criteriaComplete,
     progress: progress.data,
     submitted,
-    continueAfterDecision: () => {
-      setSubmitted(null)
-      fetchNext()
-    },
+    reviseDecision,
+    confirmDecision,
   }
 }
 

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import type { User } from '../auth/types'
 
@@ -74,7 +75,7 @@ function MemberRow({
             }}
           >
             <fieldset>
-              <legend>Stages</legend>
+              <legend className="subsection-heading">Stages</legend>
               {ROLE_FIELDS.map(([field, fieldLabel]) => (
                 <label key={field}>
                   <input
@@ -90,6 +91,7 @@ function MemberRow({
               <button type="submit" disabled={pending}>Save</button>
               <button
                 type="button"
+                className="button-secondary"
                 onClick={() => { setDraft(rolesOf(membership)); setEditing(false) }}
               >
                 Cancel
@@ -180,8 +182,7 @@ export function MembersPanel({ projectId }: { projectId: string }) {
   const mutationError = addMember.error ?? updateMember.error ?? removeMember.error
 
   return (
-    <section className="card">
-      <h2>Project Members</h2>
+    <CollapsibleSection id="section-project-members" title="Project Members">
       {users.error ? <p className="error" role="alert">{users.error.message}</p> : null}
       {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
       <table>
@@ -230,7 +231,7 @@ export function MembersPanel({ projectId }: { projectId: string }) {
         </label>
         {selectedUserId ? (
           <fieldset>
-            <legend>Stages</legend>
+            <legend className="subsection-heading">Stages</legend>
             {ROLE_FIELDS.map(([field, label]) => (
               <label key={field}>
                 <input
@@ -247,6 +248,6 @@ export function MembersPanel({ projectId }: { projectId: string }) {
           Add Member
         </button>
       </form>
-    </section>
+    </CollapsibleSection>
   )
 }

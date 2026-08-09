@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.api.errors import DomainError
 from app.audit.service import record_audit
-from app.core.config import get_settings
+from app.core.config import Settings, get_settings
 from app.fulltext.documents import active_document, attach_staged_pdf
 from app.fulltext.models import DocumentSource
 from app.fulltext.storage import (
@@ -79,17 +79,100 @@ def _mark_duplicate_in_batch(
         item.storage_key = None
 
 
+async def _stage_pdf_archive(
+    db: Session,
+    batch: ImportBatch,
+    pdf_archive: UploadFile,
+    *,
+    settings: Settings,
+    remaining_file_slots: int,
+    remaining_expanded_bytes: int,
+) -> tuple[int, int, int]:
+    """Stage one archive and isolate its failure from all other uploaded archives."""
+    archive_limit = settings.max_pdf_archive_size_mb * 1024 * 1024
+    archive_path = None
+    staged_count = 0
+    try:
+        with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as temp:
+            archive_path = temp.name
+            size = 0
+            while chunk := await pdf_archive.read(1024 * 1024):
+                size += len(chunk)
+                if size > archive_limit:
+                    raise DomainError(
+                        f"PDF ZIP exceeds the {settings.max_pdf_archive_size_mb} MB limit"
+                    )
+                temp.write(chunk)
+        with zipfile.ZipFile(archive_path) as archive:
+            infos = [entry for entry in archive.infolist() if not entry.is_dir()]
+            if len(infos) > remaining_file_slots:
+                raise DomainError(
+                    f"A PDF batch may contain at most {settings.max_pdf_batch_files} files"
+                )
+            expanded = sum(entry.file_size for entry in infos)
+            if expanded > remaining_expanded_bytes:
+                raise DomainError("PDF ZIPs expand beyond the configured safety limit")
+            for entry in infos:
+                entry_path = PurePosixPath(entry.filename.replace("\\", "/"))
+                unsafe = entry_path.is_absolute() or ".." in entry_path.parts
+                suspicious = (
+                    entry.compress_size > 0
+                    and entry.file_size / entry.compress_size > 200
+                )
+                if unsafe or suspicious:
+                    db.add(
+                        _invalid_item(
+                            batch,
+                            entry.filename,
+                            (
+                                "Unsafe ZIP entry"
+                                if unsafe
+                                else "Suspicious ZIP compression ratio"
+                            ),
+                        )
+                    )
+                elif entry_path.suffix.lower() != ".pdf":
+                    db.add(
+                        _invalid_item(batch, entry.filename, "ZIP entry is not a PDF")
+                    )
+                else:
+                    try:
+                        with archive.open(entry) as stream:
+                            staged = stage_pdf_stream(
+                                stream,
+                                entry_path.name,
+                                import_batch_id=batch.id,
+                                settings=settings,
+                            )
+                        item = _item_from_staged(batch, staged)
+                    except Exception as exc:
+                        item = _invalid_item(batch, entry.filename, exc)
+                    db.add(item)
+                    db.flush()
+                    _mark_duplicate_in_batch(db, batch, item)
+                staged_count += 1
+        return staged_count, len(infos), expanded
+    except Exception as exc:
+        db.add(_invalid_item(batch, pdf_archive.filename, exc))
+        return 1, 0, 0
+    finally:
+        await pdf_archive.close()
+        if archive_path:
+            from pathlib import Path
+
+            Path(archive_path).unlink(missing_ok=True)
+
+
 async def stage_bulk_uploads(
     db: Session,
     batch: ImportBatch,
     pdfs: list[UploadFile],
-    pdf_archive: UploadFile | None,
+    pdf_archives: list[UploadFile],
 ) -> int:
     settings = get_settings()
-    total_inputs = len(pdfs)
-    if total_inputs > settings.max_pdf_batch_files:
+    if len(pdfs) + len(pdf_archives) > settings.max_pdf_batch_files:
         raise DomainError(
-            f"A PDF batch may contain at most {settings.max_pdf_batch_files} files"
+            f"A PDF batch may contain at most {settings.max_pdf_batch_files} uploads"
         )
     staged_count = 0
     for upload in pdfs:
@@ -105,81 +188,20 @@ async def stage_bulk_uploads(
         _mark_duplicate_in_batch(db, batch, item)
         staged_count += 1
 
-    if pdf_archive is not None:
-        archive_limit = settings.max_pdf_archive_size_mb * 1024 * 1024
-        archive_path = None
-        try:
-            with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as temp:
-                archive_path = temp.name
-                size = 0
-                while chunk := await pdf_archive.read(1024 * 1024):
-                    size += len(chunk)
-                    if size > archive_limit:
-                        raise DomainError(
-                            f"PDF ZIP exceeds the {settings.max_pdf_archive_size_mb} MB limit"
-                        )
-                    temp.write(chunk)
-            with zipfile.ZipFile(archive_path) as archive:
-                infos = [entry for entry in archive.infolist() if not entry.is_dir()]
-                if len(infos) + len(pdfs) > settings.max_pdf_batch_files:
-                    raise DomainError(
-                        f"A PDF batch may contain at most {settings.max_pdf_batch_files} files"
-                    )
-                expanded = sum(entry.file_size for entry in infos)
-                if expanded > settings.max_pdf_zip_expanded_bytes:
-                    raise DomainError(
-                        "PDF ZIP expands beyond the configured safety limit"
-                    )
-                for entry in infos:
-                    entry_path = PurePosixPath(entry.filename.replace("\\", "/"))
-                    unsafe = entry_path.is_absolute() or ".." in entry_path.parts
-                    suspicious = (
-                        entry.compress_size > 0
-                        and entry.file_size / entry.compress_size > 200
-                    )
-                    if unsafe or suspicious:
-                        db.add(
-                            _invalid_item(
-                                batch,
-                                entry.filename,
-                                (
-                                    "Unsafe ZIP entry"
-                                    if unsafe
-                                    else "Suspicious ZIP compression ratio"
-                                ),
-                            )
-                        )
-                    elif entry_path.suffix.lower() != ".pdf":
-                        db.add(
-                            _invalid_item(
-                                batch, entry.filename, "ZIP entry is not a PDF"
-                            )
-                        )
-                    else:
-                        try:
-                            with archive.open(entry) as stream:
-                                staged = stage_pdf_stream(
-                                    stream,
-                                    entry_path.name,
-                                    import_batch_id=batch.id,
-                                    settings=settings,
-                                )
-                            item = _item_from_staged(batch, staged)
-                        except Exception as exc:
-                            item = _invalid_item(batch, entry.filename, exc)
-                        db.add(item)
-                        db.flush()
-                        _mark_duplicate_in_batch(db, batch, item)
-                    staged_count += 1
-        except Exception as exc:
-            db.add(_invalid_item(batch, pdf_archive.filename, exc))
-            staged_count += 1
-        finally:
-            await pdf_archive.close()
-            if archive_path:
-                from pathlib import Path
-
-                Path(archive_path).unlink(missing_ok=True)
+    remaining_file_slots = settings.max_pdf_batch_files - len(pdfs)
+    remaining_expanded_bytes = settings.max_pdf_zip_expanded_bytes
+    for pdf_archive in pdf_archives:
+        archive_staged, archive_files, archive_expanded = await _stage_pdf_archive(
+            db,
+            batch,
+            pdf_archive,
+            settings=settings,
+            remaining_file_slots=remaining_file_slots,
+            remaining_expanded_bytes=remaining_expanded_bytes,
+        )
+        staged_count += archive_staged
+        remaining_file_slots -= archive_files
+        remaining_expanded_bytes -= archive_expanded
     db.flush()
     return staged_count
 

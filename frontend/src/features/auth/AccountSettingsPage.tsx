@@ -9,6 +9,7 @@ export function AccountSettingsPage() {
   const queryClient = useQueryClient()
   const session = queryClient.getQueryData<LoginResponse>(sessionQueryOptions.queryKey)
   const [displayName, setDisplayName] = useState(session?.user.displayName ?? '')
+  const [email, setEmail] = useState(session?.user.email ?? '')
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
@@ -16,7 +17,7 @@ export function AccountSettingsPage() {
   const updateProfile = useMutation({
     mutationFn: () => apiRequest<User>('/api/v1/auth/me', {
       method: 'PATCH',
-      body: JSON.stringify({ displayName }),
+      body: JSON.stringify({ displayName, email }),
     }),
     onSuccess: (user) => {
       queryClient.setQueryData<LoginResponse>(sessionQueryOptions.queryKey, (current) =>
@@ -44,7 +45,7 @@ export function AccountSettingsPage() {
     <main className="page">
       <h1>Account Settings</h1>
       <section className="card">
-        <h2>Display Name</h2>
+        <h2>Profile</h2>
         <form onSubmit={(event) => { event.preventDefault(); updateProfile.mutate() }}>
           <label>
             Display name
@@ -54,10 +55,19 @@ export function AccountSettingsPage() {
               required
             />
           </label>
+          <label>
+            Email address
+            <input
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              placeholder="you@example.org"
+            />
+          </label>
           {updateProfile.error ? <p className="error" role="alert">{updateProfile.error.message}</p> : null}
-          {updateProfile.isSuccess ? <p>Display name updated.</p> : null}
+          {updateProfile.isSuccess ? <p>Profile updated.</p> : null}
           <button type="submit" disabled={updateProfile.isPending || !displayName.trim()}>
-            Save Display Name
+            Save Profile
           </button>
         </form>
       </section>
