@@ -53,19 +53,13 @@ npm run build
 npm run test:e2e
 ```
 
-## Releasing
+## Branching and releasing
 
-Versions follow `YEAR.MONTH.PATCH` (e.g. `2026.07.01`, then `2026.07.02` for the next release the same month). To cut a release from `main` with a clean working tree:
+Day-to-day work happens on `dev`. Changes reach `main` only through a pull request from `dev`. Every push and pull request runs the full backend and frontend test suites; nothing merges without CI passing.
 
-```powershell
-.\scripts\release.ps1
-```
+Merging a pull request into `main` releases automatically. CI derives the next `YEAR.MONTH.PATCH` version (e.g. `2026.07.01`, then `2026.07.02` for the next release the same month) from the highest existing tag for the current year and month, builds and pushes `tiuri101/papertrail-backend` and `tiuri101/papertrail-frontend` images tagged with that version, tags the merge commit, and creates the GitHub release with generated notes. There is no manual release step.
 
-```bash
-./scripts/release.sh
-```
-
-This computes the next version, creates an annotated git tag, and pushes it. Pushing the tag triggers CI, which runs the full test suite, builds and pushes `tiuri101/papertrail-backend` and `tiuri101/papertrail-frontend` images tagged with that version, and creates the GitHub release. Pass an explicit version (e.g. `.\scripts\release.ps1 2026.07.02`) to override the computed one.
+An out-of-band release can still be cut by pushing an annotated tag matching `YEAR.MONTH.PATCH` directly (e.g. for a hotfix); CI treats a tag push the same way and releases that exact version.
 
 ## Design rules
 
