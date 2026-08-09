@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.api.errors import ConflictError, DomainError, NotFoundError
 from app.conflicts.models import FinalDecision
+from app.jobs.service import enqueue_job
 from app.projects.models import (
     Project,
     ProjectStage,
@@ -282,6 +283,14 @@ def transition_if_screening_complete(
 
         queue_project_stage_completed_emails(
             db, project, ProjectStage.TITLE_ABSTRACT, datetime.now(UTC)
+        )
+        enqueue_job(
+            db,
+            "generate_stage_analysis",
+            {"stage": "title_abstract_screening"},
+            project_id=project.id,
+            created_by_id=None,
+            priority=5,
         )
         db.flush()
         return True

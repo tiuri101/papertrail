@@ -19,6 +19,7 @@ from app.fulltext.models import FullTextRetrieval
 from app.fulltext.service import initialize_full_text_stage
 from app.imports.models import ImportBatch, ImportedRecord, SearchSource
 from app.jobs.models import BackgroundJob
+from app.jobs.service import enqueue_job
 from app.llm.models import ExtractionSuggestionReview
 from app.projects.models import Project, ProjectStage, ScreeningStage
 from app.publications.models import MetadataConflict, Publication, PublicationSource
@@ -110,6 +111,14 @@ def evaluate_project_completion(db: Session, project: Project) -> bool:
     from app.notifications.service import queue_project_completed_emails
 
     queue_project_completed_emails(db, project, project.completed_at)
+    enqueue_job(
+        db,
+        "generate_stage_analysis",
+        {"stage": "extraction_quality"},
+        project_id=project.id,
+        created_by_id=None,
+        priority=5,
+    )
     db.flush()
     return True
 

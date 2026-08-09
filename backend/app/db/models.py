@@ -1,6 +1,7 @@
 """Import all SQLAlchemy models so metadata is complete."""
 
 from app.accounts.models import LoginThrottle, PasswordResetToken, User, UserSession
+from app.analysis.models import StageAnalysis
 from app.audit.models import AuditEvent
 from app.conflicts.models import FinalDecision
 from app.deduplication.models import DuplicateCandidate, PublicationMerge
@@ -78,6 +79,7 @@ __all__ = [
     "ScreeningDecision",
     "ScreeningWorkItem",
     "SearchSource",
+    "StageAnalysis",
     "User",
     "UserSession",
 ]

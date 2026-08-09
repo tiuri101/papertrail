@@ -114,7 +114,10 @@ const projectSectionGroups: ProjectSectionGroup[] = [
   {
     heading: 'Final Results',
     stage: 'completed',
-    links: [{ path: 'results', label: 'Final Results' }],
+    links: [
+      { path: 'results', label: 'Final Results' },
+      { path: 'analysis', label: 'Charts and Analysis' },
+    ],
   },
   {
     heading: 'Reporting',
