@@ -1,8 +1,32 @@
-# Papertrail
+# 📑 Papertrail
 
-Papertrail is a self-hosted, multi-user web application for structured academic literature reviews. It imports bibliographic exports and optional full-text PDFs, preserves source provenance and PDF version history, supports duplicate review and configurable multi-reviewer screening, tracks manual full-text retrieval, and provides optional evidence-backed extraction suggestions through an external Ollama service. Reviewer-controlled extraction and quality-assessment data remain authoritative.
+**Self-hosted, multi-user structured literature reviews — with a human always in the loop.**
 
-## Features
+Papertrail imports bibliographic exports and optional full-text PDFs, preserves source provenance and PDF version history, supports duplicate review and configurable multi-reviewer screening, tracks manual full-text retrieval, and provides optional evidence-backed extraction suggestions through an external Ollama service. Reviewer-controlled extraction and quality-assessment data remain authoritative.
+
+<p>
+  <img alt="Python" src="https://img.shields.io/badge/Python-FastAPI-009688?logo=fastapi&logoColor=white">
+  <img alt="React" src="https://img.shields.io/badge/React-TypeScript-61DAFB?logo=react&logoColor=0b1120">
+  <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-2-4169E1?logo=postgresql&logoColor=white">
+  <img alt="Docker" src="https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED?logo=docker&logoColor=white">
+  <img alt="Self-hosted" src="https://img.shields.io/badge/Hosting-self--hosted-6f42c1">
+</p>
+
+## 🔄 The review pipeline
+
+```mermaid
+flowchart LR
+    A[📥 Import<br/>bibliographic exports] --> B[🧬 Deduplicate<br/>reviewer-driven merges]
+    B --> C[🔍 Screen<br/>title/abstract & full-text]
+    C --> D[📄 Retrieve<br/>full-text PDFs]
+    D --> E[📝 Extract<br/>versioned dynamic forms]
+    E --> F[✅ Quality assess<br/>risk-of-bias review]
+    F --> G[📊 Report<br/>PRISMA, Excel, BibTeX]
+```
+
+Every step is logged to an immutable audit trail, and an optional local LLM can suggest — never decide — screening and extraction answers.
+
+## ✨ Features
 
 - **Import and provenance** — import bibliographic exports from multiple databases
 - **PDF management** — attach full-text PDFs with version history; PDFs are stored locally and never fetched from publishers
@@ -15,7 +39,7 @@ Papertrail is a self-hosted, multi-user web application for structured academic 
 - **Audit trail** — durable audit logging of workflow and reviewer actions
 - **Role-based access** — project-scoped membership so reviewers only see projects and actions they're eligible for
 
-## Architecture
+## 🏗️ Architecture
 
 - FastAPI, Pydantic, SQLAlchemy 2, and Alembic
 - PostgreSQL
@@ -28,7 +52,7 @@ Papertrail is a modular monolith. The API and worker share domain services and o
 
 PDF binaries are stored in a dedicated persistent filesystem volume, while their metadata and stable document IDs are stored in PostgreSQL. Papertrail never downloads or scrapes publisher PDFs; users must supply files they are authorized to access and store.
 
-## Local development
+## 🚀 Local development
 
 Local development uses Docker only for PostgreSQL. FastAPI, the worker, and Vite run directly on the host.
 
@@ -56,7 +80,7 @@ Then run `api`, `worker`, and `frontend` in separate terminals.
 
 See the [local-development guide](docs/local-development.md) for manual setup, testing, database management, IDE configuration, and troubleshooting.
 
-## Production deployment
+## 📦 Production deployment
 
 ```bash
 cp .env.example .env
@@ -67,15 +91,17 @@ scripts/create_admin.sh
 
 See [Installation](docs/installation.md) for production configuration.
 
-## Documentation
+## 📚 Documentation
 
-- [Local development](docs/local-development.md)
-- [Architecture](docs/architecture.md)
-- [Administrator guide](docs/administrator-guide.md)
-- [Reviewer guide](docs/user-guide.md)
-- [Developer guide](docs/developer-guide.md)
-- [Frontend testing](docs/frontend-testing.md)
-- [Backup and restore](docs/backup-and-restore.md)
-- [Import formats](docs/import-formats.md)
-- [LLM-assisted extraction](docs/llm-assisted-extraction.md)
-- [API overview](docs/api.md)
+| Guide | Description |
+| --- | --- |
+| [Local development](docs/local-development.md) | Manual setup, testing, database management, troubleshooting |
+| [Architecture](docs/architecture.md) | System design and component overview |
+| [Administrator guide](docs/administrator-guide.md) | Managing users, projects, and settings |
+| [Reviewer guide](docs/user-guide.md) | Screening, extraction, and quality assessment workflows |
+| [Developer guide](docs/developer-guide.md) | Contributing and codebase conventions |
+| [Frontend testing](docs/frontend-testing.md) | Running and writing frontend tests |
+| [Backup and restore](docs/backup-and-restore.md) | Data durability and disaster recovery |
+| [Import formats](docs/import-formats.md) | Supported bibliographic export formats |
+| [LLM-assisted extraction](docs/llm-assisted-extraction.md) | How the optional Ollama integration works |
+| [API overview](docs/api.md) | REST API reference |
