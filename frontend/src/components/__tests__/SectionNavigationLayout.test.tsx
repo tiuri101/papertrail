@@ -8,8 +8,8 @@ import { MOBILE_MENU_SECTION_SLOT_ID, MobileMenuContext } from '../mobileMenu'
 import {
   type SectionNavigationItem,
   SectionNavigationLayout,
-  useRegisterSectionItems,
 } from '../SectionNavigationLayout'
+import { useRegisterSectionItems } from '../sectionNavigation'
 import { renderWithProviders } from '../../test/render'
 
 const HEADER_SECTION_NAV_SLOT_ID = 'app-header-section-nav-slot'

@@ -54,7 +54,7 @@ class SearchSource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     created_by_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
 
     import_batches: Mapped[list[ImportBatch]] = relationship(
-        back_populates="search_source"
+        back_populates="search_source", order_by="ImportBatch.created_at"
     )
 
 

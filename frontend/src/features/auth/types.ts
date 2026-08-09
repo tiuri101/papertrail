@@ -5,6 +5,7 @@ export interface User {
   email?: string | null;
   isAdmin: boolean;
   isActive: boolean;
+  mustChangePassword?: boolean;
 }
 
 export interface LoginResponse {

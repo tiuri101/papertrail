@@ -6,8 +6,17 @@ import { apiRequest } from '../../api/client'
 import { DateField } from '../../components/DateField'
 import { getCsrfToken } from '../auth/session'
 import { BackgroundJob, findJob, hasActiveJob, isJobActive } from '../jobs/jobStatus'
+import { AttachPdfsPanel } from './AttachPdfsPanel'
 import { FileDropZone } from './FileDropZone'
 import { PdfMatchReview, type PdfSummary } from './PdfMatchReview'
+
+interface SearchImportBatch {
+  id: string
+  originalFilename: string
+  status: string
+  recordCount: number
+  completedAt: string | null
+}
 
 interface SearchSource {
   id: string
@@ -15,6 +24,7 @@ interface SearchSource {
   query: string
   searchDate: string
   filters: string | null
+  importBatches?: SearchImportBatch[]
 }
 
 interface ImportResult { jobId: string; importBatchId: string }
@@ -32,6 +42,7 @@ export function ImportPage() {
   const [pendingJobId, setPendingJobId] = useState<string | null>(null)
   const [pendingBatchId, setPendingBatchId] = useState<string | null>(null)
   const [showPdfReview, setShowPdfReview] = useState(false)
+  const [attachBatchId, setAttachBatchId] = useState<string | null>(null)
 
   const searches = useQuery({
     queryKey: ['searches', projectId],
@@ -194,6 +205,31 @@ export function ImportPage() {
               {searches.data.map((search) => (
                 <li key={search.id}>
                   <strong>{search.sourceName}</strong>: {search.query} — {search.searchDate}
+                  {(search.importBatches ?? [])
+                    .filter((batch) => batch.status === 'completed')
+                    .map((batch) => (
+                      <div className="toolbar" key={batch.id}>
+                        <span className="muted">
+                          {batch.originalFilename} · {batch.recordCount} records
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setAttachBatchId(
+                            attachBatchId === batch.id ? null : batch.id,
+                          )}
+                        >
+                          {attachBatchId === batch.id ? 'Cancel' : 'Attach PDFs'}
+                        </button>
+                      </div>
+                    ))}
+                  {attachBatchId
+                  && search.importBatches?.some((batch) => batch.id === attachBatchId) ? (
+                    <AttachPdfsPanel
+                      projectId={projectId}
+                      importBatchId={attachBatchId}
+                      onClose={() => setAttachBatchId(null)}
+                    />
+                    ) : null}
                 </li>
               ))}
             </ul>

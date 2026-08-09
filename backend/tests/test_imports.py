@@ -1,12 +1,36 @@
 from io import BytesIO
 
+import pytest
 from openpyxl import Workbook
+from pypdf import PdfWriter
 from sqlalchemy import select
 
 from app.accounts.service import create_user
+from app.core.config import get_settings
 from app.imports.adapters import parse_bibtex, parse_csv, parse_ris, parse_xlsx
 from app.imports.models import ImportBatch, ImportedRecord
 from app.jobs.worker import execute_next_job
+
+
+@pytest.fixture(autouse=True)
+def isolated_pdf_storage(tmp_path):
+    settings = get_settings()
+    previous = settings.pdf_storage_path
+    settings.pdf_storage_path = tmp_path / "pdfs"
+    settings.pdf_storage_path.mkdir()
+    try:
+        yield
+    finally:
+        settings.pdf_storage_path = previous
+
+
+def pdf_bytes(title: str) -> bytes:
+    stream = BytesIO()
+    writer = PdfWriter()
+    writer.add_blank_page(width=72, height=72)
+    writer.add_metadata({"/Title": title})
+    writer.write(stream)
+    return stream.getvalue()
 
 
 def login(client) -> str:
@@ -127,6 +151,56 @@ def test_project_jobs_are_listed_with_status(
     jobs_after = client.get(f"/api/v1/projects/{project_id}/jobs")
     assert jobs_after.json()[0]["status"] == "completed"
     assert jobs_after.json()[0]["completedAt"] is not None
+
+
+def test_pdfs_can_be_bulk_attached_to_a_previously_completed_search_import(
+    client, db, session_factory, tmp_path, monkeypatch
+) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    db.commit()
+    csrf = login(client)
+    project_id = create_project(client, csrf)
+
+    monkeypatch.setenv("PAPERTRAIL_IMPORT_DIR", str(tmp_path / "imports"))
+    from app.core.config import get_settings
+
+    get_settings.cache_clear()
+
+    search = client.post(
+        f"/api/v1/projects/{project_id}/searches",
+        json={
+            "sourceName": "IEEE Xplore",
+            "query": "virtual reality",
+            "searchDate": "2026-07-30",
+        },
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+
+    response = client.post(
+        f"/api/v1/projects/{project_id}/imports",
+        data={"searchSourceId": search["id"]},
+        files={"file": ("records.csv", b"Title,Authors\nPaper A,Doe\n", "text/csv")},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 202
+    import_batch_id = response.json()["importBatchId"]
+    assert execute_next_job(session_factory, worker_id="test-worker") is True
+
+    listed = client.get(f"/api/v1/projects/{project_id}/searches").json()
+    assert len(listed) == 1
+    batches = listed[0]["importBatches"]
+    assert len(batches) == 1
+    assert batches[0]["id"] == import_batch_id
+    assert batches[0]["status"] == "completed"
+    assert batches[0]["originalFilename"] == "records.csv"
+
+    attach = client.post(
+        f"/api/v1/projects/{project_id}/imports/{import_batch_id}/pdfs",
+        files={"pdfs": ("paper-a.pdf", pdf_bytes("Paper A"), "application/pdf")},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert attach.status_code == 200
+    assert attach.json()["summary"]["total"] == 1
 
 
 def test_a_regular_project_member_can_document_a_search_and_import_records(

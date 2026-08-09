@@ -52,6 +52,7 @@ def list_searches(
     return list(
         db.scalars(
             select(SearchSource)
+            .options(selectinload(SearchSource.import_batches))
             .where(SearchSource.project_id == project_id)
             .order_by(SearchSource.search_date.desc(), SearchSource.created_at.desc())
         )

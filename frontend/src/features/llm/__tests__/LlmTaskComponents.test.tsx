@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { ScreeningLlmPanel } from '../LlmTaskComponents'
@@ -106,6 +106,63 @@ describe('ScreeningLlmPanel', () => {
       'href',
       expect.stringContaining('#page=4'),
     )
+  })
+
+  it('color-codes each criterion where the reviewer answer differs from the LLM assessment', async () => {
+    mockFetch(async () => jsonResponse({
+      state: 'ready', hidden: false, stale: false, suggestedDecision: 'include',
+      confidence: 'medium', reasoningSummary: 'Mixed criteria results.',
+      criteria: [
+        {
+          criterionId: 'criterion-met-match', criterionText: 'Reviewer agrees it is met',
+          criterionKind: 'inclusion', assessment: 'met',
+          explanation: 'Explanation A', evidence: [], evidenceValidationStatus: 'not_required',
+        },
+        {
+          criterionId: 'criterion-not-met-mismatch', criterionText: 'Reviewer disagrees',
+          criterionKind: 'inclusion', assessment: 'not_met',
+          explanation: 'Explanation B', evidence: [], evidenceValidationStatus: 'not_required',
+        },
+        {
+          criterionId: 'criterion-unclear', criterionText: 'LLM is unclear',
+          criterionKind: 'inclusion', assessment: 'unclear',
+          explanation: 'Explanation C', evidence: [], evidenceValidationStatus: 'not_required',
+        },
+        {
+          criterionId: 'criterion-unanswered', criterionText: 'Reviewer has not answered yet',
+          criterionKind: 'inclusion', assessment: 'met',
+          explanation: 'Explanation D', evidence: [], evidenceValidationStatus: 'not_required',
+        },
+      ],
+    }))
+    renderWithProviders(
+      <ScreeningLlmPanel
+        projectId="project-1"
+        publicationId="publication-1"
+        itemId="item-1"
+        stage="full_text"
+        criteriaAnswers={{
+          'criterion-met-match': true,
+          'criterion-not-met-mismatch': true,
+          'criterion-unclear': true,
+        }}
+      />,
+    )
+
+    const matchRow = (await screen.findByText(/Reviewer agrees it is met/)).closest('details') as HTMLElement
+    expect(matchRow).toHaveClass('llm-criterion--match')
+
+    const mismatchRow = screen.getByText(/Reviewer disagrees/).closest('details') as HTMLElement
+    expect(mismatchRow).toHaveClass('llm-criterion--mismatch')
+    expect(within(mismatchRow).getByText(/Differs from your answer/)).toBeInTheDocument()
+
+    const unclearRow = screen.getByText(/LLM is unclear/).closest('details') as HTMLElement
+    expect(unclearRow).not.toHaveClass('llm-criterion--match')
+    expect(unclearRow).not.toHaveClass('llm-criterion--mismatch')
+
+    const unansweredRow = screen.getByText(/Reviewer has not answered yet/).closest('details') as HTMLElement
+    expect(unansweredRow).not.toHaveClass('llm-criterion--match')
+    expect(unansweredRow).not.toHaveClass('llm-criterion--mismatch')
   })
 
   it('offers retry without blocking the screen when inference fails', async () => {

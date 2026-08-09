@@ -1,8 +1,13 @@
 import datetime
+from io import BytesIO
 
+import pytest
+from pypdf import PdfWriter
 from sqlalchemy import select
 
 from app.accounts.service import create_user
+from app.conflicts.service import record_final_decision
+from app.core.config import get_settings
 from app.imports.models import ImportBatch, ImportedRecord, ImportStatus, SearchSource
 from app.projects.models import (
     AllocationMode,
@@ -23,6 +28,27 @@ def login(client) -> str:
         "/api/v1/auth/login", json={"username": "admin", "password": "secret-password"}
     )
     return response.json()["csrfToken"]
+
+
+@pytest.fixture(autouse=True)
+def isolated_pdf_storage(tmp_path):
+    settings = get_settings()
+    previous = settings.pdf_storage_path
+    settings.pdf_storage_path = tmp_path / "pdfs"
+    settings.pdf_storage_path.mkdir()
+    try:
+        yield
+    finally:
+        settings.pdf_storage_path = previous
+
+
+def pdf_bytes(title: str) -> bytes:
+    stream = BytesIO()
+    writer = PdfWriter()
+    writer.add_blank_page(width=72, height=72)
+    writer.add_metadata({"/Title": title})
+    writer.write(stream)
+    return stream.getvalue()
 
 
 def test_delete_publication_soft_deletes_and_hides_it_from_the_list(client, db) -> None:
@@ -62,6 +88,91 @@ def test_delete_publication_soft_deletes_and_hides_it_from_the_list(client, db) 
         headers={"X-CSRF-Token": csrf},
     )
     assert again.status_code == 404
+
+
+def test_bulk_delete_removes_only_the_selected_publications(client, db) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    project = Project(
+        name="Review", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed"
+    )
+    db.add(project)
+    db.commit()
+    csrf = login(client)
+
+    kept = client.post(
+        f"/api/v1/projects/{project.id}/publications",
+        json={"title": "Keep me"},
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+    removed_one = client.post(
+        f"/api/v1/projects/{project.id}/publications",
+        json={"title": "Remove me 1"},
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+    removed_two = client.post(
+        f"/api/v1/projects/{project.id}/publications",
+        json={"title": "Remove me 2"},
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+
+    response = client.post(
+        f"/api/v1/projects/{project.id}/publications/delete",
+        json={"publicationIds": [removed_one["id"], removed_two["id"]]},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 200
+    assert response.json() == {"deletedCount": 2}
+
+    listing = client.get(f"/api/v1/projects/{project.id}/publications").json()
+    assert [publication["id"] for publication in listing] == [kept["id"]]
+
+
+def test_pdfs_can_be_bulk_uploaded_and_auto_matched_without_selecting_publications(
+    client, db
+) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    project = Project(
+        name="Review", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed"
+    )
+    db.add(project)
+    db.commit()
+    csrf = login(client)
+
+    matched = client.post(
+        f"/api/v1/projects/{project.id}/publications",
+        json={"title": "Deep Learning for Urban Planning", "authors": "Doe, Jane"},
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+    unmatched_target = client.post(
+        f"/api/v1/projects/{project.id}/publications",
+        json={"title": "Wetland Restoration Methods"},
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+
+    response = client.post(
+        f"/api/v1/projects/{project.id}/publications/pdfs",
+        files={
+            "pdfs": (
+                "deep-learning.pdf",
+                pdf_bytes("Deep Learning for Urban Planning"),
+                "application/pdf",
+            )
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["summary"]["total"] == 1
+    assert body["summary"]["matched"] == 1
+
+    publication = client.get(
+        f"/api/v1/projects/{project.id}/publications/{matched['id']}"
+    ).json()
+    assert publication["fullText"]["available"] is True
+    untouched = client.get(
+        f"/api/v1/projects/{project.id}/publications/{unmatched_target['id']}"
+    ).json()
+    assert untouched["fullText"]["available"] is False
 
 
 def test_a_regular_project_member_can_add_a_publication_manually(client, db) -> None:
@@ -321,6 +432,49 @@ def test_publication_import_after_title_abstract_started_gets_screened(db) -> No
     )
     assert work_item is not None
     assert work_item.assigned_reviewer_id == reviewer.id
+
+
+def test_publication_response_includes_screening_status_per_stage(client, db) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    project = Project(
+        name="Review", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed"
+    )
+    db.add(project)
+    db.flush()
+    publication = Publication(project_id=project.id, title="Reviewed paper")
+    unreviewed = Publication(project_id=project.id, title="Untouched paper")
+    db.add_all([publication, unreviewed])
+    db.commit()
+    login(client)
+
+    record_final_decision(
+        db,
+        publication.id,
+        ScreeningStage.TITLE_ABSTRACT,
+        "include",
+        "agreement",
+        None,
+        None,
+    )
+    record_final_decision(
+        db, publication.id, ScreeningStage.FULL_TEXT, "exclude", "agreement", None, None
+    )
+    db.commit()
+
+    listing = client.get(f"/api/v1/projects/{project.id}/publications")
+    assert listing.status_code == 200
+    by_title = {item["title"]: item["screeningStatus"] for item in listing.json()}
+    assert by_title["Reviewed paper"] == {
+        "titleAbstract": "include",
+        "fullText": "exclude",
+    }
+    assert by_title["Untouched paper"] == {"titleAbstract": None, "fullText": None}
+
+    detail = client.get(f"/api/v1/projects/{project.id}/publications/{publication.id}")
+    assert detail.json()["screeningStatus"] == {
+        "titleAbstract": "include",
+        "fullText": "exclude",
+    }
 
 
 def test_publication_creation_blocked_once_full_text_has_started(client, db) -> None:

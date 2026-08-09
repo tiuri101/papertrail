@@ -89,6 +89,7 @@ def upgrade() -> None:
         sa.Column("password_hash", sa.String(length=500), nullable=False),
         sa.Column("is_admin", sa.Boolean(), nullable=False),
         sa.Column("is_active", sa.Boolean(), nullable=False),
+        sa.Column("must_change_password", sa.Boolean(), nullable=False),
         sa.Column("last_login_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("id", sa.String(length=36), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),

@@ -18,6 +18,14 @@ class SearchSourceCreate(ApiModel):
     exported_result_count: int = Field(default=0, alias="exportedResultCount", ge=0)
 
 
+class ImportBatchSummary(ApiModel):
+    id: str
+    original_filename: str = Field(serialization_alias="originalFilename")
+    status: str
+    record_count: int = Field(serialization_alias="recordCount")
+    completed_at: datetime | None = Field(serialization_alias="completedAt")
+
+
 class SearchSourceResponse(ApiModel):
     id: str
     source_name: str = Field(serialization_alias="sourceName")
@@ -25,11 +33,18 @@ class SearchSourceResponse(ApiModel):
     search_date: date = Field(serialization_alias="searchDate")
     filters: str | None
     exported_result_count: int = Field(serialization_alias="exportedResultCount")
+    import_batches: list[ImportBatchSummary] = Field(
+        default_factory=list, serialization_alias="importBatches"
+    )
 
 
 class JobAccepted(ApiModel):
     job_id: str = Field(serialization_alias="jobId")
     import_batch_id: str = Field(serialization_alias="importBatchId")
+
+
+class JobRestartRequest(ApiModel):
+    job_ids: list[str] = Field(min_length=1, alias="jobIds")
 
 
 class PdfMatchResolve(ApiModel):

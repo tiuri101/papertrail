@@ -28,10 +28,11 @@ function formatSize(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
 }
 
-export function FullTextDocumentPanel({ projectId, publicationId, onAvailable }: {
+export function FullTextDocumentPanel({ projectId, publicationId, onAvailable, onRemoved }: {
   projectId: string
   publicationId: string
   onAvailable?: () => void
+  onRemoved?: () => void
 }) {
   const queryClient = useQueryClient()
   const inputRef = useRef<HTMLInputElement>(null)
@@ -65,6 +66,7 @@ export function FullTextDocumentPanel({ projectId, publicationId, onAvailable }:
     onSuccess: () => {
       queryClient.setQueryData(queryKey, { available: false, document: null })
       queryClient.invalidateQueries({ queryKey: [...queryKey, 'history'] })
+      onRemoved?.()
     },
   })
 
@@ -102,6 +104,7 @@ export function FullTextDocumentPanel({ projectId, publicationId, onAvailable }:
             <button type="button" onClick={chooseFile} disabled={upload.isPending}>Replace PDF</button>
             <button
               type="button"
+              className="button-danger"
               onClick={() => {
                 if (window.confirm('Remove the active PDF? Document history will be retained.')) {
                   remove.mutate()

@@ -9,11 +9,12 @@ from sqlalchemy.orm import Session
 from app.accounts.dependencies import get_current_user, require_csrf
 from app.accounts.models import User, UserSession
 from app.accounts.service import get_user_or_raise
-from app.api.errors import ConflictError, NotFoundError
+from app.api.errors import ConflictError, DomainError, NotFoundError
 from app.audit.service import record_audit
 from app.db.session import get_db
-from app.imports.schemas import JobResponse
+from app.imports.schemas import JobResponse, JobRestartRequest
 from app.jobs.models import BackgroundJob, JobStatus
+from app.jobs.service import restart_job
 from app.notifications.service import queue_membership_email
 from app.projects.dependencies import (
     require_project_manager_csrf,
@@ -567,6 +568,63 @@ def list_project_jobs(
             .order_by(BackgroundJob.created_at.desc())
         )
     )
+
+
+@router.post("/{project_id}/jobs/{job_id}/restart", response_model=JobResponse)
+def restart_project_job(
+    project_id: str,
+    job_id: str,
+    admin: User = Depends(require_project_manager_csrf),
+    db: Session = Depends(get_db),
+) -> BackgroundJob:
+    job = db.get(BackgroundJob, job_id)
+    if job is None or job.project_id != project_id:
+        raise NotFoundError("Job not found")
+    if job.status != JobStatus.FAILED:
+        raise DomainError("Only failed jobs can be restarted")
+    restart_job(db, job)
+    record_audit(
+        db,
+        action="job.restarted",
+        entity_type="background_job",
+        entity_id=job.id,
+        project_id=project_id,
+        actor_id=admin.id,
+        summary=f"Restarted background job {job.job_type}",
+    )
+    db.commit()
+    return job
+
+
+@router.post("/{project_id}/jobs/restart", response_model=list[JobResponse])
+def bulk_restart_project_jobs(
+    project_id: str,
+    payload: JobRestartRequest,
+    admin: User = Depends(require_project_manager_csrf),
+    db: Session = Depends(get_db),
+) -> list[BackgroundJob]:
+    jobs = list(
+        db.scalars(
+            select(BackgroundJob).where(
+                BackgroundJob.project_id == project_id,
+                BackgroundJob.id.in_(payload.job_ids),
+                BackgroundJob.status == JobStatus.FAILED,
+            )
+        )
+    )
+    for job in jobs:
+        restart_job(db, job)
+        record_audit(
+            db,
+            action="job.restarted",
+            entity_type="background_job",
+            entity_id=job.id,
+            project_id=project_id,
+            actor_id=admin.id,
+            summary=f"Restarted background job {job.job_type}",
+        )
+    db.commit()
+    return jobs
 
 
 @router.get("/{project_id}/integrity")
