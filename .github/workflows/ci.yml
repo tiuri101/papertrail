@@ -130,6 +130,8 @@ jobs:
       - backend
       - frontend
 
+    if: github.event_name == 'push'
+
     outputs:
       value: ${{ steps.version.outputs.value }}
       is_release: ${{ steps.version.outputs.is_release }}
@@ -173,6 +175,8 @@ jobs:
     needs:
       - version
 
+    if: github.event_name == 'push'
+
     strategy:
       fail-fast: false
       matrix:
@@ -213,7 +217,6 @@ jobs:
             latest=false
           tags: |
             type=ref,event=branch
-            type=ref,event=pr
             type=sha,prefix=sha-
             type=raw,value=latest,enable=${{ needs.version.outputs.is_release == 'true' }}
             type=raw,value=${{ needs.version.outputs.value }},enable=${{ needs.version.outputs.is_release == 'true' }}
