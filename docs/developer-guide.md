@@ -55,9 +55,9 @@ npm run test:e2e
 
 ## Branching and releasing
 
-Day-to-day work happens on `dev`. Changes reach `main` only through a pull request from `dev`. Every push and pull request runs the full backend and frontend test suites; nothing merges without CI passing.
+Day-to-day work happens on `dev`. Changes reach `main` only through a pull request from `dev`. Pull requests run the full backend and frontend test suites; that PR run is the only place tests execute, so `main` must require those checks to pass before allowing a merge (branch protection).
 
-Merging a pull request into `main` releases automatically. CI derives the next `YEAR.MONTH.PATCH` version (e.g. `2026.07.01`, then `2026.07.02` for the next release the same month) from the highest existing tag for the current year and month, builds and pushes `tiuri101/papertrail-backend` and `tiuri101/papertrail-frontend` images tagged with that version, tags the merge commit, and creates the GitHub release with generated notes. There is no manual release step.
+Pushes to `main` (i.e. a merged pull request) skip the test suites and instead release automatically. CI derives the next `YEAR.MONTH.PATCH` version (e.g. `2026.07.01`, then `2026.07.02` for the next release the same month) from the highest existing tag for the current year and month, builds and pushes `tiuri101/papertrail-backend` and `tiuri101/papertrail-frontend` images tagged with that version, tags the merge commit, and creates the GitHub release with generated notes. There is no manual release step.
 
 An out-of-band release can still be cut by pushing an annotated tag matching `YEAR.MONTH.PATCH` directly (e.g. for a hotfix); CI treats a tag push the same way and releases that exact version.
 
