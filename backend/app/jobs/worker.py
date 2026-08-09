@@ -21,7 +21,7 @@ from app.deduplication.jobs import detect_duplicates_job
 from app.imports.service import process_import_job
 from app.jobs.models import BackgroundJob, JobStatus
 from app.jobs.service import claim_job, renew_job_lease
-from app.llm.service import LLM_JOB, TEXT_JOB
+from app.llm.service import LLM_JOB_TYPES, TEXT_JOB
 from app.llm.task_execution import run_llm_task_job
 from app.llm.text_extraction import extract_document_text_job
 from app.notifications.service import (
@@ -44,7 +44,7 @@ HANDLERS: dict[str, Handler] = {
     "detect_duplicates": detect_duplicates_job,
     "generate_export": generate_export_job,
     TEXT_JOB: extract_document_text_job,
-    LLM_JOB: run_llm_task_job,
+    **{job_type: run_llm_task_job for job_type in LLM_JOB_TYPES},
     SEND_EMAIL_JOB: send_email_job,
     CHECK_LLM_STAGE_EMAIL_JOB: check_llm_stage_email_job,
 }
@@ -122,7 +122,7 @@ def execute_next_job(
                 job.lease_until = None
                 job.error_message = None
                 job.result = result
-                if job.job_type == LLM_JOB:
+                if job.job_type in LLM_JOB_TYPES:
                     from app.llm.models import LlmExtractionRun, LlmTaskType
 
                     run = db.get(LlmExtractionRun, str(job.payload.get("run_id")))
@@ -176,7 +176,7 @@ def execute_next_job(
                 job.lease_until = None
                 if job.status == JobStatus.FAILED:
                     job.completed_at = datetime.now(UTC)
-                if job.job_type == LLM_JOB:
+                if job.job_type in LLM_JOB_TYPES:
                     from app.llm.models import (
                         LlmExtractionRun,
                         LlmTaskType,
@@ -259,8 +259,8 @@ def run_worker(*, llm_only: bool = False) -> None:
     thread_count = (
         settings.llm_max_concurrent_jobs if llm_only else settings.worker_threads
     )
-    allowed_job_types = {LLM_JOB} if llm_only else None
-    excluded_job_types = None if llm_only else {LLM_JOB}
+    allowed_job_types = LLM_JOB_TYPES if llm_only else None
+    excluded_job_types = None if llm_only else LLM_JOB_TYPES
     logger.info(
         "Papertrail worker starting (worker_id=%s, threads=%d, poll_interval=%ss)",
         worker_id,

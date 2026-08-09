@@ -68,6 +68,35 @@ def test_admin_creates_project_and_reviewer_only_sees_memberships(client, db) ->
     assert client.get("/api/v1/projects").json() == []
 
 
+def test_admin_cannot_add_deactivated_user_as_member(client, db) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    reviewer = create_user(db, "reviewer", "Reviewer", "reviewer-password")
+    reviewer.is_active = False
+    db.commit()
+
+    csrf = login(client, "admin", "secret-password")
+    created = client.post(
+        "/api/v1/projects",
+        json={"name": "Urban VR Review", "reviewType": "systematic_review"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    project_id = created.json()["id"]
+
+    membership = client.post(
+        f"/api/v1/projects/{project_id}/members",
+        json={
+            "userId": reviewer.id,
+            "canTitleAbstractScreen": True,
+            "canFullTextScreen": False,
+            "canExtract": False,
+            "canAssessQuality": False,
+            "canAdjudicate": False,
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert membership.status_code == 409
+
+
 def test_admin_updates_and_removes_project_membership(client, db) -> None:
     create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
     reviewer = create_user(db, "reviewer", "Reviewer", "reviewer-password")
@@ -139,9 +168,7 @@ def test_adding_a_reviewer_mid_stage_rebalances_the_backlog_onto_them(
     db.flush()
     db.add_all(
         [
-            ProjectMembership(
-                project_id=project.id, user_id=admin.id, is_owner=True
-            ),
+            ProjectMembership(project_id=project.id, user_id=admin.id, is_owner=True),
             ProjectMembership(
                 project_id=project.id,
                 user_id=reviewer1.id,
@@ -170,7 +197,9 @@ def test_adding_a_reviewer_mid_stage_rebalances_the_backlog_onto_them(
         for item in db.scalars(
             select(ScreeningWorkItem).where(ScreeningWorkItem.project_id == project.id)
         ):
-            tally[item.assigned_reviewer_id] = tally.get(item.assigned_reviewer_id, 0) + 1
+            tally[item.assigned_reviewer_id] = (
+                tally.get(item.assigned_reviewer_id, 0) + 1
+            )
         return tally
 
     assert counts() == {reviewer1.id: 4}

@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { api } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { ConfirmButton } from '../../components/ConfirmButton'
+import { IconRestart } from '../../components/icons'
 
 const stages = [
   'draft',
@@ -94,13 +95,14 @@ export function ProjectLifecyclePanel({ projectId }: { projectId: string }) {
               {reopenOptions.map((stage) => <option key={stage} value={stage}>{humanizeStage(stage)}</option>)}
             </select>
           </label>
-          <button
-            type="button"
-            onClick={() => reopen.mutate()}
+          <ConfirmButton
+            label="Reopen Project"
+            confirmLabel="Reopen"
+            warning="This reopens the project at the selected stage. Downstream data (screening decisions, extraction, quality assessment) is kept, not deleted, but will no longer count toward the active stage until the project advances again."
+            onConfirm={() => reopen.mutate()}
             disabled={reopen.isPending}
-          >
-            Reopen Project
-          </button>
+            icon={<IconRestart />}
+          />
         </CollapsibleSection>
       ) : null}
       {isActiveStage && moveBackOptions.length ? (

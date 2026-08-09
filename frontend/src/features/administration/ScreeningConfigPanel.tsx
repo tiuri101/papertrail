@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
+import { IconCheckCircle } from '../../components/icons'
 
 type AllocationMode = 'independent' | 'divided'
 type ResolutionMethod =
@@ -66,18 +67,30 @@ function StageConfigForm({
   onSave,
   pending,
   error,
+  onDirtyChange,
 }: {
   config: ScreeningConfig
   label: string
   onSave: (draft: Draft) => void
   pending: boolean
   error: Error | null
+  onDirtyChange?: (dirty: boolean) => void
 }) {
   const [draft, setDraft] = useState<Draft>(() => draftFrom(config))
 
   useEffect(() => {
     setDraft(draftFrom(config))
   }, [config])
+
+  useEffect(() => {
+    const saved = draftFrom(config)
+    onDirtyChange?.(
+      draft.requiredReviewers !== saved.requiredReviewers
+      || draft.allocationMode !== saved.allocationMode
+      || draft.conflictResolution !== saved.conflictResolution
+      || draft.uncertainResolution !== saved.uncertainResolution,
+    )
+  }, [draft, config, onDirtyChange])
 
   return (
     <form
@@ -133,14 +146,21 @@ function StageConfigForm({
           </select>
         </label>
         {error ? <p className="error" role="alert">{error.message}</p> : null}
-        <button type="submit" disabled={pending}>Save {label} Settings</button>
+        <button type="submit" disabled={pending}><IconCheckCircle />Save {label} Settings</button>
       </fieldset>
     </form>
   )
 }
 
-export function ScreeningConfigPanel({ projectId }: { projectId: string }) {
+export function ScreeningConfigPanel({
+  projectId,
+  onDirtyChange,
+}: {
+  projectId: string
+  onDirtyChange?: (dirty: boolean) => void
+}) {
   const queryClient = useQueryClient()
+  const [dirtyStages, setDirtyStages] = useState<Record<string, boolean>>({})
   const project = useQuery({
     queryKey: ['project', projectId],
     queryFn: () => apiRequest<ProjectScreeningConfigs>(`/api/v1/projects/${projectId}`),
@@ -160,6 +180,9 @@ export function ScreeningConfigPanel({ projectId }: { projectId: string }) {
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['project', projectId] }),
   })
+
+  const anyStageDirty = Object.values(dirtyStages).some(Boolean)
+  useEffect(() => onDirtyChange?.(anyStageDirty), [anyStageDirty, onDirtyChange])
 
   if (project.isLoading) {
     return <CollapsibleSection id="section-screening-configuration" title="Screening Configuration"><p>Loading…</p></CollapsibleSection>
@@ -192,6 +215,9 @@ export function ScreeningConfigPanel({ projectId }: { projectId: string }) {
             pending={save.isPending && save.variables?.stage === value}
             error={save.error && save.variables?.stage === value ? save.error : null}
             onSave={(draft) => save.mutate({ stage: value, draft })}
+            onDirtyChange={(stageDirty) => setDirtyStages((current) => (
+              current[value] === stageDirty ? current : { ...current, [value]: stageDirty }
+            ))}
           />
         )
       })}

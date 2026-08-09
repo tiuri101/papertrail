@@ -46,7 +46,12 @@ from app.llm.schema_service import (
     project_settings,
     publish_schema,
 )
-from app.llm.service import LLM_JOB, TEXT_JOB, queue_preparation_if_eligible
+from app.llm.service import (
+    LLM_JOB_DATA_EXTRACTION,
+    LLM_JOB_TYPES,
+    TEXT_JOB,
+    queue_preparation_if_eligible,
+)
 from app.llm.task_execution import run_llm_task_job
 from app.llm.task_service import (
     queue_title_abstract_suggestion,
@@ -300,7 +305,7 @@ def test_page_aware_text_extraction_and_repeated_job_are_idempotent(db) -> None:
         db.scalar(
             select(func.count())
             .select_from(BackgroundJob)
-            .where(BackgroundJob.job_type == LLM_JOB)
+            .where(BackgroundJob.job_type.in_(LLM_JOB_TYPES))
         )
         == 1
     )
@@ -325,7 +330,7 @@ def test_image_only_pdf_is_marked_unsupported_without_llm_job(db) -> None:
         db.scalar(
             select(func.count())
             .select_from(BackgroundJob)
-            .where(BackgroundJob.job_type == LLM_JOB)
+            .where(BackgroundJob.job_type.in_(LLM_JOB_TYPES))
         )
         == 0
     )
@@ -505,6 +510,61 @@ def test_structured_response_rejects_types_enums_unknown_fields_and_inference(
     }
     with pytest.raises(DomainError):
         validate_result(inferred, fields)
+
+
+def test_structured_response_coerces_stray_value_on_not_applicable_status(
+    db,
+) -> None:
+    *_, schema, sample, method = setup_llm_project(db)[0:8]
+    fields = schema.fields
+    payload = {
+        "fields": {
+            sample.stable_key: {
+                "value": False,
+                "status": "not_applicable",
+                "evidence": [],
+            },
+            method.stable_key: {
+                "value": "n/a",
+                "status": "not_found",
+                "evidence": [],
+            },
+        }
+    }
+    result = validate_result(payload, fields)
+    assert result.fields[sample.stable_key].value is None
+    assert result.fields[method.stable_key].value is None
+
+
+def test_structured_response_reclassifies_not_found_with_evidence_as_ambiguous(
+    db,
+) -> None:
+    *_, schema, sample, method = setup_llm_project(db)[0:8]
+    fields = schema.fields
+    payload = {
+        "fields": {
+            sample.stable_key: {
+                "value": 24,
+                "status": "not_found",
+                "evidence": [
+                    {
+                        "page": 2,
+                        "quote": "Twenty-four participants took part in the study.",
+                    }
+                ],
+            },
+            method.stable_key: {
+                "value": "experiment",
+                "status": "explicit",
+                "evidence": [],
+            },
+        }
+    }
+    result = validate_result(payload, fields)
+    field_result = result.fields[sample.stable_key]
+    assert field_result.value == 24
+    assert field_result.status == "ambiguous"
+    assert len(field_result.evidence) == 1
 
 
 def test_evidence_verification_never_marks_wrong_page_or_fabrication_verified() -> None:
@@ -807,19 +867,21 @@ def test_ollama_native_request_disables_streaming_and_thinking(monkeypatch) -> N
 
 def test_worker_type_filter_keeps_gpu_jobs_for_dedicated_worker(db) -> None:
     generic = BackgroundJob(job_type="parse_import", payload={})
-    inference = BackgroundJob(job_type=LLM_JOB, payload={"run_id": "run"})
+    inference = BackgroundJob(
+        job_type=LLM_JOB_DATA_EXTRACTION, payload={"run_id": "run"}
+    )
     db.add_all([generic, inference])
     db.commit()
-    claimed_generic = claim_job(db, "normal", excluded_job_types={LLM_JOB})
+    claimed_generic = claim_job(db, "normal", excluded_job_types=LLM_JOB_TYPES)
     assert claimed_generic.id == generic.id
     db.commit()
-    claimed_llm = claim_job(db, "gpu", allowed_job_types={LLM_JOB})
+    claimed_llm = claim_job(db, "gpu", allowed_job_types=LLM_JOB_TYPES)
     assert claimed_llm.id == inference.id
 
 
 def test_dedicated_worker_recovers_an_expired_llm_lease(db) -> None:
     job = BackgroundJob(
-        job_type=LLM_JOB,
+        job_type=LLM_JOB_DATA_EXTRACTION,
         payload={"run_id": "run"},
         status=JobStatus.RUNNING,
         attempts=1,
@@ -829,7 +891,7 @@ def test_dedicated_worker_recovers_an_expired_llm_lease(db) -> None:
     )
     db.add(job)
     db.commit()
-    recovered = claim_job(db, "replacement-worker", allowed_job_types={LLM_JOB})
+    recovered = claim_job(db, "replacement-worker", allowed_job_types=LLM_JOB_TYPES)
     assert recovered.id == job.id
     assert recovered.locked_by == "replacement-worker"
     assert recovered.attempts == 2

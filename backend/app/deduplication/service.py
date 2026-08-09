@@ -367,5 +367,11 @@ def transition_if_duplicate_review_complete(db: Session, project: Project) -> bo
     from app.screening.service import create_screening_work_items
 
     create_screening_work_items(db, project, ScreeningStage.TITLE_ABSTRACT)
+
+    from app.notifications.service import queue_project_stage_completed_emails
+
+    queue_project_stage_completed_emails(
+        db, project, ProjectStage.DUPLICATE_REVIEW, datetime.now(UTC)
+    )
     db.flush()
     return True

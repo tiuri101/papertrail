@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import { FormBuilderPage } from '../FormBuilderPage'
 import { jsonResponse, mockFetch } from '../../../test/http'
@@ -237,13 +237,13 @@ describe('FormBuilderPage', () => {
       if (path.endsWith('/quality-config')) return jsonResponse({ enabled: false, mode: 'both', aggregation: 'sum' })
       return jsonResponse([{ id: 'form-1', name: 'Extraction', kind: 'extraction', activeVersionId: 'v1' }])
     })
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     renderWithProviders(<FormBuilderPage />, { route: '/projects/p1/forms', path: '/projects/:projectId/forms' })
 
     await screen.findByRole('option', { name: 'Extraction (extraction)' })
     fireEvent.change(screen.getByLabelText('Form to edit'), { target: { value: 'form-1' } })
 
     fireEvent.click(await screen.findByRole('button', { name: 'Archive' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Archive Field' }))
 
     await waitFor(() => {
       const patchCall = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/forms/form-1/fields/stable-1') && init?.method === 'PATCH')
@@ -272,7 +272,6 @@ describe('FormBuilderPage', () => {
       if (path.endsWith('/quality-config')) return jsonResponse({ enabled: false, mode: 'both', aggregation: 'sum' })
       return jsonResponse([{ id: 'form-1', name: 'Extraction', kind: 'extraction', activeVersionId: 'v1' }])
     })
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     renderWithProviders(<FormBuilderPage />, { route: '/projects/p1/forms', path: '/projects/:projectId/forms' })
 
     await screen.findByRole('option', { name: 'Extraction (extraction)' })
@@ -281,6 +280,7 @@ describe('FormBuilderPage', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Change Type…' }))
     fireEvent.change(screen.getByLabelText('New type for Sample size'), { target: { value: 'number' } })
     fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Replace Field' }))
 
     await waitFor(() => {
       const replaceCall = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/forms/form-1/fields/stable-1/replace') && init?.method === 'POST')
@@ -357,12 +357,12 @@ describe('FormBuilderPage', () => {
     fireEvent.click(enabledCheckbox)
     fireEvent.change(screen.getByLabelText('Mode'), { target: { value: 'numeric' } })
     fireEvent.change(screen.getByLabelText('Aggregation'), { target: { value: 'weighted_average' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save Quality Settings' }))
 
     await waitFor(() => {
-      const putCall = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/quality-config') && init?.method === 'PUT')
-      expect(putCall).toBeTruthy()
-      expect(JSON.parse(String(putCall?.[1]?.body))).toEqual({ enabled: true, mode: 'numeric', aggregation: 'weighted_average' })
+      const putCalls = fetchMock.mock.calls.filter(([input, init]) => String(input).endsWith('/quality-config') && init?.method === 'PUT')
+      expect(putCalls.length).toBe(3)
+      expect(JSON.parse(String(putCalls[putCalls.length - 1]?.[1]?.body))).toEqual({ enabled: true, mode: 'numeric', aggregation: 'weighted_average' })
     })
+    await screen.findByText('Saved.')
   })
 })

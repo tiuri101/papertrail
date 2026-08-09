@@ -5,8 +5,15 @@ from datetime import UTC, datetime
 from sqlalchemy import select
 
 from app.accounts.service import create_user
-from app.conflicts.service import record_final_decision
+from app.conflicts.service import (
+    record_final_decision,
+    transition_if_screening_complete,
+)
 from app.core.config import Settings
+from app.deduplication.service import (
+    detect_duplicates,
+    transition_if_duplicate_review_complete,
+)
 from app.extraction.models import ExtractionStatus, ExtractionWorkItem
 from app.jobs.models import BackgroundJob, JobStatus
 from app.jobs.worker import execute_next_job
@@ -358,6 +365,90 @@ def test_project_completion_email_is_sent_only_to_project_owner(
         db.scalars(select(BackgroundJob).where(BackgroundJob.job_type == "send_email"))
     )
     assert len(jobs) == 1
+
+
+def test_stage_completion_email_is_sent_only_to_project_owner(db, monkeypatch) -> None:
+    monkeypatch.setattr("app.notifications.service.get_settings", email_settings)
+    owner = create_user(
+        db,
+        "owner",
+        "Project Owner",
+        "secret-password",
+        email="owner@example.org",
+    )
+    reviewer = create_user(
+        db,
+        "reviewer",
+        "Reviewer",
+        "secret-password",
+        email="reviewer@example.org",
+    )
+    project = create_project(
+        db, "Evidence Review", None, ReviewType.SYSTEMATIC_REVIEW, owner
+    )
+    db.add(ProjectMembership(project_id=project.id, user_id=reviewer.id))
+    project.stage = ProjectStage.DUPLICATE_REVIEW
+    db.flush()
+    # No publications means duplicate detection finds nothing to resolve, so
+    # the stage completes immediately.
+    detect_duplicates(db, project.id)
+    db.commit()
+    # The project-created email is queued too; ignore it and look only at the
+    # stage-completion notification queued once the stage advances.
+    db.query(EmailNotification).delete()
+    db.commit()
+
+    assert transition_if_duplicate_review_complete(db, project) is True
+    assert project.stage == ProjectStage.TITLE_ABSTRACT
+
+    notifications = list(db.scalars(select(EmailNotification)))
+    assert len(notifications) == 1
+    notification = notifications[0]
+    assert notification.template == "project_stage_completed"
+    assert notification.recipient_user_id == owner.id
+    assert notification.recipient_email == "owner@example.org"
+    assert notification.context["project_name"] == "Evidence Review"
+    assert notification.context["stage_label"] == "Resolve Duplicates"
+    rendered = render_email(notification.template, notification.context)
+    assert "Resolve Duplicates" in rendered.html_body
+    jobs = list(
+        db.scalars(select(BackgroundJob).where(BackgroundJob.job_type == "send_email"))
+    )
+    assert len(jobs) == 1
+
+
+def test_screening_stage_completion_advances_and_notifies_owner(
+    db, monkeypatch
+) -> None:
+    monkeypatch.setattr("app.notifications.service.get_settings", email_settings)
+    owner = create_user(
+        db,
+        "owner",
+        "Project Owner",
+        "secret-password",
+        email="owner@example.org",
+    )
+    project = create_project(
+        db, "Evidence Review", None, ReviewType.SYSTEMATIC_REVIEW, owner
+    )
+    project.stage = ProjectStage.TITLE_ABSTRACT
+    db.flush()
+    db.query(EmailNotification).delete()
+    db.commit()
+
+    assert (
+        transition_if_screening_complete(db, project, ScreeningStage.TITLE_ABSTRACT)
+        is True
+    )
+    assert project.stage == ProjectStage.FULL_TEXT
+
+    notification = db.scalar(
+        select(EmailNotification).where(
+            EmailNotification.template == "project_stage_completed"
+        )
+    )
+    assert notification is not None
+    assert notification.context["stage_label"] == "Title/Abstract Screening"
 
 
 def test_membership_add_and_remove_send_email_but_permission_change_does_not(

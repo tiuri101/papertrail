@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { IconCheckCircle } from '../../components/icons'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { DynamicForm, type DynamicFormField } from '../forms/DynamicForm'
 
@@ -157,6 +158,7 @@ export function QualityPage() {
             ) : null}
             {submit.error ? <p className="error" role="alert">{submit.error.message}</p> : null}
             <button type="submit" disabled={submit.isPending || missingRequired}>
+              <IconCheckCircle />
               Submit Assessment
             </button>
           </form>

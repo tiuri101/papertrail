@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import { PdfMatchReview } from '../PdfMatchReview'
 import { jsonResponse, mockFetch } from '../../../test/http'
@@ -41,7 +41,6 @@ describe('PdfMatchReview', () => {
   })
 
   it('defaults existing-PDF conflicts to keeping the existing PDF', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     const fetchMock = mockFetch((_input, init) => (
       init?.method === 'POST' ? jsonResponse({ status: 'skipped' }) : jsonResponse(review)
     ))

@@ -31,9 +31,9 @@ describe('AccountSettingsPage', () => {
     expect(screen.getByLabelText('Email address')).toHaveValue('old@example.org')
     fireEvent.change(screen.getByLabelText('Display name'), { target: { value: 'New Name' } })
     fireEvent.change(screen.getByLabelText('Email address'), { target: { value: 'new@example.org' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save Profile' }))
+    fireEvent.blur(screen.getByLabelText('Email address'))
 
-    await waitFor(() => expect(screen.getByText('Profile updated.')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('Saved.')).toBeInTheDocument())
     const call = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/auth/me'))
     expect(JSON.parse(String(call?.[1]?.body))).toEqual({
       displayName: 'New Name',

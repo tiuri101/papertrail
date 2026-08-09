@@ -216,9 +216,7 @@ def consume_password_reset_token(db: Session, token: PasswordResetToken) -> None
     token.used_at = utcnow()
 
 
-def ensure_password_reset_allowed(
-    db: Session, email: str, client_address: str
-) -> None:
+def ensure_password_reset_allowed(db: Session, email: str, client_address: str) -> None:
     from app.accounts.models import LoginThrottle
     from app.api.errors import RateLimitError
 
@@ -235,9 +233,7 @@ def ensure_password_reset_allowed(
         raise RateLimitError("Too many password reset requests. Try again later.")
 
 
-def record_password_reset_attempt(
-    db: Session, email: str, client_address: str
-) -> None:
+def record_password_reset_attempt(db: Session, email: str, client_address: str) -> None:
     from app.accounts.models import LoginThrottle
 
     settings = get_settings()

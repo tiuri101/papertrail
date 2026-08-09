@@ -277,6 +277,12 @@ def transition_if_screening_complete(
         from app.fulltext.service import initialize_full_text_stage
 
         initialize_full_text_stage(db, project)
+
+        from app.notifications.service import queue_project_stage_completed_emails
+
+        queue_project_stage_completed_emails(
+            db, project, ProjectStage.TITLE_ABSTRACT, datetime.now(UTC)
+        )
         db.flush()
         return True
     elif stage == ScreeningStage.FULL_TEXT:

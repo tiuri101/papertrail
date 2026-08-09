@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { IconRestart } from '../../components/icons'
 import { useCanManageProject } from '../../hooks/useCanManageProject'
 import { BackgroundJob, hasActiveJob } from './jobStatus'
 
@@ -262,6 +263,7 @@ export function JobsPage() {
                 disabled={selectedIds.size === 0 || restartMany.isPending}
                 onClick={() => restartMany.mutate(Array.from(selectedIds))}
               >
+                <IconRestart />
                 Restart Selected ({selectedIds.size})
               </button>
               <button

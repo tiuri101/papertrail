@@ -31,7 +31,7 @@ describe('ProjectDetailsPanel', () => {
 
     const input = await screen.findByDisplayValue('Urban VR Review')
     fireEvent.change(input, { target: { value: 'Renamed Review' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
+    fireEvent.blur(input)
 
     await waitFor(() => {
       const call = fetchMock.mock.calls.find(([, init]) => init?.method === 'PATCH')
@@ -41,6 +41,6 @@ describe('ProjectDetailsPanel', () => {
         description: 'Original description',
       })
     })
-    expect(await screen.findByText('Project details saved.')).toBeInTheDocument()
+    expect(await screen.findByText('Saved.')).toBeInTheDocument()
   })
 })

@@ -31,7 +31,18 @@ from app.projects.models import ScreeningStage
 from app.screening.models import ScreeningOutcome
 
 TEXT_JOB = "extract_document_text"
-LLM_JOB = "llm_extract_publication"
+LLM_JOB_TITLE_ABSTRACT_SCREENING = "llm_title_abstract_screening"
+LLM_JOB_FULL_TEXT_SCREENING = "llm_full_text_screening"
+LLM_JOB_DATA_EXTRACTION = "llm_data_extraction"
+LLM_JOB_EXTRACTION_VALIDATION = "llm_extraction_validation"
+
+LLM_JOB_TYPE_BY_TASK: dict[LlmTaskType, str] = {
+    LlmTaskType.TITLE_ABSTRACT_SCREENING: LLM_JOB_TITLE_ABSTRACT_SCREENING,
+    LlmTaskType.FULL_TEXT_SCREENING: LLM_JOB_FULL_TEXT_SCREENING,
+    LlmTaskType.DATA_EXTRACTION: LLM_JOB_DATA_EXTRACTION,
+    LlmTaskType.EXTRACTION_VALIDATION: LLM_JOB_EXTRACTION_VALIDATION,
+}
+LLM_JOB_TYPES = set(LLM_JOB_TYPE_BY_TASK.values())
 
 
 def utcnow() -> datetime:
@@ -201,7 +212,7 @@ def queue_llm_run_after_text(
     db.flush()
     job = enqueue_job(
         db,
-        LLM_JOB,
+        LLM_JOB_DATA_EXTRACTION,
         {"run_id": run.id, **({"bulk_id": bulk_id} if bulk_id else {})},
         project_id=document.project_id,
         created_by_id=created_by_id,

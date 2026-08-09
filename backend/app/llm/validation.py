@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import Any, Literal
+from typing import Any, Literal, cast
 from urllib.parse import urlsplit
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -18,11 +18,16 @@ class EvidenceItem(BaseModel):
     section: str | None = Field(default=None, max_length=300)
 
 
+StatusLiteral = Literal[
+    "explicit", "inferred", "ambiguous", "not_found", "not_applicable"
+]
+
+
 class FieldResult(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     value: Any | None
-    status: Literal["explicit", "inferred", "ambiguous", "not_found", "not_applicable"]
+    status: StatusLiteral
     evidence: list[EvidenceItem]
 
 
@@ -32,13 +37,20 @@ class ExtractionResult(BaseModel):
     fields: dict[str, FieldResult]
 
 
-def _validate_value(field: LlmSchemaField, value: Any | None, status: str) -> None:
+def _validate_value(
+    field: LlmSchemaField, value: Any | None, status: str, has_evidence: bool
+) -> tuple[Any | None, StatusLiteral]:
     if status in {SuggestionStatus.NOT_FOUND, SuggestionStatus.NOT_APPLICABLE}:
-        if value is not None:
-            raise DomainError(
-                f"{field.label}: missing/not-applicable results must use null"
-            )
-        return
+        if value is None:
+            return None, cast(StatusLiteral, status)
+        if not has_evidence:
+            # A stray value with nothing backing it up; the status is authoritative.
+            return None, cast(StatusLiteral, status)
+        # The model attached evidence for a value it also tagged not-found/not-
+        # applicable — it did find something, it just mis-tagged the status. Keep
+        # the value and evidence so the reviewer sees them, but mark it ambiguous
+        # rather than silently presenting it as "not found" or discarding it.
+        status = "ambiguous"
     if status == SuggestionStatus.INFERRED and not field.allow_inferred:
         raise DomainError(f"{field.label}: inferred values are not allowed")
     expected = field.field_type
@@ -79,6 +91,7 @@ def _validate_value(field: LlmSchemaField, value: Any | None, status: str) -> No
         low, high = map(float, field.options)
         if not low <= float(value) <= high:
             raise DomainError(f"{field.label}: rating is outside its configured range")
+    return value, cast(StatusLiteral, status)
 
 
 def validate_result(
@@ -97,5 +110,7 @@ def validate_result(
             f"unknown={sorted(unknown)}"
         )
     for key, result in parsed.fields.items():
-        _validate_value(expected[key], result.value, result.status)
+        result.value, result.status = _validate_value(
+            expected[key], result.value, result.status, bool(result.evidence)
+        )
     return parsed

@@ -1,4 +1,5 @@
 import { HighlightedText } from '../../components/HighlightedText'
+import { IconCheckCircle } from '../../components/icons'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { CriteriaAnswerFields } from './CriteriaAnswerFields'
 import type { ScreeningQueue } from './useScreeningQueue'
@@ -15,6 +16,7 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
     <article className="card">
       <h2><HighlightedText text={item.publication.title} keywords={highlightKeywords} /></h2>
       <p>{item.publication.authors ?? 'Unknown authors'}</p>
+      {item.publication.venue ? <p className="muted">{item.publication.venue}</p> : null}
       <p>
         {item.publication.abstract
           ? <HighlightedText text={item.publication.abstract} keywords={highlightKeywords} />
@@ -68,6 +70,7 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
         onClick={() => awaitingConfirmation ? queue.confirmDecision() : submit.mutate()}
         disabled={decisionPending || !criteriaComplete}
       >
+        <IconCheckCircle />
         Submit Decision
       </button>
     </article>

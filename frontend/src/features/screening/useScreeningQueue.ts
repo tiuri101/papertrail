@@ -21,6 +21,7 @@ export interface ScreeningWorkItem {
     title: string
     authors: string | null
     abstract: string | null
+    venue: string | null
     doi: string | null
     publisherUrl: string | null
   }
@@ -112,6 +113,15 @@ export function useScreeningQueue(projectId: string, stage: string) {
     next.mutate()
   }
 
+  const continueAfterDecision = () => {
+    setItem(null)
+    setSubmitted(null)
+    setAnswers({})
+    setOutcome('include')
+    setNotes('')
+    fetchNext()
+  }
+
   const submit = useMutation({
     mutationFn: () => {
       if (!item) throw new Error('No screening item is open')
@@ -128,18 +138,24 @@ export function useScreeningQueue(projectId: string, stage: string) {
       )
     },
     onSuccess: (decision: ScreeningDecisionResponse) => {
-      if (item) {
-        setSubmitted({
-          item,
-          decision: {
-            outcome: decision.outcome ?? outcome,
-            criteriaAnswers: decision.criteriaAnswers ?? answers,
-            notes: decision.notes ?? (notes || null),
-          },
-        })
-        queryClient.invalidateQueries({ queryKey: progressQueryKey })
+      if (!item) return
+      queryClient.invalidateQueries({ queryKey: progressQueryKey })
+      // The full-text LLM suggestion is visible before submitting (unlike
+      // title/abstract, which hides it until a first decision is in, to
+      // avoid anchoring bias), so there's nothing new to reveal that would
+      // warrant a second confirmation click here.
+      if (stage === 'full_text') {
+        continueAfterDecision()
         return
       }
+      setSubmitted({
+        item,
+        decision: {
+          outcome: decision.outcome ?? outcome,
+          criteriaAnswers: decision.criteriaAnswers ?? answers,
+          notes: decision.notes ?? (notes || null),
+        },
+      })
     },
   })
 
@@ -166,15 +182,6 @@ export function useScreeningQueue(projectId: string, stage: string) {
       queryClient.invalidateQueries({ queryKey: progressQueryKey })
     },
   })
-
-  const continueAfterDecision = () => {
-    setItem(null)
-    setSubmitted(null)
-    setAnswers({})
-    setOutcome('include')
-    setNotes('')
-    fetchNext()
-  }
 
   const confirmDecision = () => {
     if (!submitted) return

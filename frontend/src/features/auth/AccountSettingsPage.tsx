@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { IconCheckCircle } from '../../components/icons'
 import type { LoginResponse, User } from './types'
 import { sessionQueryOptions } from './sessionQuery'
 
@@ -15,15 +16,22 @@ export function AccountSettingsPage() {
   const [confirmPassword, setConfirmPassword] = useState('')
 
   const updateProfile = useMutation({
-    mutationFn: () => apiRequest<User>('/api/v1/auth/me', {
+    mutationFn: (next: { displayName: string; email: string }) => apiRequest<User>('/api/v1/auth/me', {
       method: 'PATCH',
-      body: JSON.stringify({ displayName, email }),
+      body: JSON.stringify(next),
     }),
     onSuccess: (user) => {
       queryClient.setQueryData<LoginResponse>(sessionQueryOptions.queryKey, (current) =>
         current ? { ...current, user } : current)
     },
   })
+
+  const saveProfileIfChanged = () => {
+    if (!session) return
+    if (!displayName.trim()) return
+    if (displayName === session.user.displayName && email === (session.user.email ?? '')) return
+    updateProfile.mutate({ displayName, email })
+  }
 
   const updatePassword = useMutation({
     mutationFn: () => apiRequest<User>('/api/v1/auth/me', {
@@ -46,30 +54,30 @@ export function AccountSettingsPage() {
       <h1>Account Settings</h1>
       <section className="card">
         <h2>Profile</h2>
-        <form onSubmit={(event) => { event.preventDefault(); updateProfile.mutate() }}>
-          <label>
-            Display name
-            <input
-              value={displayName}
-              onChange={(event) => setDisplayName(event.target.value)}
-              required
-            />
-          </label>
-          <label>
-            Email address
-            <input
-              type="email"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              placeholder="you@example.org"
-            />
-          </label>
-          {updateProfile.error ? <p className="error" role="alert">{updateProfile.error.message}</p> : null}
-          {updateProfile.isSuccess ? <p>Profile updated.</p> : null}
-          <button type="submit" disabled={updateProfile.isPending || !displayName.trim()}>
-            Save Profile
-          </button>
-        </form>
+        <p className="muted">Changes save automatically when you leave a field.</p>
+        <label>
+          Display name
+          <input
+            value={displayName}
+            onChange={(event) => setDisplayName(event.target.value)}
+            onBlur={saveProfileIfChanged}
+            required
+          />
+        </label>
+        <label>
+          Email address
+          <input
+            type="email"
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            onBlur={saveProfileIfChanged}
+            placeholder="you@example.org"
+          />
+        </label>
+        {updateProfile.error ? <p className="error" role="alert">{updateProfile.error.message}</p> : null}
+        <p className="muted" aria-live="polite">
+          {updateProfile.isPending ? 'Saving…' : updateProfile.isSuccess ? 'Saved.' : ' '}
+        </p>
       </section>
       <section className="card">
         <h2>Password</h2>
@@ -118,6 +126,7 @@ export function AccountSettingsPage() {
               || passwordsMismatch
             }
           >
+            <IconCheckCircle />
             Change Password
           </button>
         </form>

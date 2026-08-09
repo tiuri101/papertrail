@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { ConfirmButton } from '../../components/ConfirmButton'
+import { IconUpload } from '../../components/icons'
 
 interface MatchItem {
   id: string
@@ -148,20 +150,18 @@ export function PdfMatchReview({ projectId, importBatchId }: {
                       disabled={!selected || resolve.isPending || isConflict}
                       onClick={() => resolve.mutate({ itemId: item.id, publicationId: selected, action: 'attach' })}
                     >
+                      <IconUpload />
                       Attach
                     </button>
                     {isConflict ? (
-                      <button
-                        type="button"
+                      <ConfirmButton
+                        label="Replace existing"
+                        confirmLabel="Replace Existing"
+                        warning="Replace the existing PDF and retain it in history?"
+                        onConfirm={() => resolve.mutate({ itemId: item.id, publicationId: selected, action: 'replace' })}
                         disabled={!selected || resolve.isPending}
-                        onClick={() => {
-                          if (window.confirm('Replace the existing PDF and retain it in history?')) {
-                            resolve.mutate({ itemId: item.id, publicationId: selected, action: 'replace' })
-                          }
-                        }}
-                      >
-                        Replace existing
-                      </button>
+                        icon={<IconUpload />}
+                      />
                     ) : null}
                     <button
                       type="button"

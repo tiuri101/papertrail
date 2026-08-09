@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { IconCheckCircle } from '../../components/icons'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { DynamicForm, type DynamicFormField } from '../forms/DynamicForm'
 import { LlmEvidence, type LlmEvidenceItem } from '../llm/LlmTaskComponents'
@@ -404,6 +405,7 @@ export function ExtractionPage() {
             ) : null}
             {submit.error ? <p className="error" role="alert">{submit.error.message}</p> : null}
             <button type="submit" disabled={submit.isPending || missingRequired}>
+              <IconCheckCircle />
               {completedResponse ? 'Save corrected extraction' : 'Submit Extraction'}
             </button>
             {completedResponse && itemId ? (

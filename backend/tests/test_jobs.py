@@ -6,7 +6,7 @@ from app.jobs.models import BackgroundJob, JobStatus
 from app.jobs.service import enqueue_job
 from app.jobs.worker import HANDLERS, execute_next_job
 from app.llm.models import LlmExtractionRun, LlmTaskType, ProcessingStatus
-from app.llm.service import LLM_JOB
+from app.llm.service import LLM_JOB_TYPE_BY_TASK
 from app.projects.models import Project, ProjectStage, ReviewType
 from app.publications.models import Publication
 
@@ -208,7 +208,7 @@ def test_llm_job_diagnostics_identify_the_exact_task_stage_and_publication(db) -
     db.flush()
     job = BackgroundJob(
         project_id=project.id,
-        job_type=LLM_JOB,
+        job_type=LLM_JOB_TYPE_BY_TASK[LlmTaskType.FULL_TEXT_SCREENING],
         payload={"run_id": run.id},
     )
     db.add(job)
@@ -248,7 +248,7 @@ def test_retried_llm_job_returns_run_to_pending(session_factory, monkeypatch) ->
         db.flush()
         job = BackgroundJob(
             project_id=project.id,
-            job_type=LLM_JOB,
+            job_type=LLM_JOB_TYPE_BY_TASK[LlmTaskType.TITLE_ABSTRACT_SCREENING],
             payload={"run_id": run.id},
             max_attempts=2,
         )
@@ -267,7 +267,11 @@ def test_retried_llm_job_returns_run_to_pending(session_factory, monkeypatch) ->
         db.commit()
         raise RuntimeError("temporary inference failure")
 
-    monkeypatch.setitem(HANDLERS, LLM_JOB, fail_after_start)
+    monkeypatch.setitem(
+        HANDLERS,
+        LLM_JOB_TYPE_BY_TASK[LlmTaskType.TITLE_ABSTRACT_SCREENING],
+        fail_after_start,
+    )
     assert execute_next_job(session_factory, "test-llm-worker") is True
 
     with session_factory() as db:

@@ -45,7 +45,6 @@ describe('FullTextDocumentPanel', () => {
   })
 
   it('confirms replacement, removes the active PDF, and retains history access', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true)
     const fetchMock = mockFetch((input, init) => {
       if (String(input).endsWith('/history')) return jsonResponse([active.document])
       if (init?.method === 'DELETE') return new Response(null, { status: 204 })
@@ -56,6 +55,7 @@ describe('FullTextDocumentPanel', () => {
 
     await screen.findByText(/paper.pdf/)
     fireEvent.click(screen.getByRole('button', { name: 'Replace PDF' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Replace PDF' }))
     fireEvent.change(screen.getByLabelText('Choose replacement PDF'), {
       target: { files: [new File(['new'], 'final.pdf', { type: 'application/pdf' })] },
     })
@@ -64,6 +64,7 @@ describe('FullTextDocumentPanel', () => {
     ).toBe(true))
 
     fireEvent.click(screen.getByRole('button', { name: 'Remove PDF' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove PDF' }))
     expect(await screen.findByText('No PDF attached')).toBeInTheDocument()
     expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'DELETE')).toBe(true)
 

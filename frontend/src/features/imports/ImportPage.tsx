@@ -4,6 +4,7 @@ import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { DateField } from '../../components/DateField'
+import { IconUpload } from '../../components/icons'
 import { getCsrfToken } from '../auth/session'
 import { BackgroundJob, findJob, hasActiveJob, isJobActive } from '../jobs/jobStatus'
 import { AttachPdfsPanel } from './AttachPdfsPanel'
@@ -157,7 +158,10 @@ export function ImportPage() {
             files={pdfArchives}
             onChange={setPdfArchives}
           />
-          <button type="submit" disabled={!file || submit.isPending}>Upload</button>
+          <button type="submit" disabled={!file || submit.isPending}>
+            <IconUpload />
+            Upload
+          </button>
           {submit.isPending ? (
             <p role="status">
               Uploading metadata

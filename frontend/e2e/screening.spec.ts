@@ -135,17 +135,9 @@ test(
       await expect(submit).toBeEnabled()
       await submit.click()
 
-      // The first click stores the independent human decision and keeps the
-      // publication open for the LLM comparison step.
+      // Full-text screening has no separate confirmation step: a single
+      // click stores the decision and immediately advances to the next item.
       await expect.poll(() => decisionSubmitted).toBe(true)
-      await expect(
-          page.getByRole('heading', {
-            name: 'Immersive Urban Analytics',
-          }),
-      ).toBeVisible()
-
-      // Confirming an unchanged decision advances without a second API write.
-      await submit.click()
 
       await expect(
           page.getByText('No publications are currently available.'),

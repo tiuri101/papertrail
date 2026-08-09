@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, case, func, or_, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.accounts.models import User
@@ -285,6 +285,35 @@ def bulk_reassign_work_items(
     return len(items)
 
 
+def _llm_ready_rank(db: Session, project_id: str, stage: ScreeningStage) -> Any:
+    """Order key sorting work items whose publication has a completed LLM
+    screening suggestion ahead of ones without, so reviewers see LLM-assisted
+    papers first. Returns None when LLM assistance is disabled for this stage,
+    in which case ordering is left untouched.
+    """
+    from app.llm.models import LlmExtractionRun, LlmTaskType, ProcessingStatus
+    from app.llm.task_service import feature_enabled
+
+    task_type = {
+        ScreeningStage.TITLE_ABSTRACT: LlmTaskType.TITLE_ABSTRACT_SCREENING,
+        ScreeningStage.FULL_TEXT: LlmTaskType.FULL_TEXT_SCREENING,
+    }[stage]
+    if not feature_enabled(db, project_id, task_type):
+        return None
+    latest_status = (
+        select(LlmExtractionRun.status)
+        .where(
+            LlmExtractionRun.publication_id == ScreeningWorkItem.publication_id,
+            LlmExtractionRun.task_type == task_type,
+        )
+        .order_by(LlmExtractionRun.created_at.desc())
+        .limit(1)
+        .correlate(ScreeningWorkItem)
+        .scalar_subquery()
+    )
+    return case((latest_status == ProcessingStatus.COMPLETED, 0), else_=1)
+
+
 def claim_next_work_item(
     db: Session,
     project_id: str,
@@ -347,12 +376,11 @@ def claim_next_work_item(
     ]
     if publication_id is not None:
         filters.append(ScreeningWorkItem.publication_id == publication_id)
-    query = (
-        select(ScreeningWorkItem)
-        .where(*filters)
-        .order_by(ScreeningWorkItem.random_rank, ScreeningWorkItem.slot_number)
-        .limit(1)
-    )
+    order = [ScreeningWorkItem.random_rank, ScreeningWorkItem.slot_number]
+    llm_ready_rank = _llm_ready_rank(db, project_id, stage)
+    if llm_ready_rank is not None:
+        order.insert(0, llm_ready_rank)
+    query = select(ScreeningWorkItem).where(*filters).order_by(*order).limit(1)
     if db.bind is not None and db.bind.dialect.name == "postgresql":
         query = query.with_for_update(skip_locked=True)
     item = db.scalar(query)

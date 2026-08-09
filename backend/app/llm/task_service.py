@@ -253,11 +253,11 @@ def _create_run(
     )
     db.add(run)
     db.flush()
-    from app.llm.service import LLM_JOB
+    from app.llm.service import LLM_JOB_TYPE_BY_TASK
 
     job = enqueue_job(
         db,
-        LLM_JOB,
+        LLM_JOB_TYPE_BY_TASK[task_type],
         {"run_id": run.id, **({"bulk_id": bulk_id} if bulk_id else {})},
         project_id=publication.project_id,
         created_by_id=created_by_id,

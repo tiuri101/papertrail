@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { IconCheckCircle } from '../../components/icons'
 import { ThemeToggle } from '../../components/ThemeToggle'
 import { setCsrfToken } from './session'
 import { sessionQueryOptions } from './sessionQuery'
@@ -96,6 +97,7 @@ export function ChangePasswordPage() {
               || passwordsMismatch
             }
           >
+            <IconCheckCircle />
             {updatePassword.isPending ? 'Updating…' : 'Set Password'}
           </button>
         </form>

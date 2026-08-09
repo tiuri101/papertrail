@@ -6,6 +6,8 @@ import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { HighlightedText } from '../../components/HighlightedText'
+import { IconCheckCircle, IconSparkle, IconTrash } from '../../components/icons'
+import { OutcomeBadge } from '../../components/OutcomeBadge'
 import { FullTextDocumentPanel } from '../fulltext/FullTextDocumentPanel'
 import { useCanManageProject } from '../../hooks/useCanManageProject'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
@@ -123,7 +125,7 @@ function PublicationEditForm({
       <PublicationFieldInputs draft={draft} setField={setField} />
       {update.error ? <p className="error" role="alert">{update.error.message}</p> : null}
       <div className="toolbar">
-        <button type="submit" disabled={update.isPending}>Save</button>
+        <button type="submit" disabled={update.isPending}><IconCheckCircle />Save</button>
         <button type="button" className="button-secondary" onClick={onDone}>Cancel</button>
       </div>
     </form>
@@ -204,10 +206,23 @@ function PublicationRow({
           )}
           {' — '}{publication.authors ?? 'Unknown authors'}
           {publication.publicationYear ? ` (${publication.publicationYear})` : ''}
-          {publication.fullText?.available ? <span className="status-badge"> PDF ✓</span> : null}
-          <span className="status-badge"> · Title/Abstract: {screeningLabel(publication.screeningStatus?.titleAbstract)}</span>
+          {' '}
+          {publication.fullText?.available ? (
+            <span className="status-badge status-badge--success"><IconCheckCircle /> PDF</span>
+          ) : null}
+          {' '}
+          <OutcomeBadge
+            outcome={publication.screeningStatus?.titleAbstract}
+            label={`Title/Abstract: ${screeningLabel(publication.screeningStatus?.titleAbstract)}`}
+          />
           {publication.screeningStatus?.fullText || publication.screeningStatus?.titleAbstract === 'include' ? (
-            <span className="status-badge"> · Full text: {screeningLabel(publication.screeningStatus?.fullText)}</span>
+            <>
+              {' '}
+              <OutcomeBadge
+                outcome={publication.screeningStatus?.fullText}
+                label={`Full text: ${screeningLabel(publication.screeningStatus?.fullText)}`}
+              />
+            </>
           ) : null}
           {publication.doi ? (
             <> <a href={`https://doi.org/${publication.doi}`} target="_blank" rel="noopener noreferrer">DOI</a></>
@@ -236,6 +251,7 @@ function PublicationRow({
             warning={`Delete "${publication.title}"? This cannot be undone.`}
             onConfirm={() => remove.mutate()}
             disabled={remove.isPending}
+            icon={<IconTrash />}
           />
         </div>
       ) : null}
@@ -306,6 +322,7 @@ function MetadataConflictsPanel({ projectId }: { projectId: string }) {
                 disabled={resolve.isPending}
                 onClick={() => resolve.mutate({ conflictId: conflict.id, acceptProposed: true })}
               >
+                <IconCheckCircle />
                 Use Proposed Value
               </button>
               <button
@@ -422,6 +439,7 @@ export function PublicationsPage() {
               disabled={bulkEnrich.isPending || selectedIds.size === 0}
               onClick={() => bulkEnrich.mutate({ publicationIds: Array.from(selectedIds), missingOnly: false })}
             >
+              <IconSparkle />
               Enrich Selected ({selectedIds.size})
             </button>
             <button
@@ -429,6 +447,7 @@ export function PublicationsPage() {
               disabled={bulkEnrich.isPending}
               onClick={() => bulkEnrich.mutate({ missingOnly: true })}
             >
+              <IconSparkle />
               Enrich All Records with Missing Metadata
             </button>
           </div>
@@ -483,6 +502,7 @@ export function PublicationsPage() {
                 warning={`Delete ${selectedIds.size} selected publication${selectedIds.size === 1 ? '' : 's'}? This cannot be undone.`}
                 onConfirm={() => bulkDelete.mutate(Array.from(selectedIds))}
                 disabled={bulkDelete.isPending}
+                icon={<IconTrash />}
               />
             </>
           ) : null}

@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { ConfirmButton } from '../../components/ConfirmButton'
+import { IconCheckCircle, IconPlus, IconTrash } from '../../components/icons'
 import { useRegisterSectionItems } from '../../components/sectionNavigation'
 import { useProjectManageState } from '../../hooks/useCanManageProject'
 import { DynamicForm } from './DynamicForm'
@@ -229,15 +231,18 @@ export function FormBuilderPage() {
     },
   })
   const saveQualityConfig = useMutation({
-    mutationFn: () => apiRequest(
+    mutationFn: (next: { enabled: boolean; mode: string; aggregation: string }) => apiRequest(
       `/api/v1/projects/${projectId}/quality-config`,
-      {
-        method: 'PUT',
-        body: JSON.stringify({ enabled: qcEnabled, mode: qcMode, aggregation: qcAggregation }),
-      },
+      { method: 'PUT', body: JSON.stringify(next) },
     ),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['quality-config', projectId] }),
   })
+  const updateQualityConfig = (next: { enabled: boolean; mode: string; aggregation: string }) => {
+    setQcEnabled(next.enabled)
+    setQcMode(next.mode)
+    setQcAggregation(next.aggregation)
+    if (qualityConfigSeeded.current) saveQualityConfig.mutate(next)
+  }
 
   const mutationError = createForm.error ?? addField.error ?? renameField.error
     ?? deleteField.error ?? replaceField.error ?? saveAsTemplate.error ?? deleteForm.error
@@ -266,18 +271,21 @@ export function FormBuilderPage() {
         <h2>Quality Assessment Settings</h2>
         {qualityConfig.error ? <p className="error" role="alert">{qualityConfig.error.message}</p> : null}
         {qualityConfig.isLoading ? <p>Loading…</p> : (
-          <form onSubmit={(event) => { event.preventDefault(); saveQualityConfig.mutate() }}>
+          <div>
             <label>
               <input
                 type="checkbox"
                 checked={qcEnabled}
-                onChange={(event) => setQcEnabled(event.target.checked)}
+                onChange={(event) => updateQualityConfig({ enabled: event.target.checked, mode: qcMode, aggregation: qcAggregation })}
               />
               Enable quality assessment
             </label>
             <label>
               Mode
-              <select value={qcMode} onChange={(event) => setQcMode(event.target.value)}>
+              <select
+                value={qcMode}
+                onChange={(event) => updateQualityConfig({ enabled: qcEnabled, mode: event.target.value, aggregation: qcAggregation })}
+              >
                 <option value="qualitative">Qualitative only</option>
                 <option value="numeric">Numerical scoring only</option>
                 <option value="both">Both</option>
@@ -285,15 +293,20 @@ export function FormBuilderPage() {
             </label>
             <label>
               Aggregation
-              <select value={qcAggregation} onChange={(event) => setQcAggregation(event.target.value)}>
+              <select
+                value={qcAggregation}
+                onChange={(event) => updateQualityConfig({ enabled: qcEnabled, mode: qcMode, aggregation: event.target.value })}
+              >
                 <option value="sum">Simple sum</option>
                 <option value="average">Average</option>
                 <option value="weighted_average">Weighted average</option>
               </select>
             </label>
             {saveQualityConfig.error ? <p className="error" role="alert">{saveQualityConfig.error.message}</p> : null}
-            <button type="submit" disabled={saveQualityConfig.isPending}>Save Quality Settings</button>
-          </form>
+            <p className="muted" aria-live="polite">
+              {saveQualityConfig.isPending ? 'Saving…' : saveQualityConfig.isSuccess ? 'Saved.' : ' '}
+            </p>
+          </div>
         )}
       </section>
       <section id="section-create-form" className="card">
@@ -320,17 +333,15 @@ export function FormBuilderPage() {
             <button type="button" onClick={() => setSelectedForm(existingFormOfKind.id)}>
               Edit It Below
             </button>{' '}
-            <button
-              type="button"
-              onClick={() => {
-                if (window.confirm(`Remove the "${existingFormOfKind.name}" form? This can't be undone, but you can create a new one (optionally from a template) right after.`)) {
-                  deleteForm.mutate(existingFormOfKind.id)
-                }
-              }}
+            <ConfirmButton
+              label="Remove It"
+              confirmLabel="Remove Form"
+              warning={`Remove the "${existingFormOfKind.name}" form? This can't be undone, but you can create a new one (optionally from a template) right after.`}
+              onConfirm={() => deleteForm.mutate(existingFormOfKind.id)}
               disabled={deleteForm.isPending}
-            >
-              Remove It
-            </button>
+              variant="danger"
+              icon={<IconTrash />}
+            />
           </p>
         ) : (
           <form onSubmit={(event) => { event.preventDefault(); createForm.mutate() }}>
@@ -348,7 +359,7 @@ export function FormBuilderPage() {
               </select>
             </label>
             {templates.error ? <p className="error" role="alert">{templates.error.message}</p> : null}
-            <button type="submit" disabled={createForm.isPending}>Create Form</button>
+            <button type="submit" disabled={createForm.isPending}><IconPlus />Create Form</button>
           </form>
         )}
       </section>
@@ -467,7 +478,7 @@ export function FormBuilderPage() {
                   </label>
                 </>
               ) : null}
-              <button type="submit" disabled={addField.isPending}>Add Field</button>
+              <button type="submit" disabled={addField.isPending}><IconPlus />Add Field</button>
             </form>
             <h3>Fields</h3>
             {fields.error ? <p className="error" role="alert">{fields.error.message}</p> : null}
@@ -507,6 +518,7 @@ export function FormBuilderPage() {
                             disabled={renameField.isPending}
                             onClick={() => renameField.mutate({ stableKey: field.stableKey, label: editingLabel })}
                           >
+                            <IconCheckCircle />
                             Save
                           </button>
                           <button type="button" className="button-secondary" onClick={() => setEditingKey(null)}>Cancel</button>
@@ -522,17 +534,14 @@ export function FormBuilderPage() {
                           >
                             Edit
                           </button>
-                          <button
-                            type="button"
-                            className="button-danger"
-                            onClick={() => {
-                              if (window.confirm(`Archive field "${field.label}"? It will be removed from new submissions, but every value already recorded for it is kept and can still be included in exports.`)) {
-                                deleteField.mutate(field.stableKey)
-                              }
-                            }}
-                          >
-                            Archive
-                          </button>
+                          <ConfirmButton
+                            label="Archive"
+                            confirmLabel="Archive Field"
+                            warning={`Archive field "${field.label}"? It will be removed from new submissions, but every value already recorded for it is kept and can still be included in exports.`}
+                            onConfirm={() => deleteField.mutate(field.stableKey)}
+                            disabled={deleteField.isPending}
+                            variant="danger"
+                          />
                           {replacingKey === field.stableKey ? (
                             <>
                               <select
@@ -542,22 +551,18 @@ export function FormBuilderPage() {
                               >
                                 {fieldTypes.map((type) => <option key={type} value={type}>{fieldTypeLabels[type] ?? type}</option>)}
                               </select>
-                              <button
-                                type="button"
+                              <ConfirmButton
+                                label="Confirm"
+                                confirmLabel="Replace Field"
+                                warning={`Change the type of "${field.label}"? This isn't done in place: the current field is archived (its recorded values stay attached to it) and a new field with the new type is added instead.`}
+                                onConfirm={() => replaceField.mutate({
+                                  stableKey: field.stableKey,
+                                  fieldType: replaceType,
+                                  label: field.label,
+                                  required: field.required,
+                                })}
                                 disabled={replaceField.isPending}
-                                onClick={() => {
-                                  if (window.confirm(`Change the type of "${field.label}"? This isn't done in place: the current field is archived (its recorded values stay attached to it) and a new field with the new type is added instead.`)) {
-                                    replaceField.mutate({
-                                      stableKey: field.stableKey,
-                                      fieldType: replaceType,
-                                      label: field.label,
-                                      required: field.required,
-                                    })
-                                  }
-                                }}
-                              >
-                                Confirm
-                              </button>
+                              />
                               <button type="button" className="button-secondary" onClick={() => setReplacingKey(null)}>Cancel</button>
                             </>
                           ) : (
@@ -590,7 +595,7 @@ export function FormBuilderPage() {
                 />
               </label>
               {saveAsTemplate.isSuccess ? <p>Template saved.</p> : null}
-              <button type="submit" disabled={saveAsTemplate.isPending}>Save as Template</button>
+              <button type="submit" disabled={saveAsTemplate.isPending}><IconCheckCircle />Save as Template</button>
             </form>
             {activeFields.length ? (
               <>

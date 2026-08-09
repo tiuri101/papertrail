@@ -27,6 +27,7 @@ describe('ProjectLifecyclePanel', () => {
       { name: 'Reopen Project' },
     )
     fireEvent.click(reopenButtons.find((button) => !button.hasAttribute('aria-expanded'))!)
+    fireEvent.click(within(reopenSection as HTMLElement).getByRole('button', { name: 'Reopen' }))
 
     await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(true))
     const call = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')
