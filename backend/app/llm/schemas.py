@@ -47,7 +47,7 @@ class ManualRunRequest(ApiModel):
 
 
 class ReanalysisRequest(ApiModel):
-    scope: str = "eligible"
+    task_type: str = Field(alias="taskType")
 
 
 class EvidenceResponse(ApiModel):

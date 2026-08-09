@@ -149,7 +149,13 @@ body {
 }
 
 #root {
+  display: flex;
+  flex-direction: column;
   min-height: 100vh;
+}
+
+#root > .app-footer {
+  margin-top: auto;
 }
 
 ::selection {
@@ -619,6 +625,19 @@ form button[type='button']:hover:not(:disabled),
   width: min(1280px, calc(100% - 40px));
   min-height: 68px;
   margin: 0 auto;
+}
+
+.app-footer {
+  border-top: 1px solid var(--color-border);
+  padding: var(--space-5) 0;
+}
+
+.app-footer p {
+  width: min(1280px, calc(100% - 40px));
+  margin: 0 auto;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  text-align: center;
 }
 
 .app-header__actions,
@@ -1677,6 +1696,26 @@ tbody th {
 
 .nav-link-disabled {
   cursor: not-allowed;
+}
+
+.prompt-flow {
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.prompt-flow:first-of-type {
+  padding-top: 0;
+  border-top: none;
+}
+
+.prompt-flow > * + * {
+  margin-top: var(--space-4);
+}
+
+.prompt-flow__base {
+  margin-top: var(--space-2);
+  max-height: 16rem;
+  white-space: pre-wrap;
 }
 
 .danger-zone {

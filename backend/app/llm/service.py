@@ -265,6 +265,39 @@ def cancel_queued_for_publication(db: Session, publication_id: str) -> int:
     return len(runs)
 
 
+def cancel_task_type_jobs(db: Session, project_id: str, task_type: LlmTaskType) -> int:
+    """Stop the flow of new suggestions for one capability being disabled.
+
+    Queued runs (and their still-queued background jobs) are cancelled
+    outright. A run already ``PROCESSING`` is owned by a worker thread mid
+    Ollama call; it's marked ``CANCELLED`` here so ``was_cancelled`` makes
+    the worker discard the result instead of persisting it, but its
+    background job is left alone since a worker is actively using it.
+    """
+    runs = list(
+        db.scalars(
+            select(LlmExtractionRun).where(
+                LlmExtractionRun.project_id == project_id,
+                LlmExtractionRun.task_type == task_type,
+                LlmExtractionRun.status.in_(
+                    [ProcessingStatus.PENDING, ProcessingStatus.PROCESSING]
+                ),
+            )
+        )
+    )
+    for run in runs:
+        was_pending = run.status == ProcessingStatus.PENDING
+        run.status = ProcessingStatus.CANCELLED
+        run.completed_at = utcnow()
+        if was_pending and run.background_job_id:
+            job = db.get(BackgroundJob, run.background_job_id)
+            if job and job.status == JobStatus.QUEUED:
+                job.status = JobStatus.CANCELLED
+                job.completed_at = utcnow()
+    db.flush()
+    return len(runs)
+
+
 def latest_current_run(
     db: Session, project_id: str, publication_id: str
 ) -> LlmExtractionRun | None:

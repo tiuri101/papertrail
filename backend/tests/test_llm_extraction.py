@@ -50,6 +50,7 @@ from app.llm.service import (
     LLM_JOB_DATA_EXTRACTION,
     LLM_JOB_TYPES,
     TEXT_JOB,
+    cancel_task_type_jobs,
     queue_preparation_if_eligible,
 )
 from app.llm.task_execution import run_llm_task_job
@@ -209,6 +210,19 @@ def include_title_abstract(db, publication):
     db.commit()
 
 
+def include_full_text(db, publication):
+    record_final_decision(
+        db,
+        publication.id,
+        ScreeningStage.FULL_TEXT,
+        "include",
+        "agreement",
+        None,
+        None,
+    )
+    db.commit()
+
+
 def test_schema_initializes_from_form_and_mapping_survives_rename(db) -> None:
     admin, _, project, _, _, schema, sample, _ = setup_llm_project(db)
     assert [field.mapped_extraction_field_key for field in schema.fields] == [
@@ -256,6 +270,7 @@ def test_trigger_waits_for_title_include_and_is_idempotent(db) -> None:
 def test_bulk_reanalysis_marks_every_queued_job_with_the_same_bulk(client, db) -> None:
     admin, _, project, publication, _, _, _, _ = setup_llm_project(db)
     include_title_abstract(db, publication)
+    include_full_text(db, publication)
     csrf = client.post(
         "/api/v1/auth/login",
         json={"username": admin.username, "password": "secret-password"},
@@ -263,7 +278,7 @@ def test_bulk_reanalysis_marks_every_queued_job_with_the_same_bulk(client, db) -
 
     response = client.post(
         f"/api/v1/projects/{project.id}/llm/runs/reanalyze",
-        json={"scope": "eligible"},
+        json={"taskType": "data_extraction"},
         headers={"X-CSRF-Token": csrf},
     )
 
@@ -1073,6 +1088,84 @@ def test_title_suggestion_is_generated_independently_and_revealed_only_after_dec
     assert client.get(path).status_code == 403
 
 
+def test_reviewer_never_sees_suggestion_after_capability_disabled(
+    client, db, monkeypatch
+) -> None:
+    _, reviewer, project, publication, _, _, _, _ = setup_llm_project(db)
+    membership = db.scalar(
+        select(ProjectMembership).where(
+            ProjectMembership.project_id == project.id,
+            ProjectMembership.user_id == reviewer.id,
+        )
+    )
+    membership.can_title_abstract_screen = True
+    criterion = Criterion(
+        project_id=project.id,
+        kind=CriterionKind.INCLUSION,
+        text="Reports an empirical evaluation",
+        position=0,
+    )
+    db.add(criterion)
+    settings = project_settings(db, project.id)
+    settings.title_abstract_screening_enabled = True
+    item = ScreeningWorkItem(
+        project_id=project.id,
+        publication_id=publication.id,
+        stage=ScreeningStage.TITLE_ABSTRACT,
+        slot_number=1,
+        assigned_reviewer_id=reviewer.id,
+        reserved_by_id=reviewer.id,
+        random_rank="title-llm-disable",
+    )
+    db.add(item)
+    db.commit()
+
+    run = queue_title_abstract_suggestion(db, publication.id)
+    assert run is not None
+    fake = FakeOllama(
+        {
+            "suggested_decision": "include",
+            "confidence": "high",
+            "criteria": {
+                criterion.id: {
+                    "assessment": "met",
+                    "explanation": "The abstract reports an evaluation.",
+                    "evidence": [],
+                }
+            },
+            "reasoning_summary": "Looks relevant.",
+        }
+    )
+    monkeypatch.setattr("app.llm.task_execution.create_ollama_client", lambda: fake)
+    job = db.get(BackgroundJob, run.background_job_id)
+    run_llm_task_job(db, job)
+    db.commit()
+    db.refresh(run)
+    assert run.status == ProcessingStatus.COMPLETED
+
+    submit_decision(db, item, reviewer.id, "include", {criterion.id: True}, None)
+    db.commit()
+
+    csrf = client.post(
+        "/api/v1/auth/login",
+        json={"username": reviewer.username, "password": "reviewer-password"},
+    ).json()["csrfToken"]
+    path = f"/api/v1/projects/{project.id}/screening/work-items/{item.id}/llm-title-abstract"
+    revealed = client.get(path)
+    assert revealed.status_code == 200
+    assert revealed.json()["state"] == "ready"
+
+    # Disabling the capability must hide even an already-completed run.
+    settings.title_abstract_screening_enabled = False
+    db.commit()
+
+    still_hidden = client.get(path, headers={"X-CSRF-Token": csrf})
+    assert still_hidden.status_code == 200
+    assert still_hidden.json()["state"] == "disabled"
+    assert still_hidden.json()["suggestedDecision"] is None
+    assert still_hidden.json()["criteria"] == []
+
+
 def test_title_suggestion_is_queued_when_screening_work_item_becomes_eligible(
     db,
 ) -> None:
@@ -1413,3 +1506,207 @@ def test_validation_review_lists_assigned_mismatches_and_supports_revision(
         f"/api/v1/projects/{project.id}/llm/extraction-validation-review"
     )
     assert forbidden.status_code == 403
+
+
+def test_disabling_capability_cancels_queued_run_and_job(client, db) -> None:
+    admin, _, project, publication, _, _, _, _ = setup_llm_project(db)
+    include_title_abstract(db, publication)
+    csrf = client.post(
+        "/api/v1/auth/login",
+        json={"username": admin.username, "password": "secret-password"},
+    ).json()["csrfToken"]
+
+    enable = client.patch(
+        f"/api/v1/projects/{project.id}/llm/settings",
+        json={"titleAbstractScreeningEnabled": True},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert enable.status_code == 200
+    run = db.scalar(
+        select(LlmExtractionRun).where(
+            LlmExtractionRun.publication_id == publication.id,
+            LlmExtractionRun.task_type == LlmTaskType.TITLE_ABSTRACT_SCREENING,
+        )
+    )
+    assert run is not None
+    assert run.status == ProcessingStatus.PENDING
+    job = db.get(BackgroundJob, run.background_job_id)
+    assert job is not None
+    assert job.status == JobStatus.QUEUED
+
+    disable = client.patch(
+        f"/api/v1/projects/{project.id}/llm/settings",
+        json={"titleAbstractScreeningEnabled": False},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert disable.status_code == 200
+    db.refresh(run)
+    db.refresh(job)
+    assert run.status == ProcessingStatus.CANCELLED
+    assert job.status == JobStatus.CANCELLED
+
+
+def test_disabling_capability_discards_an_in_flight_result(db, monkeypatch) -> None:
+    _, _, publication, document, schema, sample, method, run, job = prepared_run(db)
+
+    def cancel_mid_flight() -> None:
+        # Simulates a concurrent settings PATCH disabling the capability
+        # while this job is mid Ollama-call: the run can't be interrupted,
+        # but its result must never be persisted or shown.
+        cancel_task_type_jobs(db, run.project_id, LlmTaskType.DATA_EXTRACTION)
+        db.commit()
+
+    fake = FakeOllama(
+        {
+            "fields": {
+                sample.stable_key: {"value": 24, "status": "explicit", "evidence": []},
+                method.stable_key: {
+                    "value": None,
+                    "status": "not_found",
+                    "evidence": [],
+                },
+            }
+        },
+        on_chat=cancel_mid_flight,
+    )
+    monkeypatch.setattr("app.llm.extraction.create_ollama_client", lambda: fake)
+    result = run_llm_extraction_job(db, job)
+    db.commit()
+    db.refresh(run)
+    assert result["status"] == "cancelled"
+    assert run.status == ProcessingStatus.CANCELLED
+    assert run.raw_result is None
+    assert (
+        db.scalar(
+            select(func.count())
+            .select_from(LlmFieldSuggestion)
+            .where(LlmFieldSuggestion.run_id == run.id)
+        )
+        == 0
+    )
+
+
+def test_enabling_capability_backfills_unscreened_publications_first(
+    client, db
+) -> None:
+    admin, _, project, publication, _, _, _, _ = setup_llm_project(db)
+    include_title_abstract(db, publication)
+    unscreened = Publication(project_id=project.id, title="Second paper")
+    db.add(unscreened)
+    db.commit()
+
+    csrf = client.post(
+        "/api/v1/auth/login",
+        json={"username": admin.username, "password": "secret-password"},
+    ).json()["csrfToken"]
+    response = client.patch(
+        f"/api/v1/projects/{project.id}/llm/settings",
+        json={"titleAbstractScreeningEnabled": True},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 200
+
+    screened_run = db.scalar(
+        select(LlmExtractionRun).where(
+            LlmExtractionRun.publication_id == publication.id,
+            LlmExtractionRun.task_type == LlmTaskType.TITLE_ABSTRACT_SCREENING,
+        )
+    )
+    unscreened_run = db.scalar(
+        select(LlmExtractionRun).where(
+            LlmExtractionRun.publication_id == unscreened.id,
+            LlmExtractionRun.task_type == LlmTaskType.TITLE_ABSTRACT_SCREENING,
+        )
+    )
+    assert screened_run is not None
+    assert unscreened_run is not None
+    screened_job = db.get(BackgroundJob, screened_run.background_job_id)
+    unscreened_job = db.get(BackgroundJob, unscreened_run.background_job_id)
+    assert screened_job.priority == -10
+    assert unscreened_job.priority == 0
+
+
+def test_reanalyze_rejects_disabled_task_type(client, db) -> None:
+    admin, _, project, publication, _, _, _, _ = setup_llm_project(db)
+    include_title_abstract(db, publication)
+    csrf = client.post(
+        "/api/v1/auth/login",
+        json={"username": admin.username, "password": "secret-password"},
+    ).json()["csrfToken"]
+
+    response = client.post(
+        f"/api/v1/projects/{project.id}/llm/runs/reanalyze",
+        json={"taskType": "full_text_screening"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 400
+
+
+def test_reanalyze_full_text_screening_targets_included_not_excluded_publications(
+    client, db
+) -> None:
+    admin, _, project, publication, _, _, _, _ = setup_llm_project(db)
+    include_title_abstract(db, publication)
+    text_job = db.scalar(
+        select(BackgroundJob).where(BackgroundJob.job_type == TEXT_JOB)
+    )
+    extract_document_text_job(db, text_job)
+    db.commit()
+
+    excluded = Publication(project_id=project.id, title="Excluded paper")
+    db.add(excluded)
+    db.commit()
+    record_final_decision(
+        db,
+        excluded.id,
+        ScreeningStage.TITLE_ABSTRACT,
+        "include",
+        "agreement",
+        None,
+        None,
+    )
+    record_final_decision(
+        db, excluded.id, ScreeningStage.FULL_TEXT, "exclude", "agreement", None, None
+    )
+    db.commit()
+
+    settings = project_settings(db, project.id)
+    settings.full_text_screening_enabled = True
+    db.commit()
+    csrf = client.post(
+        "/api/v1/auth/login",
+        json={"username": admin.username, "password": "secret-password"},
+    ).json()["csrfToken"]
+
+    response = client.post(
+        f"/api/v1/projects/{project.id}/llm/runs/reanalyze",
+        json={"taskType": "full_text_screening"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 200
+    assert response.json()["queued"] == 1
+    run = db.scalar(
+        select(LlmExtractionRun).where(
+            LlmExtractionRun.task_type == LlmTaskType.FULL_TEXT_SCREENING
+        )
+    )
+    assert run is not None
+    assert run.publication_id == publication.id
+
+
+def test_reanalyze_extraction_validation_requires_completed_cohort(client, db) -> None:
+    admin, _, project, publication, _, _, _, _ = setup_llm_project(db)
+    settings = project_settings(db, project.id)
+    settings.extraction_validation_enabled = True
+    db.commit()
+    csrf = client.post(
+        "/api/v1/auth/login",
+        json={"username": admin.username, "password": "secret-password"},
+    ).json()["csrfToken"]
+
+    response = client.post(
+        f"/api/v1/projects/{project.id}/llm/runs/reanalyze",
+        json={"taskType": "extraction_validation"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 400

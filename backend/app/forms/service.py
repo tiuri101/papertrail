@@ -178,6 +178,96 @@ def archive_field(db: Session, form: ReviewForm, stable_key: str) -> FormField:
     return field
 
 
+def _has_recorded_responses(db: Session, form: ReviewForm) -> bool:
+    version_ids = list(
+        db.scalars(select(FormVersion.id).where(FormVersion.form_id == form.id))
+    )
+    if not version_ids:
+        return False
+    from app.extraction.models import ExtractionResponse
+    from app.quality.models import QualityResponse
+
+    has_extraction_responses = db.scalar(
+        select(func.count())
+        .select_from(ExtractionResponse)
+        .where(ExtractionResponse.form_version_id.in_(version_ids))
+    )
+    has_quality_responses = db.scalar(
+        select(func.count())
+        .select_from(QualityResponse)
+        .where(QualityResponse.form_version_id.in_(version_ids))
+    )
+    return bool(has_extraction_responses or has_quality_responses)
+
+
+def update_field(
+    db: Session,
+    form: ReviewForm,
+    stable_key: str,
+    *,
+    label: str | None = None,
+    field_type: str | FieldType | None = None,
+    required: bool | None = None,
+) -> FormField:
+    """Change a field's label, type, and/or required flag in place.
+
+    Unlike ``replace_field``, this mutates the field directly instead of
+    archiving it and adding a replacement -- only safe while the form has no
+    recorded responses yet (e.g. while still being drafted in the setup
+    wizard), since there are no existing answers whose type could be
+    invalidated by the change.
+    """
+    if field_type is not None and _has_recorded_responses(db, form):
+        raise ConflictError(
+            "This form already has recorded reviewer responses, so a field's "
+            "type can't be changed in place. Replace the field instead."
+        )
+    version = fork_version(db, form, "Updated field")
+    field = find_field(db, version, stable_key)
+    if label is not None:
+        field.label = label.strip()
+    if field_type is not None:
+        field.field_type = FieldType(field_type)
+    if required is not None:
+        field.required = required
+    db.flush()
+    if field.required and form.project_id is not None:
+        if form.kind == FormKind.EXTRACTION:
+            from app.extraction.service import reopen_for_required_field
+
+            reopen_for_required_field(db, form.project_id)
+        elif form.kind == FormKind.QUALITY:
+            try:
+                from app.quality.service import (
+                    reopen_for_required_field as reopen_quality,
+                )
+
+                reopen_quality(db, form.project_id)
+            except ImportError:
+                pass
+    return field
+
+
+def delete_field(db: Session, form: ReviewForm, stable_key: str) -> str:
+    """Remove a field outright, provided no reviewer responses depend on it.
+
+    Intended for forms still being drafted (e.g. in the setup wizard), where
+    there's no recorded data to preserve -- once responses exist,
+    ``archive_field`` should be used instead so recorded values stay intact.
+    """
+    if _has_recorded_responses(db, form):
+        raise ConflictError(
+            "This form already has recorded reviewer responses and fields "
+            "can't be removed outright. Archive the field instead."
+        )
+    version = fork_version(db, form, "Removed field")
+    field = find_field(db, version, stable_key)
+    field_id = field.id
+    db.delete(field)
+    db.flush()
+    return field_id
+
+
 def replace_field(
     db: Session,
     form: ReviewForm,
@@ -278,28 +368,11 @@ def delete_form(db: Session, form: ReviewForm) -> None:
     either orphan them or violate the FK -- guard against that up front with
     a clear error instead of letting the database reject the delete.
     """
-    version_ids = list(
-        db.scalars(select(FormVersion.id).where(FormVersion.form_id == form.id))
-    )
-    if version_ids:
-        from app.extraction.models import ExtractionResponse
-        from app.quality.models import QualityResponse
-
-        has_extraction_responses = db.scalar(
-            select(func.count())
-            .select_from(ExtractionResponse)
-            .where(ExtractionResponse.form_version_id.in_(version_ids))
+    if _has_recorded_responses(db, form):
+        raise ConflictError(
+            "This form already has recorded reviewer responses and can't be "
+            "deleted. Archive its fields instead if you need to change it."
         )
-        has_quality_responses = db.scalar(
-            select(func.count())
-            .select_from(QualityResponse)
-            .where(QualityResponse.form_version_id.in_(version_ids))
-        )
-        if has_extraction_responses or has_quality_responses:
-            raise ConflictError(
-                "This form already has recorded reviewer responses and can't be "
-                "deleted. Archive its fields instead if you need to change it."
-            )
     db.delete(form)
     db.flush()
 

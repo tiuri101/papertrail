@@ -44,6 +44,9 @@ from app.projects.schemas import (
     ProjectDetailsUpdate,
     ProjectReopen,
     ProjectSummary,
+    PromptFlowSettings,
+    PromptSettingsResponse,
+    PromptSettingsUpdate,
     ResearchQuestionResponse,
     ResearchQuestionUpdate,
     ScreeningConfigResponse,
@@ -567,6 +570,75 @@ def set_highlight_keywords(
     )
     db.commit()
     return HighlightKeywordsResponse(keywords=keywords)
+
+
+def _prompt_flows(project: Project) -> list[PromptFlowSettings]:
+    from app.llm.prompt import SYSTEM_PROMPT
+    from app.llm.task_prompt import SCREENING_SYSTEM_PROMPT, VALIDATION_SYSTEM_PROMPT
+
+    return [
+        PromptFlowSettings(
+            key="titleAbstract",
+            label="Title/abstract screening",
+            base_prompt=SCREENING_SYSTEM_PROMPT,
+            custom_instructions=project.title_abstract_prompt_instructions,
+        ),
+        PromptFlowSettings(
+            key="fullText",
+            label="Full-text screening",
+            base_prompt=SCREENING_SYSTEM_PROMPT,
+            custom_instructions=project.full_text_prompt_instructions,
+        ),
+        PromptFlowSettings(
+            key="extraction",
+            label="Data extraction",
+            base_prompt=SYSTEM_PROMPT,
+            custom_instructions=project.extraction_prompt_instructions,
+        ),
+        PromptFlowSettings(
+            key="validation",
+            label="Extraction validation",
+            base_prompt=VALIDATION_SYSTEM_PROMPT,
+            custom_instructions=project.validation_prompt_instructions,
+        ),
+    ]
+
+
+@router.get("/{project_id}/prompt-settings", response_model=PromptSettingsResponse)
+def get_prompt_settings(
+    project_id: str,
+    _: User = Depends(require_project_manager_csrf),
+    db: Session = Depends(get_db),
+) -> PromptSettingsResponse:
+    project = get_project(db, project_id)
+    return PromptSettingsResponse(flows=_prompt_flows(project))
+
+
+@router.put("/{project_id}/prompt-settings", response_model=PromptSettingsResponse)
+def set_prompt_settings(
+    project_id: str,
+    payload: PromptSettingsUpdate,
+    admin: User = Depends(require_project_manager_csrf),
+    db: Session = Depends(get_db),
+) -> PromptSettingsResponse:
+    project = get_project(db, project_id)
+    project.extraction_prompt_instructions = payload.extraction_instructions.strip()
+    project.title_abstract_prompt_instructions = (
+        payload.title_abstract_instructions.strip()
+    )
+    project.full_text_prompt_instructions = payload.full_text_instructions.strip()
+    project.validation_prompt_instructions = payload.validation_instructions.strip()
+    record_audit(
+        db,
+        action="project.prompt_settings_updated",
+        entity_type="project",
+        entity_id=project.id,
+        project_id=project_id,
+        actor_id=admin.id,
+        summary="Updated project LLM prompt instructions",
+    )
+    db.commit()
+    return PromptSettingsResponse(flows=_prompt_flows(project))
 
 
 @router.get("/{project_id}/jobs", response_model=list[JobResponse])

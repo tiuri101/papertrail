@@ -462,6 +462,100 @@ def test_admin_sets_highlight_keywords_and_reviewer_can_read_them(client, db) ->
     assert forbidden.status_code == 403
 
 
+def test_owner_sets_prompt_instructions_and_they_reach_the_llm_messages(
+    client, db
+) -> None:
+    from app.llm.prompt import SYSTEM_PROMPT, extraction_messages
+    from app.llm.task_prompt import SCREENING_SYSTEM_PROMPT, VALIDATION_SYSTEM_PROMPT
+
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    reviewer = create_user(db, "reviewer", "Reviewer", "reviewer-password")
+    db.commit()
+    csrf = login(client, "admin", "secret-password")
+    project_id = client.post(
+        "/api/v1/projects",
+        json={"name": "Review", "reviewType": "scoping_review"},
+        headers={"X-CSRF-Token": csrf},
+    ).json()["id"]
+    client.post(
+        f"/api/v1/projects/{project_id}/members",
+        json={
+            "userId": reviewer.id,
+            "canTitleAbstractScreen": True,
+            "canFullTextScreen": False,
+            "canExtract": False,
+            "canAssessQuality": False,
+            "canAdjudicate": False,
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    initial = client.get(
+        f"/api/v1/projects/{project_id}/prompt-settings",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert initial.status_code == 200
+    flows = {item["key"]: item for item in initial.json()["flows"]}
+    assert flows["extraction"]["basePrompt"] == SYSTEM_PROMPT
+    assert flows["extraction"]["customInstructions"] == ""
+    assert flows["titleAbstract"]["basePrompt"] == SCREENING_SYSTEM_PROMPT
+    assert flows["validation"]["basePrompt"] == VALIDATION_SYSTEM_PROMPT
+
+    updated = client.put(
+        f"/api/v1/projects/{project_id}/prompt-settings",
+        json={
+            "extractionInstructions": "Treat 'RQ' as shorthand for research question.",
+            "titleAbstractInstructions": "This review only covers robotics venues.",
+            "fullTextInstructions": "",
+            "validationInstructions": "",
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert updated.status_code == 200
+    updated_flows = {item["key"]: item for item in updated.json()["flows"]}
+    assert updated_flows["extraction"]["customInstructions"] == (
+        "Treat 'RQ' as shorthand for research question."
+    )
+
+    project = db.get(Project, project_id)
+    assert project.extraction_prompt_instructions == (
+        "Treat 'RQ' as shorthand for research question."
+    )
+    assert project.title_abstract_prompt_instructions == (
+        "This review only covers robotics venues."
+    )
+
+    messages = extraction_messages(
+        [], "paper text", project.extraction_prompt_instructions
+    )
+    system_message = messages[0]["content"]
+    assert SYSTEM_PROMPT in system_message
+    assert "Treat 'RQ' as shorthand for research question." in system_message
+    assert system_message.index(SYSTEM_PROMPT) < system_message.index("Treat 'RQ'")
+
+    plain = extraction_messages([], "paper text")
+    assert plain[0]["content"] == SYSTEM_PROMPT
+
+    client.cookies.clear()
+    reviewer_csrf = login(client, "reviewer", "reviewer-password")
+    forbidden_get = client.get(
+        f"/api/v1/projects/{project_id}/prompt-settings",
+        headers={"X-CSRF-Token": reviewer_csrf},
+    )
+    assert forbidden_get.status_code == 403
+    forbidden_put = client.put(
+        f"/api/v1/projects/{project_id}/prompt-settings",
+        json={
+            "extractionInstructions": "nope",
+            "titleAbstractInstructions": "",
+            "fullTextInstructions": "",
+            "validationInstructions": "",
+        },
+        headers={"X-CSRF-Token": reviewer_csrf},
+    )
+    assert forbidden_put.status_code == 403
+
+
 def test_delete_project_removes_it_entirely(client, db, tmp_path, monkeypatch) -> None:
     settings = get_settings()
     monkeypatch.setattr(settings, "pdf_storage_path", tmp_path / "pdfs")

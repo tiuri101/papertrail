@@ -46,6 +46,8 @@ class FormResponse(ApiModel):
 
 class FieldUpdate(ApiModel):
     label: str | None = None
+    field_type: str | None = Field(default=None, alias="fieldType")
+    required: bool | None = None
     archive: bool = False
 
 

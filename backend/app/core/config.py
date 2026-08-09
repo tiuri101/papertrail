@@ -19,6 +19,7 @@ class Settings(BaseSettings):
 
     env: str = "development"
     app_name: str = "Papertrail"
+    app_version: str = "dev"
     api_prefix: str = "/api/v1"
     database_url: str = "sqlite+pysqlite:///./papertrail.db"
     cors_origins: Annotated[list[str], NoDecode] = ["http://localhost:5173"]

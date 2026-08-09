@@ -7,10 +7,12 @@ from app.forms.service import (
     archive_field,
     copy_template_to_project,
     create_form,
+    delete_field,
     delete_form,
     rename_field,
     replace_field,
     save_form_as_template,
+    update_field,
 )
 from app.projects.models import Project, ReviewType
 
@@ -147,6 +149,141 @@ def test_replace_field_archives_old_field_and_creates_a_new_typed_field(db) -> N
     assert fields_by_key[original.stable_key].is_archived is True
     assert fields_by_key[original.stable_key].field_type == FieldType.SHORT_TEXT
     assert fields_by_key[replacement.stable_key].is_archived is False
+
+
+def test_update_field_changes_type_and_required_in_place(db) -> None:
+    form = create_form(db, "Extraction", FormKind.EXTRACTION, is_template=True)
+    field = add_field(db, form, "Sample size", "short_text", required=False)
+    db.commit()
+
+    updated = update_field(
+        db, form, field.stable_key, label="Sample count", field_type="number", required=True
+    )
+    db.commit()
+
+    assert updated.stable_key == field.stable_key
+    assert updated.label == "Sample count"
+    assert updated.field_type == FieldType.NUMBER
+    assert updated.required is True
+    current_fields = list(
+        db.scalars(
+            select(FormField).where(FormField.form_version_id == form.active_version_id)
+        )
+    )
+    assert len(current_fields) == 1
+
+
+def test_update_field_type_is_blocked_once_responses_exist(db) -> None:
+    import pytest
+
+    from app.api.errors import ConflictError
+    from app.conflicts.service import record_final_decision
+    from app.extraction.service import (
+        claim_next_extraction,
+        initialize_extraction,
+        submit_extraction,
+    )
+    from app.projects.models import ProjectMembership, ProjectStage, ScreeningStage
+    from app.publications.models import Publication
+
+    reviewer = create_user(db, "r2", "R2", "password-1")
+    project = Project(
+        name="Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.EXTRACTION,
+    )
+    db.add(project)
+    db.flush()
+    db.add(
+        ProjectMembership(project_id=project.id, user_id=reviewer.id, can_extract=True)
+    )
+    form = create_form(db, "Extraction", FormKind.EXTRACTION, project_id=project.id)
+    required = add_field(db, form, "Main findings", "long_text", required=True)
+    publication = Publication(project_id=project.id, title="Paper")
+    db.add(publication)
+    db.flush()
+    record_final_decision(
+        db, publication.id, ScreeningStage.FULL_TEXT, "include", "agreement", None, None
+    )
+    db.commit()
+
+    initialize_extraction(db, project)
+    db.commit()
+    item = claim_next_extraction(db, project.id, reviewer.id)
+    submit_extraction(db, item, reviewer.id, {required.stable_key: "Finding"})
+    db.commit()
+
+    with pytest.raises(ConflictError):
+        update_field(db, form, required.stable_key, field_type="number")
+
+    # Label-only and required-only changes remain unaffected by the guard.
+    renamed = update_field(db, form, required.stable_key, label="Key findings")
+    db.commit()
+    assert renamed.label == "Key findings"
+
+
+def test_delete_field_removes_it_outright(db) -> None:
+    form = create_form(db, "Extraction", FormKind.EXTRACTION, is_template=True)
+    keep = add_field(db, form, "Main findings", "long_text", required=True)
+    drop = add_field(db, form, "Notes", "long_text", required=False)
+    db.commit()
+
+    deleted_id = delete_field(db, form, drop.stable_key)
+    db.commit()
+
+    assert deleted_id
+    current_fields = list(
+        db.scalars(
+            select(FormField).where(FormField.form_version_id == form.active_version_id)
+        )
+    )
+    assert [field.stable_key for field in current_fields] == [keep.stable_key]
+
+
+def test_delete_field_is_blocked_once_responses_exist(db) -> None:
+    import pytest
+
+    from app.api.errors import ConflictError
+    from app.conflicts.service import record_final_decision
+    from app.extraction.service import (
+        claim_next_extraction,
+        initialize_extraction,
+        submit_extraction,
+    )
+    from app.projects.models import ProjectMembership, ProjectStage, ScreeningStage
+    from app.publications.models import Publication
+
+    reviewer = create_user(db, "r3", "R3", "password-1")
+    project = Project(
+        name="Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.EXTRACTION,
+    )
+    db.add(project)
+    db.flush()
+    db.add(
+        ProjectMembership(project_id=project.id, user_id=reviewer.id, can_extract=True)
+    )
+    form = create_form(db, "Extraction", FormKind.EXTRACTION, project_id=project.id)
+    required = add_field(db, form, "Main findings", "long_text", required=True)
+    publication = Publication(project_id=project.id, title="Paper")
+    db.add(publication)
+    db.flush()
+    record_final_decision(
+        db, publication.id, ScreeningStage.FULL_TEXT, "include", "agreement", None, None
+    )
+    db.commit()
+
+    initialize_extraction(db, project)
+    db.commit()
+    item = claim_next_extraction(db, project.id, reviewer.id)
+    submit_extraction(db, item, reviewer.id, {required.stable_key: "Finding"})
+    db.commit()
+
+    with pytest.raises(ConflictError):
+        delete_field(db, form, required.stable_key)
 
 
 def test_delete_form_removes_it_and_its_versions(db) -> None:

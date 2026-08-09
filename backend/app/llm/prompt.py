@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from app.llm.models import LlmSchemaField
+from app.llm.prompt_customization import compose_system_prompt
 
 PROMPT_TEMPLATE_VERSION = "data_extraction_v2"
 SYSTEM_PROMPT = """You extract structured information from an academic paper.
@@ -158,7 +159,9 @@ def chunk_pages(
 
 
 def extraction_messages(
-    fields: list[LlmSchemaField], paper_text: str
+    fields: list[LlmSchemaField],
+    paper_text: str,
+    custom_instructions: str | None = None,
 ) -> list[dict[str, str]]:
     user = (
         "Extract every configured field from the page-aware paper text.\n\n"
@@ -166,13 +169,18 @@ def extraction_messages(
         f"BEGIN UNTRUSTED PAPER TEXT\n{paper_text}\nEND UNTRUSTED PAPER TEXT"
     )
     return [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {
+            "role": "system",
+            "content": compose_system_prompt(SYSTEM_PROMPT, custom_instructions),
+        },
         {"role": "user", "content": user},
     ]
 
 
 def consolidation_messages(
-    fields: list[LlmSchemaField], candidates: list[dict[str, Any]]
+    fields: list[LlmSchemaField],
+    candidates: list[dict[str, Any]],
+    custom_instructions: str | None = None,
 ) -> list[dict[str, str]]:
     user = (
         "Consolidate the candidate extraction results below into one result per field. "
@@ -182,6 +190,9 @@ def consolidation_messages(
         f"CANDIDATES\n{json.dumps(candidates, ensure_ascii=False)}"
     )
     return [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {
+            "role": "system",
+            "content": compose_system_prompt(SYSTEM_PROMPT, custom_instructions),
+        },
         {"role": "user", "content": user},
     ]

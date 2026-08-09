@@ -46,14 +46,18 @@ from app.llm.task_prompt import (
     validation_messages,
     validation_output_schema,
 )
-from app.llm.task_service import active_criteria, current_task_fingerprint
+from app.llm.task_service import (
+    active_criteria,
+    current_task_fingerprint,
+    was_cancelled,
+)
 from app.llm.task_validation import (
     ExtractionValidationResult,
     ScreeningTaskResult,
     validate_extraction_validation,
     validate_screening_result,
 )
-from app.projects.models import Criterion
+from app.projects.models import Criterion, Project
 from app.publications.models import Publication
 
 logger = logging.getLogger(__name__)
@@ -213,6 +217,10 @@ def _run_title_abstract(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
     publication = db.get(Publication, run.publication_id)
     if publication is None:
         return _mark_failed(run, "publication_missing", "Publication is unavailable")
+    project = db.get(Project, run.project_id)
+    custom_instructions = (
+        project.title_abstract_prompt_instructions if project else None
+    )
     criteria = active_criteria(db, run.project_id)
     config = get_settings()
     schema = screening_output_schema(
@@ -225,7 +233,7 @@ def _run_title_abstract(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
     try:
         result, response = validated_chat(
             create_ollama_client(),
-            title_abstract_messages(publication, criteria),
+            title_abstract_messages(publication, criteria, custom_instructions),
             schema,
             lambda payload: validate_screening_result(
                 payload, {item.id: item.kind for item in criteria}
@@ -236,6 +244,8 @@ def _run_title_abstract(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
         raise TransientJobError(str(exc)) from exc
     except (OllamaResponseError, DomainError) as exc:
         return _mark_failed(run, "invalid_response", str(exc))
+    if was_cancelled(db, run):
+        return {"runId": run.id, "status": "cancelled"}
     _store_criteria(db, run, criteria, result, None)
     payload = result.model_dump(mode="json")
     _finish(db, run, payload, metrics)
@@ -258,6 +268,8 @@ def _run_full_text(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
         return _mark_failed(
             run, "text_unavailable", "Extracted PDF text is unavailable"
         )
+    project = db.get(Project, run.project_id)
+    custom_instructions = project.full_text_prompt_instructions if project else None
     page_rows = _pages(db, extraction.id)
     criteria = active_criteria(db, run.project_id)
     config = get_settings()
@@ -287,7 +299,7 @@ def _run_full_text(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
         for chunk in chunks:
             result, response = validated_chat(
                 client,
-                full_text_messages(publication, criteria, chunk),
+                full_text_messages(publication, criteria, chunk, custom_instructions),
                 schema,
                 validator,
             )
@@ -298,7 +310,9 @@ def _run_full_text(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
             candidates=candidates,
             schema=schema,
             validator=validator,
-            messages=lambda batch: screening_consolidation_messages(criteria, batch),
+            messages=lambda batch: screening_consolidation_messages(
+                criteria, batch, custom_instructions
+            ),
             metrics=metrics,
             context_length=config.llm_context_length,
         )
@@ -306,6 +320,8 @@ def _run_full_text(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
         raise TransientJobError(str(exc)) from exc
     except (OllamaResponseError, DomainError) as exc:
         return _mark_failed(run, "invalid_response", str(exc))
+    if was_cancelled(db, run):
+        return {"runId": run.id, "status": "cancelled"}
     page_map = {page.page_number: page.text for page in page_rows}
     _store_criteria(db, run, criteria, final, page_map)
     payload = final.model_dump(mode="json")
@@ -357,6 +373,8 @@ def _run_validation(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
             "source_unavailable",
             "Extraction response or PDF text is unavailable",
         )
+    project = db.get(Project, run.project_id)
+    custom_instructions = project.validation_prompt_instructions if project else None
     fields = _validation_fields(db, response)
     field_keys = [str(item["fieldKey"]) for item in fields]
     pages = _pages(db, extraction.id)
@@ -383,7 +401,10 @@ def _run_validation(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
         candidates = []
         for chunk in chunks:
             result, response_metadata = validated_chat(
-                client, validation_messages(fields, chunk), schema, validator
+                client,
+                validation_messages(fields, chunk, custom_instructions),
+                schema,
+                validator,
             )
             add_metrics(metrics, response_metadata)
             candidates.append(result.model_dump(mode="json"))
@@ -392,7 +413,9 @@ def _run_validation(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
             candidates=candidates,
             schema=schema,
             validator=validator,
-            messages=lambda batch: validation_consolidation_messages(fields, batch),
+            messages=lambda batch: validation_consolidation_messages(
+                fields, batch, custom_instructions
+            ),
             metrics=metrics,
             context_length=config.llm_context_length,
         )
@@ -400,6 +423,8 @@ def _run_validation(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
         raise TransientJobError(str(exc)) from exc
     except (OllamaResponseError, DomainError) as exc:
         return _mark_failed(run, "invalid_response", str(exc))
+    if was_cancelled(db, run):
+        return {"runId": run.id, "status": "cancelled"}
     page_map = {page.page_number: page.text for page in pages}
     db.execute(delete(LlmValidationResult).where(LlmValidationResult.run_id == run.id))
     field_map = {str(item["fieldKey"]): item for item in fields}

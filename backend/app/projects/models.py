@@ -75,6 +75,18 @@ class Project(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     highlight_keywords_raw: Mapped[str] = mapped_column(
         Text, default="", server_default="", nullable=False
     )
+    extraction_prompt_instructions: Mapped[str] = mapped_column(
+        Text, default="", server_default="", nullable=False
+    )
+    title_abstract_prompt_instructions: Mapped[str] = mapped_column(
+        Text, default="", server_default="", nullable=False
+    )
+    full_text_prompt_instructions: Mapped[str] = mapped_column(
+        Text, default="", server_default="", nullable=False
+    )
+    validation_prompt_instructions: Mapped[str] = mapped_column(
+        Text, default="", server_default="", nullable=False
+    )
 
     memberships: Mapped[list[ProjectMembership]] = relationship(
         back_populates="project", cascade="all, delete-orphan"

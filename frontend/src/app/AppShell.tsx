@@ -155,6 +155,12 @@ export function AppShell() {
       <MobileMenuContext.Provider value={{ closeMobileMenu: () => setMobileMenuOpen(false) }}>
         <Outlet />
       </MobileMenuContext.Provider>
+      <footer className="app-footer">
+        <p>
+          &copy; {new Date().getFullYear()} Georg Arbesser-Rastburg
+          {` · v${import.meta.env.VITE_APP_VERSION ?? 'dev'}`}
+        </p>
+      </footer>
     </>
   )
 }

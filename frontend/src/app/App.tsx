@@ -6,6 +6,7 @@ import { DangerZonePanel } from '../features/administration/DangerZonePanel'
 import { HighlightKeywordsPanel } from '../features/administration/HighlightKeywordsPanel'
 import { MembersPanel } from '../features/administration/MembersPanel'
 import { ProjectDetailsPanel } from '../features/administration/ProjectDetailsPanel'
+import { PromptSettingsPanel } from '../features/administration/PromptSettingsPanel'
 import { ReviewerProgressPanel } from '../features/administration/ReviewerProgressPanel'
 import { ScreeningAssignmentsPanel } from '../features/administration/ScreeningAssignmentsPanel'
 import { ScreeningConfigPanel } from '../features/administration/ScreeningConfigPanel'
@@ -55,6 +56,7 @@ const administrationSections = [
   { id: 'section-reviewer-progress', label: 'Reviewer Progress' },
   { id: 'section-highlighted-keywords', label: 'Highlighted Keywords' },
   { id: 'section-llm-assistance', label: 'LLM Assistance' },
+  { id: 'section-prompt-settings', label: 'AI Prompts' },
   { id: 'section-workflow-integrity', label: 'Workflow Integrity' },
   { id: 'section-audit-log', label: 'Audit Log' },
   { id: 'section-danger-zone', label: 'Danger Zone' },
@@ -102,6 +104,7 @@ function ProjectAdministrationPage() {
       <ReviewerProgressPanel projectId={projectId} />
       <HighlightKeywordsPanel projectId={projectId} />
       <LlmAssistancePanel projectId={projectId} />
+      <PromptSettingsPanel projectId={projectId} />
       <ProjectLifecyclePanel projectId={projectId} />
       <CollapsibleSection id="section-audit-log" title="Audit Log">
         <p>Review a record of significant actions taken on this project.</p>
