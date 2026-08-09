@@ -157,7 +157,12 @@ def test_update_field_changes_type_and_required_in_place(db) -> None:
     db.commit()
 
     updated = update_field(
-        db, form, field.stable_key, label="Sample count", field_type="number", required=True
+        db,
+        form,
+        field.stable_key,
+        label="Sample count",
+        field_type="number",
+        required=True,
     )
     db.commit()
 

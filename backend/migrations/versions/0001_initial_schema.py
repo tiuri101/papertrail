@@ -835,6 +835,36 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_table(
+        "stage_analyses",
+        sa.Column("project_id", sa.String(length=36), nullable=False),
+        sa.Column("stage", sa.String(length=40), nullable=False),
+        sa.Column("summary", sa.Text(), nullable=False),
+        sa.Column("stats_fingerprint", sa.String(length=64), nullable=False),
+        sa.Column("generated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("id", sa.String(length=36), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["project_id"],
+            ["projects.id"],
+            name=op.f("fk_stage_analyses_project_id_projects"),
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_stage_analyses")),
+        sa.UniqueConstraint(
+            "project_id", "stage", name="uq_stage_analysis_project_stage"
+        ),
+    )
+    op.create_index(
+        op.f("ix_stage_analyses_project_id"),
+        "stage_analyses",
+        ["project_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_stage_analyses_stage"), "stage_analyses", ["stage"], unique=False
+    )
+    op.create_table(
         "extraction_work_items",
         sa.Column("project_id", sa.String(length=36), nullable=False),
         sa.Column("publication_id", sa.String(length=36), nullable=False),
@@ -2902,6 +2932,9 @@ def downgrade() -> None:
         table_name="extraction_work_items",
     )
     op.drop_table("extraction_work_items")
+    op.drop_index(op.f("ix_stage_analyses_stage"), table_name="stage_analyses")
+    op.drop_index(op.f("ix_stage_analyses_project_id"), table_name="stage_analyses")
+    op.drop_table("stage_analyses")
     op.drop_index(op.f("ix_export_artifacts_project_id"), table_name="export_artifacts")
     op.drop_index(op.f("ix_export_artifacts_job_id"), table_name="export_artifacts")
     op.drop_index(

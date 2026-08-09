@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.api.errors import ConflictError, NotFoundError
 from app.deduplication.models import DuplicateCandidate, PublicationMerge
 from app.fulltext.models import PublicationDocument
+from app.jobs.service import enqueue_job
 from app.projects.models import Project, ProjectStage
 from app.publications.models import MetadataConflict, Publication, PublicationSource
 from app.publications.service import IMPORTANT_FIELDS
@@ -372,6 +373,14 @@ def transition_if_duplicate_review_complete(db: Session, project: Project) -> bo
 
     queue_project_stage_completed_emails(
         db, project, ProjectStage.DUPLICATE_REVIEW, datetime.now(UTC)
+    )
+    enqueue_job(
+        db,
+        "generate_stage_analysis",
+        {"stage": "duplicate_review"},
+        project_id=project.id,
+        created_by_id=None,
+        priority=5,
     )
     db.flush()
     return True

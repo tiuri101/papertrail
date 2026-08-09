@@ -9,6 +9,7 @@ from app.api.errors import DomainError, ForbiddenError
 from app.conflicts.models import FinalDecision
 from app.conflicts.service import refresh_automatic_final_decision, valid_final_decision
 from app.fulltext.models import FullTextRetrieval, PublicationDocument, RetrievalStatus
+from app.jobs.service import enqueue_job
 from app.projects.models import Project, ProjectStage, ScreeningStage
 from app.screening.models import ScreeningDecision, ScreeningOutcome, ScreeningWorkItem
 from app.screening.service import (
@@ -298,6 +299,14 @@ def transition_if_full_text_complete(db: Session, project: Project) -> bool:
 
     queue_project_stage_completed_emails(
         db, project, ProjectStage.FULL_TEXT, datetime.now(UTC)
+    )
+    enqueue_job(
+        db,
+        "generate_stage_analysis",
+        {"stage": "full_text_screening"},
+        project_id=project.id,
+        created_by_id=None,
+        priority=5,
     )
     db.flush()
     return True

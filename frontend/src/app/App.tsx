@@ -11,6 +11,7 @@ import { ReviewerProgressPanel } from '../features/administration/ReviewerProgre
 import { ScreeningAssignmentsPanel } from '../features/administration/ScreeningAssignmentsPanel'
 import { ScreeningConfigPanel } from '../features/administration/ScreeningConfigPanel'
 import { ResearchAgendaPanel } from '../features/administration/ResearchAgendaPanel'
+import { AnalysisPage } from '../features/analysis/AnalysisPage'
 import { AuditLogPage } from '../features/audit/AuditLogPage'
 import { AccountSettingsPage } from '../features/auth/AccountSettingsPage'
 import { CollapsibleSection } from '../components/CollapsibleSection'
@@ -167,6 +168,7 @@ export function App() {
             <Route path="/projects/:projectId/extraction/validation" element={<ValidationReviewPage />} />
             <Route path="/projects/:projectId/quality" element={<QualityPage />} />
             <Route path="/projects/:projectId/results" element={<FinalResultsPage />} />
+            <Route path="/projects/:projectId/analysis" element={<AnalysisPage />} />
             <Route path="/projects/:projectId/reporting" element={<ReportingPage />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
