@@ -5,7 +5,7 @@ Papertrail is an API-first modular monolith. A React/TypeScript single-page appl
 ```text
 Browser (React/TypeScript)
           |
-        Caddy
+  external reverse proxy (out of scope)
        /     \
   FastAPI   static frontend
       |
@@ -38,4 +38,4 @@ LLM assistance keeps HTTP transport, page-aware PDF extraction, schema/version m
 
 ## Deployment
 
-Docker Compose runs PostgreSQL, a one-shot migration container, FastAPI, the threaded worker, the built React frontend, and Caddy. Original imports and generated exports share a persistent application-file volume; PDFs use a separate `papertrail_pdf_data` volume mounted only by FastAPI and the worker. PDF content is never exposed as static storage.
+Docker Compose runs PostgreSQL, a one-shot migration container, FastAPI, the threaded worker, and the built React frontend, pulling the backend and frontend images published as `tiuri101/papertrail-backend` and `tiuri101/papertrail-frontend`. The frontend and API each publish their own configurable host port (`PAPERTRAIL_FRONTEND_PORT`, `PAPERTRAIL_API_PORT`); routing them under a single public hostname is handled by an external reverse proxy outside this project's scope. Original imports and generated exports share a persistent application-file volume; PDFs use a separate `papertrail_pdf_data` volume mounted only by FastAPI and the worker. PDF content is never exposed as static storage.

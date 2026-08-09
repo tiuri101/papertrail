@@ -122,7 +122,7 @@ The file configures both the PostgreSQL container and the host processes. It is 
 docker compose -f docker-compose.dev.yml --env-file .env.development up -d --wait postgres
 ```
 
-Only PostgreSQL is created. The API, worker, frontend, Caddy, and migration containers from the production Compose file are not started.
+Only PostgreSQL is created. The API, worker, frontend, and migration containers from the production Compose file are not started.
 
 Inspect its state:
 
@@ -411,6 +411,6 @@ npm install
 Use:
 
 - `docker-compose.dev.yml` for local development; it starts PostgreSQL only.
-- `docker-compose.yml` for production-like self-hosting; it starts PostgreSQL, migrations, API, worker, frontend, and Caddy.
+- `docker-compose.yml` for production-like self-hosting; it starts PostgreSQL, migrations, API, worker, and frontend, pulling prebuilt images.
 
 Do not use the development database password or local cookie settings in production.

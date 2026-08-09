@@ -13,12 +13,13 @@
 
 1. Copy `.env.example` to `.env`.
 2. Replace the PostgreSQL and administrator passwords.
-3. For local HTTP, retain `PAPERTRAIL_SITE_ADDRESS=:80` and `PAPERTRAIL_SESSION_COOKIE_SECURE=false`.
-4. For production, set `PAPERTRAIL_SITE_ADDRESS` to the public hostname, include that hostname in `PAPERTRAIL_ALLOWED_HOSTS`, set the matching HTTPS origin, and enable secure cookies.
-5. Run `docker compose up -d --build`.
-6. Run `scripts/create_admin.sh`.
-7. Remove `PAPERTRAIL_ADMIN_PASSWORD` from `.env` after the account has been created.
-8. Open the configured Papertrail address and sign in.
+3. Set `PAPERTRAIL_IMAGE_TAG` to the backend/frontend image tag to deploy.
+4. For local HTTP, retain the default `PAPERTRAIL_FRONTEND_PORT=80`, `PAPERTRAIL_API_PORT=8000`, and `PAPERTRAIL_SESSION_COOKIE_SECURE=false`.
+5. For production, put an external reverse proxy in front of the frontend and API ports under the public hostname, include that hostname in `PAPERTRAIL_ALLOWED_HOSTS`, set the matching HTTPS origin, and enable secure cookies. Configuring that reverse proxy is outside the scope of this Compose file.
+6. Run `docker compose up -d`.
+7. Run `scripts/create_admin.sh`.
+8. Remove `PAPERTRAIL_ADMIN_PASSWORD` from `.env` after the account has been created.
+9. Open the configured Papertrail address and sign in.
 
 The one-shot `migrate` container applies all Alembic migrations before the API and worker start.
 
@@ -31,7 +32,7 @@ Email notifications are optional and are delivered asynchronously by the normal 
 ## Production example
 
 ```dotenv
-PAPERTRAIL_SITE_ADDRESS=papertrail.example.org
+PAPERTRAIL_IMAGE_TAG=1.4.0
 PAPERTRAIL_SESSION_COOKIE_SECURE=true
 PAPERTRAIL_ALLOWED_HOSTS=papertrail.example.org
 PAPERTRAIL_CORS_ORIGINS=https://papertrail.example.org
@@ -42,7 +43,7 @@ PAPERTRAIL_PUBLIC_BASE_URL=https://papertrail.example.org
 
 ```bash
 docker compose ps
-curl -f http://localhost/health
+curl -f http://localhost:${PAPERTRAIL_API_PORT:-8000}/health
 ```
 
-The `postgres`, `api`, `worker`, `llm-worker`, `frontend`, and `gateway` services should be running. The `migrate` service should have exited successfully. With LLM support disabled, `llm-worker` remains idle.
+The `postgres`, `api`, `worker`, `llm-worker`, and `frontend` services should be running. The `migrate` service should have exited successfully. With LLM support disabled, `llm-worker` remains idle.
