@@ -1,4 +1,4 @@
-import { screen, within } from '@testing-library/react'
+import { fireEvent, screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import { AuditLogPage } from '../AuditLogPage'
@@ -53,5 +53,50 @@ describe('AuditLogPage', () => {
     renderWithProviders(<AuditLogPage />, { route: '/projects/p1/audit', path: '/projects/:projectId/audit' })
 
     expect(await screen.findByText('No audit events recorded yet.')).toBeInTheDocument()
+  })
+
+  it('filters by action and sorts by clicking a column header', async () => {
+    mockFetch((input) => {
+      const path = String(input)
+      if (path.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
+      return jsonResponse([
+        {
+          id: 'event-1',
+          createdAt: '2026-07-30T08:00:00Z',
+          actorUsername: 'admin1',
+          action: 'project.created',
+          entityType: 'project',
+          entityId: 'project-1',
+          summary: 'Created project Sample Review',
+          metadata: {},
+        },
+        {
+          id: 'event-2',
+          createdAt: '2026-07-30T09:00:00Z',
+          actorUsername: null,
+          action: 'project.completed',
+          entityType: 'project',
+          entityId: 'project-1',
+          summary: 'Project completed automatically',
+          metadata: {},
+        },
+      ])
+    })
+    renderWithProviders(<AuditLogPage />, { route: '/projects/p1/audit', path: '/projects/:projectId/audit' })
+
+    await screen.findByText('Created project Sample Review')
+
+    const actionSelect = screen.getByLabelText('Action')
+    fireEvent.change(actionSelect, { target: { value: 'project.completed' } })
+    expect(screen.queryByText('Created project Sample Review')).not.toBeInTheDocument()
+    expect(screen.getByText('Project completed automatically')).toBeInTheDocument()
+
+    fireEvent.change(actionSelect, { target: { value: '' } })
+    const rowsBeforeSort = screen.getAllByRole('row').slice(1)
+    expect(within(rowsBeforeSort[0]).getByText('Project completed automatically')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Timestamp/ }))
+    const rowsAfterSort = screen.getAllByRole('row').slice(1)
+    expect(within(rowsAfterSort[0]).getByText('Created project Sample Review')).toBeInTheDocument()
   })
 })

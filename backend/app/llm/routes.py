@@ -20,6 +20,7 @@ from app.extraction.models import ExtractionResponse, ExtractionWorkItem
 from app.forms.schemas import FieldResponse
 from app.fulltext.documents import active_document
 from app.fulltext.models import PublicationDocument
+from app.jobs.models import BackgroundJob
 from app.llm.models import (
     DocumentTextExtraction,
     LlmExtractionRun,
@@ -49,11 +50,16 @@ from app.llm.schemas import (
     ValidationReviewResponse,
 )
 from app.llm.service import (
+    cancel_task_type_jobs,
     latest_current_run,
     queue_llm_run_after_text,
     queue_preparation_if_eligible,
 )
 from app.llm.task_service import (
+    backfill_data_extraction,
+    backfill_extraction_validation,
+    backfill_full_text,
+    backfill_title_abstract,
     current_validation_run,
     feature_enabled,
     latest_task_run,
@@ -61,6 +67,7 @@ from app.llm.task_service import (
     project_validation_progress,
     queue_extraction_validation,
     queue_full_text_assistance,
+    queue_project_extraction_validations,
     queue_title_abstract_suggestion,
     run_is_stale,
 )
@@ -148,6 +155,23 @@ def get_llm_settings(
     }
 
 
+# Each toggleable capability: which task type its jobs run as, and how to
+# backfill it once turned on (prioritizing publications not yet at that
+# stage's decision/extraction -- see the individual backfill_* docstrings).
+_CAPABILITY_TASK_TYPES: dict[str, LlmTaskType] = {
+    "title_abstract_screening_enabled": LlmTaskType.TITLE_ABSTRACT_SCREENING,
+    "full_text_screening_enabled": LlmTaskType.FULL_TEXT_SCREENING,
+    "enabled": LlmTaskType.DATA_EXTRACTION,
+    "extraction_validation_enabled": LlmTaskType.EXTRACTION_VALIDATION,
+}
+_CAPABILITY_BACKFILL = {
+    "title_abstract_screening_enabled": backfill_title_abstract,
+    "full_text_screening_enabled": backfill_full_text,
+    "enabled": backfill_data_extraction,
+    "extraction_validation_enabled": backfill_extraction_validation,
+}
+
+
 @router.patch("/projects/{project_id}/llm/settings")
 def update_llm_settings(
     project_id: str,
@@ -160,10 +184,10 @@ def update_llm_settings(
         raise DomainError("LLM support is disabled for this Papertrail installation")
     settings = project_settings(db, project_id, create=True)
     assert settings is not None
+    before = {key: getattr(settings, key) for key in _CAPABILITY_TASK_TYPES}
     for key, value in changes.items():
         setattr(settings, key, value)
     settings.updated_by_user_id = manager.id
-    bulk_id = str(uuid4())
     record_audit(
         db,
         action="llm.settings_updated",
@@ -174,49 +198,20 @@ def update_llm_settings(
         summary="Updated project LLM assistance settings",
         metadata={"changes": changes},
     )
-    if settings.title_abstract_screening_enabled:
-        from app.llm.task_service import queue_title_abstract_suggestion
-
-        publication_ids = list(
-            db.scalars(
-                select(Publication.id).where(
-                    Publication.project_id == project_id,
-                    Publication.is_active.is_(True),
-                    Publication.merged_into_id.is_(None),
-                )
+    bulk_id = str(uuid4())
+    for key, task_type in _CAPABILITY_TASK_TYPES.items():
+        if key not in changes or before[key] == getattr(settings, key):
+            continue
+        if getattr(settings, key):
+            # Just turned on: backfill the eligible cohort, unscreened first.
+            _CAPABILITY_BACKFILL[key](
+                db, project_id, created_by_id=manager.id, bulk_id=bulk_id
             )
-        )
-        for publication_id in publication_ids:
-            queue_title_abstract_suggestion(
-                db,
-                publication_id,
-                created_by_id=manager.id,
-                priority=-10,
-                bulk_id=bulk_id,
-            )
-    if (
-        settings.enabled
-        or settings.full_text_screening_enabled
-        or settings.extraction_validation_enabled
-    ):
-        eligible_ids = list(
-            db.scalars(
-                select(FinalDecision.publication_id).where(
-                    FinalDecision.project_id == project_id,
-                    FinalDecision.stage == ScreeningStage.TITLE_ABSTRACT,
-                    FinalDecision.outcome == ScreeningOutcome.INCLUDE,
-                    FinalDecision.is_valid.is_(True),
-                )
-            )
-        )
-        for publication_id in eligible_ids:
-            queue_preparation_if_eligible(
-                db,
-                publication_id,
-                created_by_id=manager.id,
-                priority=-10,
-                bulk_id=bulk_id,
-            )
+        else:
+            # Just turned off: stop the flow of new suggestions for this
+            # stage. Queued jobs are cancelled outright; an in-flight job's
+            # result is discarded when the worker notices via was_cancelled.
+            cancel_task_type_jobs(db, project_id, task_type)
     db.commit()
     return {
         "enabled": settings.enabled,
@@ -382,69 +377,147 @@ def reanalyze_publications(
     manager: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
-    if payload.scope not in {"eligible", "full_text_included"}:
-        raise DomainError("Unsupported re-analysis scope")
+    try:
+        task_type = LlmTaskType(payload.task_type)
+    except ValueError as exc:
+        raise DomainError("Unsupported re-analysis task type") from exc
+    if not feature_enabled(db, project_id, task_type):
+        raise DomainError("This LLM capability is disabled for this project")
+
     bulk_id = str(uuid4())
-    stage = (
-        ScreeningStage.FULL_TEXT
-        if payload.scope == "full_text_included"
-        else ScreeningStage.TITLE_ABSTRACT
-    )
-    publication_ids = list(
-        db.scalars(
-            select(FinalDecision.publication_id).where(
-                FinalDecision.project_id == project_id,
-                FinalDecision.stage == stage,
-                FinalDecision.outcome == ScreeningOutcome.INCLUDE,
-                FinalDecision.is_valid.is_(True),
+    queued = 0
+    result: LlmExtractionRun | BackgroundJob | None = None
+
+    if task_type == LlmTaskType.TITLE_ABSTRACT_SCREENING:
+        publication_ids = list(
+            db.scalars(
+                select(Publication.id).where(
+                    Publication.project_id == project_id,
+                    Publication.is_active.is_(True),
+                    Publication.merged_into_id.is_(None),
+                )
             )
         )
-    )
-    queued = 0
-    for publication_id in publication_ids:
-        result = queue_preparation_if_eligible(
+        for publication_id in publication_ids:
+            result = queue_title_abstract_suggestion(
+                db,
+                publication_id,
+                created_by_id=manager.id,
+                priority=-10,
+                force=True,
+                bulk_id=bulk_id,
+            )
+            if result is not None:
+                queued += 1
+    elif task_type == LlmTaskType.FULL_TEXT_SCREENING:
+        included_ids = set(
+            db.scalars(
+                select(FinalDecision.publication_id).where(
+                    FinalDecision.project_id == project_id,
+                    FinalDecision.stage == ScreeningStage.TITLE_ABSTRACT,
+                    FinalDecision.outcome == ScreeningOutcome.INCLUDE,
+                    FinalDecision.is_valid.is_(True),
+                )
+            )
+        )
+        excluded_ids = set(
+            db.scalars(
+                select(FinalDecision.publication_id).where(
+                    FinalDecision.project_id == project_id,
+                    FinalDecision.stage == ScreeningStage.FULL_TEXT,
+                    FinalDecision.outcome == ScreeningOutcome.EXCLUDE,
+                    FinalDecision.is_valid.is_(True),
+                )
+            )
+        )
+        for publication_id in included_ids - excluded_ids:
+            result = queue_full_text_assistance(
+                db,
+                publication_id,
+                created_by_id=manager.id,
+                priority=-10,
+                force=True,
+                bulk_id=bulk_id,
+            )
+            if result is not None:
+                queued += 1
+    elif task_type == LlmTaskType.DATA_EXTRACTION:
+        # The Data Extraction stage's actual cohort: publications already
+        # included at full-text screening.
+        publication_ids = list(
+            db.scalars(
+                select(FinalDecision.publication_id).where(
+                    FinalDecision.project_id == project_id,
+                    FinalDecision.stage == ScreeningStage.FULL_TEXT,
+                    FinalDecision.outcome == ScreeningOutcome.INCLUDE,
+                    FinalDecision.is_valid.is_(True),
+                )
+            )
+        )
+        for publication_id in publication_ids:
+            result = queue_preparation_if_eligible(
+                db,
+                publication_id,
+                created_by_id=manager.id,
+                priority=-10,
+                bulk_id=bulk_id,
+            )
+            document = active_document(db, publication_id)
+            if document:
+                extraction = db.scalar(
+                    select(DocumentTextExtraction).where(
+                        DocumentTextExtraction.document_id == document.id,
+                        DocumentTextExtraction.status == ProcessingStatus.COMPLETED,
+                    )
+                )
+                if extraction:
+                    result = queue_llm_run_after_text(
+                        db,
+                        extraction,
+                        created_by_id=manager.id,
+                        priority=-10,
+                        force=True,
+                        bulk_id=bulk_id,
+                    )
+            if result is not None:
+                queued += 1
+    else:
+        if not project_extractions_completed(db, project_id):
+            raise DomainError(
+                "Extraction validation starts after every paper has been "
+                "manually extracted"
+            )
+        results = queue_project_extraction_validations(
             db,
-            publication_id,
+            project_id,
             created_by_id=manager.id,
             priority=-10,
+            force=True,
             bulk_id=bulk_id,
         )
-        document = active_document(db, publication_id)
-        if document:
-            extraction = db.scalar(
-                select(DocumentTextExtraction).where(
-                    DocumentTextExtraction.document_id == document.id,
-                    DocumentTextExtraction.status == ProcessingStatus.COMPLETED,
-                )
-            )
-            if extraction:
-                result = queue_llm_run_after_text(
-                    db,
-                    extraction,
-                    created_by_id=manager.id,
-                    priority=-10,
-                    force=True,
-                    bulk_id=bulk_id,
-                )
-        if result is not None:
-            queued += 1
+        queued = len(results)
+
     record_audit(
         db,
-        action="llm.extraction_reanalysis_queued",
+        action=f"llm.{task_type}.reanalysis_queued",
         entity_type="project",
         entity_id=project_id,
         project_id=project_id,
         actor_id=manager.id,
         summary="Queued project LLM re-analysis",
-        metadata={"scope": payload.scope, "count": queued, "bulkId": bulk_id},
+        metadata={"taskType": task_type, "count": queued, "bulkId": bulk_id},
     )
     db.commit()
-    return {"scope": payload.scope, "queued": queued, "bulkId": bulk_id}
+    return {"taskType": task_type, "queued": queued, "bulkId": bulk_id}
 
 
 def _assistance_payload(
     db: Session, project_id: str, publication_id: str
 ) -> dict[str, Any]:
+    if not feature_enabled(db, project_id, LlmTaskType.DATA_EXTRACTION):
+        # Disabled always wins, even over an existing (possibly completed)
+        # run from before the capability was turned off.
+        return {"state": "disabled"}
     run = latest_current_run(db, project_id, publication_id)
     schema = current_schema(db, project_id)
     document = active_document(db, publication_id)
@@ -582,9 +655,11 @@ def _screening_payload(
     publication_id: str,
     task_type: LlmTaskType,
 ) -> dict[str, Any]:
+    if not feature_enabled(db, project_id, task_type):
+        # Disabled always wins, even over an existing (possibly completed)
+        # run from before the capability was turned off.
+        return {"state": "disabled"}
     if run is None:
-        if not feature_enabled(db, project_id, task_type):
-            return {"state": "disabled"}
         if task_type == LlmTaskType.FULL_TEXT_SCREENING:
             document = active_document(db, publication_id)
             if document is None:
@@ -815,11 +890,12 @@ def _validation_payload(db: Session, item: ExtractionWorkItem) -> dict[str, Any]
     )
     if response is None:
         return {"state": "not_submitted"}
+    if not feature_enabled(db, item.project_id, LlmTaskType.EXTRACTION_VALIDATION):
+        # Disabled always wins, even over an existing (possibly completed)
+        # run from before the capability was turned off.
+        return {"state": "disabled", "responseId": response.id}
     run = latest_task_run(db, item.publication_id, LlmTaskType.EXTRACTION_VALIDATION)
     if run is None:
-        settings = project_settings(db, item.project_id)
-        if settings is None or not settings.extraction_validation_enabled:
-            return {"state": "disabled", "responseId": response.id}
         return {"state": "unavailable", "responseId": response.id}
     stale = run_is_stale(db, run)
     return {
@@ -884,7 +960,7 @@ def extraction_validation_review(
             raise ForbiddenError(
                 "Extraction validation review requires extraction access"
             )
-    settings = project_settings(db, project_id)
+    enabled = feature_enabled(db, project_id, LlmTaskType.EXTRACTION_VALIDATION)
     progress = project_validation_progress(db, project_id)
     query = (
         select(ExtractionWorkItem)
@@ -906,9 +982,13 @@ def extraction_validation_review(
         publication = db.get(Publication, item.publication_id)
         if publication is None:
             continue
-        run = current_validation_run(db, item)
+        # Disabled always wins, even over an existing (possibly completed)
+        # run from before the capability was turned off.
+        run = current_validation_run(db, item) if enabled else None
         if response is None:
             state = "waiting_for_extraction"
+        elif not enabled:
+            state = "disabled"
         elif run is None:
             document = active_document(db, item.publication_id)
             text_extraction = (
@@ -966,7 +1046,7 @@ def extraction_validation_review(
             }
         )
     return {
-        "enabled": bool(settings and settings.extraction_validation_enabled),
+        "enabled": enabled,
         "progress": {
             "total": progress.total,
             "completed": progress.completed,

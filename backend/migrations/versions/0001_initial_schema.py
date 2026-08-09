@@ -76,6 +76,30 @@ def upgrade() -> None:
         sa.Column(
             "highlight_keywords_raw", sa.Text(), server_default="", nullable=False
         ),
+        sa.Column(
+            "extraction_prompt_instructions",
+            sa.Text(),
+            server_default="",
+            nullable=False,
+        ),
+        sa.Column(
+            "title_abstract_prompt_instructions",
+            sa.Text(),
+            server_default="",
+            nullable=False,
+        ),
+        sa.Column(
+            "full_text_prompt_instructions",
+            sa.Text(),
+            server_default="",
+            nullable=False,
+        ),
+        sa.Column(
+            "validation_prompt_instructions",
+            sa.Text(),
+            server_default="",
+            nullable=False,
+        ),
         sa.Column("id", sa.String(length=36), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),

@@ -5,7 +5,7 @@ on:
     branches:
       - "**"
     tags:
-      - "v*.*.*"
+      - "20[0-9][0-9].[0-9][0-9].*"
   pull_request:
   workflow_dispatch:
 
@@ -148,11 +148,21 @@ jobs:
       PUSH_IMAGE: >-
         ${{ github.event_name == 'push' &&
         (github.ref == format('refs/heads/{0}', github.event.repository.default_branch) ||
-        startsWith(github.ref, 'refs/tags/v')) }}
+        github.ref_type == 'tag') }}
 
     steps:
       - name: Check out repository
         uses: actions/checkout@v7
+
+      - name: Determine app version
+        id: version
+        shell: bash
+        run: |
+          if [ "${{ github.ref_type }}" = "tag" ]; then
+            echo "value=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "value=dev-${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
@@ -174,8 +184,7 @@ jobs:
           tags: |
             type=ref,event=branch
             type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
+            type=ref,event=tag
             type=sha,prefix=sha-
             type=raw,value=latest,enable=${{ env.PUSH_IMAGE == 'true' }}
 
@@ -188,5 +197,28 @@ jobs:
           push: ${{ env.PUSH_IMAGE == 'true' }}
           tags: ${{ steps.metadata.outputs.tags }}
           labels: ${{ steps.metadata.outputs.labels }}
+          build-args: |
+            APP_VERSION=${{ steps.version.outputs.value }}
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}
+
+  release:
+    name: Create GitHub release
+    runs-on: ubuntu-latest
+
+    needs:
+      - docker-images
+
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Create GitHub release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true

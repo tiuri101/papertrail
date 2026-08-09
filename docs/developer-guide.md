@@ -53,6 +53,20 @@ npm run build
 npm run test:e2e
 ```
 
+## Releasing
+
+Versions follow `YEAR.MONTH.PATCH` (e.g. `2026.07.01`, then `2026.07.02` for the next release the same month). To cut a release from `main` with a clean working tree:
+
+```powershell
+.\scripts\release.ps1
+```
+
+```bash
+./scripts/release.sh
+```
+
+This computes the next version, creates an annotated git tag, and pushes it. Pushing the tag triggers CI, which runs the full test suite, builds and pushes `tiuri101/papertrail-backend` and `tiuri101/papertrail-frontend` images tagged with that version, and creates the GitHub release. Pass an explicit version (e.g. `.\scripts\release.ps1 2026.07.02`) to override the computed one.
+
 ## Design rules
 
 - Keep FastAPI routes thin and put business rules in domain services.

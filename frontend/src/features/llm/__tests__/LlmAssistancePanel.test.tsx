@@ -34,14 +34,45 @@ describe('LlmAssistancePanel', () => {
     expect(screen.getByText('LLM capabilities')).toHaveClass('subsection-heading')
     expect(screen.queryByText(/api key/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Enable LLM data extraction/i })).not.toBeInTheDocument()
-    expect(screen.getByRole('button', {
-      name: 'Re-run LLM data extraction for all publications included after title/abstract screening',
-    })).toBeInTheDocument()
-    expect(screen.getByRole('button', {
-      name: 'Re-run LLM data extraction for all publications included after full-text screening',
-    })).toBeInTheDocument()
+    for (const name of [
+      'Re-Run LLM Title/Abstract Screening',
+      'Re-Run LLM Full-Text Screening',
+      'Re-Run LLM Data Extraction',
+      'Re-Run LLM Human Extraction Validation',
+    ]) {
+      const button = screen.getByRole('button', { name })
+      expect(button).toBeInTheDocument()
+      // All capabilities are disabled in the default fixture settings, so
+      // re-running any of them should not be possible.
+      expect(button).toBeDisabled()
+    }
     fireEvent.click(screen.getByRole('button', { name: 'Test Connection' }))
     expect(await screen.findByText('Available; configured model found.')).toBeInTheDocument()
+  })
+
+  it('re-runs an enabled capability with its task type', async () => {
+    const fetchMock = mockFetch(async (input, ) => {
+      const path = String(input)
+      if (path.endsWith('/llm/settings')) {
+        return jsonResponse({ ...settings, titleAbstractScreeningEnabled: true })
+      }
+      if (path.endsWith('/llm/schema')) return jsonResponse({ schema: null, extractionFields: [] })
+      if (path.includes('/llm/runs') && path.endsWith('/reanalyze')) return jsonResponse({ taskType: 'title_abstract_screening', queued: 3, bulkId: 'bulk-1' })
+      if (path.includes('/llm/runs')) return jsonResponse({ total: 0, counts: {}, statistics: {}, overview: { eligible: 0, missingPdf: 0, outdatedSchema: 0 }, runs: [] })
+      return jsonResponse({})
+    })
+    renderWithProviders(<LlmAssistancePanel projectId="p1" />)
+
+    const button = await screen.findByRole('button', { name: 'Re-Run LLM Title/Abstract Screening' })
+    expect(button).not.toBeDisabled()
+    fireEvent.click(button)
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/reanalyze'))
+      expect(call).toBeTruthy()
+      expect(JSON.parse(String(call?.[1]?.body))).toEqual({ taskType: 'title_abstract_screening' })
+    })
+
+    expect(screen.getByRole('button', { name: 'Re-Run LLM Full-Text Screening' })).toBeDisabled()
   })
 
   it('updates each optional capability independently', async () => {

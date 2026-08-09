@@ -67,6 +67,8 @@ export function FormFieldsPanel({
   const [falseScore, setFalseScore] = useState('')
   const [editingKey, setEditingKey] = useState<string | null>(null)
   const [editingLabel, setEditingLabel] = useState('')
+  const [editingType, setEditingType] = useState('long_text')
+  const [editingRequired, setEditingRequired] = useState(false)
   const [previewAnswers, setPreviewAnswers] = useState<Record<string, unknown>>({})
 
   const [qcEnabled, setQcEnabled] = useState(false)
@@ -143,20 +145,23 @@ export function FormFieldsPanel({
       queryClient.invalidateQueries({ queryKey: ['form-fields', existingForm?.id] })
     },
   })
-  const renameField = useMutation({
-    mutationFn: (variables: { stableKey: string; label: string }) => apiRequest<FormField>(
+  const updateField = useMutation({
+    mutationFn: (variables: { stableKey: string; label: string; fieldType: string; required: boolean }) => apiRequest<FormField>(
       `/api/v1/forms/${existingForm?.id}/fields/${variables.stableKey}`,
-      { method: 'PATCH', body: JSON.stringify({ label: variables.label }) },
+      {
+        method: 'PATCH',
+        body: JSON.stringify({ label: variables.label, fieldType: variables.fieldType, required: variables.required }),
+      },
     ),
     onSuccess: () => {
       setEditingKey(null)
       queryClient.invalidateQueries({ queryKey: ['form-fields', existingForm?.id] })
     },
   })
-  const archiveField = useMutation({
-    mutationFn: (stableKey: string) => apiRequest<FormField>(
+  const removeField = useMutation({
+    mutationFn: (stableKey: string) => apiRequest<void>(
       `/api/v1/forms/${existingForm?.id}/fields/${stableKey}`,
-      { method: 'PATCH', body: JSON.stringify({ archive: true }) },
+      { method: 'DELETE' },
     ),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['form-fields', existingForm?.id] }),
   })
@@ -174,7 +179,7 @@ export function FormFieldsPanel({
     if (qualityConfigSeeded.current) saveQualityConfig.mutate(next)
   }
 
-  const mutationError = createForm.error ?? addField.error ?? renameField.error ?? archiveField.error
+  const mutationError = createForm.error ?? addField.error ?? updateField.error ?? removeField.error
   const activeFields = fields.data?.filter((field) => !field.isArchived) ?? []
 
   return (
@@ -351,15 +356,44 @@ export function FormFieldsPanel({
                         />
                       ) : field.label}
                     </td>
-                    <td>{fieldTypeLabels[field.fieldType] ?? field.fieldType}</td>
-                    <td>{field.required ? 'Required' : '—'}</td>
+                    <td>
+                      {editingKey === field.stableKey ? (
+                        <select
+                          aria-label={`Edit type for ${field.label}`}
+                          value={editingType}
+                          onChange={(event) => setEditingType(event.target.value)}
+                        >
+                          {fieldTypes.map((type) => (
+                            <option key={type} value={type}>{fieldTypeLabels[type] ?? type}</option>
+                          ))}
+                        </select>
+                      ) : (fieldTypeLabels[field.fieldType] ?? field.fieldType)}
+                    </td>
+                    <td>
+                      {editingKey === field.stableKey ? (
+                        <label>
+                          <input
+                            type="checkbox"
+                            aria-label={`Edit required for ${field.label}`}
+                            checked={editingRequired}
+                            onChange={(event) => setEditingRequired(event.target.checked)}
+                          />
+                          Required
+                        </label>
+                      ) : (field.required ? 'Required' : '—')}
+                    </td>
                     <td>
                       {editingKey === field.stableKey ? (
                         <div className="toolbar">
                           <button
                             type="button"
-                            disabled={renameField.isPending}
-                            onClick={() => renameField.mutate({ stableKey: field.stableKey, label: editingLabel })}
+                            disabled={updateField.isPending}
+                            onClick={() => updateField.mutate({
+                              stableKey: field.stableKey,
+                              label: editingLabel,
+                              fieldType: editingType,
+                              required: editingRequired,
+                            })}
                           >
                             <IconCheckCircle />
                             Save
@@ -370,16 +404,21 @@ export function FormFieldsPanel({
                         <div className="toolbar">
                           <button
                             type="button"
-                            onClick={() => { setEditingKey(field.stableKey); setEditingLabel(field.label) }}
+                            onClick={() => {
+                              setEditingKey(field.stableKey)
+                              setEditingLabel(field.label)
+                              setEditingType(field.fieldType)
+                              setEditingRequired(field.required)
+                            }}
                           >
                             Edit
                           </button>
                           <ConfirmButton
-                            label="Archive"
-                            confirmLabel="Archive Field"
-                            warning={`Archive field "${field.label}"? It will be removed from new submissions.`}
-                            onConfirm={() => archiveField.mutate(field.stableKey)}
-                            disabled={archiveField.isPending}
+                            label="Remove"
+                            confirmLabel="Remove Field"
+                            warning={`Remove field "${field.label}"? This can't be undone.`}
+                            onConfirm={() => removeField.mutate(field.stableKey)}
+                            disabled={removeField.isPending}
                             variant="danger"
                             icon={<IconTrash />}
                           />

@@ -157,9 +157,9 @@ export function LlmAssistancePanel({
     onSuccess: refresh,
   })
   const reanalyze = useMutation({
-    mutationFn: (scope: 'eligible' | 'full_text_included') => apiRequest(
+    mutationFn: (taskType: 'title_abstract_screening' | 'full_text_screening' | 'data_extraction' | 'extraction_validation') => apiRequest(
       `/api/v1/projects/${projectId}/llm/runs/reanalyze`,
-      { method: 'POST', body: JSON.stringify({ scope }) },
+      { method: 'POST', body: JSON.stringify({ taskType }) },
     ),
     onSuccess: refresh,
   })
@@ -392,11 +392,37 @@ export function LlmAssistancePanel({
                 </details>
               ) : null}
               <div className="toolbar">
-                <button type="button" className="button-secondary" onClick={() => reanalyze.mutate('eligible')} disabled={reanalyze.isPending}>
-                  Re-run LLM data extraction for all publications included after title/abstract screening
+                <button
+                  type="button"
+                  className="button-secondary"
+                  onClick={() => reanalyze.mutate('title_abstract_screening')}
+                  disabled={reanalyze.isPending || !settings.data?.titleAbstractScreeningEnabled}
+                >
+                  Re-Run LLM Title/Abstract Screening
                 </button>
-                <button type="button" className="button-secondary" onClick={() => reanalyze.mutate('full_text_included')} disabled={reanalyze.isPending}>
-                  Re-run LLM data extraction for all publications included after full-text screening
+                <button
+                  type="button"
+                  className="button-secondary"
+                  onClick={() => reanalyze.mutate('full_text_screening')}
+                  disabled={reanalyze.isPending || !settings.data?.fullTextScreeningEnabled}
+                >
+                  Re-Run LLM Full-Text Screening
+                </button>
+                <button
+                  type="button"
+                  className="button-secondary"
+                  onClick={() => reanalyze.mutate('data_extraction')}
+                  disabled={reanalyze.isPending || !settings.data?.enabled}
+                >
+                  Re-Run LLM Data Extraction
+                </button>
+                <button
+                  type="button"
+                  className="button-secondary"
+                  onClick={() => reanalyze.mutate('extraction_validation')}
+                  disabled={reanalyze.isPending || !settings.data?.extractionValidationEnabled}
+                >
+                  Re-Run LLM Human Extraction Validation
                 </button>
               </div>
             </>

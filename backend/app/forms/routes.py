@@ -26,10 +26,12 @@ from app.forms.service import (
     archive_field,
     copy_template_to_project,
     create_form,
+    delete_field,
     delete_form,
     rename_field,
     replace_field,
     save_form_as_template,
+    update_field,
 )
 from app.projects.dependencies import (
     require_any_project_manager,
@@ -231,6 +233,16 @@ def update_form_field(
     if payload.archive:
         field = archive_field(db, form, stable_key)
         action = "form_field.archived"
+    elif payload.field_type is not None or payload.required is not None:
+        field = update_field(
+            db,
+            form,
+            stable_key,
+            label=payload.label,
+            field_type=payload.field_type,
+            required=payload.required,
+        )
+        action = "form_field.updated"
     elif payload.label is not None:
         field = rename_field(db, form, stable_key, payload.label)
         action = "form_field.renamed"
@@ -247,6 +259,33 @@ def update_form_field(
     )
     db.commit()
     return field
+
+
+@router.delete(
+    "/forms/{form_id}/fields/{stable_key}", status_code=status.HTTP_204_NO_CONTENT
+)
+def delete_form_field(
+    form_id: str,
+    stable_key: str,
+    session: UserSession = Depends(require_csrf),
+    db: Session = Depends(get_db),
+) -> None:
+    admin = session.user
+    form = db.get(ReviewForm, form_id)
+    if form is None:
+        raise NotFoundError("Form not found")
+    require_manager_for(db, admin, form.project_id)
+    field_id = delete_field(db, form, stable_key)
+    record_audit(
+        db,
+        action="form_field.deleted",
+        entity_type="form_field",
+        entity_id=field_id,
+        project_id=form.project_id,
+        actor_id=admin.id,
+        summary=f"Removed field from {form.name}",
+    )
+    db.commit()
 
 
 @router.post(

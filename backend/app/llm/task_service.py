@@ -485,13 +485,15 @@ def queue_project_extraction_validations(
     *,
     created_by_id: str | None = None,
     priority: int = 10,
+    force: bool = False,
+    bulk_id: str | None = None,
 ) -> list[LlmExtractionRun | BackgroundJob]:
     if not project_extractions_completed(db, project_id) or not feature_enabled(
         db, project_id, LlmTaskType.EXTRACTION_VALIDATION
     ):
         return []
     queued: list[LlmExtractionRun | BackgroundJob] = []
-    bulk_id = str(uuid4())
+    bulk_id = bulk_id or str(uuid4())
     publication_ids = list(
         db.scalars(
             select(ExtractionWorkItem.publication_id).where(
@@ -506,6 +508,7 @@ def queue_project_extraction_validations(
             publication_id,
             created_by_id=created_by_id,
             priority=priority,
+            force=force,
             bulk_id=bulk_id,
         )
         if result is not None:
@@ -694,6 +697,137 @@ def queue_tasks_after_text(
     return queued
 
 
+def backfill_title_abstract(
+    db: Session, project_id: str, *, created_by_id: str | None, bulk_id: str
+) -> None:
+    """Queue missing title/abstract suggestions after the capability is
+    turned on, prioritizing publications not yet screened at this stage."""
+    decided_ids = set(
+        db.scalars(
+            select(FinalDecision.publication_id).where(
+                FinalDecision.project_id == project_id,
+                FinalDecision.stage == ScreeningStage.TITLE_ABSTRACT,
+                FinalDecision.is_valid.is_(True),
+            )
+        )
+    )
+    publication_ids = list(
+        db.scalars(
+            select(Publication.id).where(
+                Publication.project_id == project_id,
+                Publication.is_active.is_(True),
+                Publication.merged_into_id.is_(None),
+            )
+        )
+    )
+    for publication_id in publication_ids:
+        priority = 0 if publication_id not in decided_ids else -10
+        queue_title_abstract_suggestion(
+            db,
+            publication_id,
+            created_by_id=created_by_id,
+            priority=priority,
+            bulk_id=bulk_id,
+        )
+
+
+def backfill_full_text(
+    db: Session, project_id: str, *, created_by_id: str | None, bulk_id: str
+) -> None:
+    """Queue missing full-text assistance after the capability is turned on,
+    prioritizing publications not yet screened at this stage."""
+    included_ids = set(
+        db.scalars(
+            select(FinalDecision.publication_id).where(
+                FinalDecision.project_id == project_id,
+                FinalDecision.stage == ScreeningStage.TITLE_ABSTRACT,
+                FinalDecision.outcome == ScreeningOutcome.INCLUDE,
+                FinalDecision.is_valid.is_(True),
+            )
+        )
+    )
+    excluded_ids = set(
+        db.scalars(
+            select(FinalDecision.publication_id).where(
+                FinalDecision.project_id == project_id,
+                FinalDecision.stage == ScreeningStage.FULL_TEXT,
+                FinalDecision.outcome == ScreeningOutcome.EXCLUDE,
+                FinalDecision.is_valid.is_(True),
+            )
+        )
+    )
+    decided_ids = set(
+        db.scalars(
+            select(FinalDecision.publication_id).where(
+                FinalDecision.project_id == project_id,
+                FinalDecision.stage == ScreeningStage.FULL_TEXT,
+                FinalDecision.is_valid.is_(True),
+            )
+        )
+    )
+    for publication_id in included_ids - excluded_ids:
+        priority = 0 if publication_id not in decided_ids else -10
+        queue_full_text_assistance(
+            db,
+            publication_id,
+            created_by_id=created_by_id,
+            priority=priority,
+            bulk_id=bulk_id,
+        )
+
+
+def backfill_data_extraction(
+    db: Session, project_id: str, *, created_by_id: str | None, bulk_id: str
+) -> None:
+    """Queue missing data extraction after the capability is turned on,
+    prioritizing publications not yet manually extracted."""
+    included_ids = set(
+        db.scalars(
+            select(FinalDecision.publication_id).where(
+                FinalDecision.project_id == project_id,
+                FinalDecision.stage == ScreeningStage.FULL_TEXT,
+                FinalDecision.outcome == ScreeningOutcome.INCLUDE,
+                FinalDecision.is_valid.is_(True),
+            )
+        )
+    )
+    completed_ids = set(
+        db.scalars(
+            select(ExtractionWorkItem.publication_id).where(
+                ExtractionWorkItem.project_id == project_id,
+                ExtractionWorkItem.status == ExtractionStatus.COMPLETED,
+            )
+        )
+    )
+    for publication_id in included_ids:
+        priority = 0 if publication_id not in completed_ids else -10
+        queue_document_processing(
+            db,
+            publication_id,
+            created_by_id=created_by_id,
+            priority=priority,
+            bulk_id=bulk_id,
+        )
+
+
+def backfill_extraction_validation(
+    db: Session, project_id: str, *, created_by_id: str | None, bulk_id: str
+) -> None:
+    """Queue extraction validation after the capability is turned on.
+
+    Validation only starts once the whole extraction cohort is complete
+    (``project_extractions_completed``), so there's no "not yet screened"
+    subset to prioritize -- every completed extraction is equally ready.
+    """
+    queue_project_extraction_validations(
+        db,
+        project_id,
+        created_by_id=created_by_id,
+        priority=0,
+        bulk_id=bulk_id,
+    )
+
+
 def latest_task_run(
     db: Session, publication_id: str, task_type: LlmTaskType
 ) -> LlmExtractionRun | None:
@@ -745,3 +879,16 @@ def current_task_fingerprint(db: Session, run: LlmExtractionRun) -> str | None:
 def run_is_stale(db: Session, run: LlmExtractionRun) -> bool:
     current = current_task_fingerprint(db, run)
     return current is None or current != run.input_fingerprint
+
+
+def was_cancelled(db: Session, run: LlmExtractionRun) -> bool:
+    """Re-check a run's status from the database.
+
+    ``_commit_started``/the equivalent in ``extraction.py`` commits and
+    releases the transaction before the (possibly minutes-long) Ollama call,
+    so a capability toggled off meanwhile can mark the run ``CANCELLED``
+    concurrently. Call this right before persisting a result so that
+    cancellation wins instead of being silently overwritten.
+    """
+    db.refresh(run, attribute_names=["status"])
+    return run.status == ProcessingStatus.CANCELLED

@@ -132,6 +132,26 @@ class ProjectDetail(ProjectSummary):
     )
 
 
+class PromptFlowSettings(ApiModel):
+    key: str
+    label: str
+    base_prompt: str = Field(serialization_alias="basePrompt")
+    custom_instructions: str = Field(serialization_alias="customInstructions")
+
+
+class PromptSettingsResponse(ApiModel):
+    flows: list[PromptFlowSettings]
+
+
+class PromptSettingsUpdate(ApiModel):
+    extraction_instructions: str = Field(default="", alias="extractionInstructions")
+    title_abstract_instructions: str = Field(
+        default="", alias="titleAbstractInstructions"
+    )
+    full_text_instructions: str = Field(default="", alias="fullTextInstructions")
+    validation_instructions: str = Field(default="", alias="validationInstructions")
+
+
 class HighlightKeywordsUpdate(ApiModel):
     keywords: list[str] = Field(default_factory=list)
 

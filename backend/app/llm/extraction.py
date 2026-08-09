@@ -40,7 +40,9 @@ from app.llm.prompt import (
 )
 from app.llm.service import full_text_excluded, title_abstract_included
 from app.llm.structured import add_metrics, validated_chat
+from app.llm.task_service import was_cancelled
 from app.llm.validation import ExtractionResult, validate_result
+from app.projects.models import Project
 
 
 def _validated_chat(
@@ -64,6 +66,7 @@ def _consolidate_candidates(
     fields: list[LlmSchemaField],
     metrics: dict[str, int],
     context_length: int,
+    custom_instructions: str | None = None,
 ) -> ExtractionResult:
     current = candidates
     instruction_tokens = len(field_instructions(fields)) // 3
@@ -93,7 +96,7 @@ def _consolidate_candidates(
                 continue
             result, response = _validated_chat(
                 client,
-                consolidation_messages(fields, candidate_batch),
+                consolidation_messages(fields, candidate_batch, custom_instructions),
                 schema,
                 fields,
             )
@@ -115,6 +118,8 @@ def run_llm_extraction_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
         return {"status": "cancelled", "reason": "wrong_task_type"}
     if run.status == ProcessingStatus.COMPLETED:
         return {"runId": run.id, "idempotent": True}
+    project = db.get(Project, run.project_id)
+    custom_instructions = project.extraction_prompt_instructions if project else None
     document = db.get(PublicationDocument, run.document_id) if run.document_id else None
     if (
         document is None
@@ -188,7 +193,10 @@ def run_llm_extraction_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
         candidates: list[dict[str, Any]] = []
         for chunk in chunks:
             result, response = _validated_chat(
-                client, extraction_messages(fields, chunk), schema, fields
+                client,
+                extraction_messages(fields, chunk, custom_instructions),
+                schema,
+                fields,
             )
             candidates.append(result.model_dump(mode="json"))
             add_metrics(metrics, response)
@@ -199,6 +207,7 @@ def run_llm_extraction_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
             fields,
             metrics,
             config.llm_context_length,
+            custom_instructions,
         )
     except OllamaTransientError as exc:
         raise TransientJobError(str(exc)) from exc
@@ -209,6 +218,9 @@ def run_llm_extraction_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
         run.completed_at = datetime.now(UTC)
         db.flush()
         return {"runId": run.id, "status": "failed", "error": run.error_message}
+
+    if was_cancelled(db, run):
+        return {"runId": run.id, "status": "cancelled"}
 
     page_map = {page.page_number: page.text for page in pages}
     field_map = {field.stable_key: field for field in fields}

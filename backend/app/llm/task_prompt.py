@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from app.llm.prompt_customization import compose_system_prompt
 from app.projects.models import Criterion
 from app.publications.models import Publication
 
@@ -140,7 +141,9 @@ def screening_output_schema(
 
 
 def title_abstract_messages(
-    publication: Publication, criteria: list[Criterion]
+    publication: Publication,
+    criteria: list[Criterion],
+    custom_instructions: str | None = None,
 ) -> list[dict[str, str]]:
     user = (
         "Independently suggest a title/abstract screening outcome. Assess every criterion by its "
@@ -150,13 +153,21 @@ def title_abstract_messages(
         f"PUBLICATION METADATA\n{_publication_metadata(publication)}"
     )
     return [
-        {"role": "system", "content": SCREENING_SYSTEM_PROMPT},
+        {
+            "role": "system",
+            "content": compose_system_prompt(
+                SCREENING_SYSTEM_PROMPT, custom_instructions
+            ),
+        },
         {"role": "user", "content": user},
     ]
 
 
 def full_text_messages(
-    publication: Publication, criteria: list[Criterion], paper_text: str
+    publication: Publication,
+    criteria: list[Criterion],
+    paper_text: str,
+    custom_instructions: str | None = None,
 ) -> list[dict[str, str]]:
     user = (
         "Assess every eligibility criterion using the page-aware paper text. Evidence is the "
@@ -166,13 +177,20 @@ def full_text_messages(
         f"BEGIN UNTRUSTED PAPER TEXT\n{paper_text}\nEND UNTRUSTED PAPER TEXT"
     )
     return [
-        {"role": "system", "content": SCREENING_SYSTEM_PROMPT},
+        {
+            "role": "system",
+            "content": compose_system_prompt(
+                SCREENING_SYSTEM_PROMPT, custom_instructions
+            ),
+        },
         {"role": "user", "content": user},
     ]
 
 
 def screening_consolidation_messages(
-    criteria: list[Criterion], candidates: list[dict[str, Any]]
+    criteria: list[Criterion],
+    candidates: list[dict[str, Any]],
+    custom_instructions: str | None = None,
 ) -> list[dict[str, str]]:
     user = (
         "Consolidate chunk-level eligibility assessments. Use only the candidate assessments and "
@@ -183,7 +201,12 @@ def screening_consolidation_messages(
         f"CANDIDATES\n{json.dumps(candidates, ensure_ascii=False)}"
     )
     return [
-        {"role": "system", "content": SCREENING_SYSTEM_PROMPT},
+        {
+            "role": "system",
+            "content": compose_system_prompt(
+                SCREENING_SYSTEM_PROMPT, custom_instructions
+            ),
+        },
         {"role": "user", "content": user},
     ]
 
@@ -228,7 +251,9 @@ def validation_output_schema(
 
 
 def validation_messages(
-    fields: list[dict[str, Any]], paper_text: str
+    fields: list[dict[str, Any]],
+    paper_text: str,
+    custom_instructions: str | None = None,
 ) -> list[dict[str, str]]:
     user = (
         "Validate each final human extraction value against the page-aware paper text.\n\n"
@@ -236,13 +261,20 @@ def validation_messages(
         f"BEGIN UNTRUSTED PAPER TEXT\n{paper_text}\nEND UNTRUSTED PAPER TEXT"
     )
     return [
-        {"role": "system", "content": VALIDATION_SYSTEM_PROMPT},
+        {
+            "role": "system",
+            "content": compose_system_prompt(
+                VALIDATION_SYSTEM_PROMPT, custom_instructions
+            ),
+        },
         {"role": "user", "content": user},
     ]
 
 
 def validation_consolidation_messages(
-    fields: list[dict[str, Any]], candidates: list[dict[str, Any]]
+    fields: list[dict[str, Any]],
+    candidates: list[dict[str, Any]],
+    custom_instructions: str | None = None,
 ) -> list[dict[str, str]]:
     user = (
         "Consolidate chunk-level validation results for the human values. Use only existing "
@@ -252,6 +284,11 @@ def validation_consolidation_messages(
         f"CANDIDATES\n{json.dumps(candidates, ensure_ascii=False)}"
     )
     return [
-        {"role": "system", "content": VALIDATION_SYSTEM_PROMPT},
+        {
+            "role": "system",
+            "content": compose_system_prompt(
+                VALIDATION_SYSTEM_PROMPT, custom_instructions
+            ),
+        },
         {"role": "user", "content": user},
     ]
