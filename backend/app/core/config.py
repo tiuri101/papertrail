@@ -28,6 +28,8 @@ class Settings(BaseSettings):
     login_max_attempts: int = 5
     login_window_seconds: int = 900
     login_block_seconds: int = 900
+    password_reset_ttl_minutes: int = 60
+    password_reset_max_attempts: int = 5
     allowed_hosts: Annotated[list[str], NoDecode] = [
         "localhost",
         "127.0.0.1",
@@ -112,6 +114,12 @@ class Settings(BaseSettings):
             raise ValueError("PAPERTRAIL_SMTP_PORT must be a valid TCP port")
         if self.smtp_timeout_seconds < 1:
             raise ValueError("PAPERTRAIL_SMTP_TIMEOUT_SECONDS must be at least 1")
+        if self.password_reset_ttl_minutes < 1:
+            raise ValueError("PAPERTRAIL_PASSWORD_RESET_TTL_MINUTES must be at least 1")
+        if self.password_reset_max_attempts < 1:
+            raise ValueError(
+                "PAPERTRAIL_PASSWORD_RESET_MAX_ATTEMPTS must be at least 1"
+            )
         parsed_public_url = urlsplit(self.public_base_url)
         if (
             parsed_public_url.scheme not in {"http", "https"}

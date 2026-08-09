@@ -6,6 +6,18 @@ from app.audit.models import AuditEvent
 from app.core.config import get_settings
 from app.imports.models import ImportBatch
 from app.jobs.models import BackgroundJob, JobStatus
+from app.projects.models import (
+    AllocationMode,
+    Project,
+    ProjectMembership,
+    ProjectStage,
+    ReviewType,
+    ScreeningConfig,
+    ScreeningStage,
+)
+from app.publications.models import Publication
+from app.screening.models import ScreeningWorkItem
+from app.screening.service import create_screening_work_items
 
 
 def login(client, username: str, password: str) -> str:
@@ -109,6 +121,77 @@ def test_admin_updates_and_removes_project_membership(client, db) -> None:
     memberships = detail.json()["memberships"]
     assert len(memberships) == 1
     assert memberships[0]["isOwner"] is True
+
+
+def test_adding_a_reviewer_mid_stage_rebalances_the_backlog_onto_them(
+    client, db
+) -> None:
+    admin = create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    reviewer1 = create_user(db, "reviewer1", "Reviewer 1", "password-1")
+    reviewer2 = create_user(db, "reviewer2", "Reviewer 2", "password-2")
+    project = Project(
+        name="Test",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.TITLE_ABSTRACT,
+    )
+    db.add(project)
+    db.flush()
+    db.add_all(
+        [
+            ProjectMembership(
+                project_id=project.id, user_id=admin.id, is_owner=True
+            ),
+            ProjectMembership(
+                project_id=project.id,
+                user_id=reviewer1.id,
+                can_title_abstract_screen=True,
+            ),
+        ]
+    )
+    db.add(
+        ScreeningConfig(
+            project_id=project.id,
+            stage=ScreeningStage.TITLE_ABSTRACT,
+            required_reviewers=1,
+            allocation_mode=AllocationMode.INDEPENDENT,
+        )
+    )
+    publications = [
+        Publication(project_id=project.id, title=f"Paper {i}") for i in range(4)
+    ]
+    db.add_all(publications)
+    db.commit()
+    create_screening_work_items(db, project, ScreeningStage.TITLE_ABSTRACT)
+    db.commit()
+
+    def counts() -> dict[str, int]:
+        tally: dict[str, int] = {}
+        for item in db.scalars(
+            select(ScreeningWorkItem).where(ScreeningWorkItem.project_id == project.id)
+        ):
+            tally[item.assigned_reviewer_id] = tally.get(item.assigned_reviewer_id, 0) + 1
+        return tally
+
+    assert counts() == {reviewer1.id: 4}
+
+    csrf = login(client, "admin", "secret-password")
+    response = client.post(
+        f"/api/v1/projects/{project.id}/members",
+        json={
+            "userId": reviewer2.id,
+            "canTitleAbstractScreen": True,
+            "canFullTextScreen": False,
+            "canExtract": False,
+            "canAssessQuality": False,
+            "canAdjudicate": False,
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 201
+
+    db.expire_all()
+    assert counts() == {reviewer1.id: 2, reviewer2.id: 2}
 
 
 def test_project_configuration_supports_questions_criteria_and_stage_settings(

@@ -105,6 +105,23 @@ def queue_account_created_email(db: Session, user: User) -> EmailNotification | 
     )
 
 
+def queue_password_reset_email(
+    db: Session, user: User, raw_token: str
+) -> EmailNotification | None:
+    settings = get_settings()
+    return queue_email_notification(
+        db,
+        recipient=user,
+        template="password_reset",
+        deduplication_key=f"password-reset:{_hash_key(raw_token)}",
+        context={
+            "recipient_name": user.display_name,
+            "reset_url": f"{settings.public_base_url}/reset-password?token={raw_token}",
+            "expires_in_minutes": settings.password_reset_ttl_minutes,
+        },
+    )
+
+
 def queue_project_created_emails(
     db: Session, project: Project, creator: User
 ) -> list[EmailNotification]:

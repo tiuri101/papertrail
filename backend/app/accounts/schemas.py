@@ -43,6 +43,15 @@ class UserUpdate(ApiModel):
     email: str | None = Field(default=None, max_length=320)
 
 
+class ForgotPasswordRequest(ApiModel):
+    email: str = Field(min_length=1, max_length=320)
+
+
+class ResetPasswordRequest(ApiModel):
+    token: str = Field(min_length=1, max_length=512)
+    new_password: str = Field(alias="newPassword", min_length=8, max_length=256)
+
+
 class SelfUpdate(ApiModel):
     display_name: str | None = Field(
         default=None, alias="displayName", min_length=1, max_length=200

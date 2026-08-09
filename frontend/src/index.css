@@ -1673,6 +1673,17 @@ tbody th {
   margin: 0;
 }
 
+.login-card > .link-button,
+.login-card > .button-secondary {
+  display: block;
+  margin-top: var(--space-6);
+}
+
+.login-card .success.alert {
+  border-color: rgba(105, 217, 173, 0.35);
+  background: var(--color-success-container);
+}
+
 .visually-hidden {
   position: absolute;
   width: 1px;

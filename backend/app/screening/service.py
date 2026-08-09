@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from collections import defaultdict
 from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
@@ -178,6 +179,62 @@ def reassign_work_items_from_ineligible_reviewers(
             item.reserved_until = None
     db.flush()
     return len(orphaned)
+
+
+def rebalance_pending_work_items(
+    db: Session, project_id: str, stage: ScreeningStage
+) -> int:
+    """Spread a stage's not-yet-claimed (AVAILABLE) work items evenly across all
+    currently eligible reviewers, so someone just granted stage access picks up a
+    fair share of the backlog instead of it staying stuck on whoever was eligible
+    when the stage's items were originally created.
+
+    Reserved and submitted items are left untouched -- work already claimed or
+    decided shouldn't move. A reviewer already committed to a publication (via a
+    reserved or submitted item for one of its other slots) is never handed that
+    publication's remaining slots, so dual screening stays independent.
+    """
+    eligible = eligible_reviewer_ids(db, project_id, stage)
+    if not eligible:
+        return 0
+    items = list(
+        db.scalars(
+            select(ScreeningWorkItem)
+            .where(
+                ScreeningWorkItem.project_id == project_id,
+                ScreeningWorkItem.stage == stage,
+            )
+            .order_by(ScreeningWorkItem.random_rank, ScreeningWorkItem.slot_number)
+        )
+    )
+    load = {reviewer_id: 0 for reviewer_id in eligible}
+    committed: dict[str, set[str]] = defaultdict(set)
+    pending: list[ScreeningWorkItem] = []
+    for item in items:
+        if item.status == WorkItemStatus.AVAILABLE:
+            pending.append(item)
+            continue
+        if item.assigned_reviewer_id:
+            committed[item.publication_id].add(item.assigned_reviewer_id)
+        if item.assigned_reviewer_id in load:
+            load[item.assigned_reviewer_id] += 1
+
+    reassigned = 0
+    for item in pending:
+        taken = committed[item.publication_id]
+        candidates = sorted(
+            (r for r in eligible if r not in taken), key=lambda r: (load[r], r)
+        )
+        if not candidates:
+            continue
+        chosen = candidates[0]
+        if item.assigned_reviewer_id != chosen:
+            item.assigned_reviewer_id = chosen
+            reassigned += 1
+        load[chosen] += 1
+        committed[item.publication_id].add(chosen)
+    db.flush()
+    return reassigned
 
 
 def reassign_work_item(

@@ -21,7 +21,9 @@ import { useRegisterSectionItems } from '../components/sectionNavigation'
 import { AdminGate } from '../features/auth/AdminGate'
 import { AuthGate } from '../features/auth/AuthGate'
 import { ChangePasswordPage } from '../features/auth/ChangePasswordPage'
+import { ForgotPasswordPage } from '../features/auth/ForgotPasswordPage'
 import { LoginPage } from '../features/auth/LoginPage'
+import { ResetPasswordPage } from '../features/auth/ResetPasswordPage'
 import { ConflictResolutionPage } from '../features/conflicts/ConflictResolutionPage'
 import { DuplicateReviewPage } from '../features/duplicates/DuplicateReviewPage'
 import { ExtractionPage } from '../features/extraction/ExtractionPage'
@@ -129,6 +131,8 @@ export function App() {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route element={<AuthGate />}>
         <Route path="/change-password" element={<ChangePasswordPage />} />
         <Route element={<AppShell />}>

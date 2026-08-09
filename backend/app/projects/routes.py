@@ -175,6 +175,42 @@ def project_checklist_endpoint(
     return project_checklist(db, project)
 
 
+def _reconcile_work_assignments(db: Session, project_id: str) -> None:
+    """Re-run eligibility clean-up and backlog rebalancing for every stage after a
+    membership change.
+
+    First strips not-yet-completed items away from reviewers who are no longer
+    eligible, then spreads each stage's unclaimed backlog evenly across whoever
+    is currently eligible -- so a newly added (or newly permitted) reviewer picks
+    up a fair share of pending work instead of the backlog staying stuck on
+    whoever was eligible when the stage started.
+    """
+    from app.extraction.service import (
+        rebalance_pending_work_items as rebalance_extraction,
+    )
+    from app.extraction.service import (
+        reassign_work_items_from_ineligible_reviewers as reassign_extraction,
+    )
+    from app.quality.service import (
+        rebalance_pending_work_items as rebalance_quality,
+    )
+    from app.quality.service import (
+        reassign_work_items_from_ineligible_reviewers as reassign_quality,
+    )
+    from app.screening.service import (
+        rebalance_pending_work_items,
+        reassign_work_items_from_ineligible_reviewers,
+    )
+
+    for stage in (ScreeningStage.TITLE_ABSTRACT, ScreeningStage.FULL_TEXT):
+        reassign_work_items_from_ineligible_reviewers(db, project_id, stage)
+        rebalance_pending_work_items(db, project_id, stage)
+    reassign_extraction(db, project_id)
+    rebalance_extraction(db, project_id)
+    reassign_quality(db, project_id)
+    rebalance_quality(db, project_id)
+
+
 @router.post(
     "/{project_id}/members",
     response_model=MembershipResponse,
@@ -210,6 +246,7 @@ def add_project_member(
     queue_membership_email(
         db, membership=membership, project=project, user=user, added=True
     )
+    _reconcile_work_assignments(db, project_id)
     db.commit()
     return membership
 
@@ -236,18 +273,7 @@ def update_project_member(
         can_assess_quality=payload.can_assess_quality,
         can_adjudicate=payload.can_adjudicate,
     )
-    from app.extraction.service import (
-        reassign_work_items_from_ineligible_reviewers as reassign_extraction,
-    )
-    from app.quality.service import (
-        reassign_work_items_from_ineligible_reviewers as reassign_quality,
-    )
-    from app.screening.service import reassign_work_items_from_ineligible_reviewers
-
-    for stage in (ScreeningStage.TITLE_ABSTRACT, ScreeningStage.FULL_TEXT):
-        reassign_work_items_from_ineligible_reviewers(db, project_id, stage)
-    reassign_extraction(db, project_id)
-    reassign_quality(db, project_id)
+    _reconcile_work_assignments(db, project_id)
     record_audit(
         db,
         action="membership.updated",
@@ -287,18 +313,7 @@ def delete_project_member(
         db, membership=membership, project=project, user=user, added=False
     )
     remove_membership(db, membership)
-    from app.extraction.service import (
-        reassign_work_items_from_ineligible_reviewers as reassign_extraction,
-    )
-    from app.quality.service import (
-        reassign_work_items_from_ineligible_reviewers as reassign_quality,
-    )
-    from app.screening.service import reassign_work_items_from_ineligible_reviewers
-
-    for stage in (ScreeningStage.TITLE_ABSTRACT, ScreeningStage.FULL_TEXT):
-        reassign_work_items_from_ineligible_reviewers(db, project_id, stage)
-    reassign_extraction(db, project_id)
-    reassign_quality(db, project_id)
+    _reconcile_work_assignments(db, project_id)
     db.commit()
 
 

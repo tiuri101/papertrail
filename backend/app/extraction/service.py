@@ -135,6 +135,40 @@ def reassign_work_items_from_ineligible_reviewers(db: Session, project_id: str) 
     return len(orphaned)
 
 
+def rebalance_pending_work_items(db: Session, project_id: str) -> int:
+    """Spread not-yet-claimed (AVAILABLE) extraction work items evenly across all
+    currently eligible extractors, so someone just granted access picks up a fair
+    share of the backlog. Reserved and completed items are left untouched.
+    """
+    eligible = eligible_extractors(db, project_id)
+    if not eligible:
+        return 0
+    items = list(
+        db.scalars(
+            select(ExtractionWorkItem)
+            .where(ExtractionWorkItem.project_id == project_id)
+            .order_by(ExtractionWorkItem.random_rank)
+        )
+    )
+    load = {reviewer_id: 0 for reviewer_id in eligible}
+    pending: list[ExtractionWorkItem] = []
+    for item in items:
+        if item.status == ExtractionStatus.AVAILABLE:
+            pending.append(item)
+        elif item.assigned_reviewer_id in load:
+            load[item.assigned_reviewer_id] += 1
+
+    reassigned = 0
+    for item in pending:
+        chosen = min(eligible, key=lambda r: (load[r], r))
+        if item.assigned_reviewer_id != chosen:
+            item.assigned_reviewer_id = chosen
+            reassigned += 1
+        load[chosen] += 1
+    db.flush()
+    return reassigned
+
+
 def claim_next_extraction(
     db: Session, project_id: str, reviewer_id: str
 ) -> ExtractionWorkItem | None:

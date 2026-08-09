@@ -1,6 +1,6 @@
 """Import all SQLAlchemy models so metadata is complete."""
 
-from app.accounts.models import LoginThrottle, User, UserSession
+from app.accounts.models import LoginThrottle, PasswordResetToken, User, UserSession
 from app.audit.models import AuditEvent
 from app.conflicts.models import FinalDecision
 from app.deduplication.models import DuplicateCandidate, PublicationMerge
@@ -65,6 +65,7 @@ __all__ = [
     "Project",
     "ProjectLlmSettings",
     "ProjectMembership",
+    "PasswordResetToken",
     "Publication",
     "PublicationMerge",
     "PublicationSource",

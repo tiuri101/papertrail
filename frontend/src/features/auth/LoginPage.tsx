@@ -1,6 +1,6 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { ThemeToggle } from '../../components/ThemeToggle'
@@ -69,6 +69,7 @@ export function LoginPage() {
             {login.isPending ? 'Signing In…' : 'Sign In'}
           </button>
         </form>
+        <Link to="/forgot-password" className="link-button">Forgot your password?</Link>
       </section>
     </main>
   )
