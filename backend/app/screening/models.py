@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import enum
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import (
     Boolean,
@@ -61,7 +62,9 @@ class ScreeningWorkItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     status: Mapped[WorkItemStatus] = mapped_column(
         default=WorkItemStatus.AVAILABLE, index=True, nullable=False
     )
-    draft: Mapped[dict] = mapped_column(JSONType, default=dict, nullable=False)
+    draft: Mapped[dict[str, Any]] = mapped_column(
+        JSONType, default=dict, nullable=False
+    )
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     decisions: Mapped[list[ScreeningDecision]] = relationship(
@@ -86,7 +89,7 @@ class ScreeningDecision(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("users.id", ondelete="CASCADE"), index=True
     )
     outcome: Mapped[ScreeningOutcome] = mapped_column(nullable=False, index=True)
-    criteria_answers: Mapped[dict] = mapped_column(JSONType, nullable=False)
+    criteria_answers: Mapped[dict[str, Any]] = mapped_column(JSONType, nullable=False)
     notes: Mapped[str | None] = mapped_column(Text)
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     is_current: Mapped[bool] = mapped_column(

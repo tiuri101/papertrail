@@ -165,13 +165,16 @@ function ConflictCard({ conflict, resolving, addingReviewer, onResolve, onAddRev
           <button
             type="button"
             key={outcome}
+            className={outcome === 'include' ? undefined : 'button-secondary'}
             onClick={() => onResolve(outcome, note || null)}
             disabled={resolving}
           >
             {formatOutcome(outcome)}
           </button>
         ))}
-        <button type="button" onClick={onAddReviewer} disabled={addingReviewer}>
+      </div>
+      <div className="toolbar">
+        <button type="button" className="button-secondary" onClick={onAddReviewer} disabled={addingReviewer}>
           Add Another Reviewer
         </button>
       </div>

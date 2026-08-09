@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -24,7 +26,7 @@ def list_audit_events(
     limit: int = Query(default=100, ge=1, le=500),
     admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
-):
+) -> list[dict[str, Any]]:
     require_project_access(db, project_id, admin)
     rows = db.execute(
         select(AuditEvent, User.username)
@@ -53,7 +55,7 @@ def get_project_dashboard(
     project_id: str,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> dict[str, int | str]:
     require_project_access(db, project_id, user)
     return project_dashboard(db, project_id)
 
@@ -63,5 +65,5 @@ def get_reviewer_progress(
     project_id: str,
     _: User = Depends(require_project_manager),
     db: Session = Depends(get_db),
-):
+) -> list[dict[str, Any]]:
     return reviewer_progress(db, project_id)

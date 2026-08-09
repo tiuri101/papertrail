@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { CollapsibleSection } from '../../components/CollapsibleSection'
 
 interface LlmSettings {
   enabled: boolean
@@ -67,7 +68,13 @@ const FIELD_TYPES = [
   'multiple_select', 'date', 'url', 'rating',
 ]
 
-export function LlmAssistancePanel({ projectId }: { projectId: string }) {
+export function LlmAssistancePanel({
+  projectId,
+  showProcessingStatus = true,
+}: {
+  projectId: string
+  showProcessingStatus?: boolean
+}) {
   const queryClient = useQueryClient()
   const settings = useQuery({
     queryKey: ['llm-settings', projectId],
@@ -80,9 +87,10 @@ export function LlmAssistancePanel({ projectId }: { projectId: string }) {
   const overview = useQuery({
     queryKey: ['llm-runs', projectId],
     queryFn: () => apiRequest<RunOverview>(`/api/v1/projects/${projectId}/llm/runs?limit=10`),
+    enabled: showProcessingStatus,
   })
   const [fields, setFields] = useState<LlmSchemaField[]>([])
-  const [connection, setConnection] = useState<string | null>(null)
+  const [connection, setConnection] = useState<{ message: string; ok: boolean } | null>(null)
 
   useEffect(() => setFields(schema.data?.schema?.fields ?? []), [schema.data?.schema])
 
@@ -103,11 +111,16 @@ export function LlmAssistancePanel({ projectId }: { projectId: string }) {
     mutationFn: () => apiRequest<{ available: boolean; modelAvailable: boolean; error?: string }>(
       `/api/v1/projects/${projectId}/llm/test`, { method: 'POST' },
     ),
-    onSuccess: (result) => setConnection(
-      result.available
+    onSuccess: (result) => setConnection({
+      ok: result.available && result.modelAvailable,
+      message: result.available
         ? result.modelAvailable ? 'Available; configured model found.' : 'Available; configured model not found.'
         : result.error ?? 'Unavailable',
-    ),
+    }),
+    onError: (mutationError) => setConnection({
+      ok: false,
+      message: mutationError instanceof Error ? mutationError.message : 'Unable to test the connection.',
+    }),
   })
   const initialize = useMutation({
     mutationFn: () => apiRequest<LlmSchema>(
@@ -159,12 +172,11 @@ export function LlmAssistancePanel({ projectId }: { projectId: string }) {
     position: current.length,
   }])
 
-  const error = toggle.error ?? test.error ?? initialize.error ?? save.error
+  const error = toggle.error ?? initialize.error ?? save.error
     ?? publish.error ?? reanalyze.error
   const currentSchema = schema.data?.schema
   return (
-    <section className="card">
-      <h2>LLM Assistance</h2>
+    <CollapsibleSection id="section-llm-assistance" title="LLM Assistance">
       <p className="muted">
         Suggestions come from the configured external Ollama service. Reviewers remain responsible
         for every submitted extraction value.
@@ -179,20 +191,18 @@ export function LlmAssistancePanel({ projectId }: { projectId: string }) {
         </dl>
       ) : null}
       <div className="toolbar">
-        <button
-          type="button"
-          disabled={!settings.data?.installationEnabled || toggle.isPending}
-          onClick={() => toggle.mutate({ enabled: !settings.data?.enabled })}
-        >
-          {settings.data?.enabled ? 'Disable LLM data extraction' : 'Enable LLM data extraction'}
-        </button>
         <button type="button" onClick={() => test.mutate()} disabled={test.isPending}>
           {test.isPending ? 'Testing…' : 'Test Connection'}
         </button>
       </div>
+      {connection ? (
+        <p className={connection.ok ? 'success' : 'error'} role={connection.ok ? 'status' : 'alert'}>
+          {connection.message}
+        </p>
+      ) : null}
       {settings.data ? (
         <fieldset>
-          <legend>LLM capabilities</legend>
+          <legend className="subsection-heading">LLM capabilities</legend>
           <label>
             <input
               type="checkbox"
@@ -212,7 +222,12 @@ export function LlmAssistancePanel({ projectId }: { projectId: string }) {
             Full-text screening assistance
           </label>
           <label>
-            <input type="checkbox" checked={settings.data.enabled} disabled readOnly />
+            <input
+              type="checkbox"
+              checked={settings.data.enabled}
+              disabled={!settings.data.installationEnabled || toggle.isPending}
+              onChange={(event) => toggle.mutate({ enabled: event.target.checked })}
+            />
             LLM data extraction
           </label>
           <label>
@@ -226,7 +241,6 @@ export function LlmAssistancePanel({ projectId }: { projectId: string }) {
           </label>
         </fieldset>
       ) : null}
-      {connection ? <p role="status">{connection}</p> : null}
 
       <h3>LLM Extraction Schema</h3>
       {!currentSchema ? (
@@ -236,9 +250,27 @@ export function LlmAssistancePanel({ projectId }: { projectId: string }) {
       ) : (
         <>
           <p>Version {currentSchema.versionNumber} · {currentSchema.status}</p>
-          {fields.map((field, index) => (
-            <fieldset className="llm-schema-field" key={field.stableKey}>
-              <legend>{field.label || `Field ${index + 1}`}</legend>
+          <div className="llm-schema-fields">
+          {fields.map((field, index) => {
+            const mappedField = schema.data?.extractionFields.find(
+              (item) => item.stableKey === field.mappedExtractionFieldKey,
+            )
+            return (
+            <details className="llm-schema-field" key={field.stableKey}>
+              <summary className="llm-schema-field__summary">
+                <span className="llm-schema-field__title">
+                  <strong>{field.label || `Field ${index + 1}`}</strong>
+                  <span className="status-badge">{field.fieldType.replaceAll('_', ' ')}</span>
+                  {!field.enabled ? <span className="status-badge">Disabled</span> : null}
+                </span>
+                <span className="llm-schema-field__mapping">
+                  {mappedField ? `Maps to ${mappedField.label}` : 'LLM-only helper field'}
+                </span>
+                <span className="llm-schema-field__preview">
+                  {field.instruction || 'No extraction instruction provided.'}
+                </span>
+              </summary>
+              <div className="llm-schema-field__content">
               <label>Label
                 <input value={field.label} onChange={(event) => edit(index, { label: event.target.value })} />
               </label>
@@ -285,64 +317,80 @@ export function LlmAssistancePanel({ projectId }: { projectId: string }) {
               <label><input type="checkbox" checked={field.allowInferred} onChange={(event) => edit(index, { allowInferred: event.target.checked })} /> Allow inferred values</label>
               <label><input type="checkbox" checked={field.enabled} onChange={(event) => edit(index, { enabled: event.target.checked })} /> Enabled</label>
               <div className="toolbar">
-                <button type="button" className="secondary" disabled={index === 0} onClick={() => setFields((current) => {
+                <button type="button" className="button-secondary" disabled={index === 0} onClick={() => setFields((current) => {
                   const next = [...current]
                   ;[next[index - 1], next[index]] = [next[index], next[index - 1]]
                   return next
                 })}>Move up</button>
-                <button type="button" className="secondary" disabled={index === fields.length - 1} onClick={() => setFields((current) => {
+                <button type="button" className="button-secondary" disabled={index === fields.length - 1} onClick={() => setFields((current) => {
                   const next = [...current]
                   ;[next[index], next[index + 1]] = [next[index + 1], next[index]]
                   return next
                 })}>Move down</button>
               </div>
-              <button type="button" className="secondary" onClick={() => setFields((current) => current.filter((_, i) => i !== index))}>Remove field</button>
-            </fieldset>
-          ))}
+              <button type="button" className="button-danger" onClick={() => setFields((current) => current.filter((_, i) => i !== index))}>Remove field</button>
+              </div>
+            </details>
+            )
+          })}
+          </div>
           <div className="toolbar">
-            <button type="button" className="secondary" onClick={addHelper}>Add helper field</button>
+            <button type="button" className="button-secondary" onClick={addHelper}>Add helper field</button>
             <button type="button" onClick={() => save.mutate()} disabled={save.isPending}>Save draft</button>
-            <button type="button" onClick={() => publish.mutate()} disabled={publish.isPending || currentSchema.status !== 'draft'}>Publish version</button>
+          </div>
+          <div className="toolbar">
+            <button
+              type="button"
+              className="button-success"
+              onClick={() => publish.mutate()}
+              disabled={publish.isPending || currentSchema.status !== 'draft'}
+            >
+              Publish version
+            </button>
           </div>
         </>
       )}
       {error ? <p className="error" role="alert">{error.message}</p> : null}
 
-      <h3>Processing status</h3>
-      {overview.data ? (
+      {showProcessingStatus ? (
         <>
-          <dl className="detail-list">
-            <dt>Eligible for processing</dt><dd>{overview.data.overview.eligible}</dd>
-            <dt>Missing PDF</dt><dd>{overview.data.overview.missingPdf}</dd>
-            <dt>Outdated schema</dt><dd>{overview.data.overview.outdatedSchema}</dd>
-            <dt>Ready</dt><dd>{overview.data.counts.completed ?? 0}</dd>
-            <dt>Processing</dt><dd>{overview.data.counts.processing ?? 0}</dd>
-            <dt>Queued</dt><dd>{overview.data.counts.pending ?? 0}</dd>
-            <dt>Failed</dt><dd>{overview.data.counts.failed ?? 0}</dd>
-            <dt>Average prompt tokens</dt><dd>{Math.round(overview.data.statistics.averagePromptTokens ?? 0)}</dd>
-            <dt>Average generated tokens</dt><dd>{Math.round(overview.data.statistics.averageGeneratedTokens ?? 0)}</dd>
-          </dl>
-          {overview.data.runs.some((run) => run.outdated) ? <p>Some results use an older schema version.</p> : null}
-          {overview.data.runs.some((run) => run.status === 'failed') ? (
-            <details>
-              <summary>Recent failures</summary>
-              <ul>
-                {overview.data.runs.filter((run) => run.status === 'failed').map((run) => (
-                  <li key={run.id}>{run.model}: {run.error ?? 'Unknown processing error'}</li>
-                ))}
-              </ul>
-            </details>
-          ) : null}
-          <div className="toolbar">
-            <button type="button" className="secondary" onClick={() => reanalyze.mutate('eligible')} disabled={reanalyze.isPending}>
-              Queue all eligible publications
-            </button>
-            <button type="button" className="secondary" onClick={() => reanalyze.mutate('full_text_included')} disabled={reanalyze.isPending}>
-              Queue full-text included publications
-            </button>
-          </div>
+          <h3>Processing status</h3>
+          {overview.data ? (
+            <>
+              <dl className="detail-list">
+                <dt>Eligible for processing</dt><dd>{overview.data.overview.eligible}</dd>
+                <dt>Missing PDF</dt><dd>{overview.data.overview.missingPdf}</dd>
+                <dt>Outdated schema</dt><dd>{overview.data.overview.outdatedSchema}</dd>
+                <dt>Ready</dt><dd>{overview.data.counts.completed ?? 0}</dd>
+                <dt>Processing</dt><dd>{overview.data.counts.processing ?? 0}</dd>
+                <dt>Queued</dt><dd>{overview.data.counts.pending ?? 0}</dd>
+                <dt>Failed</dt><dd>{overview.data.counts.failed ?? 0}</dd>
+                <dt>Average prompt tokens</dt><dd>{Math.round(overview.data.statistics.averagePromptTokens ?? 0)}</dd>
+                <dt>Average generated tokens</dt><dd>{Math.round(overview.data.statistics.averageGeneratedTokens ?? 0)}</dd>
+              </dl>
+              {overview.data.runs.some((run) => run.outdated) ? <p>Some results use an older schema version.</p> : null}
+              {overview.data.runs.some((run) => run.status === 'failed') ? (
+                <details>
+                  <summary>Recent failures</summary>
+                  <ul>
+                    {overview.data.runs.filter((run) => run.status === 'failed').map((run) => (
+                      <li key={run.id}>{run.model}: {run.error ?? 'Unknown processing error'}</li>
+                    ))}
+                  </ul>
+                </details>
+              ) : null}
+              <div className="toolbar">
+                <button type="button" className="button-secondary" onClick={() => reanalyze.mutate('eligible')} disabled={reanalyze.isPending}>
+                  Re-run LLM data extraction for all publications included after title/abstract screening
+                </button>
+                <button type="button" className="button-secondary" onClick={() => reanalyze.mutate('full_text_included')} disabled={reanalyze.isPending}>
+                  Re-run LLM data extraction for all publications included after full-text screening
+                </button>
+              </div>
+            </>
+          ) : <p>Loading processing status…</p>}
         </>
-      ) : <p>Loading processing status…</p>}
-    </section>
+      ) : null}
+    </CollapsibleSection>
   )
 }

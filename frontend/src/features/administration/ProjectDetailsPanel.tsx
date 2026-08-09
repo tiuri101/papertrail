@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { CollapsibleSection } from '../../components/CollapsibleSection'
 
 interface ProjectDetails {
   id: string
@@ -41,8 +42,7 @@ export function ProjectDetailsPanel({ projectId }: { projectId: string }) {
   })
 
   return (
-    <section className="card">
-      <h2>Project Details</h2>
+    <CollapsibleSection id="section-project-details" title="Project Details">
       {project.error ? <p className="error" role="alert">{project.error.message}</p> : null}
       <form onSubmit={(event) => { event.preventDefault(); save.mutate() }}>
         <label>
@@ -69,6 +69,6 @@ export function ProjectDetailsPanel({ projectId }: { projectId: string }) {
           Save Changes
         </button>
       </form>
-    </section>
+    </CollapsibleSection>
   )
 }

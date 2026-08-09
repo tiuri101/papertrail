@@ -103,6 +103,7 @@ def queue_preparation_if_eligible(
     *,
     created_by_id: str | None = None,
     priority: int = 0,
+    bulk_id: str | None = None,
 ) -> BackgroundJob | LlmExtractionRun | None:
     from app.llm.task_service import queue_document_processing
 
@@ -111,6 +112,7 @@ def queue_preparation_if_eligible(
         publication_id,
         created_by_id=created_by_id,
         priority=priority,
+        bulk_id=bulk_id,
     )
 
 
@@ -121,6 +123,7 @@ def queue_llm_run_after_text(
     created_by_id: str | None,
     priority: int = 0,
     force: bool = False,
+    bulk_id: str | None = None,
 ) -> LlmExtractionRun | None:
     document = db.get(PublicationDocument, extraction.document_id)
     if (
@@ -151,10 +154,14 @@ def queue_llm_run_after_text(
         )
     )
     if active:
+        if bulk_id and active.bulk_id is None:
+            active.bulk_id = bulk_id
         if active.background_job_id:
             job = db.get(BackgroundJob, active.background_job_id)
             if job:
                 job.priority = max(job.priority, priority)
+                if bulk_id and not job.payload.get("bulk_id"):
+                    job.payload = {**job.payload, "bulk_id": bulk_id}
         return active
     if not force:
         completed = db.scalar(
@@ -174,6 +181,7 @@ def queue_llm_run_after_text(
         project_id=document.project_id,
         publication_id=document.publication_id,
         task_type=LlmTaskType.DATA_EXTRACTION,
+        bulk_id=bulk_id,
         input_fingerprint=input_fingerprint,
         document_id=document.id,
         schema_version_id=schema.id,
@@ -194,7 +202,7 @@ def queue_llm_run_after_text(
     job = enqueue_job(
         db,
         LLM_JOB,
-        {"run_id": run.id},
+        {"run_id": run.id, **({"bulk_id": bulk_id} if bulk_id else {})},
         project_id=document.project_id,
         created_by_id=created_by_id,
         max_attempts=3,

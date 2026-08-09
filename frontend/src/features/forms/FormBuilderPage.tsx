@@ -3,8 +3,24 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { useRegisterSectionItems } from '../../components/SectionNavigationLayout'
 import { useProjectManageState } from '../../hooks/useCanManageProject'
 import { DynamicForm } from './DynamicForm'
+import {
+  buildScoring,
+  describeRatingScale,
+  fieldTypeLabels,
+  fieldTypes,
+  parseOptions,
+  selectFieldTypes,
+  weightedFieldTypes,
+} from './fieldTypes'
+
+const formBuilderSections = [
+  { id: 'section-quality-settings', label: 'Quality Assessment Settings' },
+  { id: 'section-create-form', label: 'Create Project Form' },
+  { id: 'section-edit-form', label: 'Edit a Form' },
+]
 
 interface ReviewForm {
   id: string
@@ -30,76 +46,11 @@ interface QualityConfig {
   aggregation: string
 }
 
-const fieldTypes = [
-  'short_text',
-  'long_text',
-  'number',
-  'checkbox',
-  'single_select',
-  'multiple_select',
-  'date',
-  'url',
-  'rating',
-]
-
-const fieldTypeLabels: Record<string, string> = {
-  short_text: 'Short text',
-  long_text: 'Long text',
-  number: 'Number',
-  checkbox: 'Checkbox',
-  single_select: 'Single select',
-  multiple_select: 'Multiple select',
-  date: 'Date',
-  url: 'URL',
-  rating: 'Rating',
-}
-
-const selectFieldTypes = new Set(['single_select', 'multiple_select'])
-const weightedFieldTypes = new Set(['number', 'rating'])
-
-function parseOptions(text: string): string[] {
-  return text.split('\n').map((line) => line.trim()).filter(Boolean)
-}
-
-function describeRatingScale(options: string[]): string {
-  if (options.length !== 2) return '1-5'
-  return `${options[0]}-${options[1]}`
-}
-
-function buildScoring(params: {
-  isQualityForm: boolean
-  fieldType: string
-  weight: string
-  options: string[]
-  optionScores: Record<string, string>
-  trueScore: string
-  falseScore: string
-}): Record<string, unknown> {
-  if (!params.isQualityForm) return {}
-  if (weightedFieldTypes.has(params.fieldType)) {
-    return params.weight.trim() ? { weight: Number(params.weight) } : {}
-  }
-  if (params.fieldType === 'single_select') {
-    const values: Record<string, number> = {}
-    for (const option of params.options) {
-      const raw = params.optionScores[option]
-      if (raw !== undefined && raw.trim() !== '') values[option] = Number(raw)
-    }
-    return Object.keys(values).length ? { values } : {}
-  }
-  if (params.fieldType === 'checkbox') {
-    const scoring: Record<string, number> = {}
-    if (params.trueScore.trim()) scoring['true'] = Number(params.trueScore)
-    if (params.falseScore.trim()) scoring['false'] = Number(params.falseScore)
-    return scoring
-  }
-  return {}
-}
-
 export function FormBuilderPage() {
   const { projectId = '' } = useParams()
   const queryClient = useQueryClient()
   const { canManage, isLoading: canManageLoading } = useProjectManageState(projectId)
+  useRegisterSectionItems(formBuilderSections)
   const [name, setName] = useState('Extraction form')
   const [kind, setKind] = useState('extraction')
   const [templateId, setTemplateId] = useState('')
@@ -311,7 +262,7 @@ export function FormBuilderPage() {
       <h1>Forms and Templates</h1>
       {forms.error ? <p className="error" role="alert">{forms.error.message}</p> : null}
       {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
-      <section className="card">
+      <section id="section-quality-settings" className="card">
         <h2>Quality Assessment Settings</h2>
         {qualityConfig.error ? <p className="error" role="alert">{qualityConfig.error.message}</p> : null}
         {qualityConfig.isLoading ? <p>Loading…</p> : (
@@ -345,7 +296,7 @@ export function FormBuilderPage() {
           </form>
         )}
       </section>
-      <section className="card">
+      <section id="section-create-form" className="card">
         <h2>Create Project Form</h2>
         <p className="muted">
           Each project has one extraction form and one quality form. These are the forms used
@@ -401,7 +352,7 @@ export function FormBuilderPage() {
           </form>
         )}
       </section>
-      <section className="card">
+      <section id="section-edit-form" className="card">
         <h2>Edit a Form</h2>
         <label>
           Form to edit
@@ -550,7 +501,7 @@ export function FormBuilderPage() {
                     <td>{field.isArchived ? 'Archived' : 'Active'}</td>
                     <td>
                       {editingKey === field.stableKey ? (
-                        <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap' }}>
+                        <div className="toolbar">
                           <button
                             type="button"
                             disabled={renameField.isPending}
@@ -558,10 +509,10 @@ export function FormBuilderPage() {
                           >
                             Save
                           </button>
-                          <button type="button" onClick={() => setEditingKey(null)}>Cancel</button>
+                          <button type="button" className="button-secondary" onClick={() => setEditingKey(null)}>Cancel</button>
                         </div>
                       ) : !field.isArchived ? (
-                        <div style={{ display: 'flex', gap: 'var(--space-2)', flexWrap: 'wrap', alignItems: 'center' }}>
+                        <div className="toolbar">
                           <button
                             type="button"
                             onClick={() => {
@@ -573,6 +524,7 @@ export function FormBuilderPage() {
                           </button>
                           <button
                             type="button"
+                            className="button-danger"
                             onClick={() => {
                               if (window.confirm(`Archive field "${field.label}"? It will be removed from new submissions, but every value already recorded for it is kept and can still be included in exports.`)) {
                                 deleteField.mutate(field.stableKey)
@@ -606,7 +558,7 @@ export function FormBuilderPage() {
                               >
                                 Confirm
                               </button>
-                              <button type="button" onClick={() => setReplacingKey(null)}>Cancel</button>
+                              <button type="button" className="button-secondary" onClick={() => setReplacingKey(null)}>Cancel</button>
                             </>
                           ) : (
                             <button

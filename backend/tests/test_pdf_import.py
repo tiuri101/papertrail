@@ -283,6 +283,12 @@ def test_metadata_with_zip_isolated_failures_and_metadata_only_still_works(
         archive.writestr("zip-paper.pdf", zip_pdf)
         archive.writestr("notes.txt", "not a PDF")
         archive.writestr("../escape.pdf", pdf_bytes("Escape"))
+    second_zip_pdf = pdf_bytes("Second ZIP Paper", "10.1000/zip-two")
+    second_archive_stream = BytesIO()
+    with zipfile.ZipFile(
+        second_archive_stream, "w", compression=zipfile.ZIP_DEFLATED
+    ) as archive:
+        archive.writestr("second-zip-paper.pdf", second_zip_pdf)
     response = client.post(
         f"/api/v1/projects/{project.id}/imports",
         files=[
@@ -290,7 +296,11 @@ def test_metadata_with_zip_isolated_failures_and_metadata_only_still_works(
                 "file",
                 (
                     "records.csv",
-                    b"title,doi,authors,year\nZIP Paper,10.1000/zip,Doe,2026\n",
+                    (
+                        b"title,doi,authors,year\n"
+                        b"ZIP Paper,10.1000/zip,Doe,2026\n"
+                        b"Second ZIP Paper,10.1000/zip-two,Roe,2026\n"
+                    ),
                     "text/csv",
                 ),
             ),
@@ -300,6 +310,15 @@ def test_metadata_with_zip_isolated_failures_and_metadata_only_still_works(
                 "pdfArchive",
                 ("papers.zip", archive_stream.getvalue(), "application/zip"),
             ),
+            ("pdfArchive", ("broken.zip", b"not a ZIP", "application/zip")),
+            (
+                "pdfArchive",
+                (
+                    "more-papers.zip",
+                    second_archive_stream.getvalue(),
+                    "application/zip",
+                ),
+            ),
         ],
         headers={"X-CSRF-Token": csrf},
     )
@@ -307,10 +326,10 @@ def test_metadata_with_zip_isolated_failures_and_metadata_only_still_works(
     job = db.get(BackgroundJob, response.json()["jobId"])
     assert job is not None
     result = process_import_job(db, job)
-    assert result["pdfs"]["matched"] == 1
+    assert result["pdfs"]["matched"] == 2
     assert result["pdfs"]["duplicate"] == 1
-    assert result["pdfs"]["invalid"] == 3
-    assert db.scalar(select(func.count()).select_from(PublicationDocument)) == 1
+    assert result["pdfs"]["invalid"] == 4
+    assert db.scalar(select(func.count()).select_from(PublicationDocument)) == 2
 
     metadata_only = client.post(
         f"/api/v1/projects/{project.id}/imports",

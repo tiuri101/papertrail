@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 import { api } from '../../api/client'
+import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { ConfirmButton } from '../../components/ConfirmButton'
 
 const stages = [
@@ -70,18 +71,18 @@ export function ProjectLifecyclePanel({ projectId }: { projectId: string }) {
   )
 
   return (
-    <section className="card">
-      <h2>Workflow Integrity</h2>
-      {integrity.data?.issues.length ? (
-        <ul>
-          {integrity.data.issues.map((issue) => (
-            <li key={`${issue.code}-${issue.message}`}>{issue.message}</li>
-          ))}
-        </ul>
-      ) : <p>No consistency issues detected.</p>}
+    <>
+      <CollapsibleSection id="section-workflow-integrity" title="Workflow Integrity">
+        {integrity.data?.issues.length ? (
+          <ul>
+            {integrity.data.issues.map((issue) => (
+              <li key={`${issue.code}-${issue.message}`}>{issue.message}</li>
+            ))}
+          </ul>
+        ) : <p>No consistency issues detected.</p>}
+      </CollapsibleSection>
       {isCompleted && reopenOptions.length ? (
-        <>
-          <h2>Reopen Project</h2>
+        <CollapsibleSection id="section-reopen-project" title="Reopen Project">
           <p>Move a completed project back to an earlier stage to resume work. Screening, extraction, and quality-assessment data already recorded is kept, not deleted.</p>
           {reopen.error ? <p className="error" role="alert">{reopen.error.message}</p> : null}
           <label>
@@ -100,11 +101,10 @@ export function ProjectLifecyclePanel({ projectId }: { projectId: string }) {
           >
             Reopen Project
           </button>
-        </>
+        </CollapsibleSection>
       ) : null}
       {isActiveStage && moveBackOptions.length ? (
-        <>
-          <h2>Move Project Back</h2>
+        <CollapsibleSection id="section-move-project-back" title="Move Project Back">
           <p>Move an in-progress project back to an earlier stage without deleting any screening, extraction, or quality-assessment data already recorded. That data is kept for traceability but excluded from active workflow counts until the project reaches that stage again.</p>
           {moveBack.error ? <p className="error" role="alert">{moveBack.error.message}</p> : null}
           <label>
@@ -123,8 +123,8 @@ export function ProjectLifecyclePanel({ projectId }: { projectId: string }) {
             onConfirm={() => moveBack.mutate()}
             disabled={moveBack.isPending}
           />
-        </>
+        </CollapsibleSection>
       ) : null}
-    </section>
+    </>
   )
 }

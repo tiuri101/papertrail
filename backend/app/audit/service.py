@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Any
 
-from sqlalchemy import case, func, select
+from sqlalchemy import Row, case, func, select
 from sqlalchemy.orm import Session
 
 from app.accounts.models import User
@@ -235,7 +236,9 @@ def reviewer_progress(db: Session, project_id: str) -> list[dict[str, Any]]:
     return stages
 
 
-def _reviewer_progress_stage(stage: str, label: str, rows: list) -> dict[str, Any]:
+def _reviewer_progress_stage(
+    stage: str, label: str, rows: Sequence[Row[Any]]
+) -> dict[str, Any]:
     return {
         "stage": stage,
         "label": label,

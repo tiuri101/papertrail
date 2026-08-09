@@ -127,6 +127,9 @@ class ProjectDetail(ProjectSummary):
         serialization_alias="screeningConfigs"
     )
     can_manage: bool = Field(serialization_alias="canManage")
+    extraction_validation_enabled: bool = Field(
+        default=False, serialization_alias="extractionValidationEnabled"
+    )
 
 
 class HighlightKeywordsUpdate(ApiModel):

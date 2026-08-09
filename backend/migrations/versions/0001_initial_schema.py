@@ -2,13 +2,14 @@
 
 Revision ID: 0001_initial_schema
 Revises:
-Create Date: 2026-07-31 17:43:15.353457
+Create Date: 2026-08-08 22:09:19.624176
 """
 
 from collections.abc import Sequence
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy import Text
 from sqlalchemy.dialects import postgresql
 
 revision: str = "0001_initial_schema"
@@ -84,6 +85,7 @@ def upgrade() -> None:
         "users",
         sa.Column("username", sa.String(length=100), nullable=False),
         sa.Column("display_name", sa.String(length=200), nullable=False),
+        sa.Column("email", sa.String(length=320), nullable=True),
         sa.Column("password_hash", sa.String(length=500), nullable=False),
         sa.Column("is_admin", sa.Boolean(), nullable=False),
         sa.Column("is_active", sa.Boolean(), nullable=False),
@@ -93,6 +95,7 @@ def upgrade() -> None:
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_users")),
     )
+    op.create_index(op.f("ix_users_email"), "users", ["email"], unique=True)
     op.create_index(op.f("ix_users_username"), "users", ["username"], unique=True)
     op.create_table(
         "audit_events",
@@ -104,9 +107,7 @@ def upgrade() -> None:
         sa.Column("summary", sa.Text(), nullable=False),
         sa.Column(
             "event_metadata",
-            sa.JSON().with_variant(
-                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
-            ),
+            sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"),
             nullable=False,
         ),
         sa.Column("id", sa.String(length=36), nullable=False),
@@ -153,9 +154,7 @@ def upgrade() -> None:
         sa.Column("job_type", sa.String(length=100), nullable=False),
         sa.Column(
             "payload",
-            sa.JSON().with_variant(
-                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
-            ),
+            sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"),
             nullable=False,
         ),
         sa.Column(
@@ -173,6 +172,7 @@ def upgrade() -> None:
         sa.Column("progress_current", sa.Integer(), nullable=False),
         sa.Column("progress_total", sa.Integer(), nullable=False),
         sa.Column("progress_message", sa.String(length=500), nullable=True),
+        sa.Column("priority", sa.Integer(), nullable=False),
         sa.Column("created_by_id", sa.String(length=36), nullable=True),
         sa.Column("started_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
@@ -183,9 +183,7 @@ def upgrade() -> None:
         sa.Column("error_message", sa.Text(), nullable=True),
         sa.Column(
             "result",
-            sa.JSON().with_variant(
-                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
-            ),
+            sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"),
             nullable=True,
         ),
         sa.Column("id", sa.String(length=36), nullable=False),
@@ -215,6 +213,12 @@ def upgrade() -> None:
         op.f("ix_background_jobs_lease_until"),
         "background_jobs",
         ["lease_until"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_background_jobs_priority"),
+        "background_jobs",
+        ["priority"],
         unique=False,
     )
     op.create_index(
@@ -252,10 +256,113 @@ def upgrade() -> None:
         op.f("ix_criteria_project_id"), "criteria", ["project_id"], unique=False
     )
     op.create_table(
+        "email_notifications",
+        sa.Column("recipient_user_id", sa.String(length=36), nullable=True),
+        sa.Column("project_id", sa.String(length=36), nullable=True),
+        sa.Column("recipient_email", sa.String(length=320), nullable=False),
+        sa.Column("template", sa.String(length=100), nullable=False),
+        sa.Column("deduplication_key", sa.String(length=64), nullable=False),
+        sa.Column("subject", sa.String(length=500), nullable=False),
+        sa.Column(
+            "context",
+            sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"),
+            nullable=False,
+        ),
+        sa.Column("status", sa.String(length=20), nullable=False),
+        sa.Column("attempts", sa.Integer(), nullable=False),
+        sa.Column("sent_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("error_message", sa.Text(), nullable=True),
+        sa.Column("id", sa.String(length=36), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["project_id"],
+            ["projects.id"],
+            name=op.f("fk_email_notifications_project_id_projects"),
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["recipient_user_id"],
+            ["users.id"],
+            name=op.f("fk_email_notifications_recipient_user_id_users"),
+            ondelete="SET NULL",
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_email_notifications")),
+    )
+    op.create_index(
+        op.f("ix_email_notifications_deduplication_key"),
+        "email_notifications",
+        ["deduplication_key"],
+        unique=True,
+    )
+    op.create_index(
+        op.f("ix_email_notifications_project_id"),
+        "email_notifications",
+        ["project_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_email_notifications_recipient_user_id"),
+        "email_notifications",
+        ["recipient_user_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_email_notifications_status"),
+        "email_notifications",
+        ["status"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_email_notifications_template"),
+        "email_notifications",
+        ["template"],
+        unique=False,
+    )
+    op.create_table(
+        "project_llm_settings",
+        sa.Column("project_id", sa.String(length=36), nullable=False),
+        sa.Column("enabled", sa.Boolean(), nullable=False),
+        sa.Column("title_abstract_screening_enabled", sa.Boolean(), nullable=False),
+        sa.Column("full_text_screening_enabled", sa.Boolean(), nullable=False),
+        sa.Column("extraction_validation_enabled", sa.Boolean(), nullable=False),
+        sa.Column("current_schema_version_id", sa.String(length=36), nullable=True),
+        sa.Column("updated_by_user_id", sa.String(length=36), nullable=True),
+        sa.Column("id", sa.String(length=36), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["project_id"],
+            ["projects.id"],
+            name=op.f("fk_project_llm_settings_project_id_projects"),
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["updated_by_user_id"],
+            ["users.id"],
+            name=op.f("fk_project_llm_settings_updated_by_user_id_users"),
+            ondelete="SET NULL",
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_project_llm_settings")),
+        sa.UniqueConstraint("project_id", name="uq_project_llm_settings"),
+    )
+    op.create_index(
+        op.f("ix_project_llm_settings_current_schema_version_id"),
+        "project_llm_settings",
+        ["current_schema_version_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_project_llm_settings_project_id"),
+        "project_llm_settings",
+        ["project_id"],
+        unique=False,
+    )
+    op.create_table(
         "project_memberships",
         sa.Column("project_id", sa.String(length=36), nullable=False),
         sa.Column("user_id", sa.String(length=36), nullable=False),
-        sa.Column("is_owner", sa.Boolean(), nullable=False),
+        sa.Column("is_owner", sa.Boolean(), server_default="false", nullable=False),
         sa.Column("can_title_abstract_screen", sa.Boolean(), nullable=False),
         sa.Column("can_full_text_screen", sa.Boolean(), nullable=False),
         sa.Column("can_extract", sa.Boolean(), nullable=False),
@@ -309,9 +416,7 @@ def upgrade() -> None:
         sa.Column("arxiv_id", sa.String(length=100), nullable=True),
         sa.Column(
             "other_identifiers",
-            sa.JSON().with_variant(
-                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
-            ),
+            sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"),
             nullable=False,
         ),
         sa.Column("is_active", sa.Boolean(), nullable=False),
@@ -554,9 +659,7 @@ def upgrade() -> None:
         sa.Column("publication_b_id", sa.String(length=36), nullable=False),
         sa.Column(
             "match_reasons",
-            sa.JSON().with_variant(
-                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
-            ),
+            sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"),
             nullable=False,
         ),
         sa.Column("title_similarity", sa.Float(), nullable=True),
@@ -686,9 +789,7 @@ def upgrade() -> None:
         ),
         sa.Column(
             "draft",
-            sa.JSON().with_variant(
-                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
-            ),
+            sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"),
             nullable=False,
         ),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
@@ -866,6 +967,12 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(
+            ["claimed_by_id"],
+            ["users.id"],
+            name=op.f("fk_full_text_retrievals_claimed_by_id_users"),
+            ondelete="SET NULL",
+        ),
+        sa.ForeignKeyConstraint(
             ["project_id"],
             ["projects.id"],
             name=op.f("fk_full_text_retrievals_project_id_projects"),
@@ -883,16 +990,22 @@ def upgrade() -> None:
             name=op.f("fk_full_text_retrievals_updated_by_id_users"),
             ondelete="SET NULL",
         ),
-        sa.ForeignKeyConstraint(
-            ["claimed_by_id"],
-            ["users.id"],
-            name=op.f("fk_full_text_retrievals_claimed_by_id_users"),
-            ondelete="SET NULL",
-        ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_full_text_retrievals")),
         sa.UniqueConstraint(
             "publication_id", name="uq_full_text_retrieval_publication"
         ),
+    )
+    op.create_index(
+        op.f("ix_full_text_retrievals_claimed_by_id"),
+        "full_text_retrievals",
+        ["claimed_by_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_full_text_retrievals_claimed_until"),
+        "full_text_retrievals",
+        ["claimed_until"],
+        unique=False,
     )
     op.create_index(
         op.f("ix_full_text_retrievals_project_id"),
@@ -910,18 +1023,6 @@ def upgrade() -> None:
         op.f("ix_full_text_retrievals_status"),
         "full_text_retrievals",
         ["status"],
-        unique=False,
-    )
-    op.create_index(
-        op.f("ix_full_text_retrievals_claimed_by_id"),
-        "full_text_retrievals",
-        ["claimed_by_id"],
-        unique=False,
-    )
-    op.create_index(
-        op.f("ix_full_text_retrievals_claimed_until"),
-        "full_text_retrievals",
-        ["claimed_until"],
         unique=False,
     )
     op.create_table(
@@ -945,9 +1046,7 @@ def upgrade() -> None:
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column(
             "mapping",
-            sa.JSON().with_variant(
-                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
-            ),
+            sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"),
             nullable=True,
         ),
         sa.Column("id", sa.String(length=36), nullable=False),
@@ -1023,9 +1122,7 @@ def upgrade() -> None:
         ),
         sa.Column(
             "draft",
-            sa.JSON().with_variant(
-                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
-            ),
+            sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"),
             nullable=False,
         ),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
@@ -1110,9 +1207,7 @@ def upgrade() -> None:
         ),
         sa.Column(
             "draft",
-            sa.JSON().with_variant(
-                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
-            ),
+            sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"),
             nullable=False,
         ),
         sa.Column("submitted_at", sa.DateTime(timezone=True), nullable=True),
@@ -1203,9 +1298,7 @@ def upgrade() -> None:
         sa.Column("form_version_id", sa.String(length=36), nullable=False),
         sa.Column(
             "answers",
-            sa.JSON().with_variant(
-                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
-            ),
+            sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"),
             nullable=False,
         ),
         sa.Column("version", sa.Integer(), nullable=False),
@@ -1284,16 +1377,12 @@ def upgrade() -> None:
         sa.Column("position", sa.Integer(), nullable=False),
         sa.Column(
             "options",
-            sa.JSON().with_variant(
-                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
-            ),
+            sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"),
             nullable=False,
         ),
         sa.Column(
             "scoring",
-            sa.JSON().with_variant(
-                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
-            ),
+            sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"),
             nullable=False,
         ),
         sa.Column("is_archived", sa.Boolean(), nullable=False),
@@ -1327,24 +1416,18 @@ def upgrade() -> None:
         sa.Column("source_key", sa.String(length=300), nullable=True),
         sa.Column(
             "raw_data",
-            sa.JSON().with_variant(
-                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
-            ),
+            sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"),
             nullable=False,
         ),
         sa.Column(
             "parsed_data",
-            sa.JSON().with_variant(
-                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
-            ),
+            sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"),
             nullable=False,
         ),
         sa.Column("validation_state", sa.String(length=30), nullable=False),
         sa.Column(
             "warnings",
-            sa.JSON().with_variant(
-                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
-            ),
+            sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"),
             nullable=False,
         ),
         sa.Column("id", sa.String(length=36), nullable=False),
@@ -1365,6 +1448,163 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_table(
+        "llm_schema_versions",
+        sa.Column("project_id", sa.String(length=36), nullable=False),
+        sa.Column("version_number", sa.Integer(), nullable=False),
+        sa.Column("status", sa.String(length=20), nullable=False),
+        sa.Column("based_on_form_version_id", sa.String(length=36), nullable=True),
+        sa.Column("created_by_user_id", sa.String(length=36), nullable=True),
+        sa.Column("published_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("id", sa.String(length=36), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["based_on_form_version_id"],
+            ["form_versions.id"],
+            name=op.f("fk_llm_schema_versions_based_on_form_version_id_form_versions"),
+            ondelete="SET NULL",
+        ),
+        sa.ForeignKeyConstraint(
+            ["created_by_user_id"],
+            ["users.id"],
+            name=op.f("fk_llm_schema_versions_created_by_user_id_users"),
+            ondelete="SET NULL",
+        ),
+        sa.ForeignKeyConstraint(
+            ["project_id"],
+            ["projects.id"],
+            name=op.f("fk_llm_schema_versions_project_id_projects"),
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_llm_schema_versions")),
+        sa.UniqueConstraint(
+            "project_id", "version_number", name="uq_llm_schema_version"
+        ),
+    )
+    op.create_index(
+        op.f("ix_llm_schema_versions_based_on_form_version_id"),
+        "llm_schema_versions",
+        ["based_on_form_version_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_llm_schema_versions_project_id"),
+        "llm_schema_versions",
+        ["project_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_llm_schema_versions_status"),
+        "llm_schema_versions",
+        ["status"],
+        unique=False,
+    )
+    op.create_table(
+        "publication_documents",
+        sa.Column("project_id", sa.String(length=36), nullable=False),
+        sa.Column("publication_id", sa.String(length=36), nullable=False),
+        sa.Column("original_filename", sa.String(length=500), nullable=False),
+        sa.Column("storage_key", sa.String(length=1000), nullable=False),
+        sa.Column("mime_type", sa.String(length=100), nullable=False),
+        sa.Column("file_size", sa.BigInteger(), nullable=False),
+        sa.Column("sha256", sa.String(length=64), nullable=False),
+        sa.Column("uploaded_by_user_id", sa.String(length=36), nullable=True),
+        sa.Column("uploaded_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("is_active", sa.Boolean(), nullable=False),
+        sa.Column("replaced_by_document_id", sa.String(length=36), nullable=True),
+        sa.Column("removed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("removed_by_user_id", sa.String(length=36), nullable=True),
+        sa.Column(
+            "source",
+            sa.Enum("MANUAL", "BULK_IMPORT", name="documentsource"),
+            nullable=False,
+        ),
+        sa.Column("import_batch_id", sa.String(length=36), nullable=True),
+        sa.Column("id", sa.String(length=36), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["import_batch_id"],
+            ["import_batches.id"],
+            name=op.f("fk_publication_documents_import_batch_id_import_batches"),
+            ondelete="SET NULL",
+        ),
+        sa.ForeignKeyConstraint(
+            ["project_id"],
+            ["projects.id"],
+            name=op.f("fk_publication_documents_project_id_projects"),
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["publication_id"],
+            ["publications.id"],
+            name=op.f("fk_publication_documents_publication_id_publications"),
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["removed_by_user_id"],
+            ["users.id"],
+            name=op.f("fk_publication_documents_removed_by_user_id_users"),
+            ondelete="SET NULL",
+        ),
+        sa.ForeignKeyConstraint(
+            ["replaced_by_document_id"],
+            ["publication_documents.id"],
+            name=op.f(
+                "fk_publication_documents_replaced_by_document_id_publication_documents"
+            ),
+            ondelete="SET NULL",
+        ),
+        sa.ForeignKeyConstraint(
+            ["uploaded_by_user_id"],
+            ["users.id"],
+            name=op.f("fk_publication_documents_uploaded_by_user_id_users"),
+            ondelete="SET NULL",
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_publication_documents")),
+        sa.UniqueConstraint(
+            "storage_key", name=op.f("uq_publication_documents_storage_key")
+        ),
+    )
+    op.create_index(
+        op.f("ix_publication_documents_import_batch_id"),
+        "publication_documents",
+        ["import_batch_id"],
+        unique=False,
+    )
+    op.create_index(
+        "ix_publication_documents_project_hash",
+        "publication_documents",
+        ["project_id", "sha256"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_publication_documents_project_id"),
+        "publication_documents",
+        ["project_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_publication_documents_publication_id"),
+        "publication_documents",
+        ["publication_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_publication_documents_uploaded_by_user_id"),
+        "publication_documents",
+        ["uploaded_by_user_id"],
+        unique=False,
+    )
+    op.create_index(
+        "uq_publication_documents_active_primary",
+        "publication_documents",
+        ["publication_id"],
+        unique=True,
+        postgresql_where=sa.text("is_active = true"),
+        sqlite_where=sa.text("is_active = 1"),
+    )
+    op.create_table(
         "publication_merges",
         sa.Column("project_id", sa.String(length=36), nullable=False),
         sa.Column("canonical_publication_id", sa.String(length=36), nullable=False),
@@ -1373,23 +1613,22 @@ def upgrade() -> None:
         sa.Column("merged_by_id", sa.String(length=36), nullable=True),
         sa.Column(
             "canonical_before",
-            sa.JSON().with_variant(
-                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
-            ),
+            sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"),
             nullable=False,
         ),
         sa.Column(
             "merged_before",
-            sa.JSON().with_variant(
-                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
-            ),
+            sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"),
             nullable=False,
         ),
         sa.Column(
             "moved_source_ids",
-            sa.JSON().with_variant(
-                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
-            ),
+            sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"),
+            nullable=False,
+        ),
+        sa.Column(
+            "moved_document_states",
+            sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"),
             nullable=False,
         ),
         sa.Column("reversed_at", sa.DateTime(timezone=True), nullable=True),
@@ -1460,9 +1699,7 @@ def upgrade() -> None:
         sa.Column("form_version_id", sa.String(length=36), nullable=False),
         sa.Column(
             "answers",
-            sa.JSON().with_variant(
-                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
-            ),
+            sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"),
             nullable=False,
         ),
         sa.Column("total_score", sa.Float(), nullable=True),
@@ -1530,9 +1767,7 @@ def upgrade() -> None:
         ),
         sa.Column(
             "criteria_answers",
-            sa.JSON().with_variant(
-                postgresql.JSONB(astext_type=sa.Text()), "postgresql"
-            ),
+            sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"),
             nullable=False,
         ),
         sa.Column("notes", sa.Text(), nullable=True),
@@ -1583,6 +1818,202 @@ def upgrade() -> None:
         unique=False,
     )
     op.create_table(
+        "document_text_extractions",
+        sa.Column("document_id", sa.String(length=36), nullable=False),
+        sa.Column("status", sa.String(length=20), nullable=False),
+        sa.Column("extractor", sa.String(length=100), nullable=False),
+        sa.Column("extractor_version", sa.String(length=50), nullable=False),
+        sa.Column("page_count", sa.Integer(), nullable=False),
+        sa.Column("total_chars", sa.Integer(), nullable=False),
+        sa.Column("started_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("extracted_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("error_message", sa.Text(), nullable=True),
+        sa.Column("id", sa.String(length=36), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["document_id"],
+            ["publication_documents.id"],
+            name=op.f("fk_document_text_extractions_document_id_publication_documents"),
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_document_text_extractions")),
+        sa.UniqueConstraint("document_id", name="uq_document_text_document"),
+    )
+    op.create_index(
+        op.f("ix_document_text_extractions_document_id"),
+        "document_text_extractions",
+        ["document_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_document_text_extractions_status"),
+        "document_text_extractions",
+        ["status"],
+        unique=False,
+    )
+    op.create_table(
+        "import_pdf_items",
+        sa.Column("import_batch_id", sa.String(length=36), nullable=False),
+        sa.Column("project_id", sa.String(length=36), nullable=False),
+        sa.Column("original_filename", sa.String(length=500), nullable=False),
+        sa.Column("storage_key", sa.String(length=1000), nullable=True),
+        sa.Column("mime_type", sa.String(length=100), nullable=True),
+        sa.Column("file_size", sa.BigInteger(), nullable=True),
+        sa.Column("sha256", sa.String(length=64), nullable=True),
+        sa.Column("detected_doi", sa.String(length=300), nullable=True),
+        sa.Column("detected_title", sa.Text(), nullable=True),
+        sa.Column("detected_authors", sa.Text(), nullable=True),
+        sa.Column("detected_year", sa.Integer(), nullable=True),
+        sa.Column(
+            "status",
+            sa.Enum(
+                "PENDING",
+                "MATCHED",
+                "AMBIGUOUS",
+                "UNMATCHED",
+                "DUPLICATE",
+                "CONFLICT_EXISTING_PDF",
+                "INVALID",
+                "SKIPPED",
+                name="pdfmatchstatus",
+            ),
+            nullable=False,
+        ),
+        sa.Column(
+            "candidate_matches",
+            sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"),
+            nullable=False,
+        ),
+        sa.Column("matched_publication_id", sa.String(length=36), nullable=True),
+        sa.Column("attached_document_id", sa.String(length=36), nullable=True),
+        sa.Column("error_message", sa.Text(), nullable=True),
+        sa.Column("resolved_by_id", sa.String(length=36), nullable=True),
+        sa.Column("resolved_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("id", sa.String(length=36), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["attached_document_id"],
+            ["publication_documents.id"],
+            name=op.f("fk_import_pdf_items_attached_document_id_publication_documents"),
+            ondelete="SET NULL",
+        ),
+        sa.ForeignKeyConstraint(
+            ["import_batch_id"],
+            ["import_batches.id"],
+            name=op.f("fk_import_pdf_items_import_batch_id_import_batches"),
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["matched_publication_id"],
+            ["publications.id"],
+            name=op.f("fk_import_pdf_items_matched_publication_id_publications"),
+            ondelete="SET NULL",
+        ),
+        sa.ForeignKeyConstraint(
+            ["project_id"],
+            ["projects.id"],
+            name=op.f("fk_import_pdf_items_project_id_projects"),
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["resolved_by_id"],
+            ["users.id"],
+            name=op.f("fk_import_pdf_items_resolved_by_id_users"),
+            ondelete="SET NULL",
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_import_pdf_items")),
+        sa.UniqueConstraint(
+            "storage_key", name=op.f("uq_import_pdf_items_storage_key")
+        ),
+    )
+    op.create_index(
+        op.f("ix_import_pdf_items_attached_document_id"),
+        "import_pdf_items",
+        ["attached_document_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_import_pdf_items_detected_doi"),
+        "import_pdf_items",
+        ["detected_doi"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_import_pdf_items_import_batch_id"),
+        "import_pdf_items",
+        ["import_batch_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_import_pdf_items_matched_publication_id"),
+        "import_pdf_items",
+        ["matched_publication_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_import_pdf_items_project_id"),
+        "import_pdf_items",
+        ["project_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_import_pdf_items_sha256"), "import_pdf_items", ["sha256"], unique=False
+    )
+    op.create_index(
+        op.f("ix_import_pdf_items_status"), "import_pdf_items", ["status"], unique=False
+    )
+    op.create_table(
+        "llm_schema_fields",
+        sa.Column("schema_version_id", sa.String(length=36), nullable=False),
+        sa.Column("stable_key", sa.String(length=36), nullable=False),
+        sa.Column("label", sa.String(length=300), nullable=False),
+        sa.Column("instruction", sa.Text(), nullable=False),
+        sa.Column("field_type", sa.String(length=40), nullable=False),
+        sa.Column("mapped_extraction_field_key", sa.String(length=36), nullable=True),
+        sa.Column(
+            "options",
+            sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"),
+            nullable=False,
+        ),
+        sa.Column("evidence_required", sa.Boolean(), nullable=False),
+        sa.Column("allow_inferred", sa.Boolean(), nullable=False),
+        sa.Column("enabled", sa.Boolean(), nullable=False),
+        sa.Column("position", sa.Integer(), nullable=False),
+        sa.Column("id", sa.String(length=36), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["schema_version_id"],
+            ["llm_schema_versions.id"],
+            name=op.f("fk_llm_schema_fields_schema_version_id_llm_schema_versions"),
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_llm_schema_fields")),
+        sa.UniqueConstraint(
+            "schema_version_id", "stable_key", name="uq_llm_schema_field_key"
+        ),
+    )
+    op.create_index(
+        op.f("ix_llm_schema_fields_mapped_extraction_field_key"),
+        "llm_schema_fields",
+        ["mapped_extraction_field_key"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_llm_schema_fields_schema_version_id"),
+        "llm_schema_fields",
+        ["schema_version_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_llm_schema_fields_stable_key"),
+        "llm_schema_fields",
+        ["stable_key"],
+        unique=False,
+    )
+    op.create_table(
         "publication_sources",
         sa.Column("publication_id", sa.String(length=36), nullable=False),
         sa.Column("imported_record_id", sa.String(length=36), nullable=False),
@@ -1618,11 +2049,555 @@ def upgrade() -> None:
         ["publication_id"],
         unique=False,
     )
+    op.create_table(
+        "document_page_texts",
+        sa.Column("text_extraction_id", sa.String(length=36), nullable=False),
+        sa.Column("page_number", sa.Integer(), nullable=False),
+        sa.Column("text", sa.Text(), nullable=False),
+        sa.Column("id", sa.String(length=36), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["text_extraction_id"],
+            ["document_text_extractions.id"],
+            name=op.f(
+                "fk_document_page_texts_text_extraction_id_document_text_extractions"
+            ),
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_document_page_texts")),
+        sa.UniqueConstraint(
+            "text_extraction_id", "page_number", name="uq_document_page"
+        ),
+    )
+    op.create_index(
+        op.f("ix_document_page_texts_text_extraction_id"),
+        "document_page_texts",
+        ["text_extraction_id"],
+        unique=False,
+    )
+    op.create_table(
+        "llm_extraction_runs",
+        sa.Column("project_id", sa.String(length=36), nullable=False),
+        sa.Column("publication_id", sa.String(length=36), nullable=False),
+        sa.Column("task_type", sa.String(length=40), nullable=False),
+        sa.Column("bulk_id", sa.String(length=36), nullable=True),
+        sa.Column("input_fingerprint", sa.String(length=64), nullable=True),
+        sa.Column("document_id", sa.String(length=36), nullable=True),
+        sa.Column("schema_version_id", sa.String(length=36), nullable=True),
+        sa.Column("text_extraction_id", sa.String(length=36), nullable=True),
+        sa.Column("extraction_response_id", sa.String(length=36), nullable=True),
+        sa.Column("provider", sa.String(length=40), nullable=False),
+        sa.Column("model", sa.String(length=250), nullable=False),
+        sa.Column(
+            "model_configuration",
+            sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"),
+            nullable=True,
+        ),
+        sa.Column("prompt_template_version", sa.String(length=100), nullable=False),
+        sa.Column("status", sa.String(length=20), nullable=False),
+        sa.Column("queued_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("started_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
+        sa.Column("error_type", sa.String(length=100), nullable=True),
+        sa.Column("error_message", sa.Text(), nullable=True),
+        sa.Column(
+            "raw_result",
+            sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"),
+            nullable=True,
+        ),
+        sa.Column("total_duration", sa.BigInteger(), nullable=True),
+        sa.Column("load_duration", sa.BigInteger(), nullable=True),
+        sa.Column("prompt_eval_count", sa.Integer(), nullable=True),
+        sa.Column("prompt_eval_duration", sa.BigInteger(), nullable=True),
+        sa.Column("eval_count", sa.Integer(), nullable=True),
+        sa.Column("eval_duration", sa.BigInteger(), nullable=True),
+        sa.Column("background_job_id", sa.String(length=36), nullable=True),
+        sa.Column("id", sa.String(length=36), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["background_job_id"],
+            ["background_jobs.id"],
+            name=op.f("fk_llm_extraction_runs_background_job_id_background_jobs"),
+            ondelete="SET NULL",
+        ),
+        sa.ForeignKeyConstraint(
+            ["document_id"],
+            ["publication_documents.id"],
+            name=op.f("fk_llm_extraction_runs_document_id_publication_documents"),
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["extraction_response_id"],
+            ["extraction_responses.id"],
+            name=op.f(
+                "fk_llm_extraction_runs_extraction_response_id_extraction_responses"
+            ),
+            ondelete="SET NULL",
+        ),
+        sa.ForeignKeyConstraint(
+            ["project_id"],
+            ["projects.id"],
+            name=op.f("fk_llm_extraction_runs_project_id_projects"),
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["publication_id"],
+            ["publications.id"],
+            name=op.f("fk_llm_extraction_runs_publication_id_publications"),
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["schema_version_id"],
+            ["llm_schema_versions.id"],
+            name=op.f("fk_llm_extraction_runs_schema_version_id_llm_schema_versions"),
+            ondelete="RESTRICT",
+        ),
+        sa.ForeignKeyConstraint(
+            ["text_extraction_id"],
+            ["document_text_extractions.id"],
+            name=op.f(
+                "fk_llm_extraction_runs_text_extraction_id_document_text_extractions"
+            ),
+            ondelete="RESTRICT",
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_llm_extraction_runs")),
+    )
+    op.create_index(
+        op.f("ix_llm_extraction_runs_background_job_id"),
+        "llm_extraction_runs",
+        ["background_job_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_llm_extraction_runs_bulk_id"),
+        "llm_extraction_runs",
+        ["bulk_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_llm_extraction_runs_document_id"),
+        "llm_extraction_runs",
+        ["document_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_llm_extraction_runs_extraction_response_id"),
+        "llm_extraction_runs",
+        ["extraction_response_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_llm_extraction_runs_input_fingerprint"),
+        "llm_extraction_runs",
+        ["input_fingerprint"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_llm_extraction_runs_project_id"),
+        "llm_extraction_runs",
+        ["project_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_llm_extraction_runs_publication_id"),
+        "llm_extraction_runs",
+        ["publication_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_llm_extraction_runs_schema_version_id"),
+        "llm_extraction_runs",
+        ["schema_version_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_llm_extraction_runs_status"),
+        "llm_extraction_runs",
+        ["status"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_llm_extraction_runs_task_type"),
+        "llm_extraction_runs",
+        ["task_type"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_llm_extraction_runs_text_extraction_id"),
+        "llm_extraction_runs",
+        ["text_extraction_id"],
+        unique=False,
+    )
+    op.create_index(
+        "ix_llm_runs_project_status",
+        "llm_extraction_runs",
+        ["project_id", "status"],
+        unique=False,
+    )
+    op.create_index(
+        "ix_llm_runs_publication_created",
+        "llm_extraction_runs",
+        ["publication_id", "created_at"],
+        unique=False,
+    )
+    op.create_index(
+        "uq_llm_active_run",
+        "llm_extraction_runs",
+        ["publication_id", "task_type", "input_fingerprint"],
+        unique=True,
+        postgresql_where=sa.text("status IN ('pending', 'processing')"),
+        sqlite_where=sa.text("status IN ('pending', 'processing')"),
+    )
+    op.create_table(
+        "llm_criterion_suggestions",
+        sa.Column("run_id", sa.String(length=36), nullable=False),
+        sa.Column("criterion_id", sa.String(length=36), nullable=True),
+        sa.Column("criterion_text", sa.Text(), nullable=False),
+        sa.Column("criterion_kind", sa.String(length=20), nullable=False),
+        sa.Column("assessment", sa.String(length=20), nullable=False),
+        sa.Column("explanation", sa.Text(), nullable=False),
+        sa.Column(
+            "evidence",
+            sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"),
+            nullable=False,
+        ),
+        sa.Column("evidence_validation_status", sa.String(length=20), nullable=False),
+        sa.Column("id", sa.String(length=36), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["criterion_id"],
+            ["criteria.id"],
+            name=op.f("fk_llm_criterion_suggestions_criterion_id_criteria"),
+            ondelete="SET NULL",
+        ),
+        sa.ForeignKeyConstraint(
+            ["run_id"],
+            ["llm_extraction_runs.id"],
+            name=op.f("fk_llm_criterion_suggestions_run_id_llm_extraction_runs"),
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_llm_criterion_suggestions")),
+        sa.UniqueConstraint("run_id", "criterion_id", name="uq_llm_run_criterion"),
+    )
+    op.create_index(
+        op.f("ix_llm_criterion_suggestions_criterion_id"),
+        "llm_criterion_suggestions",
+        ["criterion_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_llm_criterion_suggestions_run_id"),
+        "llm_criterion_suggestions",
+        ["run_id"],
+        unique=False,
+    )
+    op.create_table(
+        "llm_field_suggestions",
+        sa.Column("run_id", sa.String(length=36), nullable=False),
+        sa.Column("schema_field_id", sa.String(length=36), nullable=False),
+        sa.Column("mapped_extraction_field_key", sa.String(length=36), nullable=True),
+        sa.Column(
+            "value",
+            sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"),
+            nullable=True,
+        ),
+        sa.Column("status", sa.String(length=20), nullable=False),
+        sa.Column(
+            "evidence",
+            sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"),
+            nullable=False,
+        ),
+        sa.Column("evidence_validation_status", sa.String(length=20), nullable=False),
+        sa.Column("id", sa.String(length=36), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["run_id"],
+            ["llm_extraction_runs.id"],
+            name=op.f("fk_llm_field_suggestions_run_id_llm_extraction_runs"),
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["schema_field_id"],
+            ["llm_schema_fields.id"],
+            name=op.f("fk_llm_field_suggestions_schema_field_id_llm_schema_fields"),
+            ondelete="RESTRICT",
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_llm_field_suggestions")),
+        sa.UniqueConstraint("run_id", "schema_field_id", name="uq_llm_run_field"),
+    )
+    op.create_index(
+        op.f("ix_llm_field_suggestions_mapped_extraction_field_key"),
+        "llm_field_suggestions",
+        ["mapped_extraction_field_key"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_llm_field_suggestions_run_id"),
+        "llm_field_suggestions",
+        ["run_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_llm_field_suggestions_schema_field_id"),
+        "llm_field_suggestions",
+        ["schema_field_id"],
+        unique=False,
+    )
+    op.create_table(
+        "llm_validation_results",
+        sa.Column("run_id", sa.String(length=36), nullable=False),
+        sa.Column("extraction_field_key", sa.String(length=36), nullable=False),
+        sa.Column("field_label", sa.String(length=300), nullable=False),
+        sa.Column(
+            "value_snapshot",
+            sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"),
+            nullable=True,
+        ),
+        sa.Column("assessment", sa.String(length=30), nullable=False),
+        sa.Column("explanation", sa.Text(), nullable=False),
+        sa.Column(
+            "evidence",
+            sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"),
+            nullable=False,
+        ),
+        sa.Column("evidence_validation_status", sa.String(length=20), nullable=False),
+        sa.Column("id", sa.String(length=36), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["run_id"],
+            ["llm_extraction_runs.id"],
+            name=op.f("fk_llm_validation_results_run_id_llm_extraction_runs"),
+            ondelete="CASCADE",
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_llm_validation_results")),
+        sa.UniqueConstraint(
+            "run_id", "extraction_field_key", name="uq_llm_validation_field"
+        ),
+    )
+    op.create_index(
+        op.f("ix_llm_validation_results_extraction_field_key"),
+        "llm_validation_results",
+        ["extraction_field_key"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_llm_validation_results_run_id"),
+        "llm_validation_results",
+        ["run_id"],
+        unique=False,
+    )
+    op.create_table(
+        "extraction_suggestion_reviews",
+        sa.Column("extraction_response_id", sa.String(length=36), nullable=True),
+        sa.Column("project_id", sa.String(length=36), nullable=False),
+        sa.Column("publication_id", sa.String(length=36), nullable=False),
+        sa.Column("reviewer_id", sa.String(length=36), nullable=True),
+        sa.Column("response_version", sa.Integer(), nullable=False),
+        sa.Column("extraction_field_key", sa.String(length=36), nullable=False),
+        sa.Column("suggestion_id", sa.String(length=36), nullable=True),
+        sa.Column(
+            "reviewer_final_value",
+            sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), "postgresql"),
+            nullable=True,
+        ),
+        sa.Column("reviewer_final_value_hash", sa.String(length=64), nullable=False),
+        sa.Column("disposition", sa.String(length=20), nullable=False),
+        sa.Column("id", sa.String(length=36), nullable=False),
+        sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
+        sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["extraction_response_id"],
+            ["extraction_responses.id"],
+            name=op.f(
+                "fk_extraction_suggestion_reviews_extraction_response_id_extraction_responses"
+            ),
+            ondelete="SET NULL",
+        ),
+        sa.ForeignKeyConstraint(
+            ["project_id"],
+            ["projects.id"],
+            name=op.f("fk_extraction_suggestion_reviews_project_id_projects"),
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["publication_id"],
+            ["publications.id"],
+            name=op.f("fk_extraction_suggestion_reviews_publication_id_publications"),
+            ondelete="CASCADE",
+        ),
+        sa.ForeignKeyConstraint(
+            ["reviewer_id"],
+            ["users.id"],
+            name=op.f("fk_extraction_suggestion_reviews_reviewer_id_users"),
+            ondelete="SET NULL",
+        ),
+        sa.ForeignKeyConstraint(
+            ["suggestion_id"],
+            ["llm_field_suggestions.id"],
+            name=op.f(
+                "fk_extraction_suggestion_reviews_suggestion_id_llm_field_suggestions"
+            ),
+            ondelete="SET NULL",
+        ),
+        sa.PrimaryKeyConstraint("id", name=op.f("pk_extraction_suggestion_reviews")),
+        sa.UniqueConstraint(
+            "extraction_response_id",
+            "extraction_field_key",
+            name="uq_extraction_suggestion_review",
+        ),
+    )
+    op.create_index(
+        op.f("ix_extraction_suggestion_reviews_extraction_field_key"),
+        "extraction_suggestion_reviews",
+        ["extraction_field_key"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_extraction_suggestion_reviews_extraction_response_id"),
+        "extraction_suggestion_reviews",
+        ["extraction_response_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_extraction_suggestion_reviews_project_id"),
+        "extraction_suggestion_reviews",
+        ["project_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_extraction_suggestion_reviews_publication_id"),
+        "extraction_suggestion_reviews",
+        ["publication_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_extraction_suggestion_reviews_reviewer_id"),
+        "extraction_suggestion_reviews",
+        ["reviewer_id"],
+        unique=False,
+    )
+    op.create_index(
+        op.f("ix_extraction_suggestion_reviews_suggestion_id"),
+        "extraction_suggestion_reviews",
+        ["suggestion_id"],
+        unique=False,
+    )
     # ### end Alembic commands ###
 
 
 def downgrade() -> None:
     # ### commands auto generated by Alembic - please adjust! ###
+    op.drop_index(
+        op.f("ix_extraction_suggestion_reviews_suggestion_id"),
+        table_name="extraction_suggestion_reviews",
+    )
+    op.drop_index(
+        op.f("ix_extraction_suggestion_reviews_reviewer_id"),
+        table_name="extraction_suggestion_reviews",
+    )
+    op.drop_index(
+        op.f("ix_extraction_suggestion_reviews_publication_id"),
+        table_name="extraction_suggestion_reviews",
+    )
+    op.drop_index(
+        op.f("ix_extraction_suggestion_reviews_project_id"),
+        table_name="extraction_suggestion_reviews",
+    )
+    op.drop_index(
+        op.f("ix_extraction_suggestion_reviews_extraction_response_id"),
+        table_name="extraction_suggestion_reviews",
+    )
+    op.drop_index(
+        op.f("ix_extraction_suggestion_reviews_extraction_field_key"),
+        table_name="extraction_suggestion_reviews",
+    )
+    op.drop_table("extraction_suggestion_reviews")
+    op.drop_index(
+        op.f("ix_llm_validation_results_run_id"), table_name="llm_validation_results"
+    )
+    op.drop_index(
+        op.f("ix_llm_validation_results_extraction_field_key"),
+        table_name="llm_validation_results",
+    )
+    op.drop_table("llm_validation_results")
+    op.drop_index(
+        op.f("ix_llm_field_suggestions_schema_field_id"),
+        table_name="llm_field_suggestions",
+    )
+    op.drop_index(
+        op.f("ix_llm_field_suggestions_run_id"), table_name="llm_field_suggestions"
+    )
+    op.drop_index(
+        op.f("ix_llm_field_suggestions_mapped_extraction_field_key"),
+        table_name="llm_field_suggestions",
+    )
+    op.drop_table("llm_field_suggestions")
+    op.drop_index(
+        op.f("ix_llm_criterion_suggestions_run_id"),
+        table_name="llm_criterion_suggestions",
+    )
+    op.drop_index(
+        op.f("ix_llm_criterion_suggestions_criterion_id"),
+        table_name="llm_criterion_suggestions",
+    )
+    op.drop_table("llm_criterion_suggestions")
+    op.drop_index(
+        "uq_llm_active_run",
+        table_name="llm_extraction_runs",
+        postgresql_where=sa.text("status IN ('pending', 'processing')"),
+        sqlite_where=sa.text("status IN ('pending', 'processing')"),
+    )
+    op.drop_index("ix_llm_runs_publication_created", table_name="llm_extraction_runs")
+    op.drop_index("ix_llm_runs_project_status", table_name="llm_extraction_runs")
+    op.drop_index(
+        op.f("ix_llm_extraction_runs_text_extraction_id"),
+        table_name="llm_extraction_runs",
+    )
+    op.drop_index(
+        op.f("ix_llm_extraction_runs_task_type"), table_name="llm_extraction_runs"
+    )
+    op.drop_index(
+        op.f("ix_llm_extraction_runs_status"), table_name="llm_extraction_runs"
+    )
+    op.drop_index(
+        op.f("ix_llm_extraction_runs_schema_version_id"),
+        table_name="llm_extraction_runs",
+    )
+    op.drop_index(
+        op.f("ix_llm_extraction_runs_publication_id"), table_name="llm_extraction_runs"
+    )
+    op.drop_index(
+        op.f("ix_llm_extraction_runs_project_id"), table_name="llm_extraction_runs"
+    )
+    op.drop_index(
+        op.f("ix_llm_extraction_runs_input_fingerprint"),
+        table_name="llm_extraction_runs",
+    )
+    op.drop_index(
+        op.f("ix_llm_extraction_runs_bulk_id"), table_name="llm_extraction_runs"
+    )
+    op.drop_index(
+        op.f("ix_llm_extraction_runs_extraction_response_id"),
+        table_name="llm_extraction_runs",
+    )
+    op.drop_index(
+        op.f("ix_llm_extraction_runs_document_id"), table_name="llm_extraction_runs"
+    )
+    op.drop_index(
+        op.f("ix_llm_extraction_runs_background_job_id"),
+        table_name="llm_extraction_runs",
+    )
+    op.drop_table("llm_extraction_runs")
+    op.drop_index(
+        op.f("ix_document_page_texts_text_extraction_id"),
+        table_name="document_page_texts",
+    )
+    op.drop_table("document_page_texts")
     op.drop_index(
         op.f("ix_publication_sources_publication_id"), table_name="publication_sources"
     )
@@ -1631,6 +2606,43 @@ def downgrade() -> None:
         table_name="publication_sources",
     )
     op.drop_table("publication_sources")
+    op.drop_index(
+        op.f("ix_llm_schema_fields_stable_key"), table_name="llm_schema_fields"
+    )
+    op.drop_index(
+        op.f("ix_llm_schema_fields_schema_version_id"), table_name="llm_schema_fields"
+    )
+    op.drop_index(
+        op.f("ix_llm_schema_fields_mapped_extraction_field_key"),
+        table_name="llm_schema_fields",
+    )
+    op.drop_table("llm_schema_fields")
+    op.drop_index(op.f("ix_import_pdf_items_status"), table_name="import_pdf_items")
+    op.drop_index(op.f("ix_import_pdf_items_sha256"), table_name="import_pdf_items")
+    op.drop_index(op.f("ix_import_pdf_items_project_id"), table_name="import_pdf_items")
+    op.drop_index(
+        op.f("ix_import_pdf_items_matched_publication_id"),
+        table_name="import_pdf_items",
+    )
+    op.drop_index(
+        op.f("ix_import_pdf_items_import_batch_id"), table_name="import_pdf_items"
+    )
+    op.drop_index(
+        op.f("ix_import_pdf_items_detected_doi"), table_name="import_pdf_items"
+    )
+    op.drop_index(
+        op.f("ix_import_pdf_items_attached_document_id"), table_name="import_pdf_items"
+    )
+    op.drop_table("import_pdf_items")
+    op.drop_index(
+        op.f("ix_document_text_extractions_status"),
+        table_name="document_text_extractions",
+    )
+    op.drop_index(
+        op.f("ix_document_text_extractions_document_id"),
+        table_name="document_text_extractions",
+    )
+    op.drop_table("document_text_extractions")
     op.drop_index(
         op.f("ix_screening_decisions_work_item_id"), table_name="screening_decisions"
     )
@@ -1669,6 +2681,42 @@ def downgrade() -> None:
         table_name="publication_merges",
     )
     op.drop_table("publication_merges")
+    op.drop_index(
+        "uq_publication_documents_active_primary",
+        table_name="publication_documents",
+        postgresql_where=sa.text("is_active = true"),
+        sqlite_where=sa.text("is_active = 1"),
+    )
+    op.drop_index(
+        op.f("ix_publication_documents_uploaded_by_user_id"),
+        table_name="publication_documents",
+    )
+    op.drop_index(
+        op.f("ix_publication_documents_publication_id"),
+        table_name="publication_documents",
+    )
+    op.drop_index(
+        op.f("ix_publication_documents_project_id"), table_name="publication_documents"
+    )
+    op.drop_index(
+        "ix_publication_documents_project_hash", table_name="publication_documents"
+    )
+    op.drop_index(
+        op.f("ix_publication_documents_import_batch_id"),
+        table_name="publication_documents",
+    )
+    op.drop_table("publication_documents")
+    op.drop_index(
+        op.f("ix_llm_schema_versions_status"), table_name="llm_schema_versions"
+    )
+    op.drop_index(
+        op.f("ix_llm_schema_versions_project_id"), table_name="llm_schema_versions"
+    )
+    op.drop_index(
+        op.f("ix_llm_schema_versions_based_on_form_version_id"),
+        table_name="llm_schema_versions",
+    )
+    op.drop_table("llm_schema_versions")
     op.drop_index(
         op.f("ix_imported_records_import_batch_id"), table_name="imported_records"
     )
@@ -1747,14 +2795,6 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_import_batches_project_id"), table_name="import_batches")
     op.drop_table("import_batches")
     op.drop_index(
-        op.f("ix_full_text_retrievals_claimed_until"),
-        table_name="full_text_retrievals",
-    )
-    op.drop_index(
-        op.f("ix_full_text_retrievals_claimed_by_id"),
-        table_name="full_text_retrievals",
-    )
-    op.drop_index(
         op.f("ix_full_text_retrievals_status"), table_name="full_text_retrievals"
     )
     op.drop_index(
@@ -1763,6 +2803,12 @@ def downgrade() -> None:
     )
     op.drop_index(
         op.f("ix_full_text_retrievals_project_id"), table_name="full_text_retrievals"
+    )
+    op.drop_index(
+        op.f("ix_full_text_retrievals_claimed_until"), table_name="full_text_retrievals"
+    )
+    op.drop_index(
+        op.f("ix_full_text_retrievals_claimed_by_id"), table_name="full_text_retrievals"
     )
     op.drop_table("full_text_retrievals")
     op.drop_index(op.f("ix_form_versions_form_id"), table_name="form_versions")
@@ -1850,10 +2896,37 @@ def downgrade() -> None:
         op.f("ix_project_memberships_project_id"), table_name="project_memberships"
     )
     op.drop_table("project_memberships")
+    op.drop_index(
+        op.f("ix_project_llm_settings_project_id"), table_name="project_llm_settings"
+    )
+    op.drop_index(
+        op.f("ix_project_llm_settings_current_schema_version_id"),
+        table_name="project_llm_settings",
+    )
+    op.drop_table("project_llm_settings")
+    op.drop_index(
+        op.f("ix_email_notifications_template"), table_name="email_notifications"
+    )
+    op.drop_index(
+        op.f("ix_email_notifications_status"), table_name="email_notifications"
+    )
+    op.drop_index(
+        op.f("ix_email_notifications_recipient_user_id"),
+        table_name="email_notifications",
+    )
+    op.drop_index(
+        op.f("ix_email_notifications_project_id"), table_name="email_notifications"
+    )
+    op.drop_index(
+        op.f("ix_email_notifications_deduplication_key"),
+        table_name="email_notifications",
+    )
+    op.drop_table("email_notifications")
     op.drop_index(op.f("ix_criteria_project_id"), table_name="criteria")
     op.drop_table("criteria")
     op.drop_index(op.f("ix_background_jobs_status"), table_name="background_jobs")
     op.drop_index(op.f("ix_background_jobs_project_id"), table_name="background_jobs")
+    op.drop_index(op.f("ix_background_jobs_priority"), table_name="background_jobs")
     op.drop_index(op.f("ix_background_jobs_lease_until"), table_name="background_jobs")
     op.drop_index(op.f("ix_background_jobs_job_type"), table_name="background_jobs")
     op.drop_table("background_jobs")
@@ -1864,6 +2937,7 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_audit_events_action"), table_name="audit_events")
     op.drop_table("audit_events")
     op.drop_index(op.f("ix_users_username"), table_name="users")
+    op.drop_index(op.f("ix_users_email"), table_name="users")
     op.drop_table("users")
     op.drop_table("projects")
     op.drop_index(

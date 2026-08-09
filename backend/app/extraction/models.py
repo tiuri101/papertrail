@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import enum
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -38,7 +39,9 @@ class ExtractionWorkItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     status: Mapped[ExtractionStatus] = mapped_column(
         default=ExtractionStatus.AVAILABLE, index=True, nullable=False
     )
-    draft: Mapped[dict] = mapped_column(JSONType, default=dict, nullable=False)
+    draft: Mapped[dict[str, Any]] = mapped_column(
+        JSONType, default=dict, nullable=False
+    )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     responses: Mapped[list[ExtractionResponse]] = relationship(
@@ -65,7 +68,7 @@ class ExtractionResponse(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     form_version_id: Mapped[str] = mapped_column(
         ForeignKey("form_versions.id"), index=True
     )
-    answers: Mapped[dict] = mapped_column(JSONType, nullable=False)
+    answers: Mapped[dict[str, Any]] = mapped_column(JSONType, nullable=False)
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     is_current: Mapped[bool] = mapped_column(
         Boolean, default=True, index=True, nullable=False

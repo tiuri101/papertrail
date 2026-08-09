@@ -165,4 +165,39 @@ describe('ProjectChecklistPanel', () => {
       expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['project', 'p1'] })
     })
   })
+
+  it('renders the LLM validation checkbox when the backend enables it for extraction', async () => {
+    mockFetch(() => jsonResponse({
+      stage: 'extraction_quality',
+      stages: [{
+        stage: 'extraction_quality',
+        label: 'Data Extraction and Quality Assessment',
+        isCurrent: true,
+        isComplete: false,
+        autoAdvances: true,
+        action: null,
+        items: [
+          {
+            key: 'extraction',
+            label: 'Complete data extraction for every included publication',
+            done: true,
+            detail: '3 of 3 extracted',
+          },
+          {
+            key: 'llm_extraction_validation',
+            label: 'Complete LLM validation of the human extractions',
+            done: false,
+            detail: '1 of 3 validated, 2 processing',
+          },
+        ],
+      }],
+    }))
+    renderWithProviders(<ProjectChecklistPanel projectId="p1" canManage />)
+
+    const validation = await screen.findByRole('checkbox', {
+      name: /Complete LLM validation of the human extractions/,
+    })
+    expect(validation).not.toBeChecked()
+    expect(screen.getByText(/1 of 3 validated, 2 processing/)).toBeInTheDocument()
+  })
 })

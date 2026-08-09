@@ -3,10 +3,12 @@ from __future__ import annotations
 import logging
 import signal
 import sys
+import traceback
 from collections.abc import Callable
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import Future, ThreadPoolExecutor
 from datetime import UTC, datetime
 from threading import Event, Thread
+from typing import Any
 
 from sqlalchemy.orm import Session, sessionmaker
 
@@ -22,11 +24,20 @@ from app.jobs.service import claim_job, renew_job_lease
 from app.llm.service import LLM_JOB, TEXT_JOB
 from app.llm.task_execution import run_llm_task_job
 from app.llm.text_extraction import extract_document_text_job
+from app.notifications.service import (
+    CHECK_LLM_STAGE_EMAIL_JOB,
+    SEND_EMAIL_JOB,
+    check_llm_stage_email_job,
+    queue_llm_bulk_completion_check,
+    queue_llm_stage_completion_check,
+    record_email_job_failure,
+    send_email_job,
+)
 from app.publications.jobs import enrich_publication_job
 from app.reporting.jobs import generate_export_job
 
 logger = logging.getLogger(__name__)
-Handler = Callable[[Session, BackgroundJob], dict]
+Handler = Callable[[Session, BackgroundJob], dict[str, Any]]
 HANDLERS: dict[str, Handler] = {
     "parse_import": process_import_job,
     "enrich_publication": enrich_publication_job,
@@ -34,11 +45,13 @@ HANDLERS: dict[str, Handler] = {
     "generate_export": generate_export_job,
     TEXT_JOB: extract_document_text_job,
     LLM_JOB: run_llm_task_job,
+    SEND_EMAIL_JOB: send_email_job,
+    CHECK_LLM_STAGE_EMAIL_JOB: check_llm_stage_email_job,
 }
 
 
 def maintain_lease(
-    session_factory: sessionmaker,
+    session_factory: sessionmaker[Session],
     job_id: str,
     worker_id: str,
     lease_seconds: int,
@@ -55,7 +68,7 @@ def maintain_lease(
 
 
 def execute_next_job(
-    session_factory: sessionmaker,
+    session_factory: sessionmaker[Session],
     worker_id: str,
     *,
     allowed_job_types: set[str] | None = None,
@@ -107,7 +120,33 @@ def execute_next_job(
                 job.status = JobStatus.COMPLETED
                 job.completed_at = datetime.now(UTC)
                 job.lease_until = None
+                job.error_message = None
                 job.result = result
+                if job.job_type == LLM_JOB:
+                    from app.llm.models import LlmExtractionRun, LlmTaskType
+
+                    run = db.get(LlmExtractionRun, str(job.payload.get("run_id")))
+                    if run is not None:
+                        queue_llm_stage_completion_check(db, run)
+                        if run.task_type == LlmTaskType.EXTRACTION_VALIDATION:
+                            from app.projects.lifecycle import (
+                                evaluate_project_completion,
+                            )
+                            from app.projects.models import Project
+
+                            project = db.get(Project, run.project_id)
+                            if project is not None:
+                                evaluate_project_completion(db, project)
+                if (
+                    job.job_type == TEXT_JOB
+                    and job.payload.get("bulk_id")
+                    and job.project_id
+                ):
+                    queue_llm_bulk_completion_check(
+                        db,
+                        project_id=job.project_id,
+                        bulk_id=str(job.payload["bulk_id"]),
+                    )
                 record_audit(
                     db,
                     action="job.completed",
@@ -120,6 +159,7 @@ def execute_next_job(
                 db.commit()
                 logger.info("Finished background job %s (%s)", job_id, job_type)
             except Exception as exc:
+                error_details = traceback.format_exc()
                 db.rollback()
                 job = db.get(BackgroundJob, job_id)
                 assert job is not None
@@ -129,19 +169,58 @@ def execute_next_job(
                     else JobStatus.FAILED
                 )
                 job.error_message = str(exc)
+                job.result = {
+                    "errorType": type(exc).__name__,
+                    "errorDetails": error_details,
+                }
                 job.lease_until = None
-                if job.status == JobStatus.FAILED and job.job_type == LLM_JOB:
-                    from app.llm.models import LlmExtractionRun, ProcessingStatus
+                if job.status == JobStatus.FAILED:
+                    job.completed_at = datetime.now(UTC)
+                if job.job_type == LLM_JOB:
+                    from app.llm.models import (
+                        LlmExtractionRun,
+                        LlmTaskType,
+                        ProcessingStatus,
+                    )
 
                     run = db.get(LlmExtractionRun, str(job.payload.get("run_id")))
                     if run and run.status in {
                         ProcessingStatus.PENDING,
                         ProcessingStatus.PROCESSING,
                     }:
-                        run.status = ProcessingStatus.FAILED
-                        run.error_type = "transient_retries_exhausted"
-                        run.error_message = str(exc)[:2000]
-                        run.completed_at = datetime.now(UTC)
+                        if job.status == JobStatus.QUEUED:
+                            run.status = ProcessingStatus.PENDING
+                            run.started_at = None
+                            run.error_type = None
+                            run.error_message = None
+                        else:
+                            run.status = ProcessingStatus.FAILED
+                            run.error_type = "transient_retries_exhausted"
+                            run.error_message = str(exc)[:2000]
+                            run.completed_at = datetime.now(UTC)
+                            queue_llm_stage_completion_check(db, run)
+                            if run.task_type == LlmTaskType.EXTRACTION_VALIDATION:
+                                from app.projects.lifecycle import (
+                                    evaluate_project_completion,
+                                )
+                                from app.projects.models import Project
+
+                                project = db.get(Project, run.project_id)
+                                if project is not None:
+                                    evaluate_project_completion(db, project)
+                if (
+                    job.status == JobStatus.FAILED
+                    and job.job_type == TEXT_JOB
+                    and job.payload.get("bulk_id")
+                    and job.project_id
+                ):
+                    queue_llm_bulk_completion_check(
+                        db,
+                        project_id=job.project_id,
+                        bulk_id=str(job.payload["bulk_id"]),
+                    )
+                if job.job_type == SEND_EMAIL_JOB:
+                    record_email_job_failure(db, job, exc)
                 if job.status == JobStatus.FAILED:
                     record_audit(
                         db,
@@ -154,7 +233,16 @@ def execute_next_job(
                         metadata={"error": str(exc)},
                     )
                 db.commit()
-                logger.exception("Background job %s failed", job_id)
+                if job.status == JobStatus.QUEUED:
+                    logger.warning(
+                        "Background job %s attempt %s/%s failed; queued for retry",
+                        job_id,
+                        job.attempts,
+                        job.max_attempts,
+                        exc_info=True,
+                    )
+                else:
+                    logger.exception("Background job %s failed", job_id)
             return True
     finally:
         lease_stop.set()
@@ -183,7 +271,7 @@ def run_worker(*, llm_only: bool = False) -> None:
         max_workers=thread_count,
         thread_name_prefix="papertrail",
     ) as executor:
-        futures = set()
+        futures: set[Future[bool]] = set()
         while not stop.is_set():
             futures = {future for future in futures if not future.done()}
             available = thread_count - len(futures)

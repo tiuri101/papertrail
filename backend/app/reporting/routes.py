@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Any
 
 from fastapi import APIRouter, Depends, status
 from fastapi.responses import FileResponse, Response
@@ -30,7 +31,7 @@ router = APIRouter(tags=["reporting"])
 class ExportRequest(BaseModel):
     exportType: str
     scope: str = "included"
-    statusFilter: dict | None = None
+    statusFilter: dict[str, Any] | None = None
 
 
 @router.get("/projects/{project_id}/prisma")
@@ -38,7 +39,7 @@ def prisma_counts(
     project_id: str,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> dict[str, int]:
     require_project_access(db, project_id, user)
     return calculate_prisma_counts(db, project_id)
 
@@ -48,7 +49,7 @@ def prisma_svg(
     project_id: str,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> Response:
     project = require_project_access(db, project_id, user)
     svg = build_prisma_svg(project.name, calculate_prisma_counts(db, project_id))
     return Response(
@@ -63,7 +64,7 @@ def final_results(
     project_id: str,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> dict[str, Any]:
     require_project_access(db, project_id, user)
     return build_final_results(db, project_id)
 
@@ -74,7 +75,7 @@ def create_export(
     payload: ExportRequest,
     admin: User = Depends(require_project_member_csrf),
     db: Session = Depends(get_db),
-):
+) -> dict[str, str]:
     job = enqueue_job(
         db,
         "generate_export",
@@ -104,7 +105,7 @@ def list_exports(
     project_id: str,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> list[dict[str, Any]]:
     require_project_access(db, project_id, user)
     return [
         {
@@ -127,7 +128,7 @@ def download_export(
     artifact_id: str,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> FileResponse:
     require_project_access(db, project_id, user)
     artifact = db.get(ExportArtifact, artifact_id)
     if (
@@ -148,7 +149,7 @@ def delete_export(
     artifact_id: str,
     admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
-):
+) -> None:
     require_project_access(db, project_id, admin)
     artifact = db.get(ExportArtifact, artifact_id)
     if artifact is None or artifact.project_id != project_id:

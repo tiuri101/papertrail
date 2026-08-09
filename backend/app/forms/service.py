@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -106,8 +108,8 @@ def add_field(
     field_type: str | FieldType,
     *,
     required: bool = False,
-    options: list | None = None,
-    scoring: dict | None = None,
+    options: list[Any] | None = None,
+    scoring: dict[str, Any] | None = None,
 ) -> FormField:
     version = editable_version(db, form, f"Added field: {label}")
     position = int(
@@ -184,8 +186,8 @@ def replace_field(
     *,
     label: str | None = None,
     required: bool = False,
-    options: list | None = None,
-    scoring: dict | None = None,
+    options: list[Any] | None = None,
+    scoring: dict[str, Any] | None = None,
 ) -> FormField:
     """Archive a field and add its replacement in a single new version.
 

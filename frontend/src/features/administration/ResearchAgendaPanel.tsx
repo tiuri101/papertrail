@@ -53,7 +53,7 @@ function ResearchQuestionRow({
             <input value={draft} onChange={(event) => setDraft(event.target.value)} required />
             <div className="toolbar">
               <button type="submit" disabled={pending}>Save</button>
-              <button type="button" onClick={() => { setDraft(question.text); setEditing(false) }}>Cancel</button>
+              <button type="button" className="button-secondary" onClick={() => { setDraft(question.text); setEditing(false) }}>Cancel</button>
             </div>
           </form>
         </td>
@@ -120,6 +120,7 @@ function CriterionRow({
               <button type="submit" disabled={pending}>Save</button>
               <button
                 type="button"
+                className="button-secondary"
                 onClick={() => { setDraftKind(criterion.kind); setDraftText(criterion.text); setEditing(false) }}
               >
                 Cancel
@@ -133,7 +134,9 @@ function CriterionRow({
 
   return (
     <tr>
-      <td>{number}</td>
+      <td>
+        <span className={`criterion-badge criterion-badge--${criterion.kind}`}>{number}</span>
+      </td>
       <td>{criterion.text}</td>
       <td>
         <div className="toolbar">
@@ -150,11 +153,9 @@ function CriterionRow({
   )
 }
 
-export function ResearchAgendaPanel({ projectId }: { projectId: string }) {
+export function ResearchQuestionsPanel({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient()
   const [newQuestion, setNewQuestion] = useState('')
-  const [newCriterionKind, setNewCriterionKind] = useState<CriterionKind>('inclusion')
-  const [newCriterionText, setNewCriterionText] = useState('')
 
   const project = useQuery({
     queryKey: ['project', projectId],
@@ -185,6 +186,66 @@ export function ResearchAgendaPanel({ projectId }: { projectId: string }) {
     onSuccess: refresh,
   })
 
+  const mutationError = addQuestion.error ?? updateQuestion.error ?? deleteQuestion.error
+
+  if (project.isLoading) return <p>Loading research questions…</p>
+  if (project.isError || !project.data) return <p className="error" role="alert">Research questions could not be loaded.</p>
+
+  const questionPending = updateQuestion.isPending || deleteQuestion.isPending
+
+  return (
+    <section id="section-research-questions" className="card">
+      <h2>Research Questions</h2>
+      {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Question</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {project.data.researchQuestions.map((question, index) => (
+            <ResearchQuestionRow
+              key={question.id}
+              number={`RQ${index + 1}`}
+              question={question}
+              pending={questionPending}
+              onSave={(text) => updateQuestion.mutate({ id: question.id, text })}
+              onDelete={() => deleteQuestion.mutate(question.id)}
+            />
+          ))}
+        </tbody>
+      </table>
+      <form onSubmit={(event) => { event.preventDefault(); addQuestion.mutate() }}>
+        <label>
+          New research question
+          <input
+            value={newQuestion}
+            onChange={(event) => setNewQuestion(event.target.value)}
+            required
+          />
+        </label>
+        <button type="submit" disabled={addQuestion.isPending}>Add Research Question</button>
+      </form>
+    </section>
+  )
+}
+
+export function CriteriaPanel({ projectId }: { projectId: string }) {
+  const queryClient = useQueryClient()
+  const [newCriterionKind, setNewCriterionKind] = useState<CriterionKind>('inclusion')
+  const [newCriterionText, setNewCriterionText] = useState('')
+
+  const project = useQuery({
+    queryKey: ['project', projectId],
+    queryFn: () => apiRequest<ProjectAgenda>(`/api/v1/projects/${projectId}`),
+    enabled: Boolean(projectId),
+  })
+
+  const refresh = () => queryClient.invalidateQueries({ queryKey: ['project', projectId] })
+
   const addCriterion = useMutation({
     mutationFn: () => apiRequest(`/api/v1/projects/${projectId}/criteria`, {
       method: 'POST',
@@ -206,13 +267,11 @@ export function ResearchAgendaPanel({ projectId }: { projectId: string }) {
     onSuccess: refresh,
   })
 
-  const mutationError = addQuestion.error ?? updateQuestion.error ?? deleteQuestion.error
-    ?? addCriterion.error ?? updateCriterion.error ?? deleteCriterion.error
+  const mutationError = addCriterion.error ?? updateCriterion.error ?? deleteCriterion.error
 
-  if (project.isLoading) return <p>Loading research agenda…</p>
-  if (project.isError || !project.data) return <p className="error" role="alert">Research agenda could not be loaded.</p>
+  if (project.isLoading) return <p>Loading criteria…</p>
+  if (project.isError || !project.data) return <p className="error" role="alert">Criteria could not be loaded.</p>
 
-  const questionPending = updateQuestion.isPending || deleteQuestion.isPending
   const criterionPending = updateCriterion.isPending || deleteCriterion.isPending
 
   const inclusionCriteria = project.data.criteria
@@ -223,115 +282,86 @@ export function ResearchAgendaPanel({ projectId }: { projectId: string }) {
     .map((criterion, index) => ({ criterion, number: `EC${index + 1}` }))
 
   return (
-    <>
-      <section className="card">
-        <h2>Research Questions</h2>
-        {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
-        <table>
-          <thead>
+    <section id="section-screening-criteria" className="card">
+      <h2>Inclusion / Exclusion Criteria</h2>
+      {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Criterion</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <th colSpan={3}>Inclusion criteria</th>
+          </tr>
+          {inclusionCriteria.length === 0 ? (
             <tr>
-              <th>#</th>
-              <th>Question</th>
-              <th>Actions</th>
+              <td colSpan={3}>No inclusion criteria yet.</td>
             </tr>
-          </thead>
-          <tbody>
-            {project.data.researchQuestions.map((question, index) => (
-              <ResearchQuestionRow
-                key={question.id}
-                number={`RQ${index + 1}`}
-                question={question}
-                pending={questionPending}
-                onSave={(text) => updateQuestion.mutate({ id: question.id, text })}
-                onDelete={() => deleteQuestion.mutate(question.id)}
-              />
-            ))}
-          </tbody>
-        </table>
-        <form onSubmit={(event) => { event.preventDefault(); addQuestion.mutate() }}>
-          <label>
-            New research question
-            <input
-              value={newQuestion}
-              onChange={(event) => setNewQuestion(event.target.value)}
-              required
+          ) : null}
+          {inclusionCriteria.map(({ criterion, number }) => (
+            <CriterionRow
+              key={criterion.id}
+              number={number}
+              criterion={criterion}
+              pending={criterionPending}
+              onSave={(kind, text) => updateCriterion.mutate({ id: criterion.id, kind, text })}
+              onDelete={() => deleteCriterion.mutate(criterion.id)}
             />
-          </label>
-          <button type="submit" disabled={addQuestion.isPending}>Add Research Question</button>
-        </form>
-      </section>
+          ))}
+          <tr>
+            <th colSpan={3}>Exclusion criteria</th>
+          </tr>
+          {exclusionCriteria.length === 0 ? (
+            <tr>
+              <td colSpan={3}>No exclusion criteria yet.</td>
+            </tr>
+          ) : null}
+          {exclusionCriteria.map(({ criterion, number }) => (
+            <CriterionRow
+              key={criterion.id}
+              number={number}
+              criterion={criterion}
+              pending={criterionPending}
+              onSave={(kind, text) => updateCriterion.mutate({ id: criterion.id, kind, text })}
+              onDelete={() => deleteCriterion.mutate(criterion.id)}
+            />
+          ))}
+        </tbody>
+      </table>
+      <form onSubmit={(event) => { event.preventDefault(); addCriterion.mutate() }}>
+        <label>
+          Kind
+          <select
+            value={newCriterionKind}
+            onChange={(event) => setNewCriterionKind(event.target.value as CriterionKind)}
+          >
+            <option value="inclusion">Inclusion</option>
+            <option value="exclusion">Exclusion</option>
+          </select>
+        </label>
+        <label>
+          New criterion
+          <input
+            value={newCriterionText}
+            onChange={(event) => setNewCriterionText(event.target.value)}
+            required
+          />
+        </label>
+        <button type="submit" disabled={addCriterion.isPending}>Add Criterion</button>
+      </form>
+    </section>
+  )
+}
 
-      <section className="card">
-        <h2>Inclusion / Exclusion Criteria</h2>
-        <table>
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Criterion</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr>
-              <th colSpan={3}>Inclusion criteria</th>
-            </tr>
-            {inclusionCriteria.length === 0 ? (
-              <tr>
-                <td colSpan={3}>No inclusion criteria yet.</td>
-              </tr>
-            ) : null}
-            {inclusionCriteria.map(({ criterion, number }) => (
-              <CriterionRow
-                key={criterion.id}
-                number={number}
-                criterion={criterion}
-                pending={criterionPending}
-                onSave={(kind, text) => updateCriterion.mutate({ id: criterion.id, kind, text })}
-                onDelete={() => deleteCriterion.mutate(criterion.id)}
-              />
-            ))}
-            <tr>
-              <th colSpan={3}>Exclusion criteria</th>
-            </tr>
-            {exclusionCriteria.length === 0 ? (
-              <tr>
-                <td colSpan={3}>No exclusion criteria yet.</td>
-              </tr>
-            ) : null}
-            {exclusionCriteria.map(({ criterion, number }) => (
-              <CriterionRow
-                key={criterion.id}
-                number={number}
-                criterion={criterion}
-                pending={criterionPending}
-                onSave={(kind, text) => updateCriterion.mutate({ id: criterion.id, kind, text })}
-                onDelete={() => deleteCriterion.mutate(criterion.id)}
-              />
-            ))}
-          </tbody>
-        </table>
-        <form onSubmit={(event) => { event.preventDefault(); addCriterion.mutate() }}>
-          <label>
-            Kind
-            <select
-              value={newCriterionKind}
-              onChange={(event) => setNewCriterionKind(event.target.value as CriterionKind)}
-            >
-              <option value="inclusion">Inclusion</option>
-              <option value="exclusion">Exclusion</option>
-            </select>
-          </label>
-          <label>
-            New criterion
-            <input
-              value={newCriterionText}
-              onChange={(event) => setNewCriterionText(event.target.value)}
-              required
-            />
-          </label>
-          <button type="submit" disabled={addCriterion.isPending}>Add Criterion</button>
-        </form>
-      </section>
+export function ResearchAgendaPanel({ projectId }: { projectId: string }) {
+  return (
+    <>
+      <ResearchQuestionsPanel projectId={projectId} />
+      <CriteriaPanel projectId={projectId} />
     </>
   )
 }

@@ -57,13 +57,19 @@ describe('DynamicForm', () => {
     expect(screen.getByTestId('value')).toHaveTextContent('{"topics":["A","B"]}')
   })
 
-  it('renders date and url fields with the matching input type', () => {
+  it('renders a url field with the matching input type', () => {
+    render(<Harness fields={[{ stableKey: 'link', label: 'Link', fieldType: 'url', required: false, options: [] }]} />)
+    expect(screen.getByLabelText('Link')).toHaveAttribute('type', 'url')
+  })
+
+  it('renders a date field that opens a calendar and reports the selected date', () => {
     render(<Harness fields={[
       { stableKey: 'published', label: 'Published', fieldType: 'date', required: false, options: [] },
-      { stableKey: 'link', label: 'Link', fieldType: 'url', required: false, options: [] },
     ]} />)
-    expect(screen.getByLabelText('Published')).toHaveAttribute('type', 'date')
-    expect(screen.getByLabelText('Link')).toHaveAttribute('type', 'url')
+    fireEvent.click(screen.getByLabelText('Published'))
+    fireEvent.click(screen.getByRole('button', { name: 'Today' }))
+    const value = JSON.parse(screen.getByTestId('value').textContent ?? '{}')
+    expect(value.published).toMatch(/^\d{4}-\d{2}-\d{2}$/)
   })
 
   it('renders a rating field with options 1 through 5 by default', () => {

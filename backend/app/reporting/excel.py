@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from io import BytesIO
+from typing import Any
 
 from openpyxl import Workbook
 from sqlalchemy import select
@@ -29,7 +30,7 @@ from app.reporting.prisma import calculate_prisma_counts
 from app.screening.models import ScreeningDecision, ScreeningOutcome, ScreeningWorkItem
 
 
-def safe_cell(value):
+def safe_cell(value: Any) -> Any:
     if isinstance(value, datetime) and value.utcoffset() is not None:
         return value.astimezone(UTC).replace(tzinfo=None)
 
@@ -46,7 +47,7 @@ def add_sheet(
     workbook: Workbook,
     title: str,
     headers: list[str],
-    rows: list[list],
+    rows: list[list[Any]],
 ) -> None:
     sheet = workbook.create_sheet(title)
     sheet.append(headers)
@@ -65,17 +66,21 @@ def add_sheet(
 
 
 def _user_names(db: Session) -> dict[str, str]:
-    return dict(db.execute(select(User.id, User.display_name)).all())
+    return {
+        row.id: row.display_name
+        for row in db.execute(select(User.id, User.display_name))
+    }
 
 
 def _criterion_texts(db: Session, project_id: str) -> dict[str, str]:
-    return dict(
-        db.execute(
+    return {
+        row.id: row.text
+        for row in db.execute(
             select(Criterion.id, Criterion.text).where(
                 Criterion.project_id == project_id
             )
-        ).all()
-    )
+        )
+    }
 
 
 def _form_version_labels(db: Session) -> dict[str, str]:
@@ -97,7 +102,9 @@ def _form_field_labels(db: Session) -> dict[str, dict[str, str]]:
     return labels
 
 
-def _readable_answers(answers: dict, field_labels: dict[str, str]) -> dict:
+def _readable_answers(
+    answers: dict[str, Any], field_labels: dict[str, str]
+) -> dict[str, Any]:
     return {field_labels.get(key, key): value for key, value in answers.items()}
 
 
@@ -116,7 +123,7 @@ def _search_source_labels(publication: Publication) -> tuple[str | None, str | N
 
 def publication_rows(
     publications: list[Publication], titles: dict[str, str]
-) -> list[list]:
+) -> list[list[Any]]:
     rows = []
     for publication in publications:
         source_names, filenames = _search_source_labels(publication)
@@ -133,7 +140,11 @@ def publication_rows(
                 publication.keywords,
                 publication.is_active,
                 publication.merged_into_id,
-                titles.get(publication.merged_into_id, publication.merged_into_id),
+                (
+                    titles.get(publication.merged_into_id, publication.merged_into_id)
+                    if publication.merged_into_id
+                    else None
+                ),
                 source_names,
                 filenames,
             ]
@@ -147,7 +158,7 @@ def _screening_rows(
     titles: dict[str, str],
     user_names: dict[str, str],
     criterion_texts: dict[str, str],
-) -> list[list]:
+) -> list[list[Any]]:
     return [
         [
             decision.work_item.publication_id,
@@ -173,6 +184,7 @@ def build_excel(db: Session, project_id: str) -> bytes:
     if project is None:
         raise ValueError("Project not found")
     workbook = Workbook()
+    assert workbook.active is not None
     workbook.remove(workbook.active)
     counts = calculate_prisma_counts(db, project_id)
     add_sheet(
@@ -576,6 +588,7 @@ def build_prisma_tables(db: Session, project_id: str) -> bytes:
         raise ValueError("Project not found")
     counts = calculate_prisma_counts(db, project_id)
     workbook = Workbook()
+    assert workbook.active is not None
     workbook.remove(workbook.active)
     add_sheet(
         workbook,
@@ -605,7 +618,11 @@ def _add_audit_sheet(
         [
             [
                 event.created_at,
-                user_names.get(event.actor_id, event.actor_id),
+                (
+                    user_names.get(event.actor_id, event.actor_id)
+                    if event.actor_id
+                    else None
+                ),
                 event.action,
                 event.entity_type,
                 event.entity_id,

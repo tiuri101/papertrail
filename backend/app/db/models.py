@@ -21,6 +21,7 @@ from app.llm.models import (
     LlmValidationResult,
     ProjectLlmSettings,
 )
+from app.notifications.models import EmailNotification
 from app.projects.models import (
     Criterion,
     Project,
@@ -38,6 +39,7 @@ __all__ = [
     "BackgroundJob",
     "DocumentPageText",
     "DocumentTextExtraction",
+    "EmailNotification",
     "Criterion",
     "DuplicateCandidate",
     "ExportArtifact",

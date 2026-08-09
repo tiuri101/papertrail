@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile, status
@@ -46,7 +47,7 @@ def list_searches(
     project_id: str,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> list[SearchSource]:
     require_project_access(db, project_id, user)
     return list(
         db.scalars(
@@ -67,7 +68,7 @@ def add_search(
     payload: SearchSourceCreate,
     admin: User = Depends(require_project_member_csrf),
     db: Session = Depends(get_db),
-):
+) -> SearchSource:
     get_project(db, project_id)
     search = SearchSource(
         project_id=project_id,
@@ -104,10 +105,10 @@ async def upload_import(
     mapping_json: str | None = Form(default=None, alias="mappingJson"),
     file: UploadFile = File(...),
     pdfs: list[UploadFile] = File(default=[]),
-    pdf_archive: UploadFile | None = File(default=None, alias="pdfArchive"),
+    pdf_archives: list[UploadFile] = File(default=[], alias="pdfArchive"),
     admin: User = Depends(require_project_member_csrf),
     db: Session = Depends(get_db),
-):
+) -> JobAccepted:
     get_project(db, project_id)
     if search_source_id and db.get(SearchSource, search_source_id) is None:
         raise NotFoundError("Search source not found")
@@ -161,7 +162,7 @@ async def upload_import(
     )
     db.add(batch)
     db.flush()
-    await stage_bulk_uploads(db, batch, pdfs, pdf_archive)
+    await stage_bulk_uploads(db, batch, pdfs, pdf_archives)
     job = enqueue_job(
         db,
         "parse_import",
@@ -188,7 +189,7 @@ async def upload_import_pdfs(
     project_id: str,
     import_batch_id: str,
     pdfs: list[UploadFile] = File(default=[]),
-    pdf_archive: UploadFile | None = File(default=None, alias="pdfArchive"),
+    pdf_archives: list[UploadFile] = File(default=[], alias="pdfArchive"),
     admin: User = Depends(require_project_member_csrf),
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
@@ -197,7 +198,7 @@ async def upload_import_pdfs(
         raise NotFoundError("Import batch not found")
     if batch.status != ImportStatus.COMPLETED:
         raise DomainError("PDFs can be added after the metadata import completes")
-    await stage_bulk_uploads(db, batch, pdfs, pdf_archive)
+    await stage_bulk_uploads(db, batch, pdfs, pdf_archives)
     db.commit()
     summary = process_pdf_matches(db, batch)
     return {"importBatchId": batch.id, "summary": summary}
@@ -316,7 +317,7 @@ async def preview_import(
     file: UploadFile = File(...),
     admin: User = Depends(require_project_member_csrf),
     db: Session = Depends(get_db),
-):
+) -> dict[str, Any]:
     from app.imports.adapters import normalize_imported_row, parse_file
 
     safe_name = Path(file.filename or "import").name

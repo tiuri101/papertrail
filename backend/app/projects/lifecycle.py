@@ -70,6 +70,15 @@ def evaluate_project_completion(db: Session, project: Project) -> bool:
     ):
         return False
 
+    from app.llm.schema_service import project_settings
+
+    llm_settings = project_settings(db, project.id)
+    if llm_settings and llm_settings.extraction_validation_enabled:
+        from app.llm.task_service import project_validation_progress
+
+        if not project_validation_progress(db, project.id).settled:
+            return False
+
     quality_config = db.scalar(
         select(QualityConfig).where(QualityConfig.project_id == project.id)
     )
@@ -98,6 +107,9 @@ def evaluate_project_completion(db: Session, project: Project) -> bool:
         project_id=project.id,
         summary="Project completed automatically",
     )
+    from app.notifications.service import queue_project_completed_emails
+
+    queue_project_completed_emails(db, project, project.completed_at)
     db.flush()
     return True
 
@@ -519,7 +531,7 @@ def reset_project(db: Session, project: Project, actor_id: str) -> Project:
     return project
 
 
-def delete_project(db: Session, project: Project, actor_id: str) -> None:
+def delete_project(db: Session, project: Project) -> None:
     """Permanently delete a project and all of its data, including configuration."""
     wipe_workflow_data(db, project.id)
 
@@ -531,19 +543,5 @@ def delete_project(db: Session, project: Project, actor_id: str) -> None:
     db.execute(delete(QualityConfig).where(QualityConfig.project_id == project.id))
     db.execute(delete(AuditEvent).where(AuditEvent.project_id == project.id))
 
-    project_id = project.id
-    project_name = project.name
     db.delete(project)
-    db.flush()
-
-    record_audit(
-        db,
-        action="project.deleted",
-        entity_type="project",
-        entity_id=project_id,
-        project_id=None,
-        actor_id=actor_id,
-        summary=f"Deleted project {project_name}",
-        metadata={"name": project_name},
-    )
     db.flush()

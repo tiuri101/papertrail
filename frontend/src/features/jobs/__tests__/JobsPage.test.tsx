@@ -7,7 +7,31 @@ import { renderWithProviders } from '../../../test/render'
 
 describe('JobsPage', () => {
   it('lists jobs with their status and progress', async () => {
-    mockFetch(() => jsonResponse([
+    mockFetch((input) => {
+      if (String(input).endsWith('/api/v1/jobs/job-2/error')) {
+        return jsonResponse({
+          jobId: 'job-2',
+          jobType: 'enrich_publication',
+          jobLabel: 'Enrich publication metadata',
+          affectedStage: 'Publication metadata',
+          projectId: 'p1',
+          projectName: 'Immersive Review',
+          projectStage: 'Title/abstract screening',
+          attempt: 3,
+          maxAttempts: 3,
+          queuedAt: '2026-07-30T11:00:00Z',
+          startedAt: '2026-07-30T11:00:02Z',
+          failedAt: '2026-07-30T11:00:10Z',
+          context: {
+            'Publication ID': 'publication-1',
+            Publication: 'Urban Data in VR',
+          },
+          errorType: 'TimeoutError',
+          errorMessage: 'Crossref request timed out',
+          errorDetails: 'Traceback (most recent call last):\nTimeoutError: Crossref request timed out',
+        })
+      }
+      return jsonResponse([
       {
         id: 'job-1',
         jobType: 'parse_import',
@@ -30,7 +54,8 @@ describe('JobsPage', () => {
         createdAt: '2026-07-30T11:00:00Z',
         completedAt: null,
       },
-    ]))
+      ])
+    })
     renderWithProviders(<JobsPage />, { route: '/projects/p1/jobs', path: '/projects/:projectId/jobs' })
 
     const completedRow = await screen.findByRole('row', { name: /parse_import/ })
@@ -40,6 +65,18 @@ describe('JobsPage', () => {
     const failedRow = screen.getByRole('row', { name: /enrich_publication/ })
     expect(failedRow).toHaveTextContent('failed')
     expect(screen.getByText('Crossref request timed out')).toBeInTheDocument()
+    fireEvent.click(within(failedRow).getByRole('button', { name: 'View error details' }))
+    expect(await within(failedRow).findByText('Enrich publication metadata')).toBeInTheDocument()
+    expect(within(failedRow).getByText('Publication metadata')).toBeInTheDocument()
+    expect(within(failedRow).getByText('Title/abstract screening')).toBeInTheDocument()
+    expect(within(failedRow).getByText('Urban Data in VR')).toBeInTheDocument()
+    expect(within(failedRow).getByText('3 of 3')).toBeInTheDocument()
+    expect(within(failedRow).getByText('TimeoutError')).toBeInTheDocument()
+    expect(await within(failedRow).findByText(/TimeoutError: Crossref request timed out/)).toBeInTheDocument()
+    expect(within(failedRow).getByRole('link', { name: 'Download error report' })).toHaveAttribute(
+      'download',
+      'job-job-2-error.txt',
+    )
   })
 
   it('sorts the job table by any sortable column', async () => {

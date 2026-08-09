@@ -1,5 +1,6 @@
 import re
 from datetime import UTC, datetime
+from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -33,7 +34,7 @@ def _export_filename(project_name: str, export_type: str, extension: str) -> str
     return f"{safe_name}_{export_type}_{date_str}.{extension}"
 
 
-def generate_export_job(db: Session, job: BackgroundJob) -> dict:
+def generate_export_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
     existing = db.scalar(select(ExportArtifact).where(ExportArtifact.job_id == job.id))
     if existing is not None:
         return {"artifactId": existing.id, "filename": existing.filename}

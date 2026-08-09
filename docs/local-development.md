@@ -295,10 +295,6 @@ Important values:
 
 Do not enable secure cookies for local HTTP. Enable them in production behind HTTPS.
 
-## IDE setup
-
-The repository includes `.vscode` launch configurations for the API and worker, tasks for PostgreSQL, the frontend, and backend tests, plus recommended extensions.
-
 ### Visual Studio Code
 
 Select the interpreter:

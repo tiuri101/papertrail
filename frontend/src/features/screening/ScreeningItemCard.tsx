@@ -7,6 +7,9 @@ import { ScreeningLlmPanel } from '../llm/LlmTaskComponents'
 export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: string[] }) {
   const { item, answers, setAnswers, outcome, setOutcome, notes, setNotes, criteriaComplete, submit, highlightKeywords } = queue
   if (!item) return null
+  const awaitingConfirmation = queue.submitted !== null
+  const decisionError = awaitingConfirmation ? queue.reviseDecision.error : submit.error
+  const decisionPending = awaitingConfirmation ? queue.reviseDecision.isPending : submit.isPending
 
   return (
     <article className="card">
@@ -37,12 +40,6 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
           </a>
         ) : null}
       </div>
-      <ScreeningLlmPanel
-        projectId={queue.projectId}
-        publicationId={item.publication.id}
-        itemId={item.id}
-        stage={queue.stage as 'title_abstract' | 'full_text'}
-      />
       <CriteriaAnswerFields
         criteria={item.criteria}
         answers={answers}
@@ -52,38 +49,26 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
         notes={notes}
         setNotes={setNotes}
       />
+      <ScreeningLlmPanel
+        projectId={queue.projectId}
+        publicationId={item.publication.id}
+        itemId={item.id}
+        stage={queue.stage as 'title_abstract' | 'full_text'}
+        humanDecision={awaitingConfirmation ? outcome : undefined}
+      />
       {!criteriaComplete ? (
-        <p className="muted">Answer every criterion before submitting.</p>
+        <p className="muted">Answer every criterion before {awaitingConfirmation ? 'confirming' : 'submitting'}.</p>
       ) : null}
-      {submit.error ? (
-        <p className="error" role="alert">{submit.error.message}</p>
+      {decisionError ? (
+        <p className="error" role="alert">{decisionError.message}</p>
       ) : null}
       <button
         type="button"
-        onClick={() => submit.mutate()}
-        disabled={submit.isPending || !criteriaComplete}
+        onClick={() => awaitingConfirmation ? queue.confirmDecision() : submit.mutate()}
+        disabled={decisionPending || !criteriaComplete}
       >
         Submit Decision
       </button>
-    </article>
-  )
-}
-
-export function SubmittedScreeningCard({ queue }: { queue: ScreeningQueue }) {
-  const submitted = queue.submitted
-  if (!submitted) return null
-  return (
-    <article className="card">
-      <h2>{submitted.item.publication.title}</h2>
-      <p><strong>Your decision:</strong> {submitted.decision.outcome}</p>
-      <ScreeningLlmPanel
-        projectId={queue.projectId}
-        publicationId={submitted.item.publication.id}
-        itemId={submitted.item.id}
-        stage={queue.stage as 'title_abstract' | 'full_text'}
-        humanDecision={submitted.decision.outcome}
-      />
-      <button type="button" onClick={queue.continueAfterDecision}>Continue to next paper</button>
     </article>
   )
 }

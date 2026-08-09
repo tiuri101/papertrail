@@ -33,6 +33,7 @@ def parse_csv(data: bytes) -> list[dict[str, Any]]:
 def parse_xlsx(data: bytes) -> list[dict[str, Any]]:
     workbook = load_workbook(io.BytesIO(data), read_only=True, data_only=True)
     sheet = workbook.active
+    assert sheet is not None
     rows = sheet.iter_rows(values_only=True)
     headers = [
         str(value).strip() if value is not None else "" for value in next(rows, ())

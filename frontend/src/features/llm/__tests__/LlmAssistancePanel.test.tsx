@@ -31,7 +31,15 @@ describe('LlmAssistancePanel', () => {
     renderWithProviders(<LlmAssistancePanel projectId="p1" />)
 
     expect(await screen.findByText('http://ollama.example:11434')).toBeInTheDocument()
+    expect(screen.getByText('LLM capabilities')).toHaveClass('subsection-heading')
     expect(screen.queryByText(/api key/i)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Enable LLM data extraction/i })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', {
+      name: 'Re-run LLM data extraction for all publications included after title/abstract screening',
+    })).toBeInTheDocument()
+    expect(screen.getByRole('button', {
+      name: 'Re-run LLM data extraction for all publications included after full-text screening',
+    })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Test Connection' }))
     expect(await screen.findByText('Available; configured model found.')).toBeInTheDocument()
   })
@@ -53,6 +61,14 @@ describe('LlmAssistancePanel', () => {
     await waitFor(() => {
       const patchCall = fetchMock.mock.calls.find(([, init]) => init?.method === 'PATCH')
       expect(JSON.parse(String(patchCall?.[1]?.body))).toEqual({ titleAbstractScreeningEnabled: true })
+    })
+
+    fireEvent.click(screen.getByLabelText('LLM data extraction'))
+    await waitFor(() => {
+      const patches = fetchMock.mock.calls
+        .filter(([, init]) => init?.method === 'PATCH')
+        .map(([, init]) => JSON.parse(String(init?.body)))
+      expect(patches).toContainEqual({ enabled: true })
     })
   })
 
@@ -85,7 +101,12 @@ describe('LlmAssistancePanel', () => {
     renderWithProviders(<LlmAssistancePanel projectId="p1" />)
 
     fireEvent.click(await screen.findByRole('button', { name: 'Create LLM schema from extraction form' }))
-    expect(await screen.findByDisplayValue('Extract sample size.')).toBeInTheDocument()
+    const instruction = await screen.findByDisplayValue('Extract sample size.')
+    expect(instruction).toBeInTheDocument()
+    const field = instruction.closest('details') as HTMLDetailsElement
+    expect(field).not.toHaveAttribute('open')
+    fireEvent.click(field.querySelector('summary') as HTMLElement)
+    expect(field).toHaveAttribute('open')
     fireEvent.change(screen.getByLabelText('Extraction instruction'), {
       target: { value: 'Return the main evaluation sample only.' },
     })

@@ -3,8 +3,9 @@ from __future__ import annotations
 import hashlib
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import case, select
 from sqlalchemy.orm import Session
 
 from app.accounts.models import User
@@ -144,12 +145,14 @@ def claim_next_extraction(
             ExtractionWorkItem.project_id == project_id,
             ExtractionWorkItem.assigned_reviewer_id == reviewer_id,
             ExtractionWorkItem.status != ExtractionStatus.COMPLETED,
-            (
-                (ExtractionWorkItem.status == ExtractionStatus.AVAILABLE)
-                | (ExtractionWorkItem.reserved_until < now)
-            ),
         )
-        .order_by(ExtractionWorkItem.random_rank)
+        .order_by(
+            case(
+                (ExtractionWorkItem.status == ExtractionStatus.RESERVED, 0),
+                else_=1,
+            ),
+            ExtractionWorkItem.random_rank,
+        )
         .limit(1)
     )
     if db.bind is not None and db.bind.dialect.name == "postgresql":
@@ -162,7 +165,9 @@ def claim_next_extraction(
     return item
 
 
-def save_draft(item: ExtractionWorkItem, reviewer_id: str, draft: dict) -> None:
+def save_draft(
+    item: ExtractionWorkItem, reviewer_id: str, draft: dict[str, Any]
+) -> None:
     if (
         item.assigned_reviewer_id != reviewer_id
         or item.status == ExtractionStatus.COMPLETED
@@ -184,7 +189,7 @@ def active_fields(db: Session, form: ReviewForm) -> list[FormField]:
     )
 
 
-def validate_answers(fields: list[FormField], answers: dict) -> None:
+def validate_answers(fields: list[FormField], answers: dict[str, Any]) -> None:
     known = {field.stable_key: field for field in fields}
     unknown = set(answers) - set(known)
     if unknown:
@@ -221,7 +226,7 @@ def submit_extraction(
     db: Session,
     item: ExtractionWorkItem,
     reviewer_id: str,
-    answers: dict,
+    answers: dict[str, Any],
     *,
     suggestion_actions: Mapping[str, str] | None = None,
 ) -> ExtractionResponse:
@@ -259,14 +264,11 @@ def submit_extraction(
     item.reserved_until = None
     item.completed_at = utcnow()
     item.draft = {}
-    from app.llm.task_service import queue_extraction_validation
+    db.flush()
+    from app.llm.task_service import queue_project_extraction_validations
 
-    queue_extraction_validation(
-        db,
-        item.publication_id,
-        response=response,
-        created_by_id=reviewer_id,
-        priority=10,
+    queue_project_extraction_validations(
+        db, item.project_id, created_by_id=reviewer_id, priority=10
     )
     db.flush()
     return response

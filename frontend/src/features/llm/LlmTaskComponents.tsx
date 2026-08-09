@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 
 import { apiRequest } from '../../api/client'
@@ -73,6 +74,15 @@ function statusText(state: string) {
   return state.replaceAll('_', ' ')
 }
 
+function LlmAssistanceHeading({ qualifier }: { qualifier?: string }) {
+  return (
+    <h3>
+      <span className="llm-task-panel__icon" aria-hidden="true">✦</span>
+      {' '}LLM assistance{qualifier ? ` ${qualifier}` : ''}
+    </h3>
+  )
+}
+
 export function ScreeningLlmPanel({
   projectId,
   publicationId,
@@ -105,31 +115,65 @@ export function ScreeningLlmPanel({
     onSuccess: () => query.refetch(),
   })
   const data = query.data
-  if (query.isLoading) return <aside className="llm-task-panel"><p>Checking LLM assistance…</p></aside>
-  if (query.error) return <aside className="llm-task-panel"><p className="error">{query.error.message}</p></aside>
+  const headingRef = useRef<HTMLDivElement>(null)
+  const scrolledResultRef = useRef<string | null>(null)
+  useEffect(() => {
+    if (
+      stage !== 'title_abstract'
+      || !humanDecision
+      || data?.hidden
+      || data?.state !== 'ready'
+    ) return
+    const resultKey = `${itemId}:${data.runId ?? 'ready'}`
+    if (scrolledResultRef.current === resultKey) return
+    scrolledResultRef.current = resultKey
+    headingRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' })
+  }, [data?.hidden, data?.runId, data?.state, humanDecision, itemId, stage])
+
+  if (query.isLoading) {
+    return (
+      <aside className="llm-task-panel" aria-label="LLM assistance">
+        <LlmAssistanceHeading />
+        <p>Checking LLM assistance…</p>
+      </aside>
+    )
+  }
+  if (query.error) {
+    return (
+      <aside className="llm-task-panel" aria-label="LLM assistance">
+        <LlmAssistanceHeading />
+        <p className="error">{query.error.message}</p>
+      </aside>
+    )
+  }
   if (!data?.state) return null
   if (data.hidden) {
     return (
-      <aside className="llm-task-panel" aria-label="LLM suggestion">
-        <h3>LLM suggestion</h3>
+      <aside className="llm-task-panel" aria-label="LLM assistance">
+        <LlmAssistanceHeading />
         <p className="muted">Hidden until you submit your own screening decision.</p>
       </aside>
     )
   }
   if (data.state === 'disabled') return null
   if (['queued', 'pending', 'processing'].includes(data.state)) {
-    return <aside className="llm-task-panel"><h3>LLM assistance</h3><p>LLM processing: {statusText(data.state)}…</p></aside>
+    return (
+      <aside className="llm-task-panel" aria-label="LLM assistance">
+        <LlmAssistanceHeading />
+        <p>LLM processing: {statusText(data.state)}…</p>
+      </aside>
+    )
   }
   if (['missing_pdf', 'text_unavailable', 'unavailable'].includes(data.state)) {
     return (
-      <aside className="llm-task-panel">
-        <h3>LLM assistance</h3>
+      <aside className="llm-task-panel" aria-label="LLM assistance">
+        <LlmAssistanceHeading />
         <p className="muted">
           {data.state === 'missing_pdf'
             ? 'Unavailable because no PDF is attached.'
             : data.error ?? 'Usable full text is not available yet.'}
         </p>
-        <button type="button" className="secondary" onClick={() => regenerate.mutate()} disabled={regenerate.isPending}>
+        <button type="button" className="button-secondary" onClick={() => regenerate.mutate()} disabled={regenerate.isPending}>
           Try again
         </button>
       </aside>
@@ -137,8 +181,8 @@ export function ScreeningLlmPanel({
   }
   if (data.state === 'failed') {
     return (
-      <aside className="llm-task-panel">
-        <h3>LLM assistance failed</h3>
+      <aside className="llm-task-panel" aria-label="LLM assistance failed">
+        <LlmAssistanceHeading qualifier="failed" />
         <p className="error">{data.error ?? 'The model did not return a usable result.'}</p>
         <button type="button" onClick={() => regenerate.mutate()} disabled={regenerate.isPending}>Retry</button>
       </aside>
@@ -146,8 +190,8 @@ export function ScreeningLlmPanel({
   }
   if (data.state === 'stale') {
     return (
-      <aside className="llm-task-panel">
-        <h3>LLM assistance is stale</h3>
+      <aside className="llm-task-panel" aria-label="LLM assistance is stale">
+        <LlmAssistanceHeading qualifier="is stale" />
         <p className="muted">The source changed before this result completed.</p>
         <button type="button" onClick={() => regenerate.mutate()} disabled={regenerate.isPending}>
           Regenerate
@@ -155,17 +199,21 @@ export function ScreeningLlmPanel({
       </aside>
     )
   }
-  const disagrees = Boolean(
-    humanDecision
-    && data.suggestedDecision
-    && data.suggestedDecision !== 'uncertain'
-    && humanDecision !== data.suggestedDecision,
-  )
+  const comparison = stage === 'title_abstract' && humanDecision && data.suggestedDecision
+    ? humanDecision === data.suggestedDecision ? 'match' : 'mismatch'
+    : null
   return (
-    <aside className="llm-task-panel" aria-label="LLM assistance">
-      <div className="llm-task-panel__heading">
-        <h3>✦ LLM assistance</h3>
-        <button type="button" className="secondary" onClick={() => regenerate.mutate()} disabled={regenerate.isPending}>
+    <aside
+      className={`llm-task-panel${comparison ? ` llm-task-panel--${comparison}` : ''}`}
+      aria-label={comparison === 'match'
+        ? 'LLM assistance — matches your decision'
+        : comparison === 'mismatch'
+          ? 'LLM assistance — differs from your decision'
+          : 'LLM assistance'}
+    >
+      <div ref={headingRef} className="llm-task-panel__heading">
+        <LlmAssistanceHeading />
+        <button type="button" className="button-secondary" onClick={() => regenerate.mutate()} disabled={regenerate.isPending}>
           Regenerate
         </button>
       </div>
@@ -175,7 +223,6 @@ export function ScreeningLlmPanel({
         <strong>LLM suggestion:</strong> {data.suggestedDecision ?? 'uncertain'}
         {data.confidence ? ` · ${data.confidence} confidence` : ''}
       </p>
-      {disagrees ? <p className="muted">Your decision and the LLM suggestion differ.</p> : null}
       {data.reasoningSummary ? <p>{data.reasoningSummary}</p> : null}
       {(data.criteria ?? []).map((criterion) => (
         <details key={criterion.criterionId ?? criterion.criterionText} open={stage === 'full_text'}>

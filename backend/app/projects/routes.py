@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Any
+
 from fastapi import APIRouter, Depends, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -7,11 +9,12 @@ from sqlalchemy.orm import Session
 from app.accounts.dependencies import get_current_user, require_csrf
 from app.accounts.models import User, UserSession
 from app.accounts.service import get_user_or_raise
-from app.api.errors import NotFoundError
+from app.api.errors import ConflictError, NotFoundError
 from app.audit.service import record_audit
 from app.db.session import get_db
 from app.imports.schemas import JobResponse
-from app.jobs.models import BackgroundJob
+from app.jobs.models import BackgroundJob, JobStatus
+from app.notifications.service import queue_membership_email
 from app.projects.dependencies import (
     require_project_manager_csrf,
     require_project_member_csrf,
@@ -19,6 +22,7 @@ from app.projects.dependencies import (
 from app.projects.models import (
     Criterion,
     Project,
+    ProjectMembership,
     ResearchQuestion,
     ScreeningConfig,
     ScreeningStage,
@@ -95,19 +99,33 @@ def add_project(
 def _serialize_project_detail(
     db: Session, project: Project, user: User
 ) -> ProjectDetail:
+    from app.llm.schema_service import project_settings
+
+    llm_settings = project_settings(db, project.id)
     return ProjectDetail(
         id=project.id,
         name=project.name,
         description=project.description,
         review_type=project.review_type,
         stage=project.stage,
-        memberships=project.memberships,
+        memberships=[MembershipResponse.model_validate(m) for m in project.memberships],
         research_questions=[
-            item for item in project.research_questions if item.is_active
+            ResearchQuestionResponse.model_validate(item)
+            for item in project.research_questions
+            if item.is_active
         ],
-        criteria=[item for item in project.criteria if item.is_active],
-        screening_configs=project.screening_configs,
+        criteria=[
+            CriterionResponse.model_validate(item)
+            for item in project.criteria
+            if item.is_active
+        ],
+        screening_configs=[
+            ScreeningConfigResponse.model_validate(c) for c in project.screening_configs
+        ],
         can_manage=is_project_manager(db, project.id, user),
+        extraction_validation_enabled=bool(
+            llm_settings and llm_settings.extraction_validation_enabled
+        ),
     )
 
 
@@ -149,7 +167,7 @@ def project_checklist_endpoint(
     project_id: str,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> dict[str, Any]:
     from app.projects.checklist import project_checklist
 
     project = require_project_access(db, project_id, user)
@@ -166,7 +184,7 @@ def add_project_member(
     payload: MembershipCreate,
     _: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
-):
+) -> ProjectMembership:
     project = get_project(db, project_id)
     user = get_user_or_raise(db, payload.user_id)
     membership = add_membership(
@@ -188,6 +206,9 @@ def add_project_member(
         actor_id=_.id,
         summary=f"Added reviewer {user.username} to project",
     )
+    queue_membership_email(
+        db, membership=membership, project=project, user=user, added=True
+    )
     db.commit()
     return membership
 
@@ -202,7 +223,7 @@ def update_project_member(
     payload: MembershipUpdate,
     admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
-):
+) -> ProjectMembership:
     get_project(db, project_id)
     membership = get_membership(db, project_id, member_id)
     membership = update_membership(
@@ -248,9 +269,10 @@ def delete_project_member(
     member_id: str,
     admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
-):
-    get_project(db, project_id)
+) -> None:
+    project = get_project(db, project_id)
     membership = get_membership(db, project_id, member_id)
+    user = get_user_or_raise(db, membership.user_id)
     record_audit(
         db,
         action="membership.removed",
@@ -259,6 +281,9 @@ def delete_project_member(
         project_id=project_id,
         actor_id=admin.id,
         summary="Removed reviewer from project",
+    )
+    queue_membership_email(
+        db, membership=membership, project=project, user=user, added=False
     )
     remove_membership(db, membership)
     from app.extraction.service import (
@@ -286,7 +311,7 @@ def add_research_question(
     payload: OrderedTextCreate,
     admin: User = Depends(require_project_member_csrf),
     db: Session = Depends(get_db),
-):
+) -> ResearchQuestion:
     get_project(db, project_id)
     item = ResearchQuestion(
         project_id=project_id,
@@ -322,7 +347,7 @@ def update_research_question(
     payload: ResearchQuestionUpdate,
     admin: User = Depends(require_project_member_csrf),
     db: Session = Depends(get_db),
-):
+) -> ResearchQuestion:
     item = db.get(ResearchQuestion, item_id)
     if item is None or item.project_id != project_id or not item.is_active:
         raise NotFoundError("Research question not found")
@@ -348,7 +373,7 @@ def delete_research_question(
     item_id: str,
     admin: User = Depends(require_project_member_csrf),
     db: Session = Depends(get_db),
-):
+) -> None:
     item = db.get(ResearchQuestion, item_id)
     if item is None or item.project_id != project_id or not item.is_active:
         raise NotFoundError("Research question not found")
@@ -375,7 +400,7 @@ def add_criterion(
     payload: CriterionCreate,
     admin: User = Depends(require_project_member_csrf),
     db: Session = Depends(get_db),
-):
+) -> Criterion:
     get_project(db, project_id)
     item = Criterion(
         project_id=project_id,
@@ -409,7 +434,7 @@ def update_criterion(
     payload: CriterionUpdate,
     admin: User = Depends(require_project_member_csrf),
     db: Session = Depends(get_db),
-):
+) -> Criterion:
     item = db.get(Criterion, item_id)
     if item is None or item.project_id != project_id or not item.is_active:
         raise NotFoundError("Criterion not found")
@@ -437,7 +462,7 @@ def delete_criterion(
     item_id: str,
     admin: User = Depends(require_project_member_csrf),
     db: Session = Depends(get_db),
-):
+) -> None:
     item = db.get(Criterion, item_id)
     if item is None or item.project_id != project_id or not item.is_active:
         raise NotFoundError("Criterion not found")
@@ -463,7 +488,7 @@ def set_screening_config(
     payload: ScreeningConfigUpdate,
     admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
-):
+) -> ScreeningConfig:
     get_project(db, project_id)
     config = db.scalar(
         select(ScreeningConfig).where(
@@ -495,7 +520,7 @@ def get_highlight_keywords(
     project_id: str,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> HighlightKeywordsResponse:
     project = require_project_access(db, project_id, user)
     return HighlightKeywordsResponse(
         keywords=parse_highlight_keywords(project.highlight_keywords_raw)
@@ -510,7 +535,7 @@ def set_highlight_keywords(
     payload: HighlightKeywordsUpdate,
     admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
-):
+) -> HighlightKeywordsResponse:
     project = get_project(db, project_id)
     keywords = parse_highlight_keywords(serialize_highlight_keywords(payload.keywords))
     project.highlight_keywords_raw = serialize_highlight_keywords(keywords)
@@ -533,7 +558,7 @@ def list_project_jobs(
     project_id: str,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> list[BackgroundJob]:
     require_project_access(db, project_id, user)
     return list(
         db.scalars(
@@ -549,7 +574,7 @@ def project_integrity(
     project_id: str,
     admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
-):
+) -> dict[str, Any]:
     from app.projects.lifecycle import project_integrity_issues
 
     project = get_project(db, project_id)
@@ -562,7 +587,7 @@ def reopen_completed_project(
     payload: ProjectReopen,
     admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
-):
+) -> Project:
     from app.api.errors import DomainError
     from app.projects.lifecycle import reopen_project
 
@@ -581,7 +606,7 @@ def move_project_back_endpoint(
     payload: ProjectReopen,
     admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
-):
+) -> Project:
     from app.api.errors import DomainError
     from app.projects.lifecycle import move_project_back
 
@@ -599,7 +624,7 @@ def reset_project_endpoint(
     project_id: str,
     admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
-):
+) -> Project:
     from app.projects.lifecycle import reset_project
 
     project = get_project(db, project_id)
@@ -613,9 +638,23 @@ def delete_project_endpoint(
     project_id: str,
     admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
-):
+) -> None:
+    from app.projects.file_cleanup import ProjectFileCleanup
     from app.projects.lifecycle import delete_project
 
     project = get_project(db, project_id)
-    delete_project(db, project, admin.id)
+    project_jobs = list(
+        db.scalars(
+            select(BackgroundJob)
+            .where(BackgroundJob.project_id == project_id)
+            .with_for_update()
+        )
+    )
+    if any(job.status == JobStatus.RUNNING for job in project_jobs):
+        raise ConflictError(
+            "Wait for running background jobs to finish before deleting the project"
+        )
+    file_cleanup = ProjectFileCleanup.collect(db, project_id)
+    delete_project(db, project)
     db.commit()
+    file_cleanup.remove()

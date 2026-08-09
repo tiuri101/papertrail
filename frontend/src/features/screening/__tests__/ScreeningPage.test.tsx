@@ -60,6 +60,21 @@ describe('ScreeningPage', () => {
     expect(screen.getByRole('button', { name: 'Submit Decision' })).toBeEnabled()
   })
 
+  it('places the hidden title/abstract LLM suggestion below the Notes field', async () => {
+    renderScreening(async (input) => {
+      const path = String(input)
+      if (path.endsWith('/next')) return jsonResponse(workItem)
+      if (path.endsWith('/llm-title-abstract')) {
+        return jsonResponse({ state: 'hidden', hidden: true })
+      }
+      return jsonResponse({})
+    })
+
+    const notes = await screen.findByLabelText('Notes')
+    const hiddenMessage = await screen.findByText(/Hidden until you submit your own screening decision/)
+    expect(notes.compareDocumentPosition(hiddenMessage) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+  })
+
   it('requires re-answering a criterion after its default is unchecked', async () => {
     renderScreening(async (input) => String(input).endsWith('/next') ? jsonResponse(workItem) : jsonResponse({}))
     await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
@@ -145,6 +160,14 @@ describe('ScreeningPage', () => {
       criteriaAnswers: { 'criterion-1': true, 'criterion-2': false },
       notes: 'Outside the review scope.',
     })
+    expect(screen.getByRole('button', { name: 'Submit Decision' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Decision' }))
+    await waitFor(() => {
+      const nextCalls = fetchMock.mock.calls.filter(
+        ([input]) => String(input).endsWith('/next'),
+      )
+      expect(nextCalls).toHaveLength(2)
+    })
   })
 
   it('restores saved criterion answers from the work-item draft, overriding the default', async () => {
@@ -174,24 +197,90 @@ describe('ScreeningPage', () => {
   })
 
   it('reveals assistance after a decision and continues when the reviewer is ready', async () => {
+    let submitted = false
+    let decisionPosts = 0
     const fetchMock = renderScreening(async (input, init) => {
       const path = String(input)
       if (path.endsWith('/next') && init?.method === 'POST') return jsonResponse(workItem)
-      if (path.endsWith('/decision') && init?.method === 'POST') return jsonResponse({ id: 'decision-1' }, 201)
+      if (path.endsWith('/decision') && init?.method === 'POST') {
+        submitted = true
+        decisionPosts += 1
+        const body = JSON.parse(String(init.body))
+        return jsonResponse({ id: 'decision-1', ...body }, 201)
+      }
+      if (path.endsWith('/llm-title-abstract')) {
+        if (!submitted) return jsonResponse({ state: 'hidden', hidden: true })
+        return jsonResponse({
+          state: 'ready', hidden: false, stale: false,
+          suggestedDecision: 'include', confidence: 'high',
+          reasoningSummary: 'The paper meets the criteria.', criteria: [],
+        })
+      }
       return jsonResponse({})
     })
 
     await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
     fireEvent.click(screen.getByRole('button', { name: 'Submit Decision' }))
 
-    expect(await screen.findByText('Your decision:')).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Continue to next paper' }))
+    expect(await screen.findByText(/LLM suggestion:/)).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Immersive Urban Analytics' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Submit Decision' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Decision' }))
 
     await waitFor(() => {
       const nextCalls = fetchMock.mock.calls.filter(([input, init]) => String(input).endsWith('/next') && init?.method === 'POST')
       expect(nextCalls).toHaveLength(2)
     })
+    expect(decisionPosts).toBe(1)
     expect(await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })).toBeInTheDocument()
+  })
+
+  it('lets the reviewer immediately revise a decision when the LLM disagrees', async () => {
+    let submitted = false
+    let decisionPosts = 0
+    const fetchMock = renderScreening(async (input, init) => {
+      const path = String(input)
+      if (path.endsWith('/next') && init?.method === 'POST') return jsonResponse(workItem)
+      if (path.endsWith('/decision') && init?.method === 'POST') {
+        decisionPosts += 1
+        submitted = true
+        const body = JSON.parse(String(init.body))
+        return jsonResponse({
+          id: `decision-${decisionPosts}`,
+          outcome: body.outcome,
+          criteriaAnswers: body.criteriaAnswers,
+          notes: body.notes,
+          version: decisionPosts,
+        }, 201)
+      }
+      if (path.endsWith('/llm-title-abstract')) {
+        if (!submitted) return jsonResponse({ state: 'hidden', hidden: true })
+        return jsonResponse({
+          state: 'ready', hidden: false, stale: false,
+          suggestedDecision: 'exclude', confidence: 'high',
+          reasoningSummary: 'An inclusion criterion is not met.', criteria: [],
+        })
+      }
+      if (path.endsWith('/progress')) return jsonResponse({ assigned: 1, completed: submitted ? 1 : 0 })
+      return jsonResponse({})
+    })
+
+    await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Decision' }))
+
+    expect(await screen.findByText(/LLM suggestion:/)).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Decision'), { target: { value: 'exclude' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Decision' }))
+
+    await waitFor(() => expect(decisionPosts).toBe(2))
+    const decisionCalls = fetchMock.mock.calls.filter(
+      ([input, init]) => String(input).endsWith('/decision') && init?.method === 'POST',
+    )
+    expect(JSON.parse(String(decisionCalls[1]?.[1]?.body))).toEqual({
+      outcome: 'exclude',
+      criteriaAnswers: { 'criterion-1': true, 'criterion-2': false },
+      notes: null,
+    })
   })
 
   it('shows how many papers are assigned to the reviewer and how many are screened', async () => {

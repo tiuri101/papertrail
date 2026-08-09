@@ -5,6 +5,7 @@ import hashlib
 import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from email.utils import parseaddr
 
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
@@ -12,7 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.accounts.models import User, UserSession
-from app.api.errors import ConflictError, NotFoundError
+from app.api.errors import ConflictError, DomainError, NotFoundError
 from app.core.config import get_settings
 
 password_hasher = PasswordHasher()
@@ -39,19 +40,56 @@ def create_user(
     password: str,
     *,
     is_admin: bool = False,
+    email: str | None = None,
 ) -> User:
     normalized_username = username.strip().lower()
     if db.scalar(select(User).where(User.username == normalized_username)):
         raise ConflictError("A user with this username already exists")
+    normalized_email = normalize_email_address(email)
+    if normalized_email and db.scalar(
+        select(User).where(User.email == normalized_email)
+    ):
+        raise ConflictError("A user with this email address already exists")
     user = User(
         username=normalized_username,
         display_name=display_name.strip(),
         password_hash=password_hasher.hash(password),
         is_admin=is_admin,
+        email=normalized_email,
     )
     db.add(user)
     db.flush()
     return user
+
+
+def normalize_email_address(value: str | None) -> str | None:
+    if value is None or not value.strip():
+        return None
+    candidate = value.strip().lower()
+    parsed_name, parsed_address = parseaddr(candidate)
+    local, separator, domain = parsed_address.rpartition("@")
+    if (
+        parsed_name
+        or parsed_address != candidate
+        or not separator
+        or not local
+        or not domain
+        or any(character.isspace() for character in candidate)
+        or any(character in candidate for character in "\r\n")
+    ):
+        raise DomainError("Enter a valid email address")
+    return candidate
+
+
+def set_user_email(db: Session, user: User, value: str | None) -> None:
+    normalized = normalize_email_address(value)
+    if normalized:
+        existing = db.scalar(
+            select(User).where(User.email == normalized, User.id != user.id)
+        )
+        if existing:
+            raise ConflictError("A user with this email address already exists")
+    user.email = normalized
 
 
 def verify_password(user: User, password: str) -> bool:

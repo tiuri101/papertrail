@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections import Counter
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
@@ -45,6 +46,7 @@ from app.llm.schemas import (
     ManualRunRequest,
     ReanalysisRequest,
     ScreeningAssistanceResponse,
+    ValidationReviewResponse,
 )
 from app.llm.service import (
     latest_current_run,
@@ -52,13 +54,17 @@ from app.llm.service import (
     queue_preparation_if_eligible,
 )
 from app.llm.task_service import (
+    current_validation_run,
     feature_enabled,
     latest_task_run,
+    project_extractions_completed,
+    project_validation_progress,
     queue_extraction_validation,
     queue_full_text_assistance,
     queue_title_abstract_suggestion,
     run_is_stale,
 )
+from app.llm.task_validation import derive_screening_recommendation
 from app.projects.dependencies import (
     require_project_manager,
     require_project_manager_csrf,
@@ -157,6 +163,7 @@ def update_llm_settings(
     for key, value in changes.items():
         setattr(settings, key, value)
     settings.updated_by_user_id = manager.id
+    bulk_id = str(uuid4())
     record_audit(
         db,
         action="llm.settings_updated",
@@ -181,7 +188,11 @@ def update_llm_settings(
         )
         for publication_id in publication_ids:
             queue_title_abstract_suggestion(
-                db, publication_id, created_by_id=manager.id, priority=-10
+                db,
+                publication_id,
+                created_by_id=manager.id,
+                priority=-10,
+                bulk_id=bulk_id,
             )
     if (
         settings.enabled
@@ -200,7 +211,11 @@ def update_llm_settings(
         )
         for publication_id in eligible_ids:
             queue_preparation_if_eligible(
-                db, publication_id, created_by_id=manager.id, priority=-10
+                db,
+                publication_id,
+                created_by_id=manager.id,
+                priority=-10,
+                bulk_id=bulk_id,
             )
     db.commit()
     return {
@@ -369,6 +384,7 @@ def reanalyze_publications(
 ) -> dict[str, Any]:
     if payload.scope not in {"eligible", "full_text_included"}:
         raise DomainError("Unsupported re-analysis scope")
+    bulk_id = str(uuid4())
     stage = (
         ScreeningStage.FULL_TEXT
         if payload.scope == "full_text_included"
@@ -387,7 +403,11 @@ def reanalyze_publications(
     queued = 0
     for publication_id in publication_ids:
         result = queue_preparation_if_eligible(
-            db, publication_id, created_by_id=manager.id, priority=-10
+            db,
+            publication_id,
+            created_by_id=manager.id,
+            priority=-10,
+            bulk_id=bulk_id,
         )
         document = active_document(db, publication_id)
         if document:
@@ -404,6 +424,7 @@ def reanalyze_publications(
                     created_by_id=manager.id,
                     priority=-10,
                     force=True,
+                    bulk_id=bulk_id,
                 )
         if result is not None:
             queued += 1
@@ -415,10 +436,10 @@ def reanalyze_publications(
         project_id=project_id,
         actor_id=manager.id,
         summary="Queued project LLM re-analysis",
-        metadata={"scope": payload.scope, "count": queued},
+        metadata={"scope": payload.scope, "count": queued, "bulkId": bulk_id},
     )
     db.commit()
-    return {"scope": payload.scope, "queued": queued}
+    return {"scope": payload.scope, "queued": queued, "bulkId": bulk_id}
 
 
 def _assistance_payload(
@@ -590,6 +611,13 @@ def _screening_payload(
         return {"state": "unavailable"}
     stale = run_is_stale(db, run)
     raw = run.raw_result or {}
+    recommendation = (
+        derive_screening_recommendation(
+            (item.criterion_kind, item.assessment) for item in run.criterion_suggestions
+        )
+        if run.status == ProcessingStatus.COMPLETED and run.criterion_suggestions
+        else None
+    )
     return {
         "state": (
             "ready"
@@ -602,9 +630,21 @@ def _screening_payload(
         "promptVersion": run.prompt_template_version,
         "stale": stale,
         "error": run.error_message,
-        "suggestedDecision": raw.get("suggested_decision"),
-        "confidence": raw.get("confidence"),
-        "reasoningSummary": raw.get("reasoning_summary"),
+        "suggestedDecision": (
+            recommendation.suggested_decision
+            if recommendation is not None
+            else raw.get("suggested_decision")
+        ),
+        "confidence": (
+            recommendation.confidence
+            if recommendation is not None
+            else raw.get("confidence")
+        ),
+        "reasoningSummary": (
+            recommendation.reasoning_summary
+            if recommendation is not None
+            else raw.get("reasoning_summary")
+        ),
         "criteria": [
             {
                 "criterionId": item.criterion_id,
@@ -809,6 +849,137 @@ def _validation_payload(db: Session, item: ExtractionWorkItem) -> dict[str, Any]
     }
 
 
+def _validation_result_payload(result: Any) -> dict[str, Any]:
+    return {
+        "fieldKey": result.extraction_field_key,
+        "fieldLabel": result.field_label,
+        "value": result.value_snapshot,
+        "assessment": result.assessment,
+        "explanation": result.explanation,
+        "evidence": result.evidence,
+        "evidenceValidationStatus": result.evidence_validation_status,
+    }
+
+
+@router.get(
+    "/projects/{project_id}/llm/extraction-validation-review",
+    response_model=ValidationReviewResponse,
+)
+def extraction_validation_review(
+    project_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    require_project_access(db, project_id, user)
+    manager = is_project_manager(db, project_id, user)
+    if not manager:
+        membership = db.scalar(
+            select(ProjectMembership).where(
+                ProjectMembership.project_id == project_id,
+                ProjectMembership.user_id == user.id,
+                ProjectMembership.can_extract.is_(True),
+            )
+        )
+        if membership is None:
+            raise ForbiddenError(
+                "Extraction validation review requires extraction access"
+            )
+    settings = project_settings(db, project_id)
+    progress = project_validation_progress(db, project_id)
+    query = (
+        select(ExtractionWorkItem)
+        .where(ExtractionWorkItem.project_id == project_id)
+        .order_by(ExtractionWorkItem.random_rank)
+    )
+    if not manager:
+        query = query.where(ExtractionWorkItem.assigned_reviewer_id == user.id)
+    items: list[dict[str, Any]] = []
+    for item in db.scalars(query):
+        response = db.scalar(
+            select(ExtractionResponse)
+            .where(
+                ExtractionResponse.work_item_id == item.id,
+                ExtractionResponse.is_current.is_(True),
+            )
+            .order_by(ExtractionResponse.created_at.desc())
+        )
+        publication = db.get(Publication, item.publication_id)
+        if publication is None:
+            continue
+        run = current_validation_run(db, item)
+        if response is None:
+            state = "waiting_for_extraction"
+        elif run is None:
+            document = active_document(db, item.publication_id)
+            text_extraction = (
+                db.scalar(
+                    select(DocumentTextExtraction).where(
+                        DocumentTextExtraction.document_id == document.id
+                    )
+                )
+                if document is not None
+                else None
+            )
+            state = (
+                "unavailable"
+                if document is None
+                or (
+                    text_extraction is not None
+                    and text_extraction.status
+                    in {ProcessingStatus.FAILED, ProcessingStatus.UNSUPPORTED}
+                )
+                else "awaiting_validation"
+            )
+        else:
+            state = (
+                "ready"
+                if run.status == ProcessingStatus.COMPLETED
+                else (
+                    "queued"
+                    if run.status == ProcessingStatus.PENDING
+                    else str(run.status)
+                )
+            )
+        items.append(
+            {
+                "workItemId": item.id,
+                "publicationId": item.publication_id,
+                "assignedReviewerId": item.assigned_reviewer_id,
+                "responseId": response.id if response else None,
+                "fullTextAvailable": active_document(db, item.publication_id)
+                is not None,
+                "state": state,
+                "runId": run.id if run else None,
+                "model": run.model if run else None,
+                "promptVersion": run.prompt_template_version if run else None,
+                "error": run.error_message if run else None,
+                "publication": {
+                    "id": publication.id,
+                    "title": publication.title,
+                    "authors": publication.authors,
+                    "publicationYear": publication.publication_year,
+                },
+                "results": [
+                    _validation_result_payload(result)
+                    for result in (run.validation_results if run else [])
+                ],
+            }
+        )
+    return {
+        "enabled": bool(settings and settings.extraction_validation_enabled),
+        "progress": {
+            "total": progress.total,
+            "completed": progress.completed,
+            "pending": progress.pending,
+            "failed": progress.failed,
+            "unavailable": progress.unavailable,
+            "outstanding": progress.outstanding,
+            "settled": progress.settled,
+        },
+        "items": items,
+    }
+
+
 @router.get(
     "/projects/{project_id}/extraction/{item_id}/llm-validation",
     response_model=ExtractionValidationResponse,
@@ -841,6 +1012,10 @@ def request_extraction_validation(
     )
     if response is None:
         raise DomainError("Submit the human extraction before validating it")
+    if not project_extractions_completed(db, project_id):
+        raise DomainError(
+            "Extraction validation starts after every paper has been manually extracted"
+        )
     result = queue_extraction_validation(
         db,
         item.publication_id,
@@ -848,7 +1023,6 @@ def request_extraction_validation(
         created_by_id=session.user.id,
         priority=10,
         force=payload.force,
-        allow_disabled_manual=True,
     )
     if result is None:
         raise DomainError("Extraction validation requires usable full text")

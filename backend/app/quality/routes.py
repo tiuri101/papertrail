@@ -1,3 +1,5 @@
+from typing import Any
+
 from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -13,7 +15,12 @@ from app.projects.dependencies import (
 )
 from app.projects.service import get_project, require_project_access
 from app.publications.models import Publication
-from app.quality.models import QualityConfig, QualityWorkItem
+from app.quality.models import (
+    QualityConfig,
+    QualityResponse,
+    QualityStatus,
+    QualityWorkItem,
+)
 from app.quality.schemas import (
     QualityConfigResponse,
     QualityConfigUpdate,
@@ -34,7 +41,7 @@ from app.quality.service import (
 router = APIRouter(tags=["quality assessment"])
 
 
-def quality_item_payload(db: Session, item: QualityWorkItem) -> dict:
+def quality_item_payload(db: Session, item: QualityWorkItem) -> dict[str, Any]:
     form = quality_form(db, item.project_id)
     return {
         "id": item.id,
@@ -53,7 +60,7 @@ def get_quality_config(
     project_id: str,
     _: User = Depends(require_project_manager),
     db: Session = Depends(get_db),
-):
+) -> dict[str, Any]:
     get_project(db, project_id)
     config = db.scalar(
         select(QualityConfig).where(QualityConfig.project_id == project_id)
@@ -73,7 +80,7 @@ def configure_quality(
     payload: QualityConfigUpdate,
     admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
-):
+) -> dict[str, Any]:
     get_project(db, project_id)
     config = db.query(QualityConfig).filter_by(project_id=project_id).one_or_none()
     if config is None:
@@ -107,7 +114,7 @@ def next_quality(
     project_id: str,
     session: UserSession = Depends(require_csrf),
     db: Session = Depends(get_db),
-):
+) -> dict[str, Any] | None:
     require_project_access(db, project_id, session.user)
     reassign_work_items_from_ineligible_reviewers(db, project_id)
     item = claim_next_quality(db, project_id, session.user.id)
@@ -122,7 +129,7 @@ def update_quality_draft(
     payload: QualityDraftUpdate,
     session: UserSession = Depends(require_csrf),
     db: Session = Depends(get_db),
-):
+) -> dict[str, Any]:
     item = db.get(QualityWorkItem, item_id)
     if item is None or item.project_id != project_id:
         raise NotFoundError("Quality work item not found")
@@ -141,7 +148,7 @@ def complete_quality(
     payload: QualitySubmit,
     session: UserSession = Depends(require_csrf),
     db: Session = Depends(get_db),
-):
+) -> QualityResponse:
     item = db.get(QualityWorkItem, item_id)
     if item is None or item.project_id != project_id:
         raise NotFoundError("Quality work item not found")
@@ -170,11 +177,11 @@ def reopen_quality(
     item_id: str,
     admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
-):
+) -> dict[str, Any]:
     item = db.get(QualityWorkItem, item_id)
     if item is None or item.project_id != project_id:
         raise NotFoundError("Quality work item not found")
-    item.status = "available"
+    item.status = QualityStatus.AVAILABLE
     item.completed_at = None
     item.reserved_until = None
     record_audit(

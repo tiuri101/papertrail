@@ -112,11 +112,13 @@ def _consolidate[TaskResult: (ScreeningTaskResult, ExtractionValidationResult)](
     return validator(current[0])
 
 
-def _mark_started(run: LlmExtractionRun) -> None:
+def _commit_started(db: Session, run: LlmExtractionRun) -> None:
+    """Publish the processing state without holding locks during model inference."""
     run.status = ProcessingStatus.PROCESSING
     run.started_at = datetime.now(UTC)
     run.error_type = None
     run.error_message = None
+    db.commit()
 
 
 def _mark_failed(
@@ -218,8 +220,7 @@ def _run_title_abstract(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
         max_evidence=0,
         max_quote=config.llm_max_evidence_quote_chars,
     )
-    _mark_started(run)
-    db.flush()
+    _commit_started(db, run)
     metrics: dict[str, int] = {}
     try:
         result, response = validated_chat(
@@ -227,7 +228,7 @@ def _run_title_abstract(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
             title_abstract_messages(publication, criteria),
             schema,
             lambda payload: validate_screening_result(
-                payload, {item.id for item in criteria}
+                payload, {item.id: item.kind for item in criteria}
             ),
         )
         add_metrics(metrics, response)
@@ -272,13 +273,14 @@ def _run_full_text(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
         instruction_chars=sum(len(item.text) for item in criteria),
         field_count=len(criteria),
     )
-    _mark_started(run)
-    db.flush()
+    _commit_started(db, run)
     client = create_ollama_client()
     metrics: dict[str, int] = {}
 
     def validator(payload: dict[str, Any]) -> ScreeningTaskResult:
-        return validate_screening_result(payload, set(criterion_ids))
+        return validate_screening_result(
+            payload, {item.id: item.kind for item in criteria}
+        )
 
     try:
         candidates = []
@@ -370,8 +372,7 @@ def _run_validation(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
         instruction_chars=len(json.dumps(fields, ensure_ascii=False)),
         field_count=len(fields),
     )
-    _mark_started(run)
-    db.flush()
+    _commit_started(db, run)
     client = create_ollama_client()
     metrics: dict[str, int] = {}
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import contextlib
+from typing import Any
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
@@ -18,10 +19,12 @@ from app.projects.dependencies import (
 from app.projects.models import Criterion, ScreeningStage
 from app.projects.service import get_project, require_project_access
 from app.publications.models import Publication
-from app.screening.models import ScreeningWorkItem, WorkItemStatus
+from app.screening.models import ScreeningDecision, ScreeningWorkItem, WorkItemStatus
 from app.screening.schemas import (
     AssignmentItem,
     AssignmentsPage,
+    BulkReassignRequest,
+    BulkReassignResponse,
     DecisionResponse,
     DecisionSubmit,
     DraftUpdate,
@@ -31,6 +34,7 @@ from app.screening.schemas import (
     WorkItemResponse,
 )
 from app.screening.service import (
+    bulk_reassign_work_items,
     claim_next_work_item,
     create_screening_work_items,
     current_decisions,
@@ -47,7 +51,7 @@ from app.screening.service import (
 router = APIRouter(tags=["screening"])
 
 
-def work_item_payload(db: Session, item: ScreeningWorkItem) -> dict:
+def work_item_payload(db: Session, item: ScreeningWorkItem) -> dict[str, Any]:
     publication = db.get(Publication, item.publication_id)
     criteria = list(
         db.scalars(
@@ -81,7 +85,7 @@ def next_item(
     stage: ScreeningStage,
     session: UserSession = Depends(require_csrf),
     db: Session = Depends(get_db),
-):
+) -> dict[str, Any] | None:
     project = require_project_access(db, project_id, session.user)
     if stage == ScreeningStage.TITLE_ABSTRACT:
         # Publications added after duplicate review completes (a manual add, or a
@@ -102,7 +106,7 @@ def next_item(
             from app.llm.task_service import queue_title_abstract_suggestion
 
             queue_title_abstract_suggestion(
-                db, item.publication_id, created_by_id=session.user.id, priority=0
+                db, item.publication_id, created_by_id=session.user.id, priority=10
             )
         else:
             from app.llm.task_service import queue_full_text_assistance
@@ -121,7 +125,7 @@ def update_draft(
     payload: DraftUpdate,
     session: UserSession = Depends(require_csrf),
     db: Session = Depends(get_db),
-):
+) -> dict[str, str]:
     item = db.get(ScreeningWorkItem, item_id)
     if item is None or item.project_id != project_id:
         raise NotFoundError("Screening work item not found")
@@ -136,7 +140,7 @@ def release_item(
     item_id: str,
     session: UserSession = Depends(require_csrf),
     db: Session = Depends(get_db),
-):
+) -> dict[str, str]:
     item = db.get(ScreeningWorkItem, item_id)
     if item is None or item.project_id != project_id:
         raise NotFoundError("Screening work item not found")
@@ -155,7 +159,7 @@ def decide(
     payload: DecisionSubmit,
     session: UserSession = Depends(require_csrf),
     db: Session = Depends(get_db),
-):
+) -> ScreeningDecision:
     item = db.get(ScreeningWorkItem, item_id)
     if item is None or item.project_id != project_id:
         raise NotFoundError("Screening work item not found")
@@ -210,7 +214,7 @@ def revealed_decisions(
     publication_id: str,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> list[ScreeningDecision]:
     require_project_access(db, project_id, user)
     publication = db.get(Publication, publication_id)
     if publication is None or publication.project_id != project_id:
@@ -227,7 +231,7 @@ def my_decisions(
     stage: ScreeningStage,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> dict[str, Any]:
     project = require_project_access(db, project_id, user)
     items = my_submitted_work_items(db, project_id, stage, user.id)
     criteria = list(
@@ -268,7 +272,7 @@ def my_progress_endpoint(
     stage: ScreeningStage,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-):
+) -> dict[str, int]:
     require_project_access(db, project_id, user)
     return my_progress(db, project_id, stage, user.id)
 
@@ -279,6 +283,28 @@ ASSIGNMENT_SORT_COLUMNS = {
     "assignedReviewerName": User.display_name,
     "slotNumber": ScreeningWorkItem.slot_number,
 }
+
+
+def assignment_filters(
+    project_id: str,
+    stage: ScreeningStage,
+    search: str | None,
+    status: WorkItemStatus | None,
+    reviewer_id: str | None,
+) -> list[Any]:
+    filters: list[Any] = [
+        ScreeningWorkItem.project_id == project_id,
+        ScreeningWorkItem.stage == stage,
+    ]
+    if search:
+        filters.append(Publication.title.ilike(f"%{search}%"))
+    if status is not None:
+        filters.append(ScreeningWorkItem.status == status)
+    if reviewer_id == "unassigned":
+        filters.append(ScreeningWorkItem.assigned_reviewer_id.is_(None))
+    elif reviewer_id is not None:
+        filters.append(ScreeningWorkItem.assigned_reviewer_id == reviewer_id)
+    return filters
 
 
 @router.get(
@@ -297,20 +323,9 @@ def list_assignments(
     page_size: int = Query(default=20, ge=1, le=200, alias="pageSize"),
     _: User = Depends(require_project_manager),
     db: Session = Depends(get_db),
-):
+) -> dict[str, Any]:
     get_project(db, project_id)
-    filters = [
-        ScreeningWorkItem.project_id == project_id,
-        ScreeningWorkItem.stage == stage,
-    ]
-    if search:
-        filters.append(Publication.title.ilike(f"%{search}%"))
-    if status is not None:
-        filters.append(ScreeningWorkItem.status == status)
-    if reviewer_id == "unassigned":
-        filters.append(ScreeningWorkItem.assigned_reviewer_id.is_(None))
-    elif reviewer_id is not None:
-        filters.append(ScreeningWorkItem.assigned_reviewer_id == reviewer_id)
+    filters = assignment_filters(project_id, stage, search, status, reviewer_id)
 
     joined = (
         select(ScreeningWorkItem, Publication.title, User.display_name)
@@ -322,6 +337,16 @@ def list_assignments(
         db.scalar(
             select(func.count()).select_from(
                 joined.with_only_columns(ScreeningWorkItem.id).subquery()
+            )
+        )
+        or 0
+    )
+    reassignable_total = (
+        db.scalar(
+            select(func.count()).select_from(
+                joined.where(ScreeningWorkItem.status != WorkItemStatus.SUBMITTED)
+                .with_only_columns(ScreeningWorkItem.id)
+                .subquery()
             )
         )
         or 0
@@ -350,7 +375,89 @@ def list_assignments(
         }
         for item, title, display_name in rows
     ]
-    return {"items": items, "total": total, "page": page, "page_size": page_size}
+    return {
+        "items": items,
+        "total": total,
+        "reassignable_total": reassignable_total,
+        "page": page,
+        "page_size": page_size,
+    }
+
+
+@router.patch(
+    "/projects/{project_id}/screening/{stage}/assignments/reassign",
+    response_model=BulkReassignResponse,
+)
+def bulk_reassign_assignments(
+    project_id: str,
+    stage: ScreeningStage,
+    payload: BulkReassignRequest,
+    admin: User = Depends(require_project_manager_csrf),
+    db: Session = Depends(get_db),
+) -> dict[str, int]:
+    get_project(db, project_id)
+    if payload.select_all_filtered:
+        try:
+            selected_status = (
+                WorkItemStatus(payload.status) if payload.status is not None else None
+            )
+        except ValueError as exc:
+            raise DomainError("Invalid assignment status filter") from exc
+        filters = assignment_filters(
+            project_id,
+            stage,
+            payload.search,
+            selected_status,
+            payload.filter_reviewer_id,
+        )
+        query = (
+            select(ScreeningWorkItem)
+            .join(Publication, Publication.id == ScreeningWorkItem.publication_id)
+            .where(*filters, ScreeningWorkItem.status != WorkItemStatus.SUBMITTED)
+        )
+        if payload.excluded_work_item_ids:
+            query = query.where(
+                ScreeningWorkItem.id.not_in(payload.excluded_work_item_ids)
+            )
+        items = list(db.scalars(query))
+    else:
+        requested_ids = set(payload.work_item_ids)
+        if not requested_ids:
+            raise DomainError("Select at least one assignment to reassign")
+        items = list(
+            db.scalars(
+                select(ScreeningWorkItem).where(
+                    ScreeningWorkItem.project_id == project_id,
+                    ScreeningWorkItem.stage == stage,
+                    ScreeningWorkItem.id.in_(requested_ids),
+                )
+            )
+        )
+        if len(items) != len(requested_ids):
+            raise NotFoundError("One or more screening assignments were not found")
+
+    reassigned = bulk_reassign_work_items(db, items, payload.reviewer_id)
+    reviewer = db.get(User, payload.reviewer_id)
+    record_audit(
+        db,
+        action="screening_work_item.bulk_reassigned",
+        entity_type="screening_work_item",
+        entity_id=None,
+        project_id=project_id,
+        actor_id=admin.id,
+        summary=(
+            f"Reassigned {reassigned} screening assignments to "
+            f"{reviewer.username if reviewer else payload.reviewer_id}"
+        ),
+        metadata={
+            "stage": stage.value,
+            "newReviewerId": payload.reviewer_id,
+            "count": reassigned,
+            "selectedAllFiltered": payload.select_all_filtered,
+        },
+    )
+    db.commit()
+    return {"reassigned": reassigned}
 
 
 @router.patch(
@@ -363,7 +470,7 @@ def reassign_work_item_endpoint(
     payload: ReassignRequest,
     admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
-):
+) -> dict[str, Any]:
     item = db.get(ScreeningWorkItem, item_id)
     if item is None or item.project_id != project_id:
         raise NotFoundError("Screening work item not found")

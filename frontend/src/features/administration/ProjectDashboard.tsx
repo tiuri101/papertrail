@@ -16,7 +16,7 @@ export function ProjectDashboard({ projectId }: { projectId: string }) {
   if (dashboard.isError || !dashboard.data) return <p>Project status could not be loaded.</p>
 
   return (
-    <section className="card">
+    <section id="section-project-status" className="card">
       <h2>Project Status</h2>
       <table>
         <thead>

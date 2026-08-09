@@ -52,19 +52,60 @@ from app.llm.task_service import (
     queue_title_abstract_suggestion,
     run_is_stale,
 )
+from app.llm.task_validation import derive_screening_recommendation
 from app.llm.text_extraction import extract_document_text_job
 from app.llm.validation import validate_result
 from app.projects.models import (
+    AllocationMode,
     Criterion,
     CriterionKind,
     Project,
     ProjectMembership,
     ReviewType,
+    ScreeningConfig,
     ScreeningStage,
 )
 from app.publications.models import Publication
 from app.screening.models import ScreeningWorkItem
-from app.screening.service import submit_decision
+from app.screening.service import create_screening_work_items, submit_decision
+
+
+@pytest.mark.parametrize(
+    ("criteria", "decision", "confidence"),
+    [
+        (
+            [
+                (CriterionKind.INCLUSION, "not_met"),
+                (CriterionKind.EXCLUSION, "unclear"),
+            ],
+            "exclude",
+            "medium",
+        ),
+        (
+            [
+                (CriterionKind.INCLUSION, "met"),
+                (CriterionKind.EXCLUSION, "not_met"),
+            ],
+            "include",
+            "high",
+        ),
+        (
+            [
+                (CriterionKind.INCLUSION, "met"),
+                (CriterionKind.EXCLUSION, "unclear"),
+            ],
+            "uncertain",
+            "low",
+        ),
+    ],
+)
+def test_screening_recommendation_is_derived_from_criteria(
+    criteria: list[tuple[CriterionKind, str]], decision: str, confidence: str
+) -> None:
+    recommendation = derive_screening_recommendation(criteria)
+
+    assert recommendation.suggested_decision == decision
+    assert recommendation.confidence == confidence
 
 
 def text_pdf(*page_texts: str) -> bytes:
@@ -207,6 +248,30 @@ def test_trigger_waits_for_title_include_and_is_idempotent(db) -> None:
     )
 
 
+def test_bulk_reanalysis_marks_every_queued_job_with_the_same_bulk(client, db) -> None:
+    admin, _, project, publication, _, _, _, _ = setup_llm_project(db)
+    include_title_abstract(db, publication)
+    csrf = client.post(
+        "/api/v1/auth/login",
+        json={"username": admin.username, "password": "secret-password"},
+    ).json()["csrfToken"]
+
+    response = client.post(
+        f"/api/v1/projects/{project.id}/llm/runs/reanalyze",
+        json={"scope": "eligible"},
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    assert response.status_code == 200
+    bulk_id = response.json()["bulkId"]
+    assert response.json()["queued"] == 1
+    text_job = db.scalar(
+        select(BackgroundJob).where(BackgroundJob.job_type == TEXT_JOB)
+    )
+    assert text_job is not None
+    assert text_job.payload["bulk_id"] == bulk_id
+
+
 def test_page_aware_text_extraction_and_repeated_job_are_idempotent(db) -> None:
     _, _, _, publication, document, _, _, _ = setup_llm_project(db)
     include_title_abstract(db, publication)
@@ -267,11 +332,14 @@ def test_image_only_pdf_is_marked_unsupported_without_llm_job(db) -> None:
 
 
 class FakeOllama:
-    def __init__(self, content):
+    def __init__(self, content, *, on_chat=None):
         self.content = content
         self.calls = []
+        self.on_chat = on_chat
 
     def chat(self, *, messages, output_schema):
+        if self.on_chat is not None:
+            self.on_chat()
         self.calls.append((messages, output_schema))
         return OllamaResponse(
             content=self.content,
@@ -322,6 +390,19 @@ def test_ollama_job_uses_structured_output_and_verifies_evidence(
     db, monkeypatch
 ) -> None:
     _, _, _, document, schema, sample, method, run, job = prepared_run(db)
+    commits = 0
+    original_commit = db.commit
+
+    def tracked_commit():
+        nonlocal commits
+        original_commit()
+        commits += 1
+
+    monkeypatch.setattr(db, "commit", tracked_commit)
+
+    def assert_processing_was_committed():
+        assert commits == 1
+
     fake = FakeOllama(
         {
             "fields": {
@@ -341,7 +422,8 @@ def test_ollama_job_uses_structured_output_and_verifies_evidence(
                     "evidence": [],
                 },
             }
-        }
+        },
+        on_chat=assert_processing_was_committed,
     )
     monkeypatch.setattr("app.llm.extraction.create_ollama_client", lambda: fake)
     result = run_llm_extraction_job(db, job)
@@ -478,7 +560,7 @@ def test_transient_ollama_failure_is_retryable_and_does_not_create_suggestions(
         run_llm_extraction_job(db, job)
     db.rollback()
     assert db.scalar(select(func.count()).select_from(LlmFieldSuggestion)) == 0
-    assert db.get(LlmExtractionRun, run.id).status == ProcessingStatus.PENDING
+    assert db.get(LlmExtractionRun, run.id).status == ProcessingStatus.PROCESSING
 
 
 def test_invalid_structured_output_gets_one_repair_then_fails_cleanly(
@@ -838,10 +920,23 @@ def test_title_suggestion_is_generated_independently_and_revealed_only_after_dec
 
     run = queue_title_abstract_suggestion(db, publication.id)
     assert run is not None
+    commits = 0
+    original_commit = db.commit
+
+    def tracked_commit():
+        nonlocal commits
+        original_commit()
+        commits += 1
+
+    monkeypatch.setattr(db, "commit", tracked_commit)
+
+    def assert_processing_was_committed():
+        assert commits == 1
+
     fake = FakeOllama(
         {
-            "suggested_decision": "uncertain",
-            "confidence": "low",
+            "suggested_decision": "exclude",
+            "confidence": "high",
             "criteria": {
                 criterion.id: {
                     "assessment": "unclear",
@@ -850,11 +945,25 @@ def test_title_suggestion_is_generated_independently_and_revealed_only_after_dec
                 }
             },
             "reasoning_summary": "The available metadata is insufficient.",
-        }
+        },
+        on_chat=assert_processing_was_committed,
     )
     monkeypatch.setattr("app.llm.task_execution.create_ollama_client", lambda: fake)
     job = db.get(BackgroundJob, run.background_job_id)
     run_llm_task_job(db, job)
+    db.commit()
+    db.refresh(run)
+    assert run.raw_result["suggested_decision"] == "uncertain"
+    assert run.raw_result["confidence"] == "low"
+
+    # Legacy runs may contain a model-reported overall result that predates
+    # server-side derivation. The response must still use the criteria.
+    run.raw_result = {
+        **run.raw_result,
+        "suggested_decision": "exclude",
+        "confidence": "high",
+        "reasoning_summary": "Legacy contradictory result",
+    }
     db.commit()
 
     csrf = client.post(
@@ -885,6 +994,8 @@ def test_title_suggestion_is_generated_independently_and_revealed_only_after_dec
     revealed = client.get(path, headers={"X-CSRF-Token": csrf})
     assert revealed.status_code == 200
     assert revealed.json()["suggestedDecision"] == "uncertain"
+    assert revealed.json()["confidence"] == "low"
+    assert "criteria are unclear" in revealed.json()["reasoningSummary"]
     assert revealed.json()["criteria"][0]["assessment"] == "unclear"
 
     criterion.text = "Reports an empirical evaluation with participants"
@@ -898,6 +1009,75 @@ def test_title_suggestion_is_generated_independently_and_revealed_only_after_dec
         json={"username": outsider.username, "password": "outsider-password"},
     )
     assert client.get(path).status_code == 403
+
+
+def test_title_suggestion_is_queued_when_screening_work_item_becomes_eligible(
+    db,
+) -> None:
+    _, reviewer, project, publication, _, _, _, _ = setup_llm_project(db)
+    membership = db.scalar(
+        select(ProjectMembership).where(
+            ProjectMembership.project_id == project.id,
+            ProjectMembership.user_id == reviewer.id,
+        )
+    )
+    membership.can_title_abstract_screen = True
+    settings = project_settings(db, project.id)
+    assert settings is not None
+    settings.title_abstract_screening_enabled = True
+    db.add(
+        ScreeningConfig(
+            project_id=project.id,
+            stage=ScreeningStage.TITLE_ABSTRACT,
+            required_reviewers=1,
+            allocation_mode=AllocationMode.DIVIDED,
+        )
+    )
+    db.flush()
+
+    assert create_screening_work_items(db, project, ScreeningStage.TITLE_ABSTRACT) == 1
+    run = db.scalar(
+        select(LlmExtractionRun).where(
+            LlmExtractionRun.publication_id == publication.id,
+            LlmExtractionRun.task_type == LlmTaskType.TITLE_ABSTRACT_SCREENING,
+        )
+    )
+    assert run is not None
+    job = db.get(BackgroundJob, run.background_job_id)
+    assert job is not None
+    assert job.status == JobStatus.QUEUED
+    assert job.priority == 0
+
+    # Re-running work-item creation is idempotent for both assignments and LLM work.
+    assert create_screening_work_items(db, project, ScreeningStage.TITLE_ABSTRACT) == 0
+    assert (
+        db.scalar(
+            select(func.count())
+            .select_from(LlmExtractionRun)
+            .where(
+                LlmExtractionRun.publication_id == publication.id,
+                LlmExtractionRun.task_type == LlmTaskType.TITLE_ABSTRACT_SCREENING,
+            )
+        )
+        == 1
+    )
+
+
+def test_opening_title_screening_promotes_a_precomputed_queued_job(db) -> None:
+    _, _, project, publication, _, _, _, _ = setup_llm_project(db)
+    settings = project_settings(db, project.id)
+    assert settings is not None
+    settings.title_abstract_screening_enabled = True
+
+    run = queue_title_abstract_suggestion(db, publication.id, priority=-10)
+    assert run is not None
+    job = db.get(BackgroundJob, run.background_job_id)
+    assert job is not None
+    assert job.priority == -10
+
+    same_run = queue_title_abstract_suggestion(db, publication.id, priority=10)
+    assert same_run is run
+    assert job.priority == 10
 
 
 def test_full_text_assistance_verifies_page_evidence(db, monkeypatch) -> None:
@@ -1030,3 +1210,144 @@ def test_validation_uses_human_values_and_never_changes_extraction(
     db.commit()
     assert run_is_stale(db, run) is True
     assert response.answers == human_answers
+
+
+def test_validation_cohort_waits_until_every_human_extraction_is_complete(db) -> None:
+    _, reviewer, project, publication, _, _, sample, method = setup_llm_project(db)
+    settings = project_settings(db, project.id)
+    assert settings is not None
+    settings.extraction_validation_enabled = True
+    include_title_abstract(db, publication)
+    text_job = db.scalar(
+        select(BackgroundJob).where(BackgroundJob.job_type == TEXT_JOB)
+    )
+    assert text_job is not None
+    extract_document_text_job(db, text_job)
+
+    second_publication = Publication(project_id=project.id, title="Second paper")
+    db.add(second_publication)
+    db.flush()
+    first_item = ExtractionWorkItem(
+        project_id=project.id,
+        publication_id=publication.id,
+        assigned_reviewer_id=reviewer.id,
+        random_rank="validation-1",
+    )
+    second_item = ExtractionWorkItem(
+        project_id=project.id,
+        publication_id=second_publication.id,
+        assigned_reviewer_id=reviewer.id,
+        random_rank="validation-2",
+    )
+    db.add_all([first_item, second_item])
+    db.flush()
+
+    answers = {sample.stable_key: 22, method.stable_key: "experiment"}
+    submit_extraction(db, first_item, reviewer.id, answers)
+    assert (
+        db.scalar(
+            select(func.count())
+            .select_from(LlmExtractionRun)
+            .where(LlmExtractionRun.task_type == LlmTaskType.EXTRACTION_VALIDATION)
+        )
+        == 0
+    )
+
+    submit_extraction(db, second_item, reviewer.id, answers)
+    validation_runs = list(
+        db.scalars(
+            select(LlmExtractionRun).where(
+                LlmExtractionRun.task_type == LlmTaskType.EXTRACTION_VALIDATION
+            )
+        )
+    )
+    assert len(validation_runs) == 1
+    assert validation_runs[0].publication_id == publication.id
+
+
+def test_validation_review_lists_assigned_mismatches_and_supports_revision(
+    client, db
+) -> None:
+    _, reviewer, project, publication, document, _, sample, method = setup_llm_project(
+        db
+    )
+    settings = project_settings(db, project.id)
+    assert settings is not None
+    settings.extraction_validation_enabled = True
+    item = ExtractionWorkItem(
+        project_id=project.id,
+        publication_id=publication.id,
+        assigned_reviewer_id=reviewer.id,
+        random_rank="validation-review",
+    )
+    db.add(item)
+    db.flush()
+    response = submit_extraction(
+        db,
+        item,
+        reviewer.id,
+        {sample.stable_key: 22, method.stable_key: "experiment"},
+    )
+    run = LlmExtractionRun(
+        project_id=project.id,
+        publication_id=publication.id,
+        task_type=LlmTaskType.EXTRACTION_VALIDATION,
+        input_fingerprint="review-fingerprint",
+        document_id=document.id,
+        extraction_response_id=response.id,
+        provider="ollama",
+        model="test-model:latest",
+        model_configuration={"temperature": 0},
+        prompt_template_version="extraction_validation_v1",
+        status=ProcessingStatus.COMPLETED,
+        queued_at=datetime.now(UTC),
+        completed_at=datetime.now(UTC),
+    )
+    db.add(run)
+    db.flush()
+    db.add(
+        LlmValidationResult(
+            run_id=run.id,
+            extraction_field_key=sample.stable_key,
+            field_label="Sample size",
+            value_snapshot=22,
+            assessment="contradicted",
+            explanation="The paper reports 24 participants.",
+            evidence=[],
+            evidence_validation_status=EvidenceStatus.UNVERIFIED,
+        )
+    )
+    outsider = create_user(db, "llm-outsider", "Outsider", "outsider-password")
+    db.commit()
+
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"username": reviewer.username, "password": "reviewer-password"},
+    )
+    assert login.status_code == 200
+    review = client.get(
+        f"/api/v1/projects/{project.id}/llm/extraction-validation-review"
+    )
+    assert review.status_code == 200
+    body = review.json()
+    assert body["enabled"] is True
+    assert body["items"][0]["workItemId"] == item.id
+    assert body["items"][0]["results"][0]["assessment"] == "contradicted"
+
+    revision = client.get(f"/api/v1/projects/{project.id}/extraction/{item.id}")
+    assert revision.status_code == 200
+    assert revision.json()["draft"][sample.stable_key] == 22
+    assert revision.json()["currentResponse"]["id"] == response.id
+
+    client.post(
+        "/api/v1/auth/logout", headers={"X-CSRF-Token": login.json()["csrfToken"]}
+    )
+    outsider_login = client.post(
+        "/api/v1/auth/login",
+        json={"username": outsider.username, "password": "outsider-password"},
+    )
+    assert outsider_login.status_code == 200
+    forbidden = client.get(
+        f"/api/v1/projects/{project.id}/llm/extraction-validation-review"
+    )
+    assert forbidden.status_code == 403

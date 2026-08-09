@@ -76,7 +76,7 @@ export function ProjectChecklistPanel({ projectId, canManage }: { projectId: str
     : null
 
   return (
-    <section className="card">
+    <section id="section-project-checklist" className="card">
       <h2>What&apos;s Next: {currentStage.label}</h2>
       {markReady.error ? <p className="error" role="alert">{markReady.error.message}</p> : null}
       {currentStage.items.length ? (

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import enum
 from datetime import date, datetime
+from typing import Any
 
 from sqlalchemy import (
     BigInteger,
@@ -79,7 +80,7 @@ class ImportBatch(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     error_message: Mapped[str | None] = mapped_column(Text)
     created_by_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
-    mapping: Mapped[dict | None] = mapped_column(JSONType)
+    mapping: Mapped[dict[str, Any] | None] = mapped_column(JSONType)
 
     search_source: Mapped[SearchSource | None] = relationship(
         back_populates="import_batches"
@@ -100,12 +101,12 @@ class ImportedRecord(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     source_row: Mapped[int | None] = mapped_column(Integer)
     source_key: Mapped[str | None] = mapped_column(String(300))
-    raw_data: Mapped[dict] = mapped_column(JSONType, nullable=False)
-    parsed_data: Mapped[dict] = mapped_column(JSONType, nullable=False)
+    raw_data: Mapped[dict[str, Any]] = mapped_column(JSONType, nullable=False)
+    parsed_data: Mapped[dict[str, Any]] = mapped_column(JSONType, nullable=False)
     validation_state: Mapped[str] = mapped_column(
         String(30), default="valid", nullable=False
     )
-    warnings: Mapped[list] = mapped_column(JSONType, default=list, nullable=False)
+    warnings: Mapped[list[str]] = mapped_column(JSONType, default=list, nullable=False)
 
     import_batch: Mapped[ImportBatch] = relationship(back_populates="records")
 

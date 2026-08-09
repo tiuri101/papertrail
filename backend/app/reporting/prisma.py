@@ -104,7 +104,7 @@ def calculate_prisma_counts(
     }
 
 
-def build_prisma_svg(project_name: str, counts: dict) -> str:  # noqa: C901
+def build_prisma_svg(project_name: str, counts: dict[str, int]) -> str:  # noqa: C901
     """Render a classic PRISMA 2020 flow diagram: one centered column carrying
     records through identification -> screening -> eligibility -> included,
     with each stage's exclusions (duplicates, records excluded, reports not

@@ -1,6 +1,6 @@
 # Architecture
 
-Papertrail is an API-first modular monolith. A React/TypeScript single-page application communicates with a FastAPI backend. PostgreSQL is the authoritative store for bibliographic records, PDF metadata and version links, workflow state, sessions, audit events, queue reservations, background jobs, LLM schemas, page text, immutable LLM runs, suggestions, and reviewer provenance. PDF binaries are held in a dedicated persistent filesystem volume. An optional dedicated worker communicates over HTTP with an independently operated Ollama server; clients never communicate with Ollama.
+Papertrail is an API-first modular monolith. A React/TypeScript single-page application communicates with a FastAPI backend. PostgreSQL is the authoritative store for bibliographic records, PDF metadata and version links, workflow state, sessions, audit events, queue reservations, background jobs, durable email notifications, LLM schemas, page text, immutable LLM runs, suggestions, and reviewer provenance. PDF binaries are held in a dedicated persistent filesystem volume. An optional dedicated worker communicates over HTTP with an independently operated Ollama server.
 
 ```text
 Browser (React/TypeScript)
@@ -24,6 +24,8 @@ The backend is divided by domain: accounts, projects, imports, publications, ded
 
 A dedicated worker process polls a durable PostgreSQL job table and dispatches claimed jobs through `ThreadPoolExecutor`. Claims use leases and short row-locking transactions. Threads create independent SQLAlchemy sessions. Imports, enrichment, duplicate detection, and export generation are idempotent or safely retryable.
 
+Optional SMTP delivery uses the same queue. Domain actions create a deduplicated `email_notifications` record and enqueue a lightweight `send_email` job in the same transaction. The recipient address is snapshotted for deterministic delivery, while SMTP credentials remain backend-only.
+
 ## Reviewer queues
 
 Screening, extraction, and quality work items use deterministic ranks derived from the global seed, project, publication, and stage. A short transaction atomically claims an item; the one-day user reservation is stored as data rather than as a long-running database lock.
@@ -36,4 +38,4 @@ LLM assistance keeps HTTP transport, page-aware PDF extraction, schema/version m
 
 ## Deployment
 
-Docker Compose runs PostgreSQL, a one-shot migration container, FastAPI, the threaded worker, the built React frontend, and Caddy. Original imports and generated exports share a persistent application-file volume; PDFs use a separate `papertrail_pdf_data` volume mounted only by FastAPI and the worker. PDF content is never exposed as static storage. Caddy can provide local HTTP or automatic HTTPS for a configured hostname.
+Docker Compose runs PostgreSQL, a one-shot migration container, FastAPI, the threaded worker, the built React frontend, and Caddy. Original imports and generated exports share a persistent application-file volume; PDFs use a separate `papertrail_pdf_data` volume mounted only by FastAPI and the worker. PDF content is never exposed as static storage.

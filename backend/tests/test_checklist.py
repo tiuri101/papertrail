@@ -1,9 +1,11 @@
 from app.accounts.service import create_user
 from app.deduplication.models import DuplicateCandidate
+from app.extraction.models import ExtractionWorkItem
 from app.forms.models import FormKind
 from app.forms.service import create_form
 from app.fulltext.models import FullTextRetrieval, RetrievalStatus
 from app.jobs.models import BackgroundJob, JobStatus
+from app.llm.models import ProjectLlmSettings
 from app.projects.checklist import project_checklist
 from app.projects.models import (
     Criterion,
@@ -216,3 +218,59 @@ def test_checklist_endpoint_is_reachable_over_http(client, db) -> None:
     draft = body["stages"][0]
     assert draft["action"] == "ready"
     assert draft["items"][0]["key"] == "research_questions"
+
+
+def test_extraction_checklist_only_shows_llm_validation_when_enabled(db) -> None:
+    admin = create_user(
+        db, "validation-admin", "Administrator", "secret-password", is_admin=True
+    )
+    project = Project(
+        name="Validation Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.EXTRACTION,
+    )
+    db.add(project)
+    db.flush()
+    publication = Publication(project_id=project.id, title="A Study")
+    db.add(publication)
+    db.flush()
+    db.add(
+        ExtractionWorkItem(
+            project_id=project.id,
+            publication_id=publication.id,
+            assigned_reviewer_id=admin.id,
+            random_rank="rank",
+        )
+    )
+    db.commit()
+
+    extraction_stage = next(
+        stage
+        for stage in project_checklist(db, project)["stages"]
+        if stage["stage"] == ProjectStage.EXTRACTION
+    )
+    assert "llm_extraction_validation" not in {
+        item["key"] for item in extraction_stage["items"]
+    }
+
+    db.add(
+        ProjectLlmSettings(
+            project_id=project.id,
+            enabled=False,
+            extraction_validation_enabled=True,
+        )
+    )
+    db.commit()
+    extraction_stage = next(
+        stage
+        for stage in project_checklist(db, project)["stages"]
+        if stage["stage"] == ProjectStage.EXTRACTION
+    )
+    validation = next(
+        item
+        for item in extraction_stage["items"]
+        if item["key"] == "llm_extraction_validation"
+    )
+    assert validation["done"] is False
+    assert validation["detail"] == "0 of 1 validated"

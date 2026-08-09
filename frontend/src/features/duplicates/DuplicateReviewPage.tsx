@@ -105,25 +105,29 @@ export function DuplicateReviewPage() {
               <div>
                 <PublicationSummary publication={candidate.publicationA} />
                 {candidate.status === 'unresolved' ? (
-                  <button
-                    type="button"
-                    onClick={() => merge.mutate({ id: candidate.id, canonical: candidate.publicationA.id })}
-                    disabled={pending}
-                  >
-                    Keep This One
-                  </button>
+                  <div className="toolbar">
+                    <button
+                      type="button"
+                      onClick={() => merge.mutate({ id: candidate.id, canonical: candidate.publicationA.id })}
+                      disabled={pending}
+                    >
+                      Keep This One
+                    </button>
+                  </div>
                 ) : null}
               </div>
               <div>
                 <PublicationSummary publication={candidate.publicationB} />
                 {candidate.status === 'unresolved' ? (
-                  <button
-                    type="button"
-                    onClick={() => merge.mutate({ id: candidate.id, canonical: candidate.publicationB.id })}
-                    disabled={pending}
-                  >
-                    Keep This One
-                  </button>
+                  <div className="toolbar">
+                    <button
+                      type="button"
+                      onClick={() => merge.mutate({ id: candidate.id, canonical: candidate.publicationB.id })}
+                      disabled={pending}
+                    >
+                      Keep This One
+                    </button>
+                  </div>
                 ) : null}
               </div>
             </div>
@@ -131,6 +135,7 @@ export function DuplicateReviewPage() {
               <div className="toolbar">
                 <button
                   type="button"
+                  className="button-secondary"
                   onClick={() => notDuplicate.mutate(candidate.id)}
                   disabled={pending}
                 >

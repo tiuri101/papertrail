@@ -1,3 +1,5 @@
+from typing import Any
+
 from sqlalchemy.orm import Session
 
 from app.integrations.metadata import CrossrefClient, SemanticScholarClient
@@ -6,7 +8,7 @@ from app.publications.models import Publication
 from app.publications.service import apply_enrichment
 
 
-def enrich_publication_job(db: Session, job: BackgroundJob) -> dict:
+def enrich_publication_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
     publication = db.get(Publication, job.payload["publication_id"])
     if publication is None:
         raise ValueError("Publication not found")

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { CollapsibleSection } from '../../components/CollapsibleSection'
 
 function toLines(keywords: string[]): string {
   return keywords.join('\n')
@@ -40,8 +41,7 @@ export function HighlightKeywordsPanel({ projectId }: { projectId: string }) {
   })
 
   return (
-    <section className="card">
-      <h2>Highlighted Keywords</h2>
+    <CollapsibleSection id="section-highlighted-keywords" title="Highlighted Keywords">
       <p className="muted">Keywords entered here are highlighted wherever reviewers see publication titles and abstracts, one keyword per line.</p>
       {keywords.error ? <p className="error" role="alert">{keywords.error.message}</p> : null}
       <form onSubmit={(event) => { event.preventDefault(); save.mutate() }}>
@@ -57,6 +57,6 @@ export function HighlightKeywordsPanel({ projectId }: { projectId: string }) {
         {save.isSuccess ? <p>Keywords saved.</p> : null}
         <button type="submit" disabled={save.isPending}>Save Keywords</button>
       </form>
-    </section>
+    </CollapsibleSection>
   )
 }

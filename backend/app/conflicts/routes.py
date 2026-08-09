@@ -1,9 +1,12 @@
+from typing import Any
+
 from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.accounts.models import User
 from app.api.errors import NotFoundError
 from app.audit.service import record_audit
+from app.conflicts.models import FinalDecision
 from app.conflicts.schemas import (
     ConflictItem,
     FinalDecisionCreate,
@@ -34,7 +37,7 @@ def list_conflicts(
     stage: ScreeningStage,
     _: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
-):
+) -> list[dict[str, Any]]:
     items = []
     for publication_id in conflicted_publication_ids(db, project_id, stage):
         publication = db.get(Publication, publication_id)
@@ -60,7 +63,7 @@ def resolve_conflict(
     payload: FinalDecisionCreate,
     admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
-):
+) -> FinalDecision:
     publication = db.get(Publication, publication_id)
     if publication is None or publication.project_id != project_id:
         raise NotFoundError("Publication not found")
@@ -101,7 +104,7 @@ def create_additional_review(
     publication_id: str,
     admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
-):
+) -> dict[str, Any]:
     publication = db.get(Publication, publication_id)
     if publication is None or publication.project_id != project_id:
         raise NotFoundError("Publication not found")

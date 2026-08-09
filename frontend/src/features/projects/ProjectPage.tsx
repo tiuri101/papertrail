@@ -1,17 +1,36 @@
 import { useQuery } from '@tanstack/react-query'
+import type { CSSProperties } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { SectionNavigationLayout } from '../../components/SectionNavigationLayout'
 import { ProjectDashboard } from '../administration/ProjectDashboard'
 import { ProjectChecklistPanel } from './ProjectChecklistPanel'
-import { StageProgress } from './StageProgress'
+import { STAGES, StageProgress } from './StageProgress'
 
 interface ProjectDetail {
   id: string
   name: string
   stage: string
   canManage: boolean
+  extractionValidationEnabled: boolean
 }
+
+interface WorkflowIntegrityIssue {
+  code: string
+  entityId?: string
+  message: string
+}
+
+interface WorkflowIntegrityResponse {
+  issues: WorkflowIntegrityIssue[]
+}
+
+const projectMainSections = [
+  { id: 'section-project-checklist', label: 'Checklist' },
+  { id: 'section-project-actions', label: 'Actions' },
+  { id: 'section-project-status', label: 'Project Status' },
+]
 
 const STAGE_INDEX: Record<string, number> = {
   draft: 0,
@@ -26,6 +45,7 @@ interface ProjectSectionLink {
   path: string
   label: string
   managerOnly?: boolean
+  validationOnly?: boolean
 }
 
 interface ProjectSectionGroup {
@@ -40,6 +60,7 @@ const projectSectionGroups: ProjectSectionGroup[] = [
     stage: null,
     links: [
       { path: 'admin', label: 'Administration', managerOnly: true },
+      { path: 'setup', label: 'Setup Wizard', managerOnly: true },
       { path: 'research-agenda', label: 'Research Agenda' },
       { path: 'forms', label: 'Forms and Templates', managerOnly: true },
       { path: 'jobs', label: 'Jobs' },
@@ -82,6 +103,11 @@ const projectSectionGroups: ProjectSectionGroup[] = [
     stage: 'extraction_quality',
     links: [
       { path: 'extraction', label: 'Data Extraction' },
+      {
+        path: 'extraction/validation',
+        label: 'Review LLM Extraction Validation',
+        validationOnly: true,
+      },
       { path: 'quality', label: 'Quality Assessment' },
     ],
   },
@@ -97,6 +123,15 @@ const projectSectionGroups: ProjectSectionGroup[] = [
   },
 ]
 
+const stageColors: Record<string, string> = Object.fromEntries(
+  STAGES.map((step) => [step.value, step.color]),
+)
+
+function groupColorStyle(stage: string | null): CSSProperties {
+  const color = stage ? stageColors[stage] : undefined
+  return color ? ({ '--group-color': color } as CSSProperties) : {}
+}
+
 export function ProjectPage() {
   const { projectId = '' } = useParams()
   const project = useQuery({
@@ -104,27 +139,54 @@ export function ProjectPage() {
     queryFn: () => apiRequest<ProjectDetail>(`/api/v1/projects/${projectId}`),
     enabled: Boolean(projectId),
   })
+  const integrity = useQuery({
+    queryKey: ['project-integrity', projectId],
+    queryFn: () => apiRequest<WorkflowIntegrityResponse>(
+      `/api/v1/projects/${projectId}/integrity`,
+    ),
+    enabled: Boolean(projectId && project.data?.canManage),
+  })
   if (project.isLoading) return <main className="page"><p>Loading…</p></main>
   if (!project.data) return <main className="page"><p className="error" role="alert">Project could not be loaded.</p></main>
 
   const currentIndex = STAGE_INDEX[project.data.stage] ?? 0
 
   return (
-    <main className="page">
-      <h1>{project.data.name}</h1>
-      <StageProgress stage={project.data.stage} />
-      <ProjectChecklistPanel projectId={projectId} canManage={project.data.canManage} />
-      <section className="card">
+    <SectionNavigationLayout items={projectMainSections}>
+      <main className="page">
+        <h1>{project.data.name}</h1>
+        {integrity.data?.issues.length ? (
+          <section className="error alert" role="alert" aria-labelledby="workflow-integrity-heading">
+            <h2 id="workflow-integrity-heading">Workflow integrity issue</h2>
+            <ul>
+              {integrity.data.issues.map((issue) => (
+                <li key={`${issue.code}-${issue.entityId ?? issue.message}`}>
+                  {issue.message}
+                </li>
+              ))}
+            </ul>
+          </section>
+        ) : null}
+        <StageProgress stage={project.data.stage} />
+        <ProjectChecklistPanel projectId={projectId} canManage={project.data.canManage} />
+      <section id="section-project-actions" className="card">
         <h2>Actions</h2>
         <nav className="workflow-nav" aria-label="Project workflow">
           {projectSectionGroups.map((group) => {
             const upcoming = group.stage !== null && STAGE_INDEX[group.stage] > currentIndex
             const visibleLinks = group.links.filter(
-              (link) => !link.managerOnly || project.data.canManage,
+              (link) => (
+                (!link.managerOnly || project.data.canManage)
+                && (!link.validationOnly || project.data.extractionValidationEnabled)
+              ),
             )
             if (visibleLinks.length === 0) return null
             return (
-              <div className={upcoming ? 'nav-group nav-group--upcoming' : 'nav-group'} key={group.heading}>
+              <div
+                className={upcoming ? 'nav-group nav-group--upcoming' : 'nav-group'}
+                key={group.heading}
+                style={groupColorStyle(group.stage)}
+              >
                 <h3>{group.heading}</h3>
                 <div className="toolbar">
                   {visibleLinks.map(({ path, label }) => (
@@ -147,7 +209,8 @@ export function ProjectPage() {
           })}
         </nav>
       </section>
-      <ProjectDashboard projectId={projectId} />
-    </main>
+        <ProjectDashboard projectId={projectId} />
+      </main>
+    </SectionNavigationLayout>
   )
 }

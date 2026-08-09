@@ -36,6 +36,7 @@ describe('UsersPage', () => {
 
     fireEvent.change(screen.getByLabelText('Username'), { target: { value: 'reviewer' } })
     fireEvent.change(screen.getByLabelText('Display name'), { target: { value: 'Review User' } })
+    fireEvent.change(screen.getByRole('textbox', { name: /Email address/ }), { target: { value: 'reviewer@example.org' } })
     fireEvent.change(screen.getByLabelText('Temporary password'), { target: { value: 'temporary-password' } })
     fireEvent.click(screen.getByRole('button', { name: 'Create Reviewer' }))
 
@@ -44,6 +45,7 @@ describe('UsersPage', () => {
     expect(JSON.parse(String(postCall?.[1]?.body))).toEqual({
       username: 'reviewer',
       displayName: 'Review User',
+      email: 'reviewer@example.org',
       password: 'temporary-password',
     })
     expect(screen.queryByLabelText('Username')).not.toBeInTheDocument()

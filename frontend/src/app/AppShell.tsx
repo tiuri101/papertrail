@@ -1,7 +1,9 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useId, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 
 import { apiRequest } from '../api/client'
+import { MOBILE_MENU_SECTION_SLOT_ID, MobileMenuContext } from '../components/mobileMenu'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { setCsrfToken } from '../features/auth/session'
 import type { LoginResponse } from '../features/auth/types'
@@ -10,6 +12,8 @@ export function AppShell() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const session = queryClient.getQueryData<LoginResponse>(['session'])
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
+  const mobileMenuId = useId()
   const logout = useMutation({
     mutationFn: () => apiRequest<void>('/api/v1/auth/logout', { method: 'POST' }),
     onSuccess: () => {
@@ -18,6 +22,15 @@ export function AppShell() {
       navigate('/login')
     },
   })
+
+  useEffect(() => {
+    if (!mobileMenuOpen) return undefined
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMobileMenuOpen(false)
+    }
+    window.addEventListener('keydown', closeOnEscape)
+    return () => window.removeEventListener('keydown', closeOnEscape)
+  }, [mobileMenuOpen])
 
   return (
     <>
@@ -38,11 +51,21 @@ export function AppShell() {
                 Projects
               </NavLink>
               {session?.user.isAdmin ? (
-                <NavLink to="/users" className={({ isActive }) => isActive ? 'nav-link nav-link--active' : 'nav-link'}>
+                <NavLink
+                  to="/users"
+                  className={({ isActive }) =>
+                    isActive ? 'nav-link nav-link--active nav-link--collapsible' : 'nav-link nav-link--collapsible'
+                  }
+                >
                   Users
                 </NavLink>
               ) : null}
-              <NavLink to="/account" className={({ isActive }) => isActive ? 'nav-link nav-link--active' : 'nav-link'}>
+              <NavLink
+                to="/account"
+                className={({ isActive }) =>
+                  isActive ? 'nav-link nav-link--active nav-link--collapsible' : 'nav-link nav-link--collapsible'
+                }
+              >
                 Account
               </NavLink>
             </nav>
@@ -56,11 +79,76 @@ export function AppShell() {
             >
               Sign Out
             </button>
+            <button
+              type="button"
+              className="icon-button mobile-menu-button app-header__menu-button"
+              aria-expanded={mobileMenuOpen}
+              aria-controls={mobileMenuId}
+              aria-label="Main menu"
+              onClick={() => setMobileMenuOpen(true)}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M4 6h16v2H4V6Zm0 5h16v2H4v-2Zm0 5h16v2H4v-2Z" />
+              </svg>
+            </button>
+            <div id="app-header-section-nav-slot" className="app-header__section-nav-slot" />
           </div>
         </div>
       </header>
+      <div
+        className="mobile-drawer-backdrop"
+        hidden={!mobileMenuOpen}
+        onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setMobileMenuOpen(false)
+        }}
+      >
+        <aside
+          id={mobileMenuId}
+          className="mobile-drawer"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Main menu"
+        >
+          <div className="mobile-drawer__header">
+            <h2>Menu</h2>
+            <button
+              type="button"
+              className="icon-button"
+              aria-label="Close main menu"
+              onClick={() => setMobileMenuOpen(false)}
+            >
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="m6.7 5.3 5.3 5.3 5.3-5.3 1.4 1.4-5.3 5.3 5.3 5.3-1.4 1.4-5.3-5.3-5.3 5.3-1.4-1.4 5.3-5.3-5.3-5.3 1.4-1.4Z" />
+              </svg>
+            </button>
+          </div>
+          <nav className="mobile-drawer__nav-links">
+            {session?.user.isAdmin ? (
+              <NavLink to="/users" className="nav-link" onClick={() => setMobileMenuOpen(false)}>
+                Users
+              </NavLink>
+            ) : null}
+            <NavLink to="/account" className="nav-link" onClick={() => setMobileMenuOpen(false)}>
+              Account
+            </NavLink>
+          </nav>
+          <div id={MOBILE_MENU_SECTION_SLOT_ID} className="mobile-drawer__section-slot" />
+          <div className="mobile-drawer__footer">
+            <button
+              type="button"
+              className="button-secondary mobile-drawer__sign-out-button"
+              onClick={() => logout.mutate()}
+              disabled={logout.isPending}
+            >
+              Sign Out
+            </button>
+          </div>
+        </aside>
+      </div>
       {logout.error ? <p className="page error" role="alert">{logout.error.message}</p> : null}
-      <Outlet />
+      <MobileMenuContext.Provider value={{ closeMobileMenu: () => setMobileMenuOpen(false) }}>
+        <Outlet />
+      </MobileMenuContext.Provider>
     </>
   )
 }

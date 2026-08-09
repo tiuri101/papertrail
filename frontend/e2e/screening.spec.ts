@@ -46,6 +46,7 @@ test(
                       : {
                         id: 'work-1',
                         publication: {
+                          id: 'publication-1',
                           title: 'Immersive Urban Analytics',
                           authors: 'A. Author',
                           abstract: 'Urban analytics in virtual reality.',
@@ -80,7 +81,26 @@ test(
             await route.fulfill({
               status: 201,
               contentType: 'application/json',
-              body: JSON.stringify({ id: 'decision-1' }),
+              body: JSON.stringify({
+                id: 'decision-1',
+                ...(submittedDecision as Record<string, unknown>),
+              }),
+            })
+          },
+      )
+
+      await page.route(
+          '**/api/v1/projects/project-1/screening/work-items/work-1/llm-full-text',
+          async (route) => {
+            await route.fulfill({
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify({
+                state: 'text_unavailable',
+                hidden: false,
+                stale: false,
+                error: 'Usable full text is not available yet.',
+              }),
             })
           },
       )
@@ -113,6 +133,18 @@ test(
           .fill('Outside the intended scope.')
 
       await expect(submit).toBeEnabled()
+      await submit.click()
+
+      // The first click stores the independent human decision and keeps the
+      // publication open for the LLM comparison step.
+      await expect.poll(() => decisionSubmitted).toBe(true)
+      await expect(
+          page.getByRole('heading', {
+            name: 'Immersive Urban Analytics',
+          }),
+      ).toBeVisible()
+
+      // Confirming an unchanged decision advances without a second API write.
       await submit.click()
 
       await expect(

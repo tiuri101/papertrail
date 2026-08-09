@@ -2,6 +2,7 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { useEffect, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { CollapsibleSection } from '../../components/CollapsibleSection'
 import type { User } from '../auth/types'
 
 type RoleKey = 'canTitleAbstractScreen' | 'canFullTextScreen'
@@ -31,6 +32,7 @@ interface AssignmentItem {
 interface AssignmentsPage {
   items: AssignmentItem[]
   total: number
+  reassignableTotal: number
   page: number
   pageSize: number
 }
@@ -89,18 +91,31 @@ function ReassignRow({
   item,
   eligibleReviewers,
   onReassign,
+  selected,
+  onToggleSelected,
   pending,
 }: {
   item: AssignmentItem
   eligibleReviewers: Array<{ id: string; displayName: string }>
   onReassign: (reviewerId: string) => void
+  selected: boolean
+  onToggleSelected: () => void
   pending: boolean
 }) {
-  const [selected, setSelected] = useState('')
+  const [selectedReviewer, setSelectedReviewer] = useState('')
   const locked = item.status === 'submitted'
 
   return (
-    <tr>
+    <tr className={selected ? 'assignment-row assignment-row--selected' : 'assignment-row'}>
+      <td>
+        <input
+          type="checkbox"
+          aria-label={`Select ${item.publicationTitle}, slot ${item.slotNumber}`}
+          checked={selected}
+          disabled={locked}
+          onChange={onToggleSelected}
+        />
+      </td>
       <td>{item.publicationTitle}</td>
       <td>{item.slotNumber}</td>
       <td>{STATUS_LABELS[item.status] ?? item.status}</td>
@@ -112,8 +127,8 @@ function ReassignRow({
           <div className="toolbar">
             <select
               aria-label={`Reassign ${item.publicationTitle}`}
-              value={selected}
-              onChange={(event) => setSelected(event.target.value)}
+              value={selectedReviewer}
+              onChange={(event) => setSelectedReviewer(event.target.value)}
             >
               <option value="">Select a reviewer…</option>
               {eligibleReviewers
@@ -124,10 +139,10 @@ function ReassignRow({
             </select>
             <button
               type="button"
-              disabled={!selected || pending}
+              disabled={!selectedReviewer || pending}
               onClick={() => {
-                onReassign(selected)
-                setSelected('')
+                onReassign(selectedReviewer)
+                setSelectedReviewer('')
               }}
             >
               Reassign
@@ -151,9 +166,16 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
   const [sort, setSort] = useState('publicationTitle')
   const [order, setOrder] = useState<'asc' | 'desc'>('asc')
   const [page, setPage] = useState(1)
+  const [selectAllFiltered, setSelectAllFiltered] = useState(false)
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [excludedIds, setExcludedIds] = useState<Set<string>>(new Set())
+  const [bulkReviewerId, setBulkReviewerId] = useState('')
 
   useEffect(() => {
     setPage(1)
+    setSelectAllFiltered(false)
+    setSelectedIds(new Set())
+    setExcludedIds(new Set())
   }, [stage, search, status, reviewerId, sort, order])
 
   const project = useQuery({
@@ -192,6 +214,30 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
     ),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['screening-assignments', projectId, stage] }),
   })
+  const bulkReassign = useMutation({
+    mutationFn: () => apiRequest<{ reassigned: number }>(
+      `/api/v1/projects/${projectId}/screening/${stage}/assignments/reassign`,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({
+          reviewerId: bulkReviewerId,
+          workItemIds: selectAllFiltered ? [] : Array.from(selectedIds),
+          selectAllFiltered,
+          excludedWorkItemIds: selectAllFiltered ? Array.from(excludedIds) : [],
+          search: search || null,
+          status: status || null,
+          filterReviewerId: reviewerId || null,
+        }),
+      },
+    ),
+    onSuccess: () => {
+      setSelectAllFiltered(false)
+      setSelectedIds(new Set())
+      setExcludedIds(new Set())
+      setBulkReviewerId('')
+      return queryClient.invalidateQueries({ queryKey: ['screening-assignments', projectId, stage] })
+    },
+  })
 
   const usersById = new Map((users.data ?? []).map((user) => [user.id, user]))
   const eligibleReviewers = (project.data?.memberships ?? [])
@@ -214,10 +260,37 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
 
   const total = assignments.data?.total ?? 0
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const reassignableTotal = assignments.data?.reassignableTotal
+    ?? assignments.data?.items.filter((item) => item.status !== 'submitted').length
+    ?? 0
+  const selectedCount = selectAllFiltered
+    ? Math.max(0, reassignableTotal - excludedIds.size)
+    : selectedIds.size
+
+  const toggleItem = (itemId: string) => {
+    if (selectAllFiltered) {
+      setExcludedIds((current) => {
+        const next = new Set(current)
+        if (next.has(itemId)) next.delete(itemId)
+        else next.add(itemId)
+        return next
+      })
+      return
+    }
+    setSelectedIds((current) => {
+      const next = new Set(current)
+      if (next.has(itemId)) next.delete(itemId)
+      else next.add(itemId)
+      return next
+    })
+  }
 
   return (
-    <section className="card">
-      <h2>Screening Assignments</h2>
+    <CollapsibleSection
+      id="section-screening-assignments"
+      title="Screening Assignments"
+      defaultExpanded={false}
+    >
       <p className="muted">Move a publication to a different reviewer who has been added to this project.</p>
       <div className="toolbar">
         <label>
@@ -257,7 +330,52 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
           </select>
         </label>
       </div>
-      {reassign.error ? <p className="error" role="alert">{reassign.error.message}</p> : null}
+      {assignments.data && reassignableTotal > 0 ? (
+        <div className="bulk-selection-panel">
+          <label className="bulk-selection-panel__all">
+            <input
+              type="checkbox"
+              checked={selectAllFiltered}
+              onChange={(event) => {
+                setSelectAllFiltered(event.target.checked)
+                setSelectedIds(new Set())
+                setExcludedIds(new Set())
+              }}
+            />
+            Select all {reassignableTotal} filtered assignments
+          </label>
+          <div className="toolbar bulk-selection-panel__controls">
+            <label>
+              Reassign selected to
+              <select
+                value={bulkReviewerId}
+                onChange={(event) => setBulkReviewerId(event.target.value)}
+              >
+                <option value="">Select a reviewer…</option>
+                {eligibleReviewers.map((reviewer) => (
+                  <option key={reviewer.id} value={reviewer.id}>{reviewer.displayName}</option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              disabled={!bulkReviewerId || selectedCount === 0 || bulkReassign.isPending}
+              onClick={() => bulkReassign.mutate()}
+            >
+              {bulkReassign.isPending ? 'Reassigning…' : `Reassign selected (${selectedCount})`}
+            </button>
+          </div>
+          {selectAllFiltered && excludedIds.size > 0 ? (
+            <p className="muted">{excludedIds.size} assignment{excludedIds.size === 1 ? '' : 's'} excluded from this selection.</p>
+          ) : null}
+        </div>
+      ) : null}
+      {bulkReassign.isSuccess ? (
+        <p role="status">Reassigned {bulkReassign.data.reassigned} assignment{bulkReassign.data.reassigned === 1 ? '' : 's'}.</p>
+      ) : null}
+      {reassign.error || bulkReassign.error ? (
+        <p className="error" role="alert">{(reassign.error ?? bulkReassign.error)?.message}</p>
+      ) : null}
       {assignments.error ? <p className="error" role="alert">{assignments.error.message}</p> : null}
       {assignments.isLoading ? <p>Loading…</p> : null}
       {assignments.data && assignments.data.items.length === 0 ? (
@@ -268,6 +386,7 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
           <table>
             <thead>
               <tr>
+                <th scope="col">Select</th>
                 {SORT_COLUMNS.map((column) => (
                   <SortableHeader key={column.key} column={column} sort={sort} order={order} onSort={handleSort} />
                 ))}
@@ -280,7 +399,9 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
                   key={item.id}
                   item={item}
                   eligibleReviewers={eligibleReviewers}
-                  pending={reassign.isPending}
+                  selected={selectAllFiltered ? !excludedIds.has(item.id) && item.status !== 'submitted' : selectedIds.has(item.id)}
+                  onToggleSelected={() => toggleItem(item.id)}
+                  pending={reassign.isPending || bulkReassign.isPending}
                   onReassign={(newReviewerId) => reassign.mutate({ itemId: item.id, reviewerId: newReviewerId })}
                 />
               ))}
@@ -297,6 +418,6 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
           </div>
         </>
       ) : null}
-    </section>
+    </CollapsibleSection>
   )
 }

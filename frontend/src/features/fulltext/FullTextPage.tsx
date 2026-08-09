@@ -1,11 +1,11 @@
 import { useMutation } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
-import { ScreeningItemCard, SubmittedScreeningCard } from '../screening/ScreeningItemCard'
+import { ScreeningItemCard } from '../screening/ScreeningItemCard'
 import { useScreeningQueue } from '../screening/useScreeningQueue'
 import type { Retrieval } from './useRetrievalQueue'
 import { useRetrievalQueue } from './useRetrievalQueue'
@@ -56,6 +56,11 @@ export function FullTextPage() {
   const progress = retrievalQueue.progress
   const isLoading = retrievalQueue.loadingNext || queue.loadingNext || progress === undefined
 
+  const itemId = queue.item?.id
+  useEffect(() => {
+    if (itemId) window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [itemId])
+
   return (
     <main className="page">
       <h1>Full-Text</h1>
@@ -65,9 +70,7 @@ export function FullTextPage() {
       {progress ? (
         <p className="muted">{progress.addressed} of {progress.total} retrieval decisions made</p>
       ) : null}
-      {queue.submitted ? (
-        <SubmittedScreeningCard queue={queue} />
-      ) : queue.item ? (
+      {queue.item ? (
         <>
           <FullTextDocumentPanel
             projectId={projectId}
