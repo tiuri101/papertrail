@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
-import { IconCheckCircle } from '../../components/icons'
+import { IconArrowRight, IconCheckCircle } from '../../components/icons'
 import { Tooltip } from '../../components/Tooltip'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { DynamicForm, type DynamicFormField } from '../forms/DynamicForm'
@@ -54,6 +54,7 @@ export function QualityPage() {
   const [nextError, setNextError] = useState<string | null>(null)
   const [lastScore, setLastScore] = useState<number | null>(null)
   const [completedResponse, setCompletedResponse] = useState<QualityResponse | null>(null)
+  const skippedItemIds = useRef<Set<string>>(new Set())
   const progress = useQuery({
     queryKey: ['quality-progress', projectId],
     queryFn: () => apiRequest<QualityProgress>(`/api/v1/projects/${projectId}/quality/progress`),
@@ -61,15 +62,22 @@ export function QualityPage() {
   })
 
   const next = useMutation({
-    mutationFn: () => (
-      itemId
-        ? apiRequest<WorkItem>(`/api/v1/projects/${projectId}/quality/${itemId}`)
-        : apiRequest<WorkItem | null>(
-          `/api/v1/projects/${projectId}/quality/next`,
-          { method: 'POST' },
-        )
-    ),
+    mutationFn: () => {
+      if (itemId) return apiRequest<WorkItem>(`/api/v1/projects/${projectId}/quality/${itemId}`)
+      const params = new URLSearchParams()
+      skippedItemIds.current.forEach((id) => params.append('excludedItemId', id))
+      const query = params.toString()
+      return apiRequest<WorkItem | null>(
+        `/api/v1/projects/${projectId}/quality/next${query ? `?${query}` : ''}`,
+        { method: 'POST' },
+      )
+    },
     onSuccess: (result) => {
+      if (!itemId && result === null && skippedItemIds.current.size > 0) {
+        skippedItemIds.current.clear()
+        next.mutate()
+        return
+      }
       setItem(result)
       setAnswers(result?.draft ?? {})
       setCompletedResponse(result?.currentResponse ?? null)
@@ -88,6 +96,23 @@ export function QualityPage() {
     setNextError(null)
     next.mutate()
   }
+
+  const skip = useMutation({
+    mutationFn: async () => {
+      if (!item) throw new Error('No assessment is open')
+      await apiRequest(
+        `/api/v1/projects/${projectId}/quality/${item.id}/release`,
+        { method: 'POST' },
+      )
+      return item.id
+    },
+    onSuccess: (skippedId) => {
+      skippedItemIds.current.add(skippedId)
+      setItem(null)
+      setAnswers({})
+      fetchNext()
+    },
+  })
 
   const autoFetchKey = useRef<string | null>(null)
   useEffect(() => {
@@ -140,6 +165,7 @@ export function QualityPage() {
 
   return (
     <main className="page">
+      <p className="eyebrow">Review workspace</p>
       <h1>Quality Assessment</h1>
       {progress.data ? (
         <p className="muted">{progress.data.completed} of {progress.data.assigned} assigned papers assessed</p>
@@ -197,10 +223,24 @@ export function QualityPage() {
               <p className="muted">Answer every required field before submitting.</p>
             ) : null}
             {submit.error ? <p className="error" role="alert">{submit.error.message}</p> : null}
-            <button type="submit" disabled={submit.isPending || missingRequired}>
-              <IconCheckCircle />
-              {completedResponse ? 'Save corrected assessment' : 'Submit Assessment'}
-            </button>
+            {skip.error ? <p className="error" role="alert">{skip.error.message}</p> : null}
+            <div className="toolbar">
+              <button type="submit" disabled={submit.isPending || skip.isPending || missingRequired}>
+                <IconCheckCircle />
+                {completedResponse ? 'Save corrected assessment' : 'Submit Assessment'}
+              </button>
+              {!itemId ? (
+                <button
+                  type="button"
+                  className="button-secondary"
+                  onClick={() => skip.mutate()}
+                  disabled={submit.isPending || skip.isPending}
+                >
+                  <IconArrowRight />
+                  Skip for now
+                </button>
+              ) : null}
+            </div>
           </form>
         </article>
       )}

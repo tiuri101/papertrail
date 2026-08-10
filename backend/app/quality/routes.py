@@ -1,6 +1,6 @@
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -191,14 +191,34 @@ def get_quality_for_review(
 )
 def next_quality(
     project_id: str,
+    excluded_item_ids: list[str] = Query(default=[], alias="excludedItemId"),
     session: UserSession = Depends(require_csrf),
     db: Session = Depends(get_db),
 ) -> dict[str, Any] | None:
     require_project_access(db, project_id, session.user)
     reassign_work_items_from_ineligible_reviewers(db, project_id)
-    item = claim_next_quality(db, project_id, session.user.id)
+    item = claim_next_quality(db, project_id, session.user.id, set(excluded_item_ids))
     db.commit()
     return quality_item_payload(db, item) if item else None
+
+
+@router.post("/projects/{project_id}/quality/{item_id}/release")
+def release_quality(
+    project_id: str,
+    item_id: str,
+    session: UserSession = Depends(require_csrf),
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    item = db.get(QualityWorkItem, item_id)
+    if item is None or item.project_id != project_id:
+        raise NotFoundError("Quality work item not found")
+    if item.assigned_reviewer_id != session.user.id:
+        raise ForbiddenError("Quality assessment is assigned to another reviewer")
+    if item.status != QualityStatus.COMPLETED:
+        item.status = QualityStatus.AVAILABLE
+        item.reserved_until = None
+    db.commit()
+    return {"status": "released"}
 
 
 @router.put("/projects/{project_id}/quality/{item_id}/draft")

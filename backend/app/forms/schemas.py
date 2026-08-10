@@ -48,6 +48,9 @@ class FieldUpdate(ApiModel):
     label: str | None = None
     field_type: str | None = Field(default=None, alias="fieldType")
     required: bool | None = None
+    position: int | None = Field(default=None, ge=0)
+    options: list[Any] | None = None
+    scoring: dict[str, Any] | None = None
     archive: bool = False
 
 
@@ -59,5 +62,6 @@ class FieldReplace(ApiModel):
     field_type: str = Field(alias="fieldType")
     label: str | None = None
     required: bool = False
+    position: int | None = Field(default=None, ge=0)
     options: list[Any] = []
     scoring: dict[str, Any] = {}

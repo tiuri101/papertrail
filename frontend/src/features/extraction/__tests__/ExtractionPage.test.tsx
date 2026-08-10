@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import { ExtractionPage } from '../ExtractionPage'
 import { jsonResponse, mockFetch } from '../../../test/http'
@@ -40,6 +40,32 @@ describe('ExtractionPage', () => {
     )
     expect(screen.getByRole('link', { name: 'Open DOI' })).toHaveAttribute('href', 'https://doi.org/10.1000/example')
     expect(fetchMock.mock.calls.filter(([input, init]) => String(input).endsWith('/next') && init?.method === 'POST')).toHaveLength(1)
+  })
+
+  it('temporarily skips an extraction and requests another item', async () => {
+    const second = {
+      ...workItem,
+      id: 'extraction-2',
+      publicationId: 'publication-2',
+      publication: { ...workItem.publication, title: 'Second extraction' },
+    }
+    const fetchMock = mockFetch(async (input, init) => {
+      const url = String(input)
+      if (url.includes('/extraction/next') && init?.method === 'POST') {
+        return jsonResponse(url.includes('excludedItemId=extraction-1') ? second : workItem)
+      }
+      if (url.endsWith('/extraction/extraction-1/release') && init?.method === 'POST') {
+        return jsonResponse({ status: 'released' })
+      }
+      return jsonResponse({ state: 'disabled' })
+    })
+    renderWithProviders(<ExtractionPage />, { route: '/projects/p1/extraction', path: '/projects/:projectId/extraction' })
+
+    await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
+    fireEvent.click(screen.getByRole('button', { name: 'Skip for now' }))
+
+    expect(await screen.findByRole('heading', { name: 'Second extraction' })).toBeInTheDocument()
+    expect(fetchMock.mock.calls.some(([input]) => String(input).includes('excludedItemId=extraction-1'))).toBe(true)
   })
 
   it('shows how many assigned papers have been extracted', async () => {
@@ -126,25 +152,19 @@ describe('ExtractionPage', () => {
   })
 
   it('autosaves draft answers shortly after editing', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true })
-    try {
-      const fetchMock = mockFetch(async (input) => String(input).endsWith('/next') ? jsonResponse(workItem) : jsonResponse({}))
-      renderWithProviders(<ExtractionPage />, { route: '/projects/p1/extraction', path: '/projects/:projectId/extraction' })
+    const fetchMock = mockFetch(async (input) => String(input).endsWith('/next') ? jsonResponse(workItem) : jsonResponse({}))
+    renderWithProviders(<ExtractionPage />, { route: '/projects/p1/extraction', path: '/projects/:projectId/extraction' })
 
-      await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
-      fireEvent.change(screen.getByLabelText('Main finding *'), { target: { value: 'Draft in progress' } })
+    await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
+    fireEvent.change(screen.getByLabelText('Main finding *'), { target: { value: 'Draft in progress' } })
 
-      expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith('/extraction-1/draft'))).toBe(false)
-      await vi.advanceTimersByTimeAsync(1000)
+    expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith('/extraction-1/draft'))).toBe(false)
 
-      await waitFor(() => {
-        const draftCall = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/extraction-1/draft'))
-        expect(draftCall).toBeTruthy()
-        expect(JSON.parse(String(draftCall?.[1]?.body))).toEqual({ draft: { finding: 'Draft in progress' } })
-      })
-    } finally {
-      vi.useRealTimers()
-    }
+    await waitFor(() => {
+      const draftCall = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/extraction-1/draft'))
+      expect(draftCall).toBeTruthy()
+      expect(JSON.parse(String(draftCall?.[1]?.body))).toEqual({ draft: { finding: 'Draft in progress' } })
+    }, { timeout: 2000 })
   })
 
   it('does not offer PDF viewing when no stored full text is available', async () => {

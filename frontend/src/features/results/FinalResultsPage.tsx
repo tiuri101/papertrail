@@ -230,6 +230,7 @@ export function FinalResultsPage() {
 
   return (
     <main className="page">
+      <p className="eyebrow">Review outputs</p>
       <h1>Final Results</h1>
       <p className="muted">
         Every publication included in the review, with its data extraction

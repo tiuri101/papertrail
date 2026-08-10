@@ -7,6 +7,7 @@ import { IconCheckCircle, IconPlus, IconTrash } from '../../components/icons'
 import { DynamicForm } from './DynamicForm'
 import {
   buildScoring,
+  describeRatingScale,
   fieldTypeLabels,
   fieldTypes,
   parseOptions,
@@ -30,8 +31,10 @@ interface FormField {
   label: string
   fieldType: string
   required: boolean
+  position: number
   isArchived: boolean
   options: string[]
+  scoring: Record<string, unknown>
 }
 
 interface QualityConfig {
@@ -69,6 +72,14 @@ export function FormFieldsPanel({
   const [editingLabel, setEditingLabel] = useState('')
   const [editingType, setEditingType] = useState('long_text')
   const [editingRequired, setEditingRequired] = useState(false)
+  const [editingOptionsText, setEditingOptionsText] = useState('')
+  const [editingRatingMin, setEditingRatingMin] = useState('1')
+  const [editingRatingMax, setEditingRatingMax] = useState('5')
+  const [editingWeight, setEditingWeight] = useState('')
+  const [editingOptionScores, setEditingOptionScores] = useState<Record<string, string>>({})
+  const [editingTrueScore, setEditingTrueScore] = useState('')
+  const [editingFalseScore, setEditingFalseScore] = useState('')
+  const [fieldOrder, setFieldOrder] = useState<string[]>([])
   const [previewAnswers, setPreviewAnswers] = useState<Record<string, unknown>>({})
 
   const [qcEnabled, setQcEnabled] = useState(false)
@@ -91,6 +102,9 @@ export function FormFieldsPanel({
     queryFn: () => apiRequest<FormField[]>(`/api/v1/forms/${existingForm?.id}/fields`),
     enabled: Boolean(existingForm),
   })
+  useEffect(() => {
+    setFieldOrder(fields.data?.map((field) => field.stableKey) ?? [])
+  }, [fields.data])
   const qualityConfig = useQuery({
     queryKey: ['quality-config', projectId],
     queryFn: () => apiRequest<QualityConfig>(`/api/v1/projects/${projectId}/quality-config`),
@@ -146,11 +160,26 @@ export function FormFieldsPanel({
     },
   })
   const updateField = useMutation({
-    mutationFn: (variables: { stableKey: string; label: string; fieldType: string; required: boolean }) => apiRequest<FormField>(
+    mutationFn: (variables: {
+      stableKey: string
+      label: string
+      fieldType: string
+      required: boolean
+      position: number
+      options: string[]
+      scoring: Record<string, unknown>
+    }) => apiRequest<FormField>(
       `/api/v1/forms/${existingForm?.id}/fields/${variables.stableKey}`,
       {
         method: 'PATCH',
-        body: JSON.stringify({ label: variables.label, fieldType: variables.fieldType, required: variables.required }),
+        body: JSON.stringify({
+          label: variables.label,
+          fieldType: variables.fieldType,
+          required: variables.required,
+          position: variables.position,
+          options: variables.options,
+          scoring: variables.scoring,
+        }),
       },
     ),
     onSuccess: () => {
@@ -179,8 +208,47 @@ export function FormFieldsPanel({
     if (qualityConfigSeeded.current) saveQualityConfig.mutate(next)
   }
 
+  const beginEditingField = (field: FormField) => {
+    const scoring = field.scoring ?? {}
+    const scoreValues = typeof scoring.values === 'object' && scoring.values !== null
+      ? scoring.values as Record<string, unknown>
+      : {}
+    setEditingKey(field.stableKey)
+    setEditingLabel(field.label)
+    setEditingType(field.fieldType)
+    setEditingRequired(field.required)
+    setEditingOptionsText(field.options.join('\n'))
+    setEditingRatingMin(field.options[0] ?? '1')
+    setEditingRatingMax(field.options[1] ?? '5')
+    setEditingWeight(scoring.weight == null ? '' : String(scoring.weight))
+    setEditingOptionScores(Object.fromEntries(
+      Object.entries(scoreValues).map(([option, score]) => [option, String(score)]),
+    ))
+    setEditingTrueScore(scoring.true == null ? '' : String(scoring.true))
+    setEditingFalseScore(scoring.false == null ? '' : String(scoring.false))
+  }
+
+  const moveEditingField = (offset: -1 | 1) => {
+    if (!editingKey) return
+    setFieldOrder((current) => {
+      const index = current.indexOf(editingKey)
+      const target = index + offset
+      if (index < 0 || target < 0 || target >= current.length) return current
+      const next = [...current]
+      ;[next[index], next[target]] = [next[target], next[index]]
+      return next
+    })
+  }
+
+  const orderedFields = [...(fields.data ?? [])].sort((left, right) => {
+    const leftIndex = fieldOrder.indexOf(left.stableKey)
+    const rightIndex = fieldOrder.indexOf(right.stableKey)
+    return (leftIndex < 0 ? Number.MAX_SAFE_INTEGER : leftIndex)
+      - (rightIndex < 0 ? Number.MAX_SAFE_INTEGER : rightIndex)
+  })
+
   const mutationError = createForm.error ?? addField.error ?? updateField.error ?? removeField.error
-  const activeFields = fields.data?.filter((field) => !field.isArchived) ?? []
+  const activeFields = orderedFields.filter((field) => !field.isArchived)
 
   return (
     <section className="card">
@@ -190,7 +258,7 @@ export function FormFieldsPanel({
       {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
 
       {isQualityForm ? (
-        <div>
+        <div className="quality-settings-fields">
           <label>
             <input
               type="checkbox"
@@ -199,28 +267,30 @@ export function FormFieldsPanel({
             />
             Enable quality assessment
           </label>
-          <label>
-            Mode
-            <select
-              value={qcMode}
-              onChange={(event) => updateQualityConfig({ enabled: qcEnabled, mode: event.target.value, aggregation: qcAggregation })}
-            >
-              <option value="qualitative">Qualitative only</option>
-              <option value="numeric">Numerical scoring only</option>
-              <option value="both">Both</option>
-            </select>
-          </label>
-          <label>
-            Aggregation
-            <select
-              value={qcAggregation}
-              onChange={(event) => updateQualityConfig({ enabled: qcEnabled, mode: qcMode, aggregation: event.target.value })}
-            >
-              <option value="sum">Simple sum</option>
-              <option value="average">Average</option>
-              <option value="weighted_average">Weighted average</option>
-            </select>
-          </label>
+          <div className="quality-settings-selects">
+            <label>
+              Mode
+              <select
+                value={qcMode}
+                onChange={(event) => updateQualityConfig({ enabled: qcEnabled, mode: event.target.value, aggregation: qcAggregation })}
+              >
+                <option value="qualitative">Qualitative only</option>
+                <option value="numeric">Numerical scoring only</option>
+                <option value="both">Both</option>
+              </select>
+            </label>
+            <label>
+              Aggregation
+              <select
+                value={qcAggregation}
+                onChange={(event) => updateQualityConfig({ enabled: qcEnabled, mode: qcMode, aggregation: event.target.value })}
+              >
+                <option value="sum">Simple sum</option>
+                <option value="average">Average</option>
+                <option value="weighted_average">Weighted average</option>
+              </select>
+            </label>
+          </div>
           {saveQualityConfig.error ? <p className="error" role="alert">{saveQualityConfig.error.message}</p> : null}
           <p className="muted" aria-live="polite">
             {saveQualityConfig.isPending ? 'Saving…' : saveQualityConfig.isSuccess ? 'Saved.' : ' '}
@@ -335,84 +405,217 @@ export function FormFieldsPanel({
           <h3>Fields</h3>
           {fields.error ? <p className="error" role="alert">{fields.error.message}</p> : null}
           {activeFields.length === 0 ? <p className="muted">No fields added yet.</p> : (
-            <table>
-              <thead>
-                <tr>
-                  <th>Label</th>
-                  <th>Type</th>
-                  <th>Required</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {activeFields.map((field) => (
-                  <tr key={field.id}>
-                    <td>
+            <div className="llm-schema-fields form-editor-fields">
+              {activeFields.map((field) => {
+                const editingOptions = parseOptions(editingOptionsText)
+                const editingIndex = fieldOrder.indexOf(field.stableKey)
+                return (
+                  <details
+                    className="llm-schema-field form-editor-field"
+                    key={field.id}
+                    open={editingKey === field.stableKey}
+                  >
+                    <summary
+                      className="llm-schema-field__summary"
+                      onClick={(event) => {
+                        event.preventDefault()
+                        if (editingKey !== field.stableKey) beginEditingField(field)
+                      }}
+                    >
+                      <span className="llm-schema-field__title">
+                        <strong>{field.label}</strong>
+                        <span className="status-badge">
+                          {fieldTypeLabels[field.fieldType] ?? field.fieldType}
+                          {field.fieldType === 'rating' ? ` (${describeRatingScale(field.options)})` : ''}
+                        </span>
+                        {field.required ? <span className="status-badge">Required</span> : null}
+                      </span>
+                      <span className="llm-schema-field__mapping">
+                        {field.required ? 'Reviewers must complete this field' : 'Optional for reviewers'}
+                      </span>
+                      <span className="llm-schema-field__preview">
+                        {field.fieldType === 'rating'
+                          ? `Rating scale ${describeRatingScale(field.options)}`
+                          : selectFieldTypes.has(field.fieldType)
+                            ? field.options.length ? `Options: ${field.options.join(', ')}` : 'No options configured.'
+                            : `${fieldTypeLabels[field.fieldType] ?? field.fieldType} response field`}
+                      </span>
+                    </summary>
+                    <div className="llm-schema-field__content">
                       {editingKey === field.stableKey ? (
-                        <input
-                          aria-label={`Edit label for ${field.label}`}
-                          value={editingLabel}
-                          onChange={(event) => setEditingLabel(event.target.value)}
-                        />
-                      ) : field.label}
-                    </td>
-                    <td>
-                      {editingKey === field.stableKey ? (
-                        <select
-                          aria-label={`Edit type for ${field.label}`}
-                          value={editingType}
-                          onChange={(event) => setEditingType(event.target.value)}
-                        >
-                          {fieldTypes.map((type) => (
-                            <option key={type} value={type}>{fieldTypeLabels[type] ?? type}</option>
-                          ))}
-                        </select>
-                      ) : (fieldTypeLabels[field.fieldType] ?? field.fieldType)}
-                    </td>
-                    <td>
-                      {editingKey === field.stableKey ? (
-                        <label>
-                          <input
-                            type="checkbox"
-                            aria-label={`Edit required for ${field.label}`}
-                            checked={editingRequired}
-                            onChange={(event) => setEditingRequired(event.target.checked)}
-                          />
-                          Required
-                        </label>
-                      ) : (field.required ? 'Required' : '—')}
-                    </td>
-                    <td>
-                      {editingKey === field.stableKey ? (
-                        <div className="toolbar">
-                          <button
-                            type="button"
-                            disabled={updateField.isPending}
-                            onClick={() => updateField.mutate({
-                              stableKey: field.stableKey,
-                              label: editingLabel,
-                              fieldType: editingType,
-                              required: editingRequired,
-                            })}
-                          >
-                            <IconCheckCircle />
-                            Save
-                          </button>
-                          <button type="button" className="button-secondary" onClick={() => setEditingKey(null)}>Cancel</button>
-                        </div>
-                      ) : (
-                        <div className="toolbar">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setEditingKey(field.stableKey)
-                              setEditingLabel(field.label)
-                              setEditingType(field.fieldType)
-                              setEditingRequired(field.required)
-                            }}
-                          >
-                            Edit
-                          </button>
+                        <>
+                          <label>
+                            Label
+                            <input
+                              aria-label={`Edit label for ${field.label}`}
+                              value={editingLabel}
+                              onChange={(event) => setEditingLabel(event.target.value)}
+                            />
+                          </label>
+                          <label>
+                            Type
+                            <select
+                              aria-label={`Edit type for ${field.label}`}
+                              value={editingType}
+                              onChange={(event) => setEditingType(event.target.value)}
+                            >
+                              {fieldTypes.map((type) => (
+                                <option key={type} value={type}>{fieldTypeLabels[type] ?? type}</option>
+                              ))}
+                            </select>
+                          </label>
+                          <label>
+                            <input
+                              type="checkbox"
+                              aria-label={`Edit required for ${field.label}`}
+                              checked={editingRequired}
+                              onChange={(event) => setEditingRequired(event.target.checked)}
+                            />
+                            Required
+                          </label>
+                          {selectFieldTypes.has(editingType) ? (
+                            <label>
+                              Options (one per line)
+                              <textarea
+                                aria-label={`Edit options for ${field.label}`}
+                                value={editingOptionsText}
+                                onChange={(event) => setEditingOptionsText(event.target.value)}
+                                rows={4}
+                              />
+                            </label>
+                          ) : null}
+                          {editingType === 'rating' ? (
+                            <div className="form-editor-field__settings-row">
+                              <label>
+                                Scale minimum
+                                <input
+                                  type="number"
+                                  aria-label={`Edit scale minimum for ${field.label}`}
+                                  value={editingRatingMin}
+                                  onChange={(event) => setEditingRatingMin(event.target.value)}
+                                />
+                              </label>
+                              <label>
+                                Scale maximum
+                                <input
+                                  type="number"
+                                  aria-label={`Edit scale maximum for ${field.label}`}
+                                  value={editingRatingMax}
+                                  onChange={(event) => setEditingRatingMax(event.target.value)}
+                                />
+                              </label>
+                            </div>
+                          ) : null}
+                          {isQualityForm && weightedFieldTypes.has(editingType) ? (
+                            <label>
+                              Score weight
+                              <input
+                                type="number"
+                                aria-label={`Edit score weight for ${field.label}`}
+                                value={editingWeight}
+                                onChange={(event) => setEditingWeight(event.target.value)}
+                              />
+                            </label>
+                          ) : null}
+                          {isQualityForm && editingType === 'single_select' ? (
+                            <fieldset>
+                              <legend>Score per option</legend>
+                              {editingOptions.length === 0 ? <p className="muted">Add options above first.</p> : null}
+                              {editingOptions.map((option) => (
+                                <label key={option}>
+                                  {option}
+                                  <input
+                                    type="number"
+                                    aria-label={`Edit score for ${option}`}
+                                    value={editingOptionScores[option] ?? ''}
+                                    onChange={(event) => setEditingOptionScores((current) => ({
+                                      ...current,
+                                      [option]: event.target.value,
+                                    }))}
+                                  />
+                                </label>
+                              ))}
+                            </fieldset>
+                          ) : null}
+                          {isQualityForm && editingType === 'checkbox' ? (
+                            <div className="form-editor-field__settings-row">
+                              <label>
+                                Score if checked
+                                <input
+                                  type="number"
+                                  aria-label={`Edit checked score for ${field.label}`}
+                                  value={editingTrueScore}
+                                  onChange={(event) => setEditingTrueScore(event.target.value)}
+                                />
+                              </label>
+                              <label>
+                                Score if unchecked
+                                <input
+                                  type="number"
+                                  aria-label={`Edit unchecked score for ${field.label}`}
+                                  value={editingFalseScore}
+                                  onChange={(event) => setEditingFalseScore(event.target.value)}
+                                />
+                              </label>
+                            </div>
+                          ) : null}
+                          <div className="toolbar">
+                            <button
+                              type="button"
+                              className="button-secondary"
+                              disabled={editingIndex <= 0}
+                              onClick={() => moveEditingField(-1)}
+                            >
+                              Move Up
+                            </button>
+                            <button
+                              type="button"
+                              className="button-secondary"
+                              disabled={editingIndex < 0 || editingIndex === fieldOrder.length - 1}
+                              onClick={() => moveEditingField(1)}
+                            >
+                              Move Down
+                            </button>
+                            <button
+                              type="button"
+                              disabled={updateField.isPending}
+                              onClick={() => {
+                                const nextOptions = selectFieldTypes.has(editingType)
+                                  ? editingOptions
+                                  : editingType === 'rating' ? [editingRatingMin, editingRatingMax] : []
+                                updateField.mutate({
+                                  stableKey: field.stableKey,
+                                  label: editingLabel,
+                                  fieldType: editingType,
+                                  required: editingRequired,
+                                  position: fieldOrder.indexOf(field.stableKey),
+                                  options: nextOptions,
+                                  scoring: buildScoring({
+                                    isQualityForm,
+                                    fieldType: editingType,
+                                    weight: editingWeight,
+                                    options: nextOptions,
+                                    optionScores: editingOptionScores,
+                                    trueScore: editingTrueScore,
+                                    falseScore: editingFalseScore,
+                                  }),
+                                })
+                              }}
+                            >
+                              <IconCheckCircle />
+                              Save
+                            </button>
+                            <button
+                              type="button"
+                              className="button-secondary"
+                              onClick={() => {
+                                setEditingKey(null)
+                                setFieldOrder(fields.data?.map((item) => item.stableKey) ?? [])
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
                           <ConfirmButton
                             label="Remove"
                             confirmLabel="Remove Field"
@@ -422,13 +625,13 @@ export function FormFieldsPanel({
                             variant="danger"
                             icon={<IconTrash />}
                           />
-                        </div>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                        </>
+                      ) : null}
+                    </div>
+                  </details>
+                )
+              })}
+            </div>
           )}
 
           {activeFields.length ? (

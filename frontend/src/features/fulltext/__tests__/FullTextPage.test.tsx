@@ -48,7 +48,7 @@ function render({
   let putCallCount = 0
   const fetchMock = mockFetch((input, init) => {
     const path = String(input)
-    if (path.endsWith('/full-text/next') && init?.method === 'POST') {
+    if (path.includes('/full-text/next') && init?.method === 'POST') {
       const response = fulltextNext[Math.min(fulltextNextCallCount, fulltextNext.length - 1)]
       fulltextNextCallCount += 1
       return jsonResponse(response)
@@ -67,7 +67,7 @@ function render({
     if (/\/projects\/[^/]+$/.test(path) && (!init || init.method === undefined)) {
       return jsonResponse({ criteria })
     }
-    if (path.endsWith('/screening/full_text/next') && init?.method === 'POST') {
+    if (path.includes('/screening/full_text/next') && init?.method === 'POST') {
       const response = screeningNext[Math.min(screeningNextCallCount, screeningNext.length - 1)]
       screeningNextCallCount += 1
       return jsonResponse(response)
@@ -87,6 +87,24 @@ describe('FullTextPage', () => {
     expect(screen.getByLabelText('Retrieval status for Urban Data in VR')).toBeInTheDocument()
     expect(screen.getByText('0 of 1 retrieval decisions made')).toBeInTheDocument()
     expect(screen.queryByText('Criteria')).not.toBeInTheDocument()
+  })
+
+  it('temporarily skips a retrieval and advances to another paper', async () => {
+    const first = { id: 'retrieval-1', publicationId: 'publication-1', publication: publicationA, status: 'not_yet_sought', note: null }
+    const second = {
+      id: 'retrieval-2',
+      publicationId: 'publication-2',
+      publication: { ...publicationA, id: 'publication-2', title: 'Second report' },
+      status: 'not_yet_sought',
+      note: null,
+    }
+    const fetchMock = render({ fulltextNext: [first, second], progress: { total: 2, addressed: 0 } })
+
+    await screen.findByRole('heading', { name: 'Urban Data in VR' })
+    fireEvent.click(screen.getByRole('button', { name: 'Skip for now' }))
+
+    expect(await screen.findByRole('heading', { name: 'Second report' })).toBeInTheDocument()
+    expect(fetchMock.mock.calls.some(([input]) => String(input).includes('excludedRetrievalId=retrieval-1'))).toBe(true)
   })
 
   it('shows a message when no publications require full-text retrieval', async () => {

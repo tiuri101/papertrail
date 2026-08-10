@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
-import { IconCheckCircle, IconRestart } from '../../components/icons'
+import { IconArrowRight, IconCheckCircle, IconRestart } from '../../components/icons'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { DynamicForm, type DynamicFormField } from '../forms/DynamicForm'
 import { LlmAssistanceHeading, LlmEvidence, type LlmEvidenceItem } from '../llm/LlmTaskComponents'
@@ -99,6 +99,7 @@ export function ExtractionPage() {
   const [nextError, setNextError] = useState<string | null>(null)
   const [suggestionActions, setSuggestionActions] = useState<Record<string, 'accepted' | 'modified' | 'ignored' | 'manual'>>({})
   const [completedResponse, setCompletedResponse] = useState<ExtractionResponse | null>(null)
+  const skippedItemIds = useRef<Set<string>>(new Set())
   const progress = useQuery({
     queryKey: ['extraction-progress', projectId],
     queryFn: () => apiRequest<ExtractionProgress>(`/api/v1/projects/${projectId}/extraction/progress`),
@@ -123,15 +124,22 @@ export function ExtractionPage() {
   })
 
   const next = useMutation({
-    mutationFn: () => (
-      itemId
-        ? apiRequest<WorkItem>(`/api/v1/projects/${projectId}/extraction/${itemId}`)
-        : apiRequest<WorkItem | null>(
-          `/api/v1/projects/${projectId}/extraction/next`,
-          { method: 'POST' },
-        )
-    ),
+    mutationFn: () => {
+      if (itemId) return apiRequest<WorkItem>(`/api/v1/projects/${projectId}/extraction/${itemId}`)
+      const params = new URLSearchParams()
+      skippedItemIds.current.forEach((id) => params.append('excludedItemId', id))
+      const query = params.toString()
+      return apiRequest<WorkItem | null>(
+        `/api/v1/projects/${projectId}/extraction/next${query ? `?${query}` : ''}`,
+        { method: 'POST' },
+      )
+    },
     onSuccess: (result) => {
+      if (!itemId && result === null && skippedItemIds.current.size > 0) {
+        skippedItemIds.current.clear()
+        next.mutate()
+        return
+      }
       setItem(result)
       setAnswers(result?.draft ?? {})
       setSuggestionActions({})
@@ -151,6 +159,24 @@ export function ExtractionPage() {
     setNextError(null)
     next.mutate()
   }
+
+  const skip = useMutation({
+    mutationFn: async () => {
+      if (!item) throw new Error('No extraction is open')
+      await apiRequest(
+        `/api/v1/projects/${projectId}/extraction/${item.id}/release`,
+        { method: 'POST' },
+      )
+      return item.id
+    },
+    onSuccess: (skippedId) => {
+      skippedItemIds.current.add(skippedId)
+      setItem(null)
+      setAnswers({})
+      setSuggestionActions({})
+      fetchNext()
+    },
+  })
 
   const autoFetchKey = useRef<string | null>(null)
   useEffect(() => {
@@ -317,6 +343,7 @@ export function ExtractionPage() {
 
   return (
     <main className="page">
+      <p className="eyebrow">Review workspace</p>
       <h1>Data Extraction</h1>
       {progress.data ? (
         <p className="muted">{progress.data.completed} of {progress.data.assigned} assigned papers extracted</p>
@@ -438,10 +465,24 @@ export function ExtractionPage() {
               <p className="muted">Answer every required field before submitting.</p>
             ) : null}
             {submit.error ? <p className="error" role="alert">{submit.error.message}</p> : null}
-            <button type="submit" disabled={submit.isPending || missingRequired}>
-              <IconCheckCircle />
-              {completedResponse ? 'Save corrected extraction' : 'Submit Extraction'}
-            </button>
+            {skip.error ? <p className="error" role="alert">{skip.error.message}</p> : null}
+            <div className="toolbar">
+              <button type="submit" disabled={submit.isPending || skip.isPending || missingRequired}>
+                <IconCheckCircle />
+                {completedResponse ? 'Save corrected extraction' : 'Submit Extraction'}
+              </button>
+              {!itemId ? (
+                <button
+                  type="button"
+                  className="button-secondary"
+                  onClick={() => skip.mutate()}
+                  disabled={submit.isPending || skip.isPending}
+                >
+                  <IconArrowRight />
+                  Skip for now
+                </button>
+              ) : null}
+            </div>
             {completedResponse && itemId && validation.data?.state !== 'disabled' ? (
               <section className="llm-task-panel" aria-label="Extraction validation">
                 <h3>

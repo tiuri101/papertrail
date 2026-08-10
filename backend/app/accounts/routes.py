@@ -187,6 +187,10 @@ def update_me(
             raise DomainError("Current password is required to set a new password")
         if not verify_password(user, payload.current_password):
             raise DomainError("Current password is incorrect")
+        if payload.new_password == payload.current_password:
+            raise DomainError(
+                "New password must be different from your current password"
+            )
         user.password_hash = password_hasher.hash(payload.new_password)
         user.must_change_password = False
         changed_fields.append("password")

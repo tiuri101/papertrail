@@ -280,7 +280,7 @@ describe('JobsPage', () => {
 
     await screen.findByRole('row', { name: /parse_import/ })
     expect(screen.getByRole('button', { name: 'Restart Selected (0)' })).toBeDisabled()
-    expect(screen.queryByLabelText('Select parse_import job')).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Select parse_import job')).toBeDisabled()
 
     fireEvent.click(screen.getByLabelText('Select enrich_publication job'))
     fireEvent.click(screen.getByRole('button', { name: 'Restart Selected (1)' }))

@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 
 import { ScreeningPage } from '../ScreeningPage'
 import { jsonResponse, mockFetch } from '../../../test/http'
@@ -42,6 +42,34 @@ describe('ScreeningPage', () => {
     expect(await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })).toBeInTheDocument()
     expect(fetchMock.mock.calls.filter(([input, init]) => String(input).endsWith('/next') && init?.method === 'POST')).toHaveLength(1)
     expect(screen.queryByRole('button', { name: 'Get next publication' })).not.toBeInTheDocument()
+  })
+
+  it('temporarily skips papers and presents them again after the rest of the queue', async () => {
+    const secondItem = {
+      ...workItem,
+      id: 'work-2',
+      publication: { ...workItem.publication, title: 'Second Paper' },
+    }
+    const fetchMock = renderScreening(async (input, init) => {
+      const url = String(input)
+      if (url.includes('/next') && init?.method === 'POST') {
+        const excluded = new URL(url, 'http://localhost').searchParams.getAll('excludedItemId')
+        if (excluded.length === 0) return jsonResponse(workItem)
+        if (excluded.length === 1) return jsonResponse(secondItem)
+        return jsonResponse(null)
+      }
+      if (url.endsWith('/release') && init?.method === 'POST') return jsonResponse({ status: 'released' })
+      return jsonResponse({})
+    })
+
+    await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
+    fireEvent.click(screen.getByRole('button', { name: 'Skip for now' }))
+    expect(await screen.findByRole('heading', { name: 'Second Paper' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Skip for now' }))
+    expect(await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })).toBeInTheDocument()
+
+    expect(fetchMock.mock.calls.some(([input]) => String(input).includes('excludedItemId=work-1'))).toBe(true)
+    expect(fetchMock.mock.calls.filter(([input, init]) => String(input).endsWith('/release') && init?.method === 'POST')).toHaveLength(2)
   })
 
   it('defaults inclusion criteria to Fulfilled and exclusion criteria to Not fulfilled', async () => {
@@ -114,8 +142,8 @@ describe('ScreeningPage', () => {
 
     const rowHeaders = screen.getAllByRole('rowheader').map((cell) => cell.textContent)
     expect(rowHeaders).toEqual([
-      'IC1: Uses virtual reality',
-      'EC1: Is an editorial',
+      'IC1 Uses virtual reality',
+      'EC1 Is an editorial',
     ])
   })
 
@@ -422,33 +450,27 @@ describe('ScreeningPage', () => {
   })
 
   it('autosaves draft content shortly after the reviewer edits it', async () => {
-    vi.useFakeTimers({ shouldAdvanceTime: true })
-    try {
-      const fetchMock = renderScreening(async (input) => {
-        const path = String(input)
-        if (path.endsWith('/next')) return jsonResponse(workItem)
-        return jsonResponse({})
+    const fetchMock = renderScreening(async (input) => {
+      const path = String(input)
+      if (path.endsWith('/next')) return jsonResponse(workItem)
+      return jsonResponse({})
+    })
+
+    await screen.findByText('A study of urban data in virtual reality.')
+    fireEvent.change(screen.getByLabelText('Notes'), { target: { value: 'Still reading this one.' } })
+
+    expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith('/work-items/work-1/draft'))).toBe(false)
+
+    await waitFor(() => {
+      const draftCall = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/work-items/work-1/draft'))
+      expect(draftCall).toBeTruthy()
+      expect(JSON.parse(String(draftCall?.[1]?.body))).toEqual({
+        draft: {
+          criteriaAnswers: { 'criterion-1': true, 'criterion-2': false },
+          outcome: 'include',
+          notes: 'Still reading this one.',
+        },
       })
-
-      await screen.findByText('A study of urban data in virtual reality.')
-      fireEvent.change(screen.getByLabelText('Notes'), { target: { value: 'Still reading this one.' } })
-
-      expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith('/work-items/work-1/draft'))).toBe(false)
-      await vi.advanceTimersByTimeAsync(1000)
-
-      await waitFor(() => {
-        const draftCall = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/work-items/work-1/draft'))
-        expect(draftCall).toBeTruthy()
-        expect(JSON.parse(String(draftCall?.[1]?.body))).toEqual({
-          draft: {
-            criteriaAnswers: { 'criterion-1': true, 'criterion-2': false },
-            outcome: 'include',
-            notes: 'Still reading this one.',
-          },
-        })
-      })
-    } finally {
-      vi.useRealTimers()
-    }
+    }, { timeout: 2000 })
   })
 })

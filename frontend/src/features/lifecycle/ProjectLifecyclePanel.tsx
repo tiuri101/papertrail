@@ -74,11 +74,19 @@ export function ProjectLifecyclePanel({ projectId }: { projectId: string }) {
 
   return (
     <>
-      <CollapsibleSection id="section-workflow-integrity" title="Workflow Integrity">
+      <CollapsibleSection
+        id="section-workflow-integrity"
+        title="Workflow Integrity"
+        headingAccessory={(
+          <InfoTooltip
+            label="About Workflow Integrity"
+            text="These checks run automatically whenever this page loads. They don't block your work — they just flag things worth a second look."
+          />
+        )}
+      >
         <p className="muted">
           Automated checks for inconsistencies across a project's stages, such as decisions or
           data left over from a stage the project has already moved past.
-          <InfoTooltip text="These checks run automatically whenever this page loads. They don't block your work — they just flag things worth a second look." />
         </p>
         {integrity.data?.issues.length ? (
           <ul>
@@ -89,10 +97,18 @@ export function ProjectLifecyclePanel({ projectId }: { projectId: string }) {
         ) : <p>No consistency issues detected.</p>}
       </CollapsibleSection>
       {isCompleted && reopenOptions.length ? (
-        <CollapsibleSection id="section-reopen-project" title="Reopen Project">
+        <CollapsibleSection
+          id="section-reopen-project"
+          title="Reopen Project"
+          headingAccessory={(
+            <InfoTooltip
+              label="About Reopen Project"
+              text="Only shown once a project has reached Completed. If the project is still active, use Move Project Back instead."
+            />
+          )}
+        >
           <p>
             Move a completed project back to an earlier stage to resume work. Screening, extraction, and quality-assessment data already recorded is kept, not deleted.
-            <InfoTooltip text="Only shown once a project has reached Completed. If the project is still active, use Move Project Back instead." />
           </p>
           {reopen.error ? <p className="error" role="alert">{reopen.error.message}</p> : null}
           <label>

@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react'
+import { screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import { ProjectPage } from '../ProjectPage'
@@ -30,6 +30,7 @@ describe('ProjectPage', () => {
       }
       if (url.endsWith('/integrity')) return jsonResponse({ issues: [] })
       if (url.endsWith('/jobs/summary')) return jsonResponse([])
+      if (url.endsWith('/metadata-conflicts')) return jsonResponse([{ id: 'conflict-1' }])
       return jsonResponse({
         id: 'p1',
         name: 'Immersive analytics review',
@@ -41,7 +42,9 @@ describe('ProjectPage', () => {
 
     expect(await screen.findByRole('heading', { name: 'Immersive analytics review' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Title/Abstract Screening' })).toHaveAttribute('href', '/projects/p1/screening/title_abstract')
-    expect(screen.getByRole('link', { name: 'Reporting and Exports' })).toHaveAttribute('href', '/projects/p1/reporting')
+    expect(screen.queryByRole('heading', { name: 'Reporting' })).not.toBeInTheDocument()
+    const finalResultsGroup = screen.getByRole('heading', { name: 'Final Results' }).closest('.nav-group') as HTMLElement
+    expect(within(finalResultsGroup).getByText('Reporting and Exports')).toHaveAttribute('aria-disabled', 'true')
 
     const currentStage = screen.getByRole('listitem', { current: 'step' })
     expect(currentStage).toHaveTextContent('Title/Abstract Screening')
@@ -52,6 +55,8 @@ describe('ProjectPage', () => {
     expect(screen.getByText(/Reach a final decision for every publication/)).toBeInTheDocument()
 
     expect(await screen.findByRole('heading', { name: 'Project Status' })).toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent('1 open metadata conflict found')
+    expect(screen.getByRole('link', { name: 'Review metadata conflicts' })).toHaveAttribute('href', '/projects/p1/publications')
     expect(screen.getByRole('rowheader', { name: 'Unresolved duplicates' })).toBeInTheDocument()
 
     const currentGroupHeading = screen

@@ -14,6 +14,7 @@ describe('Tooltip', () => {
     const anchor = screen.getByText('Background jobs').closest('.tooltip-anchor')!
     const tooltip = screen.getByText('Explains the wrapped content')
     expect(tooltip).not.toBeVisible()
+    expect(tooltip.parentElement).toBe(document.body)
 
     fireEvent.focus(anchor)
     expect(tooltip).toBeVisible()
@@ -30,6 +31,7 @@ describe('InfoTooltip', () => {
     const trigger = screen.getByRole('button', { name: 'More information' })
     const tooltip = screen.getByText('More detail about this field')
     expect(tooltip).not.toBeVisible()
+    expect(tooltip.parentElement).toBe(document.body)
 
     fireEvent.focus(trigger)
     expect(tooltip).toBeVisible()

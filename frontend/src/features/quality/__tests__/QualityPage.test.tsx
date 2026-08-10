@@ -36,6 +36,32 @@ describe('QualityPage', () => {
     expect(fetchMock.mock.calls.filter(([input, init]) => String(input).endsWith('/next') && init?.method === 'POST')).toHaveLength(1)
   })
 
+  it('temporarily skips an assessment and requests another item', async () => {
+    const second = {
+      ...workItem,
+      id: 'quality-2',
+      publicationId: 'publication-2',
+      publication: { ...workItem.publication, title: 'Second assessment' },
+    }
+    const fetchMock = mockFetch(async (input, init) => {
+      const url = String(input)
+      if (url.includes('/quality/next') && init?.method === 'POST') {
+        return jsonResponse(url.includes('excludedItemId=quality-1') ? second : workItem)
+      }
+      if (url.endsWith('/quality/quality-1/release') && init?.method === 'POST') {
+        return jsonResponse({ status: 'released' })
+      }
+      return jsonResponse({})
+    })
+    renderWithProviders(<QualityPage />, { route: '/projects/p1/quality', path: '/projects/:projectId/quality' })
+
+    await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
+    fireEvent.click(screen.getByRole('button', { name: 'Skip for now' }))
+
+    expect(await screen.findByRole('heading', { name: 'Second assessment' })).toBeInTheDocument()
+    expect(fetchMock.mock.calls.some(([input]) => String(input).includes('excludedItemId=quality-1'))).toBe(true)
+  })
+
   it('shows how many assigned papers have been assessed', async () => {
     mockFetch(async (input) => {
       const path = String(input)

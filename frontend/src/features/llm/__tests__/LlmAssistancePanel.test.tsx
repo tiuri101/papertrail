@@ -32,6 +32,12 @@ describe('LlmAssistancePanel', () => {
 
     expect(await screen.findByText('http://ollama.example:11434')).toBeInTheDocument()
     expect(screen.getByText('LLM capabilities')).toHaveClass('subsection-heading')
+    const schemaSection = screen.getByRole('region', { name: 'LLM Extraction Schema' })
+    expect(schemaSection).toHaveClass('llm-schema-section')
+    expect(schemaSection).toContainElement(
+      screen.getByRole('button', { name: 'Create LLM schema from extraction form' }),
+    )
+    expect(schemaSection).not.toContainElement(screen.getByRole('heading', { name: 'Processing status' }))
     expect(screen.queryByText(/api key/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Enable LLM data extraction/i })).not.toBeInTheDocument()
     for (const name of [
@@ -46,6 +52,15 @@ describe('LlmAssistancePanel', () => {
       // re-running any of them should not be possible.
       expect(button).toBeDisabled()
     }
+    const rerunActions = screen.getByRole('button', {
+      name: 'Re-Run LLM Title/Abstract Screening',
+    }).parentElement
+    expect(rerunActions).toHaveClass('llm-rerun-actions')
+    expect(rerunActions?.children).toHaveLength(4)
+    expect(rerunActions?.children[0]).toHaveStyle({ '--stage-color': '#1baf7a' })
+    expect(rerunActions?.children[1]).toHaveStyle({ '--stage-color': '#eda100' })
+    expect(rerunActions?.children[2]).toHaveStyle({ '--stage-color': '#e87ba4' })
+    expect(rerunActions?.children[3]).toHaveStyle({ '--stage-color': '#e87ba4' })
     fireEvent.click(screen.getByRole('button', { name: 'Test Connection' }))
     expect(await screen.findByText('Available; configured model found.')).toBeInTheDocument()
   })

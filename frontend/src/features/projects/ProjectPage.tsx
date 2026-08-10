@@ -34,6 +34,10 @@ interface JobStageSummary {
   active: boolean
 }
 
+interface OpenMetadataConflict {
+  id: string
+}
+
 const projectMainSections = [
   { id: 'section-project-checklist', label: 'Checklist' },
   { id: 'section-project-actions', label: 'Actions' },
@@ -133,12 +137,8 @@ const projectSectionGroups: ProjectSectionGroup[] = [
     links: [
       { path: 'results', label: 'Final Results' },
       { path: 'analysis', label: 'Charts and Analysis' },
+      { path: 'reporting', label: 'Reporting and Exports' },
     ],
-  },
-  {
-    heading: 'Reporting',
-    stage: null,
-    links: [{ path: 'reporting', label: 'Reporting and Exports' }],
     jobStages: ['Reporting and export'],
   },
 ]
@@ -187,6 +187,13 @@ export function ProjectPage() {
       (query.state.data ?? []).some((item) => item.active) ? 5000 : false
     ),
   })
+  const metadataConflicts = useQuery({
+    queryKey: ['metadata-conflicts', projectId],
+    queryFn: () => apiRequest<OpenMetadataConflict[]>(
+      `/api/v1/projects/${projectId}/metadata-conflicts`,
+    ),
+    enabled: Boolean(projectId && project.data?.canManage),
+  })
   if (project.isLoading) return <main className="page"><p>Loading…</p></main>
   if (!project.data) return <main className="page"><p className="error" role="alert">Project could not be loaded.</p></main>
 
@@ -195,6 +202,9 @@ export function ProjectPage() {
   return (
     <SectionNavigationLayout items={projectMainSections}>
       <main className="page">
+        <p className="eyebrow">
+          Project workspace · {STAGES[currentIndex]?.label ?? project.data.stage}
+        </p>
         <h1>{project.data.name}</h1>
         {integrity.data?.issues.length ? (
           <section className="error alert" role="alert" aria-labelledby="workflow-integrity-heading">
@@ -206,6 +216,15 @@ export function ProjectPage() {
                 </li>
               ))}
             </ul>
+          </section>
+        ) : null}
+        {metadataConflicts.data?.length ? (
+          <section className="alert" role="status" aria-labelledby="metadata-conflict-heading">
+            <h2 id="metadata-conflict-heading">Metadata conflicts need review</h2>
+            <p>
+              {metadataConflicts.data.length} open metadata conflict{metadataConflicts.data.length === 1 ? '' : 's'} found.{' '}
+              <Link to={`/projects/${projectId}/publications`}>Review metadata conflicts</Link>
+            </p>
           </section>
         ) : null}
         <StageProgress stage={project.data.stage} />

@@ -198,6 +198,7 @@ export function ProjectSetupWizard() {
 
   return (
     <main className="page">
+      <p className="eyebrow">Project setup · Step {step + 1} of {WIZARD_STEPS.length}</p>
       <h1>Project Setup Wizard</h1>
       <p className="muted">
         {project.data?.name

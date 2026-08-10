@@ -19,6 +19,7 @@ export function AnalysisPage() {
 
   return (
     <main className="page">
+      <p className="eyebrow">Review outputs</p>
       <h1>Charts &amp; Analysis</h1>
       <DuplicateReviewSection projectId={projectId} />
       <TitleAbstractSection projectId={projectId} />

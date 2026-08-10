@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { IconCheckCircle } from '../../components/icons'
 import { ThemeToggle } from '../../components/ThemeToggle'
 import { setCsrfToken } from './session'
@@ -16,6 +17,7 @@ export function ChangePasswordPage() {
   const [currentPassword, setCurrentPassword] = useState('')
   const [newPassword, setNewPassword] = useState('')
   const [confirmPassword, setConfirmPassword] = useState('')
+  const [showWelcomeDialog, setShowWelcomeDialog] = useState(false)
 
   const logout = useMutation({
     mutationFn: () => apiRequest<void>('/api/v1/auth/logout', { method: 'POST' }),
@@ -34,11 +36,12 @@ export function ChangePasswordPage() {
     onSuccess: (user) => {
       queryClient.setQueryData<LoginResponse>(sessionQueryOptions.queryKey, (current) =>
         current ? { ...current, user } : current)
-      navigate('/')
+      setShowWelcomeDialog(true)
     },
   })
 
   const passwordsMismatch = newPassword.length > 0 && newPassword !== confirmPassword
+  const passwordUnchanged = currentPassword.length > 0 && newPassword === currentPassword
 
   return (
     <main className="login-page">
@@ -86,6 +89,11 @@ export function ChangePasswordPage() {
               required
             />
           </label>
+          {passwordUnchanged ? (
+            <p className="error alert" role="alert">
+              New password must be different from your current password.
+            </p>
+          ) : null}
           {passwordsMismatch ? <p className="error alert" role="alert">New passwords do not match.</p> : null}
           {updatePassword.error ? <p className="error alert" role="alert">{updatePassword.error.message}</p> : null}
           <button
@@ -94,6 +102,7 @@ export function ChangePasswordPage() {
               updatePassword.isPending
               || !currentPassword
               || newPassword.length < 8
+              || passwordUnchanged
               || passwordsMismatch
             }
           >
@@ -110,6 +119,16 @@ export function ChangePasswordPage() {
           Sign Out
         </button>
       </section>
+      {showWelcomeDialog ? (
+        <ConfirmDialog
+          title="New to Papertrail?"
+          message="Take a look at the Help section for a quick guide to the review process, roles, and key features—or continue straight to the application."
+          confirmLabel="Explore Help"
+          cancelLabel="Continue to Papertrail"
+          onConfirm={() => navigate('/help')}
+          onCancel={() => navigate('/')}
+        />
+      ) : null}
     </main>
   )
 }

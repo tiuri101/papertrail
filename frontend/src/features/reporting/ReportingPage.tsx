@@ -72,6 +72,7 @@ export function ReportingPage() {
 
   return (
     <main className="page">
+      <p className="eyebrow">Review outputs</p>
       <h1>Reporting and Exports</h1>
       {queryError ? <p className="error" role="alert">{queryError.message}</p> : null}
       {createExport.error ? <p className="error" role="alert">{createExport.error.message}</p> : null}
