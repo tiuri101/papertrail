@@ -8,6 +8,7 @@ import { ConfirmButton } from '../../components/ConfirmButton'
 import { HighlightedText } from '../../components/HighlightedText'
 import { IconCheckCircle, IconSparkle, IconTrash } from '../../components/icons'
 import { OutcomeBadge } from '../../components/OutcomeBadge'
+import { InfoTooltip } from '../../components/Tooltip'
 import { FullTextDocumentPanel } from '../fulltext/FullTextDocumentPanel'
 import { useCanManageProject } from '../../hooks/useCanManageProject'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
@@ -430,7 +431,10 @@ export function PublicationsPage() {
           title="Metadata Enrichment"
           defaultExpanded={false}
         >
-          <p className="muted">Fill in missing metadata from Crossref and Semantic Scholar for one record, a selection, or every record missing metadata.</p>
+          <p className="muted">
+            Fill in missing metadata from Crossref and Semantic Scholar for one record, a selection, or every record missing metadata.
+            <InfoTooltip text="Crossref and Semantic Scholar are free external scholarly databases. This looks up each publication there by DOI or title and fills in fields like abstract, venue, or citation count that are missing here — it doesn't overwrite fields you've already filled in." />
+          </p>
           {bulkEnrich.error ? <p className="error" role="alert">{bulkEnrich.error.message}</p> : null}
           {bulkEnrich.isSuccess ? <p>Enrichment queued for {bulkEnrich.data.jobIds.length} publication{bulkEnrich.data.jobIds.length === 1 ? '' : 's'}.</p> : null}
           <div className="toolbar">

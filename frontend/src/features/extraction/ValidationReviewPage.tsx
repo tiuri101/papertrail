@@ -2,6 +2,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { Link, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Tooltip } from '../../components/Tooltip'
 import { LlmEvidence, type LlmEvidenceItem } from '../llm/LlmTaskComponents'
 
 interface ValidationResult {
@@ -45,6 +46,13 @@ interface ValidationReview {
 }
 
 const NEEDS_REVIEW = new Set(['contradicted', 'uncertain', 'not_verifiable'])
+
+const ASSESSMENT_HELP: Record<ValidationResult['assessment'], string> = {
+  supported: 'The AI found evidence in the full text that agrees with the value a human entered for this field.',
+  contradicted: 'The AI found evidence in the full text that conflicts with the human-entered value — check the evidence below and correct the extraction if the AI is right.',
+  uncertain: 'The AI could not confidently confirm or refute the human-entered value from the text it had access to.',
+  not_verifiable: "The AI couldn't find any relevant evidence in the full text to check this value against.",
+}
 
 export function ValidationReviewPage() {
   const { projectId = '' } = useParams()
@@ -120,7 +128,11 @@ export function ValidationReviewPage() {
           {item.issues.map((result) => (
             <section className={`llm-validation llm-validation--${result.assessment}`} key={result.fieldKey}>
               <h3>{result.fieldLabel}</h3>
-              <p><strong>{result.assessment.replaceAll('_', ' ')}</strong></p>
+              <p>
+                <Tooltip text={ASSESSMENT_HELP[result.assessment]}>
+                  <strong>{result.assessment.replaceAll('_', ' ')}</strong>
+                </Tooltip>
+              </p>
               <p>Human value: <code>{JSON.stringify(result.value)}</code></p>
               <p>{result.explanation}</p>
               {result.evidence.length ? (

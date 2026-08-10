@@ -4,15 +4,20 @@ import { Link, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { ConfirmButton } from '../../components/ConfirmButton'
+import { HighlightedText } from '../../components/HighlightedText'
 import { OutcomeBadge } from '../../components/OutcomeBadge'
+import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
+import { ScreeningLlmPanel } from '../llm/LlmTaskComponents'
 import { CriteriaAnswerFields } from './CriteriaAnswerFields'
 import type { CriterionAnswer, ScreeningCriterion } from './useScreeningQueue'
 
 interface DecisionPublication {
+  id: string
   title: string
   authors: string | null
   abstract: string | null
+  venue: string | null
   doi: string | null
   publisherUrl: string | null
 }
@@ -23,6 +28,18 @@ interface Decision {
   criteriaAnswers: Record<string, boolean>
   notes: string | null
   version: number
+}
+
+interface DecisionRevisionResponse extends Decision {
+  projectStage?: string | null
+  stageUnchanged?: boolean
+  pendingWorkflowSteps?: string[]
+}
+
+interface WorkflowImpact {
+  publicationTitle: string
+  projectStage: string | null
+  pendingSteps: string[]
 }
 
 interface MyDecisionItem {
@@ -43,6 +60,15 @@ const stageTitles: Record<string, string> = {
   full_text: 'Full-Text',
 }
 
+const projectStageTitles: Record<string, string> = {
+  draft: 'Draft',
+  duplicate_review: 'Duplicate Review',
+  title_abstract_screening: 'Title/Abstract Screening',
+  full_text_screening: 'Full-Text Screening',
+  extraction_quality: 'Data Extraction and Quality Assessment',
+  completed: 'Completed',
+}
+
 function DecisionEditForm({
   projectId,
   stage,
@@ -50,6 +76,7 @@ function DecisionEditForm({
   criteria,
   stageCompleted,
   onDone,
+  onWorkflowImpact,
 }: {
   projectId: string
   stage: string
@@ -57,6 +84,7 @@ function DecisionEditForm({
   criteria: ScreeningCriterion[]
   stageCompleted: boolean
   onDone: () => void
+  onWorkflowImpact: (impact: WorkflowImpact) => void
 }) {
   const queryClient = useQueryClient()
   const [answers, setAnswers] = useState<Record<string, CriterionAnswer>>(
@@ -68,7 +96,7 @@ function DecisionEditForm({
   const [notes, setNotes] = useState(item.decision.notes ?? '')
 
   const save = useMutation({
-    mutationFn: () => apiRequest(
+    mutationFn: () => apiRequest<DecisionRevisionResponse>(
       `/api/v1/projects/${projectId}/screening/work-items/${item.workItemId}/decision`,
       {
         method: 'POST',
@@ -79,8 +107,15 @@ function DecisionEditForm({
         }),
       },
     ),
-    onSuccess: () => {
+    onSuccess: (response) => {
       queryClient.invalidateQueries({ queryKey: ['my-decisions', projectId, stage] })
+      if (response.stageUnchanged) {
+        onWorkflowImpact({
+          publicationTitle: item.publication.title,
+          projectStage: response.projectStage ?? null,
+          pendingSteps: response.pendingWorkflowSteps ?? [],
+        })
+      }
       onDone()
     },
   })
@@ -99,6 +134,14 @@ function DecisionEditForm({
         setOutcome={setOutcome}
         notes={notes}
         setNotes={setNotes}
+      />
+      <ScreeningLlmPanel
+        projectId={projectId}
+        publicationId={item.publication.id}
+        itemId={item.workItemId}
+        stage={stage as 'title_abstract' | 'full_text'}
+        humanDecision={outcome}
+        criteriaAnswers={answers}
       />
       {!criteriaComplete ? (
         <p className="muted">Answer every criterion before saving.</p>
@@ -139,24 +182,42 @@ function DecisionCard({
   item,
   criteria,
   stageCompleted,
+  highlightKeywords,
+  onWorkflowImpact,
 }: {
   projectId: string
   stage: string
   item: MyDecisionItem
   criteria: ScreeningCriterion[]
   stageCompleted: boolean
+  highlightKeywords: string[]
+  onWorkflowImpact: (impact: WorkflowImpact) => void
 }) {
   const [editing, setEditing] = useState(false)
   const publication = item.publication
-  const link = publication.doi
-    ? `https://doi.org/${publication.doi}`
-    : isSafeHttpUrl(publication.publisherUrl) ? publication.publisherUrl : null
 
   return (
     <li className="card">
-      <h2>{publication.title}</h2>
-      <p className="muted">{publication.authors ?? 'Unknown authors'}</p>
-      {link ? <p><a href={link} target="_blank" rel="noreferrer">View publication</a></p> : null}
+      <h2><HighlightedText text={publication.title} keywords={highlightKeywords} /></h2>
+      <p>{publication.authors ?? 'Unknown authors'}</p>
+      {publication.venue ? <p className="muted">{publication.venue}</p> : null}
+      <p>
+        {publication.abstract
+          ? <HighlightedText text={publication.abstract} keywords={highlightKeywords} />
+          : 'No abstract available.'}
+      </p>
+      <div className="toolbar">
+        {publication.doi ? (
+          <a href={`https://doi.org/${publication.doi}`} target="_blank" rel="noreferrer">
+            Open DOI
+          </a>
+        ) : null}
+        {isSafeHttpUrl(publication.publisherUrl) ? (
+          <a href={publication.publisherUrl} target="_blank" rel="noreferrer">
+            Open publisher page
+          </a>
+        ) : null}
+      </div>
       {editing ? (
         <DecisionEditForm
           projectId={projectId}
@@ -165,6 +226,7 @@ function DecisionCard({
           criteria={criteria}
           stageCompleted={stageCompleted}
           onDone={() => setEditing(false)}
+          onWorkflowImpact={onWorkflowImpact}
         />
       ) : (
         <>
@@ -188,6 +250,8 @@ function DecisionCard({
 
 export function MyDecisionsPage() {
   const { projectId = '', stage = 'title_abstract' } = useParams()
+  const highlightKeywords = useHighlightKeywords(projectId)
+  const [workflowImpact, setWorkflowImpact] = useState<WorkflowImpact | null>(null)
   const query = useQuery({
     queryKey: ['my-decisions', projectId, stage],
     queryFn: () => apiRequest<MyDecisionsResponse>(
@@ -209,6 +273,29 @@ export function MyDecisionsPage() {
               have already been finalized.
             </p>
           ) : null}
+          {workflowImpact ? (
+            <section className="error alert" role="alert" aria-labelledby="revision-impact-heading">
+              <h2 id="revision-impact-heading">Decision revised without changing the project stage</h2>
+              <p>
+                The project remains in{' '}
+                <strong>
+                  {workflowImpact.projectStage
+                    ? projectStageTitles[workflowImpact.projectStage] ?? workflowImpact.projectStage
+                    : 'its current stage'}
+                </strong>.
+              </p>
+              {workflowImpact.pendingSteps.length ? (
+                <>
+                  <p>Outstanding work for {workflowImpact.publicationTitle}:</p>
+                  <ul>
+                    {workflowImpact.pendingSteps.map((step) => <li key={step}>{step}</li>)}
+                  </ul>
+                </>
+              ) : (
+                <p>No additional workflow steps are currently required for this publication.</p>
+              )}
+            </section>
+          ) : null}
           {query.data.items.length === 0 ? (
             <p className="muted">You have not submitted any decisions for this stage yet.</p>
           ) : (
@@ -221,6 +308,8 @@ export function MyDecisionsPage() {
                   item={item}
                   criteria={query.data!.criteria}
                   stageCompleted={query.data!.stageCompleted}
+                  highlightKeywords={highlightKeywords}
+                  onWorkflowImpact={setWorkflowImpact}
                 />
               ))}
             </ul>

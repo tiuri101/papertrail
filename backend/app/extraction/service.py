@@ -5,7 +5,7 @@ from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import case, select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.accounts.models import User
@@ -169,6 +169,35 @@ def rebalance_pending_work_items(db: Session, project_id: str) -> int:
     return reassigned
 
 
+def my_progress(db: Session, project_id: str, reviewer_id: str) -> dict[str, int]:
+    """How many extraction work items this reviewer has been assigned, and how
+    many of those they've already completed."""
+    assigned = (
+        db.scalar(
+            select(func.count())
+            .select_from(ExtractionWorkItem)
+            .where(
+                ExtractionWorkItem.project_id == project_id,
+                ExtractionWorkItem.assigned_reviewer_id == reviewer_id,
+            )
+        )
+        or 0
+    )
+    completed = (
+        db.scalar(
+            select(func.count())
+            .select_from(ExtractionWorkItem)
+            .where(
+                ExtractionWorkItem.project_id == project_id,
+                ExtractionWorkItem.assigned_reviewer_id == reviewer_id,
+                ExtractionWorkItem.status == ExtractionStatus.COMPLETED,
+            )
+        )
+        or 0
+    )
+    return {"assigned": assigned, "completed": completed}
+
+
 def claim_next_extraction(
     db: Session, project_id: str, reviewer_id: str
 ) -> ExtractionWorkItem | None:
@@ -306,6 +335,35 @@ def submit_extraction(
     )
     db.flush()
     return response
+
+
+def list_completed_for_reviewer(
+    db: Session, project_id: str, reviewer_id: str
+) -> list[tuple[ExtractionWorkItem, ExtractionResponse]]:
+    """The reviewer's own completed extractions, paired with their current
+    response, so they can be revisited and corrected after submission."""
+    items = list(
+        db.scalars(
+            select(ExtractionWorkItem)
+            .where(
+                ExtractionWorkItem.project_id == project_id,
+                ExtractionWorkItem.assigned_reviewer_id == reviewer_id,
+                ExtractionWorkItem.status == ExtractionStatus.COMPLETED,
+            )
+            .order_by(ExtractionWorkItem.completed_at.desc())
+        )
+    )
+    pairs: list[tuple[ExtractionWorkItem, ExtractionResponse]] = []
+    for item in items:
+        response = db.scalar(
+            select(ExtractionResponse).where(
+                ExtractionResponse.work_item_id == item.id,
+                ExtractionResponse.is_current.is_(True),
+            )
+        )
+        if response is not None:
+            pairs.append((item, response))
+    return pairs
 
 
 def reopen_for_required_field(db: Session, project_id: str) -> int:

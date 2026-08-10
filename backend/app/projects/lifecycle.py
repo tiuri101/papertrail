@@ -54,6 +54,14 @@ def evaluate_project_completion(db: Session, project: Project) -> bool:
     if project.stage != ProjectStage.EXTRACTION:
         return project.stage == ProjectStage.COMPLETED
 
+    # An earlier decision can be revised without moving the project back.  Do
+    # not mark extraction complete while that revision has introduced pending
+    # full-text retrieval or screening work.
+    from app.fulltext.service import full_text_work_completed
+
+    if not full_text_work_completed(db, project):
+        return False
+
     included_ids = included_publication_ids(db, project.id)
     extraction_items = list(
         db.scalars(

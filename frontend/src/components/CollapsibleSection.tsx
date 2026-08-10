@@ -3,6 +3,7 @@ import { type ReactNode, useId, useState } from 'react'
 interface CollapsibleSectionProps {
   id?: string
   title: string
+  icon?: ReactNode
   children: ReactNode
   className?: string
   defaultExpanded?: boolean
@@ -11,6 +12,7 @@ interface CollapsibleSectionProps {
 export function CollapsibleSection({
   id,
   title,
+  icon,
   children,
   className,
   defaultExpanded = true,
@@ -31,7 +33,10 @@ export function CollapsibleSection({
           aria-controls={contentId}
           onClick={() => setExpanded((current) => !current)}
         >
-          <span>{title}</span>
+          <span className="collapsible-section__title">
+            {icon ? <span className="collapsible-section__icon" aria-hidden="true">{icon}</span> : null}
+            {title}
+          </span>
           <span className="collapsible-section__indicator" aria-hidden="true">
             {expanded ? '−' : '+'}
           </span>
@@ -40,9 +45,13 @@ export function CollapsibleSection({
       <div
         id={contentId}
         className="collapsible-section__content"
-        hidden={!expanded}
+        data-expanded={expanded}
+        aria-hidden={!expanded}
+        inert={!expanded}
       >
-        {children}
+        <div className="collapsible-section__content-inner">
+          {children}
+        </div>
       </div>
     </section>
   )

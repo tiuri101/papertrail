@@ -3,7 +3,7 @@ import { useEffect, useId, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 
 import { apiRequest } from '../api/client'
-import { IconFolder, IconPerson, IconUsers } from '../components/icons'
+import { IconFolder, IconHelpCircle, IconPerson, IconUsers } from '../components/icons'
 import { MOBILE_MENU_SECTION_SLOT_ID, MobileMenuContext } from '../components/mobileMenu'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { setCsrfToken } from '../features/auth/session'
@@ -72,6 +72,15 @@ export function AppShell() {
                 <IconPerson />
                 Account
               </NavLink>
+              <NavLink
+                to="/help"
+                className={({ isActive }) =>
+                  isActive ? 'nav-link nav-link--active nav-link--collapsible' : 'nav-link nav-link--collapsible'
+                }
+              >
+                <IconHelpCircle />
+                Help
+              </NavLink>
             </nav>
             <div className="header-divider" aria-hidden="true" />
             <ThemeToggle />
@@ -136,6 +145,10 @@ export function AppShell() {
             <NavLink to="/account" className="nav-link" onClick={() => setMobileMenuOpen(false)}>
               <IconPerson />
               Account
+            </NavLink>
+            <NavLink to="/help" className="nav-link" onClick={() => setMobileMenuOpen(false)}>
+              <IconHelpCircle />
+              Help
             </NavLink>
           </nav>
           <div id={MOBILE_MENU_SECTION_SLOT_ID} className="mobile-drawer__section-slot" />

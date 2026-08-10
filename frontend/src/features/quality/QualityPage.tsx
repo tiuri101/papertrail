@@ -1,9 +1,10 @@
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { IconCheckCircle } from '../../components/icons'
+import { Tooltip } from '../../components/Tooltip'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { DynamicForm, type DynamicFormField } from '../forms/DynamicForm'
 
@@ -22,6 +23,7 @@ interface WorkItem {
   draft: Record<string, unknown>
   publication: PublicationSummary
   fields: DynamicFormField[]
+  currentResponse: QualityResponse | null
 }
 
 interface QualityResponse {
@@ -31,6 +33,11 @@ interface QualityResponse {
   version: number
 }
 
+interface QualityProgress {
+  assigned: number
+  completed: number
+}
+
 function isAnswered(value: unknown): boolean {
   if (value === null || value === undefined || value === '') return false
   if (Array.isArray(value)) return value.length > 0
@@ -38,23 +45,35 @@ function isAnswered(value: unknown): boolean {
 }
 
 export function QualityPage() {
-  const { projectId = '' } = useParams()
+  const { projectId = '', itemId } = useParams()
+  const navigate = useNavigate()
   const [item, setItem] = useState<WorkItem | null>(null)
   const [answers, setAnswers] = useState<Record<string, unknown>>({})
   const [queueEmpty, setQueueEmpty] = useState(false)
   const [loadingNext, setLoadingNext] = useState(true)
   const [nextError, setNextError] = useState<string | null>(null)
   const [lastScore, setLastScore] = useState<number | null>(null)
+  const [completedResponse, setCompletedResponse] = useState<QualityResponse | null>(null)
+  const progress = useQuery({
+    queryKey: ['quality-progress', projectId],
+    queryFn: () => apiRequest<QualityProgress>(`/api/v1/projects/${projectId}/quality/progress`),
+    enabled: Boolean(projectId),
+  })
 
   const next = useMutation({
-    mutationFn: () => apiRequest<WorkItem | null>(
-      `/api/v1/projects/${projectId}/quality/next`,
-      { method: 'POST' },
+    mutationFn: () => (
+      itemId
+        ? apiRequest<WorkItem>(`/api/v1/projects/${projectId}/quality/${itemId}`)
+        : apiRequest<WorkItem | null>(
+          `/api/v1/projects/${projectId}/quality/next`,
+          { method: 'POST' },
+        )
     ),
     onSuccess: (result) => {
       setItem(result)
       setAnswers(result?.draft ?? {})
-      setQueueEmpty(result === null)
+      setCompletedResponse(result?.currentResponse ?? null)
+      setQueueEmpty(!itemId && result === null)
       setLoadingNext(false)
     },
     onError: (error) => {
@@ -72,12 +91,13 @@ export function QualityPage() {
 
   const autoFetchKey = useRef<string | null>(null)
   useEffect(() => {
-    if (autoFetchKey.current !== projectId) {
-      autoFetchKey.current = projectId
+    const key = `${projectId}:${itemId ?? 'next'}`
+    if (autoFetchKey.current !== key) {
+      autoFetchKey.current = key
       fetchNext()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId])
+  }, [projectId, itemId])
 
   const submit = useMutation({
     mutationFn: () => {
@@ -91,7 +111,12 @@ export function QualityPage() {
       )
     },
     onSuccess: (response) => {
+      progress.refetch()
       setLastScore(response.totalScore)
+      if (itemId) {
+        setCompletedResponse(response)
+        return
+      }
       setItem(null)
       setAnswers({})
       fetchNext()
@@ -99,7 +124,7 @@ export function QualityPage() {
   })
 
   useEffect(() => {
-    if (!item) return
+    if (!item || completedResponse) return
     const timer = setTimeout(() => {
       apiRequest(
         `/api/v1/projects/${projectId}/quality/${item.id}/draft`,
@@ -107,7 +132,7 @@ export function QualityPage() {
       ).catch(() => {})
     }, 1000)
     return () => clearTimeout(timer)
-  }, [item, projectId, answers])
+  }, [item, projectId, answers, completedResponse])
 
   const missingRequired = item?.fields.some(
     (field) => field.required && !isAnswered(answers[field.stableKey]),
@@ -116,13 +141,28 @@ export function QualityPage() {
   return (
     <main className="page">
       <h1>Quality Assessment</h1>
+      {progress.data ? (
+        <p className="muted">{progress.data.completed} of {progress.data.assigned} assigned papers assessed</p>
+      ) : null}
       {lastScore !== null ? (
-        <p>Submitted — total score: {lastScore}</p>
+        <p>
+          Submitted —{' '}
+          <Tooltip text="The sum of the points assigned to each answer on this quality-assessment checklist, as configured by your project administrator. There's no universal maximum — check the checklist design for how it's scored.">
+            <span>total score: {lastScore}</span>
+          </Tooltip>
+        </p>
       ) : null}
       {!item ? (
         <>
           {loadingNext ? <p>Loading the next assessment…</p> : null}
-          {!loadingNext && queueEmpty ? <p>No assessment work is currently available.</p> : null}
+          {!loadingNext && queueEmpty ? (
+            <>
+              <p>You have completed all of your assigned assessment work.</p>
+              <button type="button" className="button-secondary" onClick={() => navigate(`/projects/${projectId}`)}>
+                Back to project
+              </button>
+            </>
+          ) : null}
           {!loadingNext && nextError ? (
             <p className="error" role="alert">{nextError}</p>
           ) : null}
@@ -159,7 +199,7 @@ export function QualityPage() {
             {submit.error ? <p className="error" role="alert">{submit.error.message}</p> : null}
             <button type="submit" disabled={submit.isPending || missingRequired}>
               <IconCheckCircle />
-              Submit Assessment
+              {completedResponse ? 'Save corrected assessment' : 'Submit Assessment'}
             </button>
           </form>
         </article>

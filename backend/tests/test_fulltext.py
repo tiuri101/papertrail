@@ -277,6 +277,14 @@ def test_transition_blocked_without_extraction_form(db) -> None:
     assert project.stage == ProjectStage.EXTRACTION
 
 
+def test_full_text_completion_check_does_not_rewind_a_later_stage(db) -> None:
+    _, _, project, _, _ = setup_fulltext(db)
+    project.stage = ProjectStage.EXTRACTION
+
+    assert transition_if_full_text_complete(db, project) is False
+    assert project.stage == ProjectStage.EXTRACTION
+
+
 def test_submitting_the_last_full_text_decision_transitions_to_extraction(db) -> None:
     # Title/abstract-excluded publications never get a full-text decision, so
     # this exercises the same stage-completion path the /decision endpoint
@@ -465,3 +473,35 @@ def test_full_text_next_progress_and_release_routes(client, db) -> None:
     )
     assert released.status_code == 200
     assert released.json() == {"status": "released"}
+
+
+def test_full_text_next_and_update_require_the_full_text_reviewer_capability(
+    client, db
+) -> None:
+    _, _, project, included, _ = setup_fulltext(db)
+    initialize_full_text_stage(db, project)
+    extractor = create_user(db, "extractor", "Extractor", "extractor-password")
+    db.add(
+        ProjectMembership(project_id=project.id, user_id=extractor.id, can_extract=True)
+    )
+    db.commit()
+    retrieval = db.scalar(
+        select(FullTextRetrieval).where(FullTextRetrieval.publication_id == included.id)
+    )
+
+    csrf = client.post(
+        "/api/v1/auth/login",
+        json={"username": "extractor", "password": "extractor-password"},
+    ).json()["csrfToken"]
+
+    claim_attempt = client.post(
+        f"/api/v1/projects/{project.id}/full-text/next", headers={"X-CSRF-Token": csrf}
+    )
+    assert claim_attempt.status_code == 403
+
+    update_attempt = client.put(
+        f"/api/v1/projects/{project.id}/full-text/{retrieval.id}",
+        json={"status": "not_found", "note": None, "decision": None},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert update_attempt.status_code == 403

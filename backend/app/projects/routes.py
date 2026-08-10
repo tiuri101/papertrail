@@ -12,7 +12,8 @@ from app.accounts.service import get_user_or_raise
 from app.api.errors import ConflictError, DomainError, NotFoundError
 from app.audit.service import record_audit
 from app.db.session import get_db
-from app.imports.schemas import JobResponse, JobRestartRequest
+from app.imports.schemas import JobResponse, JobRestartRequest, JobStageSummary
+from app.jobs.diagnostics import JOB_STAGES, STAGE_ORDER
 from app.jobs.models import BackgroundJob, JobStatus
 from app.jobs.service import restart_job
 from app.notifications.service import queue_membership_email
@@ -655,6 +656,44 @@ def list_project_jobs(
             .order_by(BackgroundJob.created_at.desc())
         )
     )
+
+
+@router.get("/{project_id}/jobs/summary", response_model=list[JobStageSummary])
+def project_jobs_summary(
+    project_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[JobStageSummary]:
+    require_project_access(db, project_id, user)
+    rows = db.execute(
+        select(BackgroundJob.job_type, BackgroundJob.status).where(
+            BackgroundJob.project_id == project_id,
+            BackgroundJob.status != JobStatus.CANCELLED,
+        )
+    ).all()
+
+    counts: dict[str, dict[str, int]] = {}
+    for job_type, job_status in rows:
+        stage = JOB_STAGES.get(job_type, "Background processing")
+        entry = counts.setdefault(stage, {"completed": 0, "total": 0, "active": 0})
+        entry["total"] += 1
+        if job_status == JobStatus.COMPLETED:
+            entry["completed"] += 1
+        if job_status in (JobStatus.QUEUED, JobStatus.RUNNING):
+            entry["active"] += 1
+
+    def sort_key(stage: str) -> int:
+        return STAGE_ORDER.index(stage) if stage in STAGE_ORDER else len(STAGE_ORDER)
+
+    return [
+        JobStageSummary(
+            stage=stage,
+            completed=counts[stage]["completed"],
+            total=counts[stage]["total"],
+            active=counts[stage]["active"] > 0,
+        )
+        for stage in sorted(counts, key=sort_key)
+    ]
 
 
 @router.post("/{project_id}/jobs/{job_id}/restart", response_model=JobResponse)

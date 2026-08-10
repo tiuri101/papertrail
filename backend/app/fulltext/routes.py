@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from app.accounts.dependencies import require_csrf
-from app.accounts.models import UserSession
+from app.accounts.models import User, UserSession
 from app.api.errors import NotFoundError
 from app.audit.service import record_audit
 from app.db.session import get_db
@@ -22,6 +22,7 @@ from app.fulltext.service import (
     retrieval_progress,
     transition_if_full_text_complete,
 )
+from app.projects.dependencies import require_full_text_reviewer_csrf
 from app.projects.service import get_project, require_project_access
 
 router = APIRouter(tags=["full text"])
@@ -49,11 +50,10 @@ def list_retrievals(
 )
 def next_retrieval(
     project_id: str,
-    session: UserSession = Depends(require_csrf),
+    reviewer: User = Depends(require_full_text_reviewer_csrf),
     db: Session = Depends(get_db),
 ) -> FullTextRetrieval | None:
-    require_project_access(db, project_id, session.user)
-    retrieval = claim_next_retrieval(db, project_id, session.user.id)
+    retrieval = claim_next_retrieval(db, project_id, reviewer.id)
     db.commit()
     return retrieval
 
@@ -93,10 +93,9 @@ def update_retrieval(
     project_id: str,
     retrieval_id: str,
     payload: RetrievalUpdate,
-    session: UserSession = Depends(require_csrf),
+    reviewer: User = Depends(require_full_text_reviewer_csrf),
     db: Session = Depends(get_db),
 ) -> FullTextRetrieval:
-    require_project_access(db, project_id, session.user)
     retrieval = db.get(FullTextRetrieval, retrieval_id)
     if retrieval is None or retrieval.project_id != project_id:
         raise NotFoundError("Full-text retrieval record not found")
@@ -105,7 +104,7 @@ def update_retrieval(
         retrieval,
         RetrievalStatus(payload.status),
         note=payload.note,
-        user_id=session.user.id,
+        user_id=reviewer.id,
         decision_outcome=payload.decision.outcome if payload.decision else None,
         decision_criteria_answers=(
             payload.decision.criteria_answers if payload.decision else None
@@ -119,7 +118,7 @@ def update_retrieval(
         entity_type="full_text_retrieval",
         entity_id=retrieval.id,
         project_id=project_id,
-        actor_id=session.user.id,
+        actor_id=reviewer.id,
         summary=f"Set full-text retrieval status to {retrieval.status.value}",
     )
     if decision is not None:
@@ -129,7 +128,7 @@ def update_retrieval(
             entity_type="screening_decision",
             entity_id=decision.id,
             project_id=project_id,
-            actor_id=session.user.id,
+            actor_id=reviewer.id,
             summary="Submitted full_text screening decision",
             metadata={
                 "outcome": decision.outcome.value,
