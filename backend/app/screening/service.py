@@ -320,8 +320,10 @@ def claim_next_work_item(
     stage: ScreeningStage,
     reviewer_id: str,
     publication_id: str | None = None,
+    excluded_item_ids: set[str] | None = None,
 ) -> ScreeningWorkItem | None:
     now = utcnow()
+    excluded_item_ids = excluded_item_ids or set()
     # A page reload or interrupted browser session can leave the current item
     # reserved. Resume that item before looking for new work so it does not
     # disappear from the reviewer queue or accumulate as a hidden reservation.
@@ -334,6 +336,8 @@ def claim_next_work_item(
     ]
     if publication_id is not None:
         reserved_filters.append(ScreeningWorkItem.publication_id == publication_id)
+    if excluded_item_ids:
+        reserved_filters.append(ScreeningWorkItem.id.not_in(excluded_item_ids))
     reserved_query = (
         select(ScreeningWorkItem)
         .where(*reserved_filters)
@@ -376,6 +380,8 @@ def claim_next_work_item(
     ]
     if publication_id is not None:
         filters.append(ScreeningWorkItem.publication_id == publication_id)
+    if excluded_item_ids:
+        filters.append(ScreeningWorkItem.id.not_in(excluded_item_ids))
     order = [ScreeningWorkItem.random_rank, ScreeningWorkItem.slot_number]
     llm_ready_rank = _llm_ready_rank(db, project_id, stage)
     if llm_ready_rank is not None:

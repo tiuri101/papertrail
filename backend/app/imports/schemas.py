@@ -23,7 +23,16 @@ class ImportBatchSummary(ApiModel):
     original_filename: str = Field(serialization_alias="originalFilename")
     status: str
     record_count: int = Field(serialization_alias="recordCount")
+    attached_paper_count: int = Field(
+        default=0, serialization_alias="attachedPaperCount"
+    )
     completed_at: datetime | None = Field(serialization_alias="completedAt")
+
+
+class SearchCreatorSummary(ApiModel):
+    id: str
+    display_name: str = Field(serialization_alias="displayName")
+    username: str
 
 
 class SearchSourceResponse(ApiModel):
@@ -33,6 +42,8 @@ class SearchSourceResponse(ApiModel):
     search_date: date = Field(serialization_alias="searchDate")
     filters: str | None
     exported_result_count: int = Field(serialization_alias="exportedResultCount")
+    created_at: datetime = Field(serialization_alias="createdAt")
+    created_by: SearchCreatorSummary = Field(serialization_alias="createdBy")
     import_batches: list[ImportBatchSummary] = Field(
         default_factory=list, serialization_alias="importBatches"
     )

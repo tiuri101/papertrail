@@ -204,6 +204,7 @@ def work_item_payload(db: Session, item: ScreeningWorkItem) -> dict[str, Any]:
 def next_item(
     project_id: str,
     stage: ScreeningStage,
+    excluded_item_ids: list[str] = Query(default=[], alias="excludedItemId"),
     session: UserSession = Depends(require_csrf),
     db: Session = Depends(get_db),
 ) -> dict[str, Any] | None:
@@ -221,7 +222,13 @@ def next_item(
     # longer claim them, and invisible to everyone else. Redistribute defensively
     # on every fetch so this can't leave a project permanently short a publication.
     reassign_work_items_from_ineligible_reviewers(db, project_id, stage)
-    item = claim_next_work_item(db, project_id, stage, session.user.id)
+    item = claim_next_work_item(
+        db,
+        project_id,
+        stage,
+        session.user.id,
+        excluded_item_ids=set(excluded_item_ids),
+    )
     if item is not None:
         if stage == ScreeningStage.TITLE_ABSTRACT:
             from app.llm.task_service import queue_title_abstract_suggestion
@@ -375,7 +382,7 @@ def my_decisions(
             .order_by(Criterion.position)
         )
     )
-    payload_items = []
+    payload_items: list[dict[str, Any]] = []
     for item in items:
         current = next((d for d in item.decisions if d.is_current), None)
         if current is None:
@@ -390,6 +397,32 @@ def my_decisions(
                 "decision": current,
             }
         )
+    if stage == ScreeningStage.FULL_TEXT:
+        from app.fulltext.models import FullTextRetrieval, RetrievalStatus
+
+        retrievals = list(
+            db.scalars(
+                select(FullTextRetrieval).where(
+                    FullTextRetrieval.project_id == project_id,
+                    FullTextRetrieval.updated_by_id == user.id,
+                    FullTextRetrieval.status.in_(
+                        [RetrievalStatus.NOT_FOUND, RetrievalStatus.INACCESSIBLE]
+                    ),
+                )
+            )
+        )
+        for retrieval in retrievals:
+            payload_items.append(
+                {
+                    "work_item_id": retrieval.id,
+                    "submitted_at": retrieval.updated_at.isoformat(),
+                    "publication": db.get(Publication, retrieval.publication_id),
+                    "decision": None,
+                    "retrieval_status": retrieval.status,
+                    "retrieval_note": retrieval.note,
+                }
+            )
+    payload_items.sort(key=lambda item: item["submitted_at"] or "", reverse=True)
     return {
         "stage_completed": stage_completed(project, stage),
         "criteria": criteria,

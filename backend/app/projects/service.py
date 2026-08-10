@@ -151,6 +151,56 @@ def list_projects_for_user(db: Session, user: User) -> list[Project]:
     return list(db.scalars(query))
 
 
+def open_task_counts_for_user(
+    db: Session, project_ids: list[str], user_id: str
+) -> dict[str, int]:
+    from app.extraction.models import ExtractionStatus, ExtractionWorkItem
+    from app.quality.models import QualityStatus, QualityWorkItem
+    from app.screening.models import ScreeningWorkItem, WorkItemStatus
+
+    if not project_ids:
+        return {}
+
+    counts: dict[str, int] = {}
+    screening_counts = db.execute(
+        select(ScreeningWorkItem.project_id, func.count())
+        .where(
+            ScreeningWorkItem.project_id.in_(project_ids),
+            ScreeningWorkItem.assigned_reviewer_id == user_id,
+            ScreeningWorkItem.status != WorkItemStatus.SUBMITTED,
+        )
+        .group_by(ScreeningWorkItem.project_id)
+    ).all()
+    for project_id, count in screening_counts:
+        counts[project_id] = int(count)
+
+    extraction_counts = db.execute(
+        select(ExtractionWorkItem.project_id, func.count())
+        .where(
+            ExtractionWorkItem.project_id.in_(project_ids),
+            ExtractionWorkItem.assigned_reviewer_id == user_id,
+            ExtractionWorkItem.status != ExtractionStatus.COMPLETED,
+        )
+        .group_by(ExtractionWorkItem.project_id)
+    ).all()
+    for project_id, count in extraction_counts:
+        counts[project_id] = counts.get(project_id, 0) + int(count)
+
+    quality_counts = db.execute(
+        select(QualityWorkItem.project_id, func.count())
+        .where(
+            QualityWorkItem.project_id.in_(project_ids),
+            QualityWorkItem.assigned_reviewer_id == user_id,
+            QualityWorkItem.status != QualityStatus.COMPLETED,
+        )
+        .group_by(QualityWorkItem.project_id)
+    ).all()
+    for project_id, count in quality_counts:
+        counts[project_id] = counts.get(project_id, 0) + int(count)
+
+    return counts
+
+
 def add_membership(
     db: Session, project: Project, user: User, **eligibility: bool
 ) -> ProjectMembership:

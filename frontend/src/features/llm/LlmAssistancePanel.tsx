@@ -1,9 +1,17 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import type { CSSProperties } from 'react'
 import { useEffect, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { IconCheckCircle, IconTrash } from '../../components/icons'
+import { STAGES } from '../projects/StageProgress'
+
+const stageColors = Object.fromEntries(STAGES.map((stage) => [stage.value, stage.color]))
+
+function stageButtonStyle(stage: keyof typeof stageColors): CSSProperties {
+  return { '--stage-color': stageColors[stage] } as CSSProperties
+}
 
 interface LlmSettings {
   enabled: boolean
@@ -250,13 +258,14 @@ export function LlmAssistancePanel({
         </fieldset>
       ) : null}
 
-      <h3>LLM Extraction Schema</h3>
-      {!currentSchema ? (
-        <button type="button" onClick={() => initialize.mutate()} disabled={initialize.isPending}>
-          Create LLM schema from extraction form
-        </button>
-      ) : (
-        <>
+      <section className="llm-schema-section" aria-labelledby="llm-extraction-schema-heading">
+        <h3 id="llm-extraction-schema-heading">LLM Extraction Schema</h3>
+        {!currentSchema ? (
+          <button type="button" onClick={() => initialize.mutate()} disabled={initialize.isPending}>
+            Create LLM schema from extraction form
+          </button>
+        ) : (
+          <>
           <p>Version {currentSchema.versionNumber} · {currentSchema.status}</p>
           <div className="llm-schema-fields">
           {fields.map((field, index) => {
@@ -360,8 +369,9 @@ export function LlmAssistancePanel({
               Publish version
             </button>
           </div>
-        </>
-      )}
+          </>
+        )}
+      </section>
       {error ? <p className="error" role="alert">{error.message}</p> : null}
 
       {showProcessingStatus ? (
@@ -391,10 +401,11 @@ export function LlmAssistancePanel({
                   </ul>
                 </details>
               ) : null}
-              <div className="toolbar">
+              <div className="llm-rerun-actions">
                 <button
                   type="button"
-                  className="button-secondary"
+                  className="llm-stage-button"
+                  style={stageButtonStyle('title_abstract_screening')}
                   onClick={() => reanalyze.mutate('title_abstract_screening')}
                   disabled={reanalyze.isPending || !settings.data?.titleAbstractScreeningEnabled}
                 >
@@ -402,7 +413,8 @@ export function LlmAssistancePanel({
                 </button>
                 <button
                   type="button"
-                  className="button-secondary"
+                  className="llm-stage-button"
+                  style={stageButtonStyle('full_text_screening')}
                   onClick={() => reanalyze.mutate('full_text_screening')}
                   disabled={reanalyze.isPending || !settings.data?.fullTextScreeningEnabled}
                 >
@@ -410,7 +422,8 @@ export function LlmAssistancePanel({
                 </button>
                 <button
                   type="button"
-                  className="button-secondary"
+                  className="llm-stage-button"
+                  style={stageButtonStyle('extraction_quality')}
                   onClick={() => reanalyze.mutate('data_extraction')}
                   disabled={reanalyze.isPending || !settings.data?.enabled}
                 >
@@ -418,7 +431,8 @@ export function LlmAssistancePanel({
                 </button>
                 <button
                   type="button"
-                  className="button-secondary"
+                  className="llm-stage-button"
+                  style={stageButtonStyle('extraction_quality')}
                   onClick={() => reanalyze.mutate('extraction_validation')}
                   disabled={reanalyze.isPending || !settings.data?.extractionValidationEnabled}
                 >

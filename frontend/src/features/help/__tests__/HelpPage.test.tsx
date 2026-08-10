@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { fireEvent, screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import { HelpPage } from '../HelpPage'
@@ -11,6 +11,7 @@ describe('HelpPage', () => {
     expect(screen.getByRole('heading', { name: 'Help' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'What Papertrail Does' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'The Review Stages' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'LLM Assistance' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'As a Project Owner' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'As a Reviewer' })).toBeInTheDocument()
 
@@ -18,6 +19,104 @@ describe('HelpPage', () => {
     const reviewerHeadings = screen.getAllByRole('heading', { name: 'Completed' })
     expect(ownerHeadings.length).toBeGreaterThan(0)
     expect(reviewerHeadings.length).toBeGreaterThan(0)
+  })
+
+  it('summarizes Papertrail in three focused visual pillars', () => {
+    renderWithProviders(<HelpPage />)
+
+    const overview = screen.getByRole('list', { name: 'Papertrail at a glance' })
+    expect(overview.children).toHaveLength(3)
+    expect(screen.getByRole('heading', { name: 'A guided workflow' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Independent teamwork' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Traceable results' })).toBeInTheDocument()
+    expect(screen.getByText(/Reviewer judgement stays authoritative/)).toBeInTheDocument()
+  })
+
+  it('explains mid-project reviewer allocation under Good to Know', () => {
+    renderWithProviders(<HelpPage />)
+
+    const card = screen.getByRole('heading', { name: 'New reviewers share the remaining work' }).closest('li')
+    expect(document.querySelector('#section-help-good-to-know')).toContainElement(card)
+    expect(card).toHaveTextContent('only receives activities the project owner enables')
+    expect(card).toHaveTextContent('balances unclaimed screening, extraction, and quality work')
+    expect(card).not.toHaveTextContent('Work already underway')
+  })
+
+  it('contrasts resetting and deleting a project after the owner stage guidance', () => {
+    renderWithProviders(<HelpPage />)
+
+    const ownerTimeline = screen.getByRole('list', { name: 'Project owner responsibilities by stage' })
+    const dangerGuide = screen.getByRole('complementary', { name: 'Reset is a fresh start; delete is permanent removal' })
+    const dangerToggle = screen.getByRole('button', { name: 'Reset is a fresh start, delete is permanent removal' })
+    expect(ownerTimeline.compareDocumentPosition(dangerGuide) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    expect(dangerToggle).toHaveTextContent('Before using the Danger Zone')
+    expect(dangerToggle.querySelector('.collapsible-section__icon')).toBeInTheDocument()
+    expect(dangerToggle).toHaveAttribute('aria-expanded', 'false')
+
+    fireEvent.click(dangerToggle)
+
+    expect(dangerToggle).toHaveAttribute('aria-expanded', 'true')
+    expect(dangerGuide).toHaveTextContent('Returns the project to Draft')
+    expect(dangerGuide).toHaveTextContent('keeps the project itself, members, research questions, criteria, screening setup, and forms')
+    expect(dangerGuide).toHaveTextContent('Removes the entire project')
+    expect(dangerGuide).toHaveTextContent('Running background jobs must finish')
+  })
+
+  it('explains LLM support by stage and how project prompts are configured', () => {
+    renderWithProviders(<HelpPage />)
+
+    const timeline = screen.getByRole('list', { name: 'LLM assistance by review stage' })
+    expect(timeline).toHaveClass('help-stage-timeline--centered')
+    expect(timeline.querySelectorAll('.help-stage-timeline__item')).toHaveLength(6)
+    expect(timeline).toHaveTextContent('Duplicate review is entirely human-led')
+    expect(timeline).toHaveTextContent('suggest values for configured extraction fields')
+    const backgroundNote = screen.getByRole('complementary', { name: 'LLM background processing' })
+    expect(backgroundNote).toHaveTextContent('processed by background jobs')
+    expect(backgroundNote).toHaveTextContent('suggestions can take some time to appear')
+    expect(backgroundNote).toHaveTextContent('continue screening or extracting before the LLM result is ready')
+    const configurationToggle = screen.getByRole('button', { name: 'Configuring LLM assistance and custom prompts' })
+    const configurationCard = configurationToggle.closest('.help-llm-configuration')
+    expect(configurationToggle).toHaveTextContent('For project owners and administrators')
+    expect(configurationToggle.querySelector('.collapsible-section__icon')).toBeInTheDocument()
+    expect(configurationToggle).toHaveAttribute('aria-expanded', 'false')
+
+    fireEvent.click(configurationToggle)
+
+    expect(configurationToggle).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByRole('list', { name: 'LLM configuration steps' }).children).toHaveLength(3)
+    expect(screen.getByText('AI Prompts')).toBeInTheDocument()
+    expect(screen.getByText(/Prompt changes affect future processing/)).toBeInTheDocument()
+    expect(screen.getByRole('complementary', { name: 'Practical LLM guidance' })).toBeInTheDocument()
+    expect(configurationCard).toContainElement(
+      screen.getByRole('heading', { name: 'Writing useful custom instructions' }),
+    )
+  })
+
+  it('places the LLM section directly before Good to Know', () => {
+    renderWithProviders(<HelpPage />)
+
+    const llmSection = document.querySelector('#section-help-llm')
+    expect(llmSection?.nextElementSibling).toHaveAttribute('id', 'section-help-good-to-know')
+  })
+
+  it('presents practical guidance as a scannable set of cards', () => {
+    renderWithProviders(<HelpPage />)
+
+    const guidance = screen.getByRole('list', { name: 'Helpful things to know' })
+    expect(guidance.querySelectorAll('.help-good-to-know__card')).toHaveLength(10)
+    expect(screen.getByRole('heading', { name: 'Small things that keep a review moving' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Upload with permission' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'You stay in control' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Claims expire automatically' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'The latest decision guides what happens next' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Import a collection or add one record' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Attach full text wherever it fits' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'See patterns across every review stage' })).toBeInTheDocument()
+    expect(guidance).toHaveTextContent('CSV, TSV, XLSX, RIS, or BibTeX')
+    expect(guidance).toHaveTextContent('bulk-match them across Publications')
+    expect(guidance).toHaveTextContent('extraction completeness and distributions')
+    expect(guidance).toHaveTextContent('A project that has moved on does not rewind')
+    expect(guidance).toHaveTextContent('late inclusions receive any missing downstream work')
   })
 
   it('numbers all six review stages in order with their colors', () => {

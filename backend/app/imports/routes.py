@@ -5,7 +5,7 @@ from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile, status
-from sqlalchemy import select
+from sqlalchemy import distinct, func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.accounts.dependencies import get_current_user
@@ -19,7 +19,14 @@ from app.api.errors import (
 from app.audit.service import record_audit
 from app.core.config import get_settings
 from app.db.session import get_db
-from app.imports.models import ImportBatch, ImportPdfItem, ImportStatus, SearchSource
+from app.fulltext.models import PublicationDocument
+from app.imports.models import (
+    ImportBatch,
+    ImportedRecord,
+    ImportPdfItem,
+    ImportStatus,
+    SearchSource,
+)
 from app.imports.pdf_import import (
     batch_publications,
     pdf_summary,
@@ -36,6 +43,7 @@ from app.imports.schemas import (
 from app.jobs.service import enqueue_job
 from app.projects.dependencies import require_project_member_csrf
 from app.projects.service import get_project, require_project_access
+from app.publications.models import PublicationSource
 
 router = APIRouter(tags=["imports"])
 
@@ -47,16 +55,52 @@ def list_searches(
     project_id: str,
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> list[SearchSource]:
+) -> list[SearchSourceResponse]:
     require_project_access(db, project_id, user)
-    return list(
+    searches = list(
         db.scalars(
             select(SearchSource)
-            .options(selectinload(SearchSource.import_batches))
+            .options(
+                selectinload(SearchSource.created_by),
+                selectinload(SearchSource.import_batches),
+            )
             .where(SearchSource.project_id == project_id)
             .order_by(SearchSource.search_date.desc(), SearchSource.created_at.desc())
         )
     )
+    batch_ids = [batch.id for search in searches for batch in search.import_batches]
+    attached_counts = (
+        {
+            batch_id: int(count)
+            for batch_id, count in db.execute(
+                select(
+                    ImportedRecord.import_batch_id,
+                    func.count(distinct(PublicationSource.publication_id)),
+                )
+                .join(
+                    PublicationSource,
+                    PublicationSource.imported_record_id == ImportedRecord.id,
+                )
+                .join(
+                    PublicationDocument,
+                    PublicationDocument.publication_id
+                    == PublicationSource.publication_id,
+                )
+                .where(
+                    ImportedRecord.import_batch_id.in_(batch_ids),
+                    PublicationDocument.is_active.is_(True),
+                )
+                .group_by(ImportedRecord.import_batch_id)
+            )
+        }
+        if batch_ids
+        else {}
+    )
+    responses = [SearchSourceResponse.model_validate(search) for search in searches]
+    for response in responses:
+        for batch in response.import_batches:
+            batch.attached_paper_count = attached_counts.get(batch.id, 0)
+    return responses
 
 
 @router.post(

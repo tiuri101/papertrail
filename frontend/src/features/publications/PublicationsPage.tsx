@@ -1,12 +1,18 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { HighlightedText } from '../../components/HighlightedText'
-import { IconCheckCircle, IconSparkle, IconTrash } from '../../components/icons'
+import {
+  IconCheckCircle,
+  IconPlus,
+  IconSparkle,
+  IconTrash,
+  IconUpload,
+} from '../../components/icons'
 import { OutcomeBadge } from '../../components/OutcomeBadge'
 import { InfoTooltip } from '../../components/Tooltip'
 import { FullTextDocumentPanel } from '../fulltext/FullTextDocumentPanel'
@@ -141,7 +147,24 @@ interface MetadataConflict {
   proposedValue: string | null
   sourceName: string
   status: string
+  publication?: Publication
 }
+
+const PUBLICATION_METADATA_FIELDS: Array<{ label: string; value: (publication: Publication) => string | number | null }> = [
+  { label: 'Title', value: (publication) => publication.title },
+  { label: 'Authors', value: (publication) => publication.authors },
+  { label: 'Year', value: (publication) => publication.publicationYear },
+  { label: 'Venue', value: (publication) => publication.venue },
+  { label: 'Publication type', value: (publication) => publication.publicationType },
+  { label: 'DOI', value: (publication) => publication.doi },
+  { label: 'Publisher URL', value: (publication) => publication.publisherUrl },
+  { label: 'Keywords', value: (publication) => publication.keywords },
+  { label: 'ISBN', value: (publication) => publication.isbn },
+  { label: 'ISSN', value: (publication) => publication.issn },
+  { label: 'PubMed ID', value: (publication) => publication.pubmedId },
+  { label: 'arXiv ID', value: (publication) => publication.arxivId },
+  { label: 'Abstract', value: (publication) => publication.abstract },
+]
 
 function PublicationRow({
   publication,
@@ -302,7 +325,8 @@ function MetadataConflictsPanel({ projectId }: { projectId: string }) {
       <ul className="card-list">
         {conflicts.data?.map((conflict) => (
           <li key={conflict.id} className="card">
-            <strong>{conflict.fieldName}</strong> — proposed by {conflict.sourceName}
+            <h3>{conflict.publication?.title ?? conflict.currentValue ?? 'Publication'}</h3>
+            <p><strong>{conflict.fieldName}</strong> — proposed by {conflict.sourceName}</p>
             <table>
               <thead>
                 <tr>
@@ -317,6 +341,22 @@ function MetadataConflictsPanel({ projectId }: { projectId: string }) {
                 </tr>
               </tbody>
             </table>
+            {conflict.publication ? (
+              <details>
+                <summary>All publication metadata</summary>
+                <dl className="detail-list metadata-conflict__metadata">
+                  {PUBLICATION_METADATA_FIELDS.map((field) => {
+                    const value = field.value(conflict.publication!)
+                    return (
+                      <div key={field.label} className="detail-list__row">
+                        <dt>{field.label}</dt>
+                        <dd>{value || <span className="muted">(empty)</span>}</dd>
+                      </div>
+                    )
+                  })}
+                </dl>
+              </details>
+            ) : null}
             <div className="toolbar">
               <button
                 type="button"
@@ -344,6 +384,7 @@ function MetadataConflictsPanel({ projectId }: { projectId: string }) {
 
 export function PublicationsPage() {
   const { projectId = '' } = useParams()
+  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const canManage = useCanManageProject(projectId)
   const highlightKeywords = useHighlightKeywords(projectId)
@@ -351,6 +392,7 @@ export function PublicationsPage() {
   const [titleAbstractFilter, setTitleAbstractFilter] = useState('')
   const [fullTextFilter, setFullTextFilter] = useState('')
   const [pdfStatusFilter, setPdfStatusFilter] = useState('')
+  const [search, setSearch] = useState('')
   const query = useQuery({
     queryKey: ['publications', projectId],
     queryFn: () => apiRequest<Publication[]>(
@@ -358,13 +400,30 @@ export function PublicationsPage() {
     ),
   })
 
-  const filteredPublications = useMemo(() => (
-    (query.data ?? []).filter((publication) => (
-      matchesScreeningFilter(publication.screeningStatus?.titleAbstract, titleAbstractFilter)
-      && matchesScreeningFilter(publication.screeningStatus?.fullText, fullTextFilter)
-      && matchesPdfStatusFilter(Boolean(publication.fullText?.available), pdfStatusFilter)
-    ))
-  ), [query.data, titleAbstractFilter, fullTextFilter, pdfStatusFilter])
+  const filteredPublications = useMemo(() => {
+    const normalizedSearch = search.trim().toLocaleLowerCase()
+    return (query.data ?? []).filter((publication) => {
+      const searchableMetadata = [
+        publication.title,
+        publication.authors,
+        publication.abstract,
+        publication.publicationYear,
+        publication.venue,
+        publication.publicationType,
+        publication.doi,
+        publication.publisherUrl,
+        publication.keywords,
+        publication.isbn,
+        publication.issn,
+        publication.pubmedId,
+        publication.arxivId,
+      ].filter((value) => value !== null && value !== undefined).join(' ').toLocaleLowerCase()
+      return (!normalizedSearch || searchableMetadata.includes(normalizedSearch))
+        && matchesScreeningFilter(publication.screeningStatus?.titleAbstract, titleAbstractFilter)
+        && matchesScreeningFilter(publication.screeningStatus?.fullText, fullTextFilter)
+        && matchesPdfStatusFilter(Boolean(publication.fullText?.available), pdfStatusFilter)
+    })
+  }, [query.data, search, titleAbstractFilter, fullTextFilter, pdfStatusFilter])
 
   const bulkEnrich = useMutation({
     mutationFn: (variables: { publicationIds?: string[]; missingOnly: boolean }) => apiRequest<{ jobIds: string[] }>(
@@ -403,6 +462,9 @@ export function PublicationsPage() {
 
   const allFilteredSelected = filteredPublications.length > 0
     && filteredPublications.every((publication) => selectedIds.has(publication.id))
+  const missingPdfCount = query.data?.filter(
+    (publication) => !publication.fullText.available,
+  ).length ?? 0
 
   const toggleSelectAll = () => setSelectedIds((current) => {
     const next = new Set(current)
@@ -417,13 +479,22 @@ export function PublicationsPage() {
   return (
     <main className="page">
       <h1>Publications</h1>
-      {query.data && (titleAbstractFilter || fullTextFilter || pdfStatusFilter) ? (
+      {query.data && (search || titleAbstractFilter || fullTextFilter || pdfStatusFilter) ? (
         <p className="muted">
           {filteredPublications.length} of {query.data.length} publication{query.data.length === 1 ? '' : 's'} match your filters
         </p>
       ) : query.data ? (
         <p className="muted">{query.data.length} publication{query.data.length === 1 ? '' : 's'} in this project</p>
       ) : null}
+      <div className="toolbar publications-page__actions">
+        <button
+          type="button"
+          onClick={() => navigate(`/projects/${projectId}/publications/add`)}
+        >
+          <IconPlus />
+          Add a Publication
+        </button>
+      </div>
       {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
       {canManage ? (
         <CollapsibleSection
@@ -460,7 +531,16 @@ export function PublicationsPage() {
       {canManage ? <MetadataConflictsPanel projectId={projectId} /> : null}
       {canManage ? <BulkPdfUploadPanel projectId={projectId} /> : null}
       {query.data ? (
-        <div className="toolbar">
+        <div className="toolbar publications-page__filters">
+          <label className="paper-search-field">
+            Search publications
+            <input
+              type="search"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Title, author, DOI, keyword…"
+            />
+          </label>
           <label>
             Title/Abstract stage
             <select value={titleAbstractFilter} onChange={(event) => setTitleAbstractFilter(event.target.value)}>
@@ -485,6 +565,20 @@ export function PublicationsPage() {
               ))}
             </select>
           </label>
+          <button
+            type="button"
+            className={`publications-page__pdf-indicator${missingPdfCount ? ' publications-page__pdf-indicator--missing' : ''}${pdfStatusFilter === 'unavailable' ? ' publications-page__pdf-indicator--active' : ''}`}
+            aria-pressed={pdfStatusFilter === 'unavailable'}
+            disabled={missingPdfCount === 0}
+            onClick={() => setPdfStatusFilter((current) => (
+              current === 'unavailable' ? '' : 'unavailable'
+            ))}
+          >
+            <IconUpload />
+            {missingPdfCount
+              ? `${missingPdfCount} paper${missingPdfCount === 1 ? '' : 's'} missing a PDF`
+              : 'All papers have a PDF'}
+          </button>
         </div>
       ) : null}
       {canManage && filteredPublications.length > 0 ? (

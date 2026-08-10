@@ -92,6 +92,7 @@ export function DuplicateReviewPage() {
 
   return (
     <main className="page">
+      <p className="eyebrow">Review workspace</p>
       <h1>Duplicate Review</h1>
       {candidates.error ? <p className="error" role="alert">{candidates.error.message}</p> : null}
       {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}

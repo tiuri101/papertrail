@@ -21,7 +21,7 @@ type SortKey = 'jobType' | 'status' | 'progress' | 'message' | 'createdAt' | 'co
 type SortDirection = 'asc' | 'desc'
 
 const COLUMNS: Array<{ key: SortKey; label: string }> = [
-  { key: 'jobType', label: 'Job' },
+  { key: 'jobType', label: 'Jobs' },
   { key: 'status', label: 'Status' },
   { key: 'progress', label: 'Progress' },
   { key: 'message', label: 'Message' },
@@ -213,6 +213,15 @@ export function JobsPage() {
   const failedJobIds = useMemo(() => (
     (jobs.data ?? []).filter((job) => job.status === 'failed').map((job) => job.id)
   ), [jobs.data])
+  const allFailedSelected = failedJobIds.length > 0
+    && failedJobIds.every((id) => selectedIds.has(id))
+
+  const toggleAllFailed = () => setSelectedIds((current) => {
+    const next = new Set(current)
+    if (allFailedSelected) failedJobIds.forEach((id) => next.delete(id))
+    else failedJobIds.forEach((id) => next.add(id))
+    return next
+  })
 
   const restartOne = useMutation({
     mutationFn: (jobId: string) => apiRequest<BackgroundJob>(
@@ -244,7 +253,7 @@ export function JobsPage() {
       {jobs.isLoading ? <p>Loading…</p> : null}
       {jobs.data && jobs.data.length === 0 ? <p className="muted">No background jobs have run for this project yet.</p> : null}
       {jobs.data && jobs.data.length > 0 ? (
-        <div className="toolbar">
+        <div className="toolbar jobs-toolbar">
           <label>
             Status
             <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
@@ -290,7 +299,17 @@ export function JobsPage() {
             <caption className="visually-hidden">Background jobs</caption>
             <thead>
               <tr>
-                {canManage ? <th scope="col">Select</th> : null}
+                {canManage ? (
+                  <th scope="col" className="jobs-table__select">
+                    <input
+                      type="checkbox"
+                      checked={allFailedSelected}
+                      onChange={toggleAllFailed}
+                      disabled={failedJobIds.length === 0}
+                      aria-label="Select all failed jobs"
+                    />
+                  </th>
+                ) : null}
                 {COLUMNS.map((column) => {
                   const active = sortKey === column.key
                   return (
@@ -299,12 +318,14 @@ export function JobsPage() {
                       scope="col"
                       aria-sort={active ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
                     >
-                      <button type="button" className="link-button" onClick={() => toggleSort(column.key)}>
-                        {column.label}{active ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
-                      </button>
-                      {COLUMN_HELP[column.key] ? (
-                        <InfoTooltip text={COLUMN_HELP[column.key]!} label={`About ${column.label}`} placement="bottom" />
-                      ) : null}
+                      <span className="jobs-table__heading">
+                        <button type="button" className="link-button" onClick={() => toggleSort(column.key)}>
+                          {column.label}{active ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
+                        </button>
+                        {COLUMN_HELP[column.key] ? (
+                          <InfoTooltip text={COLUMN_HELP[column.key]!} label={`About ${column.label}`} placement="bottom" />
+                        ) : null}
+                      </span>
                     </th>
                   )
                 })}
@@ -318,14 +339,14 @@ export function JobsPage() {
                   <tr key={job.id}>
                     {canManage ? (
                       <td>
-                        {failed ? (
-                          <input
-                            type="checkbox"
-                            checked={selectedIds.has(job.id)}
-                            onChange={() => toggleSelected(job.id)}
-                            aria-label={`Select ${job.jobType} job`}
-                          />
-                        ) : null}
+                        <input
+                          type="checkbox"
+                          checked={selectedIds.has(job.id)}
+                          onChange={() => toggleSelected(job.id)}
+                          disabled={!failed}
+                          aria-label={`Select ${job.jobType} job`}
+                          title={failed ? 'Select this failed job' : 'Only failed jobs can be restarted'}
+                        />
                       </td>
                     ) : null}
                     <th scope="row">{job.jobType}</th>
@@ -347,6 +368,7 @@ export function JobsPage() {
                             disabled={restartOne.isPending}
                             onClick={() => restartOne.mutate(job.id)}
                           >
+                            <IconRestart />
                             Restart
                           </button>
                         ) : null}

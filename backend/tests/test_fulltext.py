@@ -158,6 +158,56 @@ def test_claim_next_retrieval_prefers_untouched_papers_over_my_own_followup(
     assert next_claim.publication_id == pub_b.id
 
 
+def test_claim_next_retrieval_temporarily_excludes_skipped_items(db) -> None:
+    project, reviewer1, _reviewer2, pub_a, pub_b = setup_two_reviewer_retrievals(db)
+    retrieval_a = db.scalar(
+        select(FullTextRetrieval).where(FullTextRetrieval.publication_id == pub_a.id)
+    )
+
+    claimed = claim_next_retrieval(db, project.id, reviewer1.id, {retrieval_a.id})
+
+    assert claimed is not None
+    assert claimed.publication_id == pub_b.id
+
+
+def test_my_full_text_decisions_include_inaccessible_retrieval_outcomes(
+    client, db
+) -> None:
+    _admin, reviewer, project, included, _excluded = setup_fulltext(db)
+    initialize_full_text_stage(db, project)
+    retrieval = db.scalar(
+        select(FullTextRetrieval).where(FullTextRetrieval.publication_id == included.id)
+    )
+    set_retrieval_status(
+        db,
+        retrieval,
+        RetrievalStatus.INACCESSIBLE,
+        note="Institutional access unavailable",
+        user_id=reviewer.id,
+    )
+    db.commit()
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"username": "reviewer", "password": "reviewer-password"},
+    )
+    assert login.status_code == 200
+
+    response = client.get(
+        f"/api/v1/projects/{project.id}/screening/full_text/my-decisions"
+    )
+
+    assert response.status_code == 200
+    items = response.json()["items"]
+    assert len(items) == 1
+    assert items[0]["workItemId"] == retrieval.id
+    assert items[0]["submittedAt"] is not None
+    assert items[0]["publication"]["id"] == included.id
+    assert items[0]["publication"]["title"] == "Included"
+    assert items[0]["decision"] is None
+    assert items[0]["retrievalStatus"] == "inaccessible"
+    assert items[0]["retrievalNote"] == "Institutional access unavailable"
+
+
 def test_claim_next_retrieval_lets_another_reviewer_take_over_an_expired_claim(
     db,
 ) -> None:

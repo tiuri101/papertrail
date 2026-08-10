@@ -5,7 +5,7 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.api.errors import ConflictError, NotFoundError
+from app.api.errors import ConflictError, DomainError, NotFoundError
 from app.forms.models import FieldType, FormField, FormKind, FormVersion, ReviewForm
 
 
@@ -208,8 +208,11 @@ def update_field(
     label: str | None = None,
     field_type: str | FieldType | None = None,
     required: bool | None = None,
+    position: int | None = None,
+    options: list[Any] | None = None,
+    scoring: dict[str, Any] | None = None,
 ) -> FormField:
-    """Change a field's label, type, and/or required flag in place.
+    """Change a field's editable configuration in a new form version.
 
     Unlike ``replace_field``, this mutates the field directly instead of
     archiving it and adding a replacement -- only safe while the form has no
@@ -230,6 +233,12 @@ def update_field(
         field.field_type = FieldType(field_type)
     if required is not None:
         field.required = required
+    if options is not None:
+        field.options = list(options)
+    if scoring is not None:
+        field.scoring = dict(scoring)
+    if position is not None:
+        _set_field_position(db, version, stable_key, position)
     db.flush()
     if field.required and form.project_id is not None:
         if form.kind == FormKind.EXTRACTION:
@@ -276,6 +285,7 @@ def replace_field(
     *,
     label: str | None = None,
     required: bool = False,
+    position: int | None = None,
     options: list[Any] | None = None,
     scoring: dict[str, Any] | None = None,
 ) -> FormField:
@@ -301,6 +311,8 @@ def replace_field(
     )
     db.add(new_field)
     db.flush()
+    if position is not None:
+        _set_field_position(db, version, new_field.stable_key, position)
     if required and form.project_id is not None:
         if form.kind == FormKind.EXTRACTION:
             from app.extraction.service import reopen_for_required_field
@@ -316,6 +328,31 @@ def replace_field(
             except ImportError:
                 pass
     return new_field
+
+
+def _set_field_position(
+    db: Session,
+    version: FormVersion,
+    stable_key: str,
+    position: int,
+) -> None:
+    """Move a field to an absolute index and normalize every field position."""
+    fields = list(
+        db.scalars(
+            select(FormField)
+            .where(FormField.form_version_id == version.id)
+            .order_by(FormField.position, FormField.created_at, FormField.id)
+        )
+    )
+    moving = next((field for field in fields if field.stable_key == stable_key), None)
+    if moving is None:
+        raise NotFoundError("Form field not found")
+    if position >= len(fields):
+        raise DomainError("Form field position is outside the form")
+    fields.remove(moving)
+    fields.insert(position, moving)
+    for index, field in enumerate(fields):
+        field.position = index
 
 
 def save_form_as_template(

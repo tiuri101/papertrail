@@ -209,7 +209,10 @@ def my_progress(db: Session, project_id: str, reviewer_id: str) -> dict[str, int
 
 
 def claim_next_quality(
-    db: Session, project_id: str, reviewer_id: str
+    db: Session,
+    project_id: str,
+    reviewer_id: str,
+    excluded_item_ids: set[str] | None = None,
 ) -> QualityWorkItem | None:
     now = utcnow()
     query = (
@@ -226,6 +229,8 @@ def claim_next_quality(
         .order_by(QualityWorkItem.random_rank)
         .limit(1)
     )
+    if excluded_item_ids:
+        query = query.where(QualityWorkItem.id.not_in(excluded_item_ids))
     if db.bind is not None and db.bind.dialect.name == "postgresql":
         query = query.with_for_update(skip_locked=True)
     item = db.scalar(query)

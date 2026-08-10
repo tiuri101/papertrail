@@ -40,9 +40,10 @@ describe('FormBuilderPage', () => {
     fireEvent.click(screen.getByLabelText('Required'))
     fireEvent.click(screen.getByRole('button', { name: 'Add Field' }))
 
-    const row = (await screen.findByRole('cell', { name: 'Main finding' })).closest('tr')!
-    expect(within(row).getByText('Long text')).toBeInTheDocument()
-    expect(within(row).getByText('Required')).toBeInTheDocument()
+    const fieldCard = (await screen.findByText('Main finding', { selector: 'strong' })).closest('details')!
+    expect(fieldCard).toHaveClass('llm-schema-field', 'form-editor-field')
+    expect(within(fieldCard).getByText('Long text')).toBeInTheDocument()
+    expect(within(fieldCard).getByText('Required')).toBeInTheDocument()
     const fieldCall = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/forms/form-1/fields') && init?.method === 'POST')
     expect(JSON.parse(String(fieldCall?.[1]?.body))).toEqual({
       label: 'Main finding',
@@ -165,8 +166,8 @@ describe('FormBuilderPage', () => {
         scoring: {},
       })
     })
-    const row = (await screen.findByRole('cell', { name: 'Overall rank' })).closest('tr')!
-    expect(within(row).getByText('Rating (0-10)')).toBeInTheDocument()
+    const fieldCard = (await screen.findByText('Overall rank', { selector: 'strong' })).closest('details')!
+    expect(within(fieldCard).getByText('Rating (0-10)')).toBeInTheDocument()
   })
 
   it('renders a live preview of the active fields', async () => {
@@ -189,7 +190,7 @@ describe('FormBuilderPage', () => {
     expect(screen.getByLabelText('Main finding *')).toBeInTheDocument()
   })
 
-  it('edits a field label', async () => {
+  it('edits a field label and required state together', async () => {
     const fields = [
       { id: 'field-1', stableKey: 'stable-1', label: 'Main finding', fieldType: 'short_text', required: false, isArchived: false, options: [] },
     ]
@@ -210,14 +211,113 @@ describe('FormBuilderPage', () => {
     await screen.findByRole('option', { name: 'Extraction (extraction)' })
     fireEvent.change(screen.getByLabelText('Form to edit'), { target: { value: 'form-1' } })
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+    fireEvent.click((await screen.findByText('Main finding', { selector: 'strong' })).closest('summary')!)
     fireEvent.change(screen.getByLabelText('Edit label for Main finding'), { target: { value: 'Primary outcome' } })
+    fireEvent.click(screen.getByLabelText('Edit required for Main finding'))
+    expect(screen.queryByRole('button', { name: /Change Type/ })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => {
       const patchCall = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/forms/form-1/fields/stable-1') && init?.method === 'PATCH')
       expect(patchCall).toBeTruthy()
-      expect(JSON.parse(String(patchCall?.[1]?.body))).toEqual({ label: 'Primary outcome' })
+      expect(JSON.parse(String(patchCall?.[1]?.body))).toEqual({
+        label: 'Primary outcome',
+        required: true,
+        position: 0,
+        options: [],
+        scoring: {},
+      })
+    })
+  })
+
+  it('edits a field type through the unified editor without a separate Change Type action', async () => {
+    const fields = [
+      { id: 'field-1', stableKey: 'stable-1', label: 'Sample size', fieldType: 'short_text', required: true, isArchived: false, options: [] },
+    ]
+    const fetchMock = mockFetch(async (input, init) => {
+      const path = String(input)
+      if (path.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
+      if (path.endsWith('/forms/form-1/fields/stable-1/replace') && init?.method === 'POST') {
+        const body = JSON.parse(String(init.body))
+        const replacement = { id: 'field-2', stableKey: 'stable-2', ...body, isArchived: false, options: [] }
+        fields[0] = { ...fields[0], isArchived: true }
+        fields.push(replacement)
+        return jsonResponse(replacement)
+      }
+      if (path.endsWith('/forms/form-1/fields')) return jsonResponse(fields)
+      if (path.endsWith('/quality-config')) return jsonResponse({ enabled: false, mode: 'both', aggregation: 'sum' })
+      return jsonResponse([{ id: 'form-1', name: 'Extraction', kind: 'extraction', activeVersionId: 'v1' }])
+    })
+    renderWithProviders(<FormBuilderPage />, { route: '/projects/p1/forms', path: '/projects/:projectId/forms' })
+
+    await screen.findByRole('option', { name: 'Extraction (extraction)' })
+    fireEvent.change(screen.getByLabelText('Form to edit'), { target: { value: 'form-1' } })
+    fireEvent.click((await screen.findByText('Sample size', { selector: 'strong' })).closest('summary')!)
+    fireEvent.change(screen.getByLabelText('Edit type for Sample size'), { target: { value: 'number' } })
+    expect(screen.queryByRole('button', { name: /Change Type/ })).not.toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      const replaceCall = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/forms/form-1/fields/stable-1/replace') && init?.method === 'POST')
+      expect(replaceCall).toBeTruthy()
+      expect(JSON.parse(String(replaceCall?.[1]?.body))).toEqual({
+        label: 'Sample size',
+        fieldType: 'number',
+        required: true,
+        position: 0,
+        options: [],
+        scoring: {},
+      })
+    })
+  })
+
+  it('opens a field card directly for full editing and saves options and order', async () => {
+    const fields = [
+      {
+        id: 'field-1', stableKey: 'stable-1', label: 'Study designs', fieldType: 'multiple_select',
+        required: false, position: 0, isArchived: false, options: ['Experimental', 'Observational'], scoring: {},
+      },
+      {
+        id: 'field-2', stableKey: 'stable-2', label: 'Notes', fieldType: 'long_text',
+        required: false, position: 1, isArchived: false, options: [], scoring: {},
+      },
+    ]
+    const fetchMock = mockFetch(async (input, init) => {
+      const path = String(input)
+      if (path.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
+      if (path.endsWith('/forms/form-1/fields/stable-1') && init?.method === 'PATCH') {
+        return jsonResponse({ ...fields[0], ...JSON.parse(String(init.body)) })
+      }
+      if (path.endsWith('/forms/form-1/fields')) return jsonResponse(fields)
+      if (path.endsWith('/quality-config')) return jsonResponse({ enabled: false, mode: 'both', aggregation: 'sum' })
+      return jsonResponse([{ id: 'form-1', name: 'Extraction', kind: 'extraction', activeVersionId: 'v1' }])
+    })
+    renderWithProviders(<FormBuilderPage />, { route: '/projects/p1/forms', path: '/projects/:projectId/forms' })
+
+    await screen.findByRole('option', { name: 'Extraction (extraction)' })
+    fireEvent.change(screen.getByLabelText('Form to edit'), { target: { value: 'form-1' } })
+    fireEvent.click((await screen.findByText('Study designs', { selector: 'strong' })).closest('summary')!)
+
+    expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
+    const optionsInput = screen.getByLabelText('Edit options for Study designs')
+    expect(optionsInput).toHaveValue('Experimental\nObservational')
+    fireEvent.change(optionsInput, { target: { value: 'Experimental\nQuasi-experimental' } })
+    expect(screen.getByRole('button', { name: 'Move Up' })).toBeDisabled()
+    fireEvent.click(screen.getByRole('button', { name: 'Move Down' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    await waitFor(() => {
+      const updateCall = fetchMock.mock.calls.find(([input, init]) => (
+        String(input).endsWith('/forms/form-1/fields/stable-1') && init?.method === 'PATCH'
+      ))
+      expect(updateCall).toBeTruthy()
+      expect(JSON.parse(String(updateCall?.[1]?.body))).toEqual({
+        label: 'Study designs',
+        required: false,
+        position: 1,
+        options: ['Experimental', 'Quasi-experimental'],
+        scoring: {},
+      })
     })
   })
 
@@ -242,7 +342,8 @@ describe('FormBuilderPage', () => {
     await screen.findByRole('option', { name: 'Extraction (extraction)' })
     fireEvent.change(screen.getByLabelText('Form to edit'), { target: { value: 'form-1' } })
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Archive' }))
+    fireEvent.click((await screen.findByText('Main finding', { selector: 'strong' })).closest('summary')!)
+    fireEvent.click(screen.getByRole('button', { name: 'Archive' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Archive Field' }))
 
     await waitFor(() => {
@@ -250,49 +351,8 @@ describe('FormBuilderPage', () => {
       expect(patchCall).toBeTruthy()
       expect(JSON.parse(String(patchCall?.[1]?.body))).toEqual({ archive: true })
     })
-    const row = (await screen.findByRole('cell', { name: 'Main finding' })).closest('tr')!
-    await waitFor(() => expect(within(row).getByText('Archived')).toBeInTheDocument())
-  })
-
-  it('replaces a field type after confirmation', async () => {
-    const fields = [
-      { id: 'field-1', stableKey: 'stable-1', label: 'Sample size', fieldType: 'short_text', required: true, isArchived: false, options: [] },
-    ]
-    const fetchMock = mockFetch(async (input, init) => {
-      const path = String(input)
-      if (path.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
-      if (path.endsWith('/forms/form-1/fields/stable-1/replace') && init?.method === 'POST') {
-        const body = JSON.parse(String(init.body))
-        const replacement = { id: 'field-2', stableKey: 'stable-2', label: body.label, fieldType: body.fieldType, required: body.required, isArchived: false, options: [] }
-        fields[0] = { ...fields[0], isArchived: true }
-        fields.push(replacement)
-        return jsonResponse(replacement, 201)
-      }
-      if (path.endsWith('/forms/form-1/fields')) return jsonResponse(fields)
-      if (path.endsWith('/quality-config')) return jsonResponse({ enabled: false, mode: 'both', aggregation: 'sum' })
-      return jsonResponse([{ id: 'form-1', name: 'Extraction', kind: 'extraction', activeVersionId: 'v1' }])
-    })
-    renderWithProviders(<FormBuilderPage />, { route: '/projects/p1/forms', path: '/projects/:projectId/forms' })
-
-    await screen.findByRole('option', { name: 'Extraction (extraction)' })
-    fireEvent.change(screen.getByLabelText('Form to edit'), { target: { value: 'form-1' } })
-
-    fireEvent.click(await screen.findByRole('button', { name: 'Change Type…' }))
-    fireEvent.change(screen.getByLabelText('New type for Sample size'), { target: { value: 'number' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Confirm' }))
-    fireEvent.click(await screen.findByRole('button', { name: 'Replace Field' }))
-
-    await waitFor(() => {
-      const replaceCall = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/forms/form-1/fields/stable-1/replace') && init?.method === 'POST')
-      expect(replaceCall).toBeTruthy()
-      expect(JSON.parse(String(replaceCall?.[1]?.body))).toEqual({ fieldType: 'number', label: 'Sample size', required: true })
-    })
-    await waitFor(() => {
-      const rows = screen.getAllByRole('cell', { name: 'Sample size' }).map((cell) => cell.closest('tr')!)
-      const activeRow = rows.find((candidate) => within(candidate).queryByText('Number'))
-      expect(activeRow).toBeTruthy()
-      expect(within(activeRow!).getByText('Required')).toBeInTheDocument()
-    })
+    const fieldCard = (await screen.findByText('Main finding', { selector: 'strong' })).closest('details')!
+    await waitFor(() => expect(within(fieldCard).getByText('Archived')).toBeInTheDocument())
   })
 
   it('starts a new form from a template and saves a form as a template', async () => {
@@ -337,32 +397,4 @@ describe('FormBuilderPage', () => {
     await screen.findByText('Template saved.')
   })
 
-  it('reads and saves quality assessment settings', async () => {
-    let config = { enabled: false, mode: 'both', aggregation: 'sum' }
-    const fetchMock = mockFetch(async (input, init) => {
-      const path = String(input)
-      if (path.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
-      if (path.endsWith('/quality-config') && init?.method === 'PUT') {
-        config = JSON.parse(String(init.body))
-        return jsonResponse(config)
-      }
-      if (path.endsWith('/quality-config')) return jsonResponse(config)
-      return jsonResponse([])
-    })
-    renderWithProviders(<FormBuilderPage />, { route: '/projects/p1/forms', path: '/projects/:projectId/forms' })
-
-    const enabledCheckbox = await screen.findByLabelText('Enable quality assessment')
-    expect(enabledCheckbox).not.toBeChecked()
-
-    fireEvent.click(enabledCheckbox)
-    fireEvent.change(screen.getByLabelText('Mode'), { target: { value: 'numeric' } })
-    fireEvent.change(screen.getByLabelText('Aggregation'), { target: { value: 'weighted_average' } })
-
-    await waitFor(() => {
-      const putCalls = fetchMock.mock.calls.filter(([input, init]) => String(input).endsWith('/quality-config') && init?.method === 'PUT')
-      expect(putCalls.length).toBe(3)
-      expect(JSON.parse(String(putCalls[putCalls.length - 1]?.[1]?.body))).toEqual({ enabled: true, mode: 'numeric', aggregation: 'weighted_average' })
-    })
-    await screen.findByText('Saved.')
-  })
 })

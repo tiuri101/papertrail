@@ -126,6 +126,19 @@ def test_reviewer_can_update_own_display_name_and_password(client, db) -> None:
     )
     assert wrong_current.status_code == 400
 
+    unchanged = client.patch(
+        "/api/v1/auth/me",
+        json={
+            "currentPassword": "reviewer-password",
+            "newPassword": "reviewer-password",
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert unchanged.status_code == 400
+    assert unchanged.json()["error"]["message"] == (
+        "New password must be different from your current password"
+    )
+
     changed = client.patch(
         "/api/v1/auth/me",
         json={"currentPassword": "reviewer-password", "newPassword": "new-password-1"},
@@ -178,6 +191,20 @@ def test_admin_created_user_must_change_password_on_first_login(client, db) -> N
     assert login.status_code == 200
     assert login.json()["user"]["mustChangePassword"] is True
     csrf = login.json()["csrfToken"]
+
+    unchanged = client.patch(
+        "/api/v1/auth/me",
+        json={
+            "currentPassword": "temporary-password",
+            "newPassword": "temporary-password",
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert unchanged.status_code == 400
+    assert unchanged.json()["error"]["message"] == (
+        "New password must be different from your current password"
+    )
+    assert client.get("/api/v1/auth/me").json()["mustChangePassword"] is True
 
     changed = client.patch(
         "/api/v1/auth/me",

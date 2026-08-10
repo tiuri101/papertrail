@@ -63,6 +63,8 @@ describe('PublicationsPage', () => {
     expect(noDoiCard).toHaveTextContent('Unknown authors')
 
     expect(screen.getByText('2 publications in this project')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Add a Publication' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '2 papers missing a PDF' })).toBeInTheDocument()
 
     const publicationCard = screen.getByText('Urban Data in VR').closest('li') as HTMLElement
     const abstract = within(publicationCard).getByText('Abstract').closest('details') as HTMLDetailsElement
@@ -95,6 +97,16 @@ describe('PublicationsPage', () => {
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
 
     expect(await screen.findByText('1 publication in this project')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '1 paper missing a PDF' })).toBeInTheDocument()
+  })
+
+  it('shows when every publication has an attached PDF', async () => {
+    mockFetch(() => jsonResponse([
+      { ...publications[0], fullText: { available: true } },
+    ]))
+    renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
+
+    expect(await screen.findByRole('button', { name: 'All papers have a PDF' })).toBeDisabled()
   })
 
   it('clicking a publication opens an edit form that saves metadata', async () => {
@@ -214,6 +226,7 @@ describe('PublicationsPage', () => {
         proposedValue: 'Urban Data in Virtual Reality',
         sourceName: 'crossref',
         status: 'open',
+        publication: publications[0],
       },
     ]
     const fetchMock = mockFetch((input, init) => {
@@ -230,8 +243,10 @@ describe('PublicationsPage', () => {
     const heading = await screen.findByRole('heading', { name: 'Metadata Conflicts' })
     const panel = heading.closest('section') as HTMLElement
     await within(panel).findByText('title')
-    expect(within(panel).getByText('Urban Data in VR')).toBeInTheDocument()
+    expect(within(panel).getAllByText('Urban Data in VR').length).toBeGreaterThan(0)
     expect(within(panel).getByText('Urban Data in Virtual Reality')).toBeInTheDocument()
+    fireEvent.click(within(panel).getByText('All publication metadata'))
+    expect(within(panel).getByText('A. Author')).toBeInTheDocument()
 
     fireEvent.click(within(panel).getByRole('button', { name: 'Use Proposed Value' }))
     await waitFor(() => {
@@ -261,6 +276,18 @@ describe('PublicationsPage', () => {
     expect(screen.getByText('1 of 2 publications match your filters')).toBeInTheDocument()
   })
 
+  it('searches across publication metadata', async () => {
+    mockFetch(() => jsonResponse(publications))
+    renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
+
+    await screen.findByText('Urban Data in VR')
+    fireEvent.change(screen.getByLabelText('Search publications'), { target: { value: '10.1000/urban-vr' } })
+
+    expect(screen.getByText('Urban Data in VR')).toBeInTheDocument()
+    expect(screen.queryByText('Paper without DOI')).not.toBeInTheDocument()
+    expect(screen.getByText('1 of 2 publications match your filters')).toBeInTheDocument()
+  })
+
   it('filters publications by PDF status', async () => {
     mockFetch(() => jsonResponse([
       { ...publications[0], fullText: { available: true } },
@@ -271,16 +298,32 @@ describe('PublicationsPage', () => {
     await screen.findByText('Urban Data in VR')
     expect(screen.getByText('Paper without DOI')).toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText('PDF status'), { target: { value: 'available' } })
+    const pdfStatus = screen.getByLabelText('PDF status')
+    const missingPdfButton = screen.getByRole('button', { name: '1 paper missing a PDF' })
+    expect(pdfStatus.closest('label')?.nextElementSibling).toBe(missingPdfButton)
+
+    fireEvent.click(missingPdfButton)
+    expect(pdfStatus).toHaveValue('unavailable')
+    expect(missingPdfButton).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.queryByText('Urban Data in VR')).not.toBeInTheDocument()
+    expect(screen.getByText('Paper without DOI')).toBeInTheDocument()
+
+    fireEvent.click(missingPdfButton)
+    expect(pdfStatus).toHaveValue('')
+    expect(missingPdfButton).toHaveAttribute('aria-pressed', 'false')
+    expect(screen.getByText('Urban Data in VR')).toBeInTheDocument()
+    expect(screen.getByText('Paper without DOI')).toBeInTheDocument()
+
+    fireEvent.change(pdfStatus, { target: { value: 'available' } })
     expect(screen.getByText('Urban Data in VR')).toBeInTheDocument()
     expect(screen.queryByText('Paper without DOI')).not.toBeInTheDocument()
     expect(screen.getByText('1 of 2 publications match your filters')).toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText('PDF status'), { target: { value: 'unavailable' } })
+    fireEvent.change(pdfStatus, { target: { value: 'unavailable' } })
     expect(screen.queryByText('Urban Data in VR')).not.toBeInTheDocument()
     expect(screen.getByText('Paper without DOI')).toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText('PDF status'), { target: { value: '' } })
+    fireEvent.change(pdfStatus, { target: { value: '' } })
     expect(screen.getByText('Urban Data in VR')).toBeInTheDocument()
     expect(screen.getByText('Paper without DOI')).toBeInTheDocument()
   })
