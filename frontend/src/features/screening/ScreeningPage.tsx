@@ -1,4 +1,4 @@
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 import { ScreeningItemCard } from './ScreeningItemCard'
@@ -6,6 +6,7 @@ import { useScreeningQueue } from './useScreeningQueue'
 
 export function ScreeningPage() {
   const { projectId = '', stage = 'title_abstract' } = useParams()
+  const navigate = useNavigate()
   const highlightKeywords = useHighlightKeywords(projectId)
   const queue = useScreeningQueue(projectId, stage)
 
@@ -23,7 +24,14 @@ export function ScreeningPage() {
       {!queue.item ? (
         <>
           {queue.loadingNext ? <p>Loading the next publication…</p> : null}
-          {!queue.loadingNext && queue.queueEmpty ? <p>No publications are currently available.</p> : null}
+          {!queue.loadingNext && queue.queueEmpty ? (
+            <>
+              <p>You have completed all of your assigned screening work.</p>
+              <button type="button" className="button-secondary" onClick={() => navigate(`/projects/${projectId}`)}>
+                Back to project
+              </button>
+            </>
+          ) : null}
           {!queue.loadingNext && queue.nextError ? (
             <p className="error" role="alert">{queue.nextError}</p>
           ) : null}

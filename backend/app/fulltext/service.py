@@ -258,7 +258,8 @@ def resolve_retrieval(
     return decision
 
 
-def transition_if_full_text_complete(db: Session, project: Project) -> bool:
+def full_text_work_completed(db: Session, project: Project) -> bool:
+    """Read-only check for all retrieval and full-text screening work."""
     retrievals = list(
         db.scalars(
             select(FullTextRetrieval).where(FullTextRetrieval.project_id == project.id)
@@ -279,6 +280,16 @@ def transition_if_full_text_complete(db: Session, project: Project) -> bool:
             )
             if final is None:
                 return False
+    return True
+
+
+def transition_if_full_text_complete(db: Session, project: Project) -> bool:
+    # Late revisions are reconciled per publication and must not rewind an
+    # extraction or completed project back into the full-text transition.
+    if project.stage != ProjectStage.FULL_TEXT:
+        return False
+    if not full_text_work_completed(db, project):
+        return False
 
     from app.extraction.service import initialize_extraction, project_form
 

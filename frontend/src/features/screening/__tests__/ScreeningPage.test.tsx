@@ -19,6 +19,7 @@ const workItem = {
     { id: 'criterion-2', kind: 'exclusion', text: 'Is an editorial' },
   ],
   draft: {},
+  llmAssistanceEnabled: true,
 }
 
 function renderScreening(handler: Parameters<typeof mockFetch>[0], stage = 'title_abstract') {
@@ -183,16 +184,17 @@ describe('ScreeningPage', () => {
     expect(screen.getByRole('checkbox', { name: 'Exclusion: Is an editorial — Not fulfilled' })).toBeChecked()
   })
 
-  it('reports that the queue has no available work, with no button to retry', async () => {
+  it('reports that the reviewer has completed all assigned screening work, with a way back to the project', async () => {
     renderScreening(async (input) => String(input).endsWith('/next') ? jsonResponse(null) : jsonResponse({}))
-    expect(await screen.findByText('No publications are currently available.')).toBeInTheDocument()
+    expect(await screen.findByText('You have completed all of your assigned screening work.')).toBeInTheDocument()
     expect(screen.queryByText('Loading the next publication…')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Get next publication' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Back to project' })).toBeInTheDocument()
   })
 
   it('reports that the full-text queue has no available work', async () => {
     renderScreening(async (input) => String(input).endsWith('/next') ? jsonResponse(null) : jsonResponse({}), 'full_text')
-    expect(await screen.findByText('No publications are currently available.')).toBeInTheDocument()
+    expect(await screen.findByText('You have completed all of your assigned screening work.')).toBeInTheDocument()
     expect(screen.queryByText('Loading the next publication…')).not.toBeInTheDocument()
   })
 
@@ -386,6 +388,30 @@ describe('ScreeningPage', () => {
     await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
     expect(await screen.findByText(/LLM suggestion:/)).toBeInTheDocument()
 
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Decision' }))
+
+    await waitFor(() => {
+      const nextCalls = fetchMock.mock.calls.filter(([input, init]) => String(input).endsWith('/next') && init?.method === 'POST')
+      expect(nextCalls).toHaveLength(2)
+    })
+    expect(decisionPosts).toBe(1)
+  })
+
+  it('advances to the next title/abstract item after a single Submit click when LLM assistance is off', async () => {
+    let decisionPosts = 0
+    const fetchMock = renderScreening(async (input, init) => {
+      const path = String(input)
+      if (path.endsWith('/next') && init?.method === 'POST') {
+        return jsonResponse({ ...workItem, llmAssistanceEnabled: false })
+      }
+      if (path.endsWith('/decision') && init?.method === 'POST') {
+        decisionPosts += 1
+        return jsonResponse({ id: 'decision-1' }, 201)
+      }
+      return jsonResponse({})
+    })
+
+    await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
     fireEvent.click(screen.getByRole('button', { name: 'Submit Decision' }))
 
     await waitFor(() => {

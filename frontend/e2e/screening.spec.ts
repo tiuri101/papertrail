@@ -140,7 +140,7 @@ test(
       await expect.poll(() => decisionSubmitted).toBe(true)
 
       await expect(
-          page.getByText('No publications are currently available.'),
+          page.getByText('You have completed all of your assigned screening work.'),
       ).toBeVisible()
 
       expect(submittedDecision).toEqual({

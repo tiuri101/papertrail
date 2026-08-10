@@ -115,9 +115,10 @@ describe('JobsPage', () => {
     ])
 
     const jobHeader = screen.getByRole('columnheader', { name: /^Job/ })
-    fireEvent.click(within(jobHeader).getByRole('button'))
+    const jobSortButton = within(jobHeader).getByRole('button', { name: /^Job/ })
+    fireEvent.click(jobSortButton)
     expect(jobHeader).toHaveAttribute('aria-sort', 'ascending')
-    fireEvent.click(within(jobHeader).getByRole('button'))
+    fireEvent.click(jobSortButton)
     expect(jobHeader).toHaveAttribute('aria-sort', 'descending')
     expect(screen.getAllByRole('rowheader').map((cell) => cell.textContent)).toEqual([
       'parse_import',

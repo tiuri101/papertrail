@@ -5,12 +5,12 @@ from sqlalchemy.orm import Session
 
 from app.accounts.dependencies import get_current_user
 from app.accounts.models import User
-from app.api.errors import NotFoundError
+from app.api.errors import ForbiddenError, NotFoundError
 from app.db.session import get_db
 from app.imports.schemas import JobErrorResponse, JobResponse
 from app.jobs.diagnostics import build_job_diagnostics
 from app.jobs.models import BackgroundJob
-from app.projects.service import require_project_access
+from app.projects.service import is_project_manager, require_project_access
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
 
@@ -38,6 +38,11 @@ def get_job_error(
         raise NotFoundError("Job not found")
     if job.project_id:
         require_project_access(db, job.project_id, user)
+        can_view_details = user.is_admin or is_project_manager(db, job.project_id, user)
+    else:
+        if not user.is_admin:
+            raise ForbiddenError("Administrator access required")
+        can_view_details = True
     result = job.result if isinstance(job.result, dict) else {}
     return {
         "job_id": job.id,
@@ -50,6 +55,6 @@ def get_job_error(
         "failed_at": job.completed_at,
         "error_type": result.get("errorType"),
         "error_message": job.error_message,
-        "error_details": result.get("errorDetails"),
+        "error_details": result.get("errorDetails") if can_view_details else None,
         **build_job_diagnostics(db, job),
     }

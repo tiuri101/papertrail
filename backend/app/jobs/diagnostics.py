@@ -51,6 +51,19 @@ JOB_STAGES = {
     },
 }
 
+STAGE_ORDER = [
+    "Publication import",
+    "Publication metadata",
+    "Duplicate review",
+    "Full-text preparation",
+    "Title/abstract screening",
+    "Full-text screening",
+    "Data extraction",
+    "Extraction validation",
+    "Reporting and export",
+    "Notifications",
+]
+
 PROJECT_STAGE_LABELS = {
     "draft": "Draft",
     "duplicate_review": "Duplicate review",

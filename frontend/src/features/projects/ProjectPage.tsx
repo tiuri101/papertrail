@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { SectionNavigationLayout } from '../../components/SectionNavigationLayout'
+import { Tooltip } from '../../components/Tooltip'
 import { ProjectDashboard } from '../administration/ProjectDashboard'
 import { ProjectChecklistPanel } from './ProjectChecklistPanel'
 import { STAGES, StageProgress } from './StageProgress'
@@ -24,6 +25,13 @@ interface WorkflowIntegrityIssue {
 
 interface WorkflowIntegrityResponse {
   issues: WorkflowIntegrityIssue[]
+}
+
+interface JobStageSummary {
+  stage: string
+  completed: number
+  total: number
+  active: boolean
 }
 
 const projectMainSections = [
@@ -52,6 +60,7 @@ interface ProjectSectionGroup {
   heading: string
   stage: string | null
   links: ProjectSectionLink[]
+  jobStages?: string[]
 }
 
 const projectSectionGroups: ProjectSectionGroup[] = [
@@ -74,11 +83,13 @@ const projectSectionGroups: ProjectSectionGroup[] = [
       { path: 'publications', label: 'Publications' },
       { path: 'publications/add', label: 'Add a Publication' },
     ],
+    jobStages: ['Publication import', 'Publication metadata'],
   },
   {
     heading: 'Deduplication',
     stage: 'duplicate_review',
     links: [{ path: 'duplicates', label: 'Duplicate Review' }],
+    jobStages: ['Duplicate review'],
   },
   {
     heading: 'Title/Abstract Screening',
@@ -88,6 +99,7 @@ const projectSectionGroups: ProjectSectionGroup[] = [
       { path: 'screening/title_abstract/my-decisions', label: 'My Title/Abstract Decisions' },
       { path: 'conflicts/title_abstract', label: 'Title/Abstract Conflicts', managerOnly: true },
     ],
+    jobStages: ['Title/abstract screening'],
   },
   {
     heading: 'Full-Text',
@@ -97,19 +109,23 @@ const projectSectionGroups: ProjectSectionGroup[] = [
       { path: 'screening/full_text/my-decisions', label: 'My Full-Text Decisions' },
       { path: 'conflicts/full_text', label: 'Full-Text Conflicts', managerOnly: true },
     ],
+    jobStages: ['Full-text preparation', 'Full-text screening'],
   },
   {
     heading: 'Extraction & Quality',
     stage: 'extraction_quality',
     links: [
       { path: 'extraction', label: 'Data Extraction' },
+      { path: 'extraction/mine', label: 'My Submitted Extractions' },
       {
         path: 'extraction/validation',
         label: 'Review LLM Extraction Validation',
         validationOnly: true,
       },
       { path: 'quality', label: 'Quality Assessment' },
+      { path: 'quality/mine', label: 'My Submitted Quality Assessments' },
     ],
+    jobStages: ['Data extraction', 'Extraction validation'],
   },
   {
     heading: 'Final Results',
@@ -123,8 +139,20 @@ const projectSectionGroups: ProjectSectionGroup[] = [
     heading: 'Reporting',
     stage: null,
     links: [{ path: 'reporting', label: 'Reporting and Exports' }],
+    jobStages: ['Reporting and export'],
   },
 ]
+
+function jobSummaryText(summary: JobStageSummary[], jobStages: string[] | undefined): string | null {
+  if (!jobStages || jobStages.length === 0) return null
+  const relevant = summary.filter((item) => jobStages.includes(item.stage))
+  const total = relevant.reduce((sum, item) => sum + item.total, 0)
+  if (total === 0) return null
+  const completed = relevant.reduce((sum, item) => sum + item.completed, 0)
+  return completed === total
+    ? 'All background jobs completed'
+    : `${completed}/${total} background jobs completed`
+}
 
 const stageColors: Record<string, string> = Object.fromEntries(
   STAGES.map((step) => [step.value, step.color]),
@@ -148,6 +176,16 @@ export function ProjectPage() {
       `/api/v1/projects/${projectId}/integrity`,
     ),
     enabled: Boolean(projectId && project.data?.canManage),
+  })
+  const jobSummary = useQuery({
+    queryKey: ['project-jobs-summary', projectId],
+    queryFn: () => apiRequest<JobStageSummary[]>(
+      `/api/v1/projects/${projectId}/jobs/summary`,
+    ),
+    enabled: Boolean(projectId),
+    refetchInterval: (query) => (
+      (query.state.data ?? []).some((item) => item.active) ? 5000 : false
+    ),
   })
   if (project.isLoading) return <main className="page"><p>Loading…</p></main>
   if (!project.data) return <main className="page"><p className="error" role="alert">Project could not be loaded.</p></main>
@@ -184,13 +222,21 @@ export function ProjectPage() {
               ),
             )
             if (visibleLinks.length === 0) return null
+            const summaryText = jobSummaryText(jobSummary.data ?? [], group.jobStages)
             return (
               <div
                 className={upcoming ? 'nav-group nav-group--upcoming' : 'nav-group'}
                 key={group.heading}
                 style={groupColorStyle(group.stage)}
               >
-                <h3>{group.heading}</h3>
+                <h3>
+                  {group.heading}
+                  {summaryText ? (
+                    <Tooltip text="Background jobs are automated tasks (like importing files or checking for duplicates) that run behind the scenes. This shows how many have finished for this stage.">
+                      <span className="job-stage-summary"> · {summaryText}</span>
+                    </Tooltip>
+                  ) : null}
+                </h3>
                 <div className="toolbar">
                   {visibleLinks.map(({ path, label }) => (
                     upcoming ? (

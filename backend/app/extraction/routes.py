@@ -15,6 +15,7 @@ from app.extraction.models import (
     ExtractionWorkItem,
 )
 from app.extraction.schemas import (
+    CompletedExtractionSummary,
     ExtractionDraftUpdate,
     ExtractionItemResponse,
     ExtractionResponseModel,
@@ -23,6 +24,8 @@ from app.extraction.schemas import (
 from app.extraction.service import (
     active_fields,
     claim_next_extraction,
+    list_completed_for_reviewer,
+    my_progress,
     project_form,
     reassign_work_items_from_ineligible_reviewers,
     save_draft,
@@ -36,6 +39,7 @@ from app.projects.service import (
     require_project_access,
 )
 from app.publications.models import Publication
+from app.screening.schemas import MyProgressResponse
 
 router = APIRouter(tags=["extraction"])
 
@@ -65,6 +69,41 @@ def extraction_item_payload(
         "fields": active_fields(db, form) if form else [],
         "current_response": response,
     }
+
+
+@router.get(
+    "/projects/{project_id}/extraction/progress",
+    response_model=MyProgressResponse,
+)
+def my_extraction_progress(
+    project_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, int]:
+    require_project_access(db, project_id, user)
+    return my_progress(db, project_id, user.id)
+
+
+@router.get(
+    "/projects/{project_id}/extraction/mine",
+    response_model=list[CompletedExtractionSummary],
+)
+def my_completed_extractions(
+    project_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[dict[str, Any]]:
+    require_project_access(db, project_id, user)
+    return [
+        {
+            "id": item.id,
+            "publication_id": item.publication_id,
+            "publication": db.get(Publication, item.publication_id),
+            "completed_at": item.completed_at,
+            "version": response.version,
+        }
+        for item, response in list_completed_for_reviewer(db, project_id, user.id)
+    ]
 
 
 @router.get(

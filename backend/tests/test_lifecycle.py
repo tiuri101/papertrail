@@ -120,6 +120,34 @@ def test_project_waits_for_enabled_validation_cohort_but_not_unusable_text(db) -
     assert project.stage == ProjectStage.COMPLETED
 
 
+def test_project_cannot_complete_while_late_full_text_work_is_outstanding(db) -> None:
+    admin, project, included = create_included_project(db)
+    db.add(
+        ExtractionWorkItem(
+            project_id=project.id,
+            publication_id=included.id,
+            assigned_reviewer_id=admin.id,
+            random_rank="rank",
+            status=ExtractionStatus.COMPLETED,
+        )
+    )
+    reconsidered = Publication(project_id=project.id, title="Reconsidered paper")
+    db.add(reconsidered)
+    db.flush()
+    record_final_decision(
+        db,
+        reconsidered.id,
+        ScreeningStage.TITLE_ABSTRACT,
+        "include",
+        "revised_consensus",
+        admin.id,
+        None,
+    )
+
+    assert evaluate_project_completion(db, project) is False
+    assert project.stage == ProjectStage.EXTRACTION
+
+
 def test_move_project_back_deletes_downstream_data_and_resets_target_stage(db) -> None:
     admin, project, publication = create_included_project(db)
     work_item = ExtractionWorkItem(

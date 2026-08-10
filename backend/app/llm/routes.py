@@ -748,6 +748,10 @@ def title_abstract_suggestion(
     item = _assigned_screening_item(db, project_id, item_id, user)
     if item.stage != ScreeningStage.TITLE_ABSTRACT:
         raise NotFoundError("Title/abstract screening item not found")
+    if not feature_enabled(db, project_id, LlmTaskType.TITLE_ABSTRACT_SCREENING):
+        # Disabled always wins, even before the reviewer has submitted their
+        # own decision — there is nothing to reveal or hide.
+        return {"state": "disabled"}
     own_decision = db.scalar(
         select(ScreeningDecision.id).where(
             ScreeningDecision.work_item_id == item.id,

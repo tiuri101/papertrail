@@ -84,7 +84,7 @@ function criterionComparison(
   return (assessment === 'met') === humanAnswer ? 'match' : 'mismatch'
 }
 
-function LlmAssistanceHeading({ qualifier }: { qualifier?: string }) {
+export function LlmAssistanceHeading({ qualifier }: { qualifier?: string }) {
   return (
     <h3>
       <span className="llm-task-panel__icon" aria-hidden="true">✦</span>

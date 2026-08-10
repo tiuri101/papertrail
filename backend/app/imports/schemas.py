@@ -66,6 +66,13 @@ class JobResponse(ApiModel):
     completed_at: datetime | None = Field(serialization_alias="completedAt")
 
 
+class JobStageSummary(ApiModel):
+    stage: str
+    completed: int
+    total: int
+    active: bool
+
+
 class JobErrorResponse(ApiModel):
     job_id: str = Field(serialization_alias="jobId")
     job_type: str = Field(serialization_alias="jobType")

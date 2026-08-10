@@ -126,6 +126,23 @@ export function IconSwap() {
   )
 }
 
+export function IconInfo() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" fillRule="evenodd">
+      <path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20ZM13 17h-2v-7h2v7Zm0-9h-2V6h2v2Z" />
+    </svg>
+  )
+}
+
+export function IconLightbulb() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 2a7 7 0 0 0-4 12.7c.6.45 1 1.2 1 2v.3h6v-.3c0-.8.4-1.55 1-2A7 7 0 0 0 12 2Z" opacity="0.75" />
+      <path d="M9.5 19h5v1.3a1.5 1.5 0 0 1-1.5 1.5h-2a1.5 1.5 0 0 1-1.5-1.5V19Z" />
+    </svg>
+  )
+}
+
 export function IconSparkle() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">

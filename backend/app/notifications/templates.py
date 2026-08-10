@@ -202,11 +202,15 @@ def render_email(template: str, context: dict[str, Any]) -> RenderedEmail:
             f"Hello {context['recipient_name']},",
             f'The "{context["stage_label"]}" stage of the Papertrail project '
             f'"{context["project_name"]}" has been completed.',
-            "The project has automatically advanced to its next stage.",
+            "The project has automatically advanced to its next stage: "
+            f'"{context["new_stage_label"]}".',
         ]
         action_label = "Open project"
         action_url = context["project_url"]
-        summary_items = [("Stage complete", str(context["stage_label"]), "#147a59")]
+        summary_items = [
+            ("Stage complete", str(context["stage_label"]), "#147a59"),
+            ("Now in progress", str(context["new_stage_label"]), "#5369d8"),
+        ]
     elif template == "llm_stage_completed":
         subject = f'LLM processing bulk finished for "{context["project_name"]}"'
         paragraphs = [
