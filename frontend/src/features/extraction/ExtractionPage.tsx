@@ -1,12 +1,12 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
-import { IconCheckCircle } from '../../components/icons'
+import { IconCheckCircle, IconRestart } from '../../components/icons'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { DynamicForm, type DynamicFormField } from '../forms/DynamicForm'
-import { LlmEvidence, type LlmEvidenceItem } from '../llm/LlmTaskComponents'
+import { LlmAssistanceHeading, LlmEvidence, type LlmEvidenceItem } from '../llm/LlmTaskComponents'
 
 interface PublicationSummary {
   title: string
@@ -27,20 +27,13 @@ interface WorkItem {
   currentResponse: ExtractionResponse | null
 }
 
-interface Evidence {
-  page: number
-  quote: string
-  section: string | null
-  verified: boolean
-}
-
 interface LlmSuggestion {
   id: string
   mappedExtractionFieldKey: string | null
   label: string
   value: unknown
   status: 'explicit' | 'inferred' | 'ambiguous' | 'not_found' | 'not_applicable'
-  evidence: Evidence[]
+  evidence: LlmEvidenceItem[]
   evidenceValidationStatus: string
   evidenceRequired: boolean
   helper: boolean
@@ -62,6 +55,11 @@ interface ExtractionResponse {
   answers: Record<string, unknown>
   version: number
   formVersionId: string
+}
+
+interface ExtractionProgress {
+  assigned: number
+  completed: number
 }
 
 interface ValidationResult {
@@ -93,6 +91,7 @@ function isAnswered(value: unknown): boolean {
 
 export function ExtractionPage() {
   const { projectId = '', itemId } = useParams()
+  const navigate = useNavigate()
   const [item, setItem] = useState<WorkItem | null>(null)
   const [answers, setAnswers] = useState<Record<string, unknown>>({})
   const [queueEmpty, setQueueEmpty] = useState(false)
@@ -100,6 +99,11 @@ export function ExtractionPage() {
   const [nextError, setNextError] = useState<string | null>(null)
   const [suggestionActions, setSuggestionActions] = useState<Record<string, 'accepted' | 'modified' | 'ignored' | 'manual'>>({})
   const [completedResponse, setCompletedResponse] = useState<ExtractionResponse | null>(null)
+  const progress = useQuery({
+    queryKey: ['extraction-progress', projectId],
+    queryFn: () => apiRequest<ExtractionProgress>(`/api/v1/projects/${projectId}/extraction/progress`),
+    enabled: Boolean(projectId),
+  })
   const assistance = useQuery({
     queryKey: ['extraction-llm', projectId, item?.id],
     queryFn: () => apiRequest<LlmAssistance>(
@@ -173,6 +177,7 @@ export function ExtractionPage() {
       )
     },
     onSuccess: (response) => {
+      progress.refetch()
       if (itemId) {
         setCompletedResponse(response)
         return
@@ -238,69 +243,67 @@ export function ExtractionPage() {
     const status = suggestion?.status.replace('_', ' ')
     return (
       <>
-      {suggestion ? <aside className={`llm-suggestion llm-suggestion--${suggestion.status}`}>
-        <div className="llm-suggestion__heading">
-          <strong>✦ LLM suggestion · {status}</strong>
-          {applied ? <span>Reviewer value matches suggestion</span> : null}
-        </div>
-        {suggestion.status === 'inferred' ? (
-          <p>⚠ This value is inferred; the paper does not state it directly.</p>
-        ) : null}
-        {['not_found', 'not_applicable'].includes(suggestion.status) ? (
-          <p>{suggestion.status === 'not_found' ? 'Not found in the paper.' : 'Not applicable.'}</p>
-        ) : (
-          <>
-            <p><code>{JSON.stringify(suggestion.value)}</code></p>
-            <button
-              type="button"
-              className="button-secondary"
-              onClick={() => {
-                setAnswers((values) => ({
-                  ...values, [field.stableKey]: suggestion.value,
-                }))
-                setSuggestionActions((actions) => ({
-                  ...actions, [field.stableKey]: 'accepted',
-                }))
-              }}
-            >
-              {isAnswered(current) ? 'Reset to LLM suggestion' : 'Apply suggestion'}
-            </button>
-            <button
-              type="button"
-              className="button-secondary"
-              onClick={() => setSuggestionActions((actions) => ({
-                ...actions, [field.stableKey]: 'ignored',
-              }))}
-            >
-              Ignore suggestion
-            </button>
-          </>
-        )}
-        {suggestion.evidence.length ? (
-          <details>
-            <summary>Evidence ({suggestion.evidence.length})</summary>
-            {suggestion.evidence.map((evidence, index) => (
-              <blockquote key={`${evidence.page}-${index}`}>
-                <p>
-                  p. {evidence.page}{evidence.section ? ` · ${evidence.section}` : ''} · {evidence.verified ? 'Verified evidence' : 'Unverified evidence'}
-                </p>
-                <q>{evidence.quote}</q>
-                <p>
-                  <a
-                    href={`/api/v1/projects/${projectId}/publications/${item?.publicationId}/full-text/content#page=${evidence.page}`}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Open PDF at page {evidence.page}
-                  </a>
-                </p>
-              </blockquote>
-            ))}
-          </details>
-        ) : suggestion.evidenceRequired && suggestion.value != null ? (
-          <p className="error">No verified supporting evidence was returned.</p>
-        ) : null}
-      </aside> : null}
+      {suggestion ? (
+        <aside
+          className={`llm-task-panel${applied ? ' llm-task-panel--match' : ''}`}
+          aria-label={applied ? `LLM suggestion for ${field.label} — matches your value` : `LLM suggestion for ${field.label}`}
+        >
+          <div className="llm-task-panel__heading">
+            <strong>
+              <span className="llm-task-panel__icon" aria-hidden="true">✦</span>
+              {' '}LLM suggestion · {status}
+            </strong>
+            {applied ? <span className="muted">Reviewer value matches suggestion</span> : null}
+          </div>
+          {suggestion.status === 'inferred' ? (
+            <p>⚠ This value is inferred; the paper does not state it directly.</p>
+          ) : null}
+          {['not_found', 'not_applicable'].includes(suggestion.status) ? (
+            <p>{suggestion.status === 'not_found' ? 'Not found in the paper.' : 'Not applicable.'}</p>
+          ) : (
+            <>
+              <p><code>{JSON.stringify(suggestion.value)}</code></p>
+              <div className="toolbar">
+                <button
+                  type="button"
+                  className="button-secondary"
+                  onClick={() => {
+                    setAnswers((values) => ({
+                      ...values, [field.stableKey]: suggestion.value,
+                    }))
+                    setSuggestionActions((actions) => ({
+                      ...actions, [field.stableKey]: 'accepted',
+                    }))
+                  }}
+                >
+                  {isAnswered(current) ? 'Reset to LLM suggestion' : 'Apply suggestion'}
+                </button>
+                <button
+                  type="button"
+                  className="button-secondary"
+                  onClick={() => setSuggestionActions((actions) => ({
+                    ...actions, [field.stableKey]: 'ignored',
+                  }))}
+                >
+                  Ignore suggestion
+                </button>
+              </div>
+            </>
+          )}
+          {suggestion.evidence.length ? (
+            <details>
+              <summary>Evidence ({suggestion.evidence.length})</summary>
+              <LlmEvidence
+                evidence={suggestion.evidence}
+                projectId={projectId}
+                publicationId={item?.publicationId ?? ''}
+              />
+            </details>
+          ) : suggestion.evidenceRequired && suggestion.value != null ? (
+            <p className="error">No verified supporting evidence was returned.</p>
+          ) : null}
+        </aside>
+      ) : null}
       {validationResult ? (
         <aside className={`llm-validation llm-validation--${validationResult.assessment}`}>
           <strong>Validation: {validationResult.assessment.replace('_', ' ')}</strong>
@@ -324,10 +327,20 @@ export function ExtractionPage() {
   return (
     <main className="page">
       <h1>Data Extraction</h1>
+      {progress.data ? (
+        <p className="muted">{progress.data.completed} of {progress.data.assigned} assigned papers extracted</p>
+      ) : null}
       {!item ? (
         <>
           {loadingNext ? <p>Loading the next extraction…</p> : null}
-          {!loadingNext && queueEmpty ? <p>No extraction work is currently available.</p> : null}
+          {!loadingNext && queueEmpty ? (
+            <>
+              <p>You have completed all of your assigned extraction work.</p>
+              <button type="button" className="button-secondary" onClick={() => navigate(`/projects/${projectId}`)}>
+                Back to project
+              </button>
+            </>
+          ) : null}
           {!loadingNext && nextError ? (
             <p className="error" role="alert">{nextError}</p>
           ) : null}
@@ -359,21 +372,46 @@ export function ExtractionPage() {
               </a>
             ) : null}
           </div>
-          {assistance.isLoading ? <p className="muted">Checking for LLM suggestions…</p> : null}
-          {assistance.data?.state && assistance.data.state !== 'ready' ? (
-            <p className={assistance.data.state === 'failed' ? 'error' : 'muted'}>
-              LLM assistance: {assistance.data.state.replaceAll('_', ' ')}
-              {assistance.data.error ? ` — ${assistance.data.error}` : ''}. Manual extraction remains available.
-            </p>
+          {assistance.isLoading ? (
+            <aside className="llm-task-panel" aria-label="LLM assistance">
+              <div className="llm-task-panel__heading">
+                <LlmAssistanceHeading />
+              </div>
+              <p className="muted">Checking for LLM suggestions…</p>
+            </aside>
           ) : null}
-          {assistance.data?.outdated ? <p className="muted">LLM result uses an older schema version.</p> : null}
-          {assistance.data && ['unavailable', 'failed', 'cancelled'].includes(assistance.data.state) ? (
-            <button type="button" className="button-secondary" onClick={() => runLlm.mutate(assistance.data?.state === 'failed')} disabled={runLlm.isPending}>
-              {runLlm.isPending ? 'Queueing…' : assistance.data.state === 'failed' ? 'Re-run LLM extraction' : 'Run LLM extraction'}
-            </button>
+          {assistance.data?.state && assistance.data.state !== 'ready' && assistance.data.state !== 'disabled' ? (
+            <aside className="llm-task-panel" aria-label="LLM assistance">
+              <div className="llm-task-panel__heading">
+                <LlmAssistanceHeading qualifier={assistance.data.state === 'failed' ? 'failed' : undefined} />
+                {['unavailable', 'failed', 'cancelled'].includes(assistance.data.state) ? (
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    onClick={() => runLlm.mutate(assistance.data?.state === 'failed')}
+                    disabled={runLlm.isPending}
+                  >
+                    {runLlm.isPending ? 'Queueing…' : assistance.data.state === 'failed' ? 'Re-run LLM extraction' : 'Run LLM extraction'}
+                  </button>
+                ) : null}
+              </div>
+              <p className={assistance.data.state === 'failed' ? 'error' : 'muted'}>
+                LLM assistance: {assistance.data.state.replaceAll('_', ' ')}
+                {assistance.data.error ? ` — ${assistance.data.error}` : ''}. Manual extraction remains available.
+              </p>
+            </aside>
           ) : null}
           {assistance.data?.outdated ? (
-            <button type="button" className="button-secondary" onClick={() => runLlm.mutate(true)} disabled={runLlm.isPending}>Re-run with current schema</button>
+            <aside className="llm-task-panel" aria-label="LLM assistance is stale">
+              <div className="llm-task-panel__heading">
+                <LlmAssistanceHeading qualifier="is stale" />
+                <button type="button" className="button-secondary" onClick={() => runLlm.mutate(true)} disabled={runLlm.isPending}>
+                  <IconRestart />
+                  Re-run with current schema
+                </button>
+              </div>
+              <p className="muted">LLM result uses an older schema version.</p>
+            </aside>
           ) : null}
           {runLlm.error ? <p className="error" role="alert">{runLlm.error.message}</p> : null}
           <form onSubmit={(event) => { event.preventDefault(); submit.mutate() }}>
@@ -390,8 +428,13 @@ export function ExtractionPage() {
               renderAssistance={suggestionCard}
             />
             {helpers.length ? (
-              <aside className="llm-helper-panel">
-                <h3>Additional LLM assistance</h3>
+              <aside className="llm-task-panel" aria-label="Additional LLM assistance">
+                <div className="llm-task-panel__heading">
+                  <h3>
+                    <span className="llm-task-panel__icon" aria-hidden="true">✦</span>
+                    {' '}Additional LLM assistance
+                  </h3>
+                </div>
                 {helpers.map((helper) => (
                   <section key={helper.id}>
                     <h4>{helper.label}</h4>
@@ -408,9 +451,12 @@ export function ExtractionPage() {
               <IconCheckCircle />
               {completedResponse ? 'Save corrected extraction' : 'Submit Extraction'}
             </button>
-            {completedResponse && itemId ? (
-              <section className="llm-validation-summary" aria-label="Extraction validation">
-                <h3>LLM extraction validation</h3>
+            {completedResponse && itemId && validation.data?.state !== 'disabled' ? (
+              <section className="llm-task-panel" aria-label="Extraction validation">
+                <h3>
+                  <span className="llm-task-panel__icon" aria-hidden="true">✦</span>
+                  {' '}LLM extraction validation
+                </h3>
                 {validation.isLoading ? <p>Checking validation status…</p> : null}
                 {validation.data?.stale ? (
                   <p className="error">Validation is stale because the extraction or source changed.</p>

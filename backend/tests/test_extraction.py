@@ -328,3 +328,100 @@ def test_next_extraction_endpoint_returns_the_publication_and_active_fields(
     )
     assert resumed_response.status_code == 200
     assert resumed_response.json()["id"] == body["id"]
+
+
+def test_progress_endpoint_reports_assigned_and_completed_counts(client, db) -> None:
+    project, _, required, _, _, r1, _ = setup_extraction(db)
+    initialize_extraction(db, project)
+    db.commit()
+    csrf = client.post(
+        "/api/v1/auth/login", json={"username": "r1", "password": "password-1"}
+    ).json()["csrfToken"]
+
+    before = client.get(
+        f"/api/v1/projects/{project.id}/extraction/progress",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert before.status_code == 200
+    assert before.json() == {"assigned": 1, "completed": 0}
+
+    item = claim_next_extraction(db, project.id, r1.id)
+    submit_extraction(db, item, r1.id, {required.stable_key: "Finding"})
+    db.commit()
+
+    after = client.get(
+        f"/api/v1/projects/{project.id}/extraction/progress",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert after.status_code == 200
+    assert after.json() == {"assigned": 1, "completed": 1}
+
+
+def test_mine_endpoint_lists_only_the_callers_completed_extractions(client, db) -> None:
+    project, _, required, _, _, r1, r2 = setup_extraction(db)
+    initialize_extraction(db, project)
+    db.commit()
+    item = claim_next_extraction(db, project.id, r1.id)
+    submit_extraction(db, item, r1.id, {required.stable_key: "Finding"})
+    db.commit()
+
+    csrf = client.post(
+        "/api/v1/auth/login", json={"username": "r1", "password": "password-1"}
+    ).json()["csrfToken"]
+    mine = client.get(
+        f"/api/v1/projects/{project.id}/extraction/mine",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert mine.status_code == 200
+    body = mine.json()
+    assert len(body) == 1
+    assert body[0]["id"] == item.id
+    assert body[0]["version"] == 1
+
+    other_csrf = client.post(
+        "/api/v1/auth/login", json={"username": "r2", "password": "password-2"}
+    ).json()["csrfToken"]
+    other_mine = client.get(
+        f"/api/v1/projects/{project.id}/extraction/mine",
+        headers={"X-CSRF-Token": other_csrf},
+    )
+    assert other_mine.status_code == 200
+    assert other_mine.json() == []
+
+
+def test_completed_extraction_can_be_revisited_and_resubmitted(client, db) -> None:
+    project, _, required, _, _, r1, r2 = setup_extraction(db)
+    initialize_extraction(db, project)
+    db.commit()
+    item = claim_next_extraction(db, project.id, r1.id)
+    submit_extraction(db, item, r1.id, {required.stable_key: "Finding"})
+    db.commit()
+
+    csrf = client.post(
+        "/api/v1/auth/login", json={"username": "r1", "password": "password-1"}
+    ).json()["csrfToken"]
+    fetched = client.get(
+        f"/api/v1/projects/{project.id}/extraction/{item.id}",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert fetched.status_code == 200
+    assert fetched.json()["currentResponse"]["answers"] == {
+        required.stable_key: "Finding"
+    }
+
+    corrected = client.post(
+        f"/api/v1/projects/{project.id}/extraction/{item.id}",
+        json={"answers": {required.stable_key: "Corrected finding"}},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert corrected.status_code == 200
+    assert corrected.json()["version"] == 2
+
+    other_csrf = client.post(
+        "/api/v1/auth/login", json={"username": "r2", "password": "password-2"}
+    ).json()["csrfToken"]
+    forbidden = client.get(
+        f"/api/v1/projects/{project.id}/extraction/{item.id}",
+        headers={"X-CSRF-Token": other_csrf},
+    )
+    assert forbidden.status_code == 403

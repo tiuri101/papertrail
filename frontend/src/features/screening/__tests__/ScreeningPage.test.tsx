@@ -183,16 +183,17 @@ describe('ScreeningPage', () => {
     expect(screen.getByRole('checkbox', { name: 'Exclusion: Is an editorial — Not fulfilled' })).toBeChecked()
   })
 
-  it('reports that the queue has no available work, with no button to retry', async () => {
+  it('reports that the reviewer has completed all assigned screening work, with a way back to the project', async () => {
     renderScreening(async (input) => String(input).endsWith('/next') ? jsonResponse(null) : jsonResponse({}))
-    expect(await screen.findByText('No publications are currently available.')).toBeInTheDocument()
+    expect(await screen.findByText('You have completed all of your assigned screening work.')).toBeInTheDocument()
     expect(screen.queryByText('Loading the next publication…')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Get next publication' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Back to project' })).toBeInTheDocument()
   })
 
   it('reports that the full-text queue has no available work', async () => {
     renderScreening(async (input) => String(input).endsWith('/next') ? jsonResponse(null) : jsonResponse({}), 'full_text')
-    expect(await screen.findByText('No publications are currently available.')).toBeInTheDocument()
+    expect(await screen.findByText('You have completed all of your assigned screening work.')).toBeInTheDocument()
     expect(screen.queryByText('Loading the next publication…')).not.toBeInTheDocument()
   })
 

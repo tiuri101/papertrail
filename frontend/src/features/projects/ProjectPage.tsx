@@ -103,12 +103,14 @@ const projectSectionGroups: ProjectSectionGroup[] = [
     stage: 'extraction_quality',
     links: [
       { path: 'extraction', label: 'Data Extraction' },
+      { path: 'extraction/mine', label: 'My Submitted Extractions' },
       {
         path: 'extraction/validation',
         label: 'Review LLM Extraction Validation',
         validationOnly: true,
       },
       { path: 'quality', label: 'Quality Assessment' },
+      { path: 'quality/mine', label: 'My Submitted Quality Assessments' },
     ],
   },
   {

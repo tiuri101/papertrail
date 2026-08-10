@@ -259,6 +259,7 @@ def queue_project_stage_completed_emails(
                 "recipient_name": owner.display_name,
                 "project_name": project.name,
                 "stage_label": STAGE_LABELS[completed_stage],
+                "new_stage_label": STAGE_LABELS[project.stage],
                 "project_url": f"{settings.public_base_url}/projects/{project.id}",
             },
             project_id=project.id,

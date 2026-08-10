@@ -14,9 +14,11 @@ const baseItem = {
   workItemId: 'work-1',
   submittedAt: '2026-01-01T00:00:00Z',
   publication: {
+    id: 'publication-1',
     title: 'Immersive Urban Analytics',
     authors: 'A. Author',
     abstract: 'A study of urban data in virtual reality.',
+    venue: null,
     doi: '10.1000/example',
     publisherUrl: null,
   },
@@ -87,6 +89,32 @@ describe('MyDecisionsPage', () => {
         ([input, init]) => String(input).endsWith('/work-items/work-1/decision') && init?.method === 'POST',
       )).toBe(true)
     })
+  })
+
+  it('shows the LLM assistance panel while editing a past decision', async () => {
+    renderMyDecisions(async (input) => {
+      const path = String(input)
+      if (path.endsWith('/my-decisions')) {
+        return jsonResponse({ stageCompleted: false, criteria, items: [baseItem] })
+      }
+      if (path.endsWith('/work-items/work-1/llm-title-abstract')) {
+        return jsonResponse({
+          state: 'ready', hidden: false, runId: 'run-1', documentId: 'doc-1',
+          model: 'test-model', promptVersion: 'v1', stale: false, error: null,
+          suggestedDecision: 'include', confidence: 'high',
+          reasoningSummary: 'Meets the inclusion criteria.', criteria: [],
+        })
+      }
+      return jsonResponse({})
+    })
+
+    await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
+    expect(screen.queryByText(/LLM assistance/)).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Decision' }))
+
+    expect(await screen.findByText('Meets the inclusion criteria.')).toBeInTheDocument()
+    expect(screen.getByText(/LLM suggestion:/).closest('p')).toHaveTextContent('include')
   })
 
   it('requires an extra confirmation before saving an edit once the stage is completed', async () => {

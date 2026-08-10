@@ -4,16 +4,17 @@ from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.accounts.dependencies import require_csrf
+from app.accounts.dependencies import get_current_user, require_csrf
 from app.accounts.models import User, UserSession
-from app.api.errors import NotFoundError
+from app.api.errors import ForbiddenError, NotFoundError
 from app.audit.service import record_audit
 from app.db.session import get_db
 from app.projects.dependencies import (
     require_project_manager,
     require_project_manager_csrf,
 )
-from app.projects.service import get_project, require_project_access
+from app.projects.models import ProjectMembership
+from app.projects.service import get_project, is_project_manager, require_project_access
 from app.publications.models import Publication
 from app.quality.models import (
     QualityConfig,
@@ -22,6 +23,7 @@ from app.quality.models import (
     QualityWorkItem,
 )
 from app.quality.schemas import (
+    CompletedQualitySummary,
     QualityConfigResponse,
     QualityConfigUpdate,
     QualityDraftUpdate,
@@ -32,17 +34,30 @@ from app.quality.schemas import (
 from app.quality.service import (
     active_fields,
     claim_next_quality,
+    list_completed_for_reviewer,
+    my_progress,
     quality_form,
     reassign_work_items_from_ineligible_reviewers,
     save_draft,
     submit_quality,
 )
+from app.screening.schemas import MyProgressResponse
 
 router = APIRouter(tags=["quality assessment"])
 
 
-def quality_item_payload(db: Session, item: QualityWorkItem) -> dict[str, Any]:
+def quality_item_payload(
+    db: Session, item: QualityWorkItem, *, include_response: bool = False
+) -> dict[str, Any]:
     form = quality_form(db, item.project_id)
+    response = None
+    if include_response:
+        response = db.scalar(
+            select(QualityResponse).where(
+                QualityResponse.work_item_id == item.id,
+                QualityResponse.is_current.is_(True),
+            )
+        )
     return {
         "id": item.id,
         "publication_id": item.publication_id,
@@ -50,6 +65,7 @@ def quality_item_payload(db: Session, item: QualityWorkItem) -> dict[str, Any]:
         "draft": item.draft,
         "publication": db.get(Publication, item.publication_id),
         "fields": active_fields(db, form) if form else [],
+        "current_response": response,
     }
 
 
@@ -105,6 +121,69 @@ def configure_quality(
         "mode": config.mode,
         "aggregation": config.aggregation,
     }
+
+
+@router.get(
+    "/projects/{project_id}/quality/progress",
+    response_model=MyProgressResponse,
+)
+def my_quality_progress(
+    project_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, int]:
+    require_project_access(db, project_id, user)
+    return my_progress(db, project_id, user.id)
+
+
+@router.get(
+    "/projects/{project_id}/quality/mine",
+    response_model=list[CompletedQualitySummary],
+)
+def my_completed_quality_assessments(
+    project_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> list[dict[str, Any]]:
+    require_project_access(db, project_id, user)
+    return [
+        {
+            "id": item.id,
+            "publication_id": item.publication_id,
+            "publication": db.get(Publication, item.publication_id),
+            "completed_at": item.completed_at,
+            "version": response.version,
+            "total_score": response.total_score,
+        }
+        for item, response in list_completed_for_reviewer(db, project_id, user.id)
+    ]
+
+
+@router.get(
+    "/projects/{project_id}/quality/{item_id}",
+    response_model=QualityItemResponse,
+)
+def get_quality_for_review(
+    project_id: str,
+    item_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    require_project_access(db, project_id, user)
+    item = db.get(QualityWorkItem, item_id)
+    if item is None or item.project_id != project_id:
+        raise NotFoundError("Quality work item not found")
+    if not is_project_manager(db, project_id, user):
+        membership = db.scalar(
+            select(ProjectMembership).where(
+                ProjectMembership.project_id == project_id,
+                ProjectMembership.user_id == user.id,
+                ProjectMembership.can_assess_quality.is_(True),
+            )
+        )
+        if membership is None or item.assigned_reviewer_id != user.id:
+            raise ForbiddenError("Quality assessment is assigned to another reviewer")
+    return quality_item_payload(db, item, include_response=True)
 
 
 @router.post(

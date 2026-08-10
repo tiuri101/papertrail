@@ -1166,6 +1166,55 @@ def test_reviewer_never_sees_suggestion_after_capability_disabled(
     assert still_hidden.json()["criteria"] == []
 
 
+def test_title_suggestion_reports_disabled_before_own_decision_is_submitted(
+    client, db, monkeypatch
+) -> None:
+    _, reviewer, project, publication, _, _, _, _ = setup_llm_project(db)
+    membership = db.scalar(
+        select(ProjectMembership).where(
+            ProjectMembership.project_id == project.id,
+            ProjectMembership.user_id == reviewer.id,
+        )
+    )
+    membership.can_title_abstract_screen = True
+    criterion = Criterion(
+        project_id=project.id,
+        kind=CriterionKind.INCLUSION,
+        text="Reports an empirical evaluation",
+        position=0,
+    )
+    db.add(criterion)
+    settings = project_settings(db, project.id)
+    settings.title_abstract_screening_enabled = True
+    item = ScreeningWorkItem(
+        project_id=project.id,
+        publication_id=publication.id,
+        stage=ScreeningStage.TITLE_ABSTRACT,
+        slot_number=1,
+        assigned_reviewer_id=reviewer.id,
+        reserved_by_id=reviewer.id,
+        random_rank="title-llm-disabled-before-decision",
+    )
+    db.add(item)
+    db.commit()
+
+    # Disable the capability before the reviewer has submitted their own
+    # decision. The "hidden until you decide" placeholder must not appear —
+    # there is nothing to hide, the feature is simply off.
+    settings.title_abstract_screening_enabled = False
+    db.commit()
+
+    csrf = client.post(
+        "/api/v1/auth/login",
+        json={"username": reviewer.username, "password": "reviewer-password"},
+    ).json()["csrfToken"]
+    path = f"/api/v1/projects/{project.id}/screening/work-items/{item.id}/llm-title-abstract"
+    response = client.get(path, headers={"X-CSRF-Token": csrf})
+    assert response.status_code == 200
+    assert response.json()["state"] == "disabled"
+    assert "hidden" not in response.json() or response.json()["hidden"] is not True
+
+
 def test_title_suggestion_is_queued_when_screening_work_item_becomes_eligible(
     db,
 ) -> None:

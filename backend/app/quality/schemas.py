@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -30,6 +31,13 @@ class QualityDraftUpdate(ApiModel):
     draft: dict[str, Any]
 
 
+class QualityResponseModel(ApiModel):
+    id: str
+    answers: dict[str, Any]
+    total_score: float | None = Field(serialization_alias="totalScore")
+    version: int
+
+
 class QualityItemResponse(ApiModel):
     id: str
     publication_id: str = Field(serialization_alias="publicationId")
@@ -37,10 +45,15 @@ class QualityItemResponse(ApiModel):
     draft: dict[str, Any]
     publication: PublicationItem
     fields: list[FieldResponse]
+    current_response: QualityResponseModel | None = Field(
+        default=None, serialization_alias="currentResponse"
+    )
 
 
-class QualityResponseModel(ApiModel):
+class CompletedQualitySummary(ApiModel):
     id: str
-    answers: dict[str, Any]
-    total_score: float | None = Field(serialization_alias="totalScore")
+    publication_id: str = Field(serialization_alias="publicationId")
+    publication: PublicationItem
+    completed_at: datetime | None = Field(serialization_alias="completedAt")
     version: int
+    total_score: float | None = Field(serialization_alias="totalScore")
