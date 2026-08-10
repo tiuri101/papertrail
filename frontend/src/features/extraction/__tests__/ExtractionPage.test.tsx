@@ -80,6 +80,21 @@ describe('ExtractionPage', () => {
     expect(await screen.findByText('2 of 5 assigned papers extracted')).toBeInTheDocument()
   })
 
+  it('shows papers remaining instead of assigned counts in claim mode', async () => {
+    mockFetch(async (input) => {
+      const path = String(input)
+      if (path.endsWith('/next')) return jsonResponse(workItem)
+      if (path.endsWith('/extraction/progress')) {
+        return jsonResponse({ assigned: 1, completed: 0, remaining: 4, claimMode: true })
+      }
+      return jsonResponse({})
+    })
+    renderWithProviders(<ExtractionPage />, { route: '/projects/p1/extraction', path: '/projects/:projectId/extraction' })
+
+    expect(await screen.findByText('4 papers remaining')).toBeInTheDocument()
+    expect(screen.queryByText(/assigned papers extracted/)).not.toBeInTheDocument()
+  })
+
   it('renders a dynamic form field per active field and pre-fills the draft', async () => {
     mockFetch(async (input) => String(input).endsWith('/next')
       ? jsonResponse({ ...workItem, draft: { finding: 'Draft note' } })
@@ -223,6 +238,36 @@ describe('ExtractionPage', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Reset to LLM suggestion' }))
     expect(screen.getByLabelText('Sample size')).toHaveValue(24)
     expect(screen.getByText('Reviewer value matches suggestion')).toBeInTheDocument()
+  })
+
+  it('marks an untouched checkbox as matching an LLM suggestion of false, offering Reset instead of Apply', async () => {
+    const checkboxWorkItem = {
+      ...workItem,
+      fields: [
+        ...workItem.fields,
+        { id: 'field-3', stableKey: 'hasControlGroup', label: 'Has control group', fieldType: 'checkbox', required: false, options: [] },
+      ],
+    }
+    mockFetch(async (input) => {
+      const path = String(input)
+      if (path.endsWith('/next')) return jsonResponse(checkboxWorkItem)
+      if (path.endsWith('/llm-suggestions')) return jsonResponse({
+        state: 'ready', runId: 'run-1', documentId: 'doc-1', schemaVersion: 1,
+        model: 'test-model', outdated: false, error: null,
+        suggestions: [{
+          id: 'suggestion-1', mappedExtractionFieldKey: 'hasControlGroup', label: 'Has control group',
+          value: false, status: 'explicit', evidenceRequired: false,
+          evidenceValidationStatus: 'not_required', helper: false, evidence: [],
+        }],
+      })
+      return jsonResponse({})
+    })
+    renderWithProviders(<ExtractionPage />, { route: '/projects/p1/extraction', path: '/projects/:projectId/extraction' })
+
+    expect(await screen.findByLabelText('Has control group')).not.toBeChecked()
+    expect(await screen.findByText('Reviewer value matches suggestion')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Reset to LLM suggestion' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Apply suggestion' })).not.toBeInTheDocument()
   })
 
   it('records accepted suggestion provenance with the submitted human value', async () => {

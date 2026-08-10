@@ -1,8 +1,9 @@
 import { useMemo, useState, type ReactNode } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
 import { apiRequest } from '../../api/client'
+import { StageEyebrow } from '../projects/StageEyebrow'
 
 interface FieldMeta {
   stableKey: string
@@ -230,11 +231,12 @@ export function FinalResultsPage() {
 
   return (
     <main className="page">
-      <p className="eyebrow">Review outputs</p>
+      <StageEyebrow stage="completed" />
       <h1>Final Results</h1>
       <p className="muted">
         Every publication included in the review, with its data extraction
-        {query.data?.qualityEnabled ? ' and quality assessment' : ''} results.
+        {query.data?.qualityEnabled ? ' and quality assessment' : ''} results. This data can also
+        be downloaded from the <Link to={`/projects/${projectId}/reporting`}>Reporting and Exports</Link> page.
       </p>
       {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
       {query.isLoading ? <p>Loading…</p> : null}

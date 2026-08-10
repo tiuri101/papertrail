@@ -6,6 +6,7 @@ import { apiRequest } from '../../api/client'
 import { IconArrowRight } from '../../components/icons'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
+import { StageEyebrow } from '../projects/StageEyebrow'
 import { ScreeningItemCard } from '../screening/ScreeningItemCard'
 import { useScreeningQueue } from '../screening/useScreeningQueue'
 import type { Retrieval } from './useRetrievalQueue'
@@ -64,7 +65,7 @@ export function FullTextPage() {
 
   return (
     <main className="page">
-      <p className="eyebrow">Review workspace</p>
+      <StageEyebrow stage="full_text_screening" />
       <h1>Full-Text</h1>
       {retrievalQueue.nextError ? <p className="error" role="alert">{retrievalQueue.nextError}</p> : null}
       {updateRetrieval.error ? <p className="error" role="alert">{updateRetrieval.error.message}</p> : null}

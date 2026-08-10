@@ -4,6 +4,7 @@ import { Link, useParams } from 'react-router-dom'
 import { apiRequest } from '../../api/client'
 import { Tooltip } from '../../components/Tooltip'
 import { LlmEvidence, type LlmEvidenceItem } from '../llm/LlmTaskComponents'
+import { StageEyebrow } from '../projects/StageEyebrow'
 
 interface ValidationResult {
   fieldKey: string
@@ -79,6 +80,7 @@ export function ValidationReviewPage() {
   if (!review.data.enabled) {
     return (
       <main className="page">
+        <StageEyebrow stage="extraction_quality" />
         <h1>LLM Extraction Validation</h1>
         <p>LLM extraction validation is not enabled for this project.</p>
       </main>
@@ -94,6 +96,7 @@ export function ValidationReviewPage() {
 
   return (
     <main className="page">
+      <StageEyebrow stage="extraction_quality" />
       <h1>Review LLM Extraction Validation</h1>
       <section className="card">
         <h2>Validation progress</h2>

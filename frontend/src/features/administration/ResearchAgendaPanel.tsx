@@ -3,7 +3,8 @@ import { useEffect, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { ConfirmButton } from '../../components/ConfirmButton'
-import { IconCheckCircle, IconPlus, IconTrash } from '../../components/icons'
+import { IconCheckCircle, IconHelpCircle, IconPlus, IconTrash } from '../../components/icons'
+import { InfoBox } from '../../components/InfoBox'
 
 type CriterionKind = 'inclusion' | 'exclusion'
 
@@ -223,7 +224,18 @@ export function ResearchQuestionsPanel({
 
   return (
     <section id="section-research-questions" className="card">
-      <h2>Research Questions</h2>
+      <h2>
+        <span className="collapsible-section__title">
+          <span className="collapsible-section__icon" aria-hidden="true"><IconHelpCircle /></span>
+          Research Questions
+        </span>
+      </h2>
+      <InfoBox icon={<IconHelpCircle />}>
+        <p>
+          The questions this review sets out to answer. Keep them specific — reviewers and
+          screening criteria will be built around them.
+        </p>
+      </InfoBox>
       {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
       <table>
         <thead>
@@ -325,7 +337,18 @@ export function CriteriaPanel({
 
   return (
     <section id="section-screening-criteria" className="card">
-      <h2>Inclusion / Exclusion Criteria</h2>
+      <h2>
+        <span className="collapsible-section__title">
+          <span className="collapsible-section__icon" aria-hidden="true"><IconCheckCircle /></span>
+          Inclusion / Exclusion Criteria
+        </span>
+      </h2>
+      <InfoBox icon={<IconCheckCircle />}>
+        <p>
+          The criteria reviewers apply when screening publications. Every inclusion and exclusion
+          criterion is shown to reviewers as a question they must answer for each publication.
+        </p>
+      </InfoBox>
       {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
       <table>
         <thead>

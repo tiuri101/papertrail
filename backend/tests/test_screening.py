@@ -896,6 +896,56 @@ def test_next_endpoint_backfills_a_publication_left_without_a_work_item(
     }
 
 
+def test_get_work_item_returns_the_reviewers_own_decision(client, db) -> None:
+    project, publication, reviewer1, reviewer2, criteria = setup_screening(db)
+    create_screening_work_items(db, project, ScreeningStage.TITLE_ABSTRACT)
+    db.commit()
+
+    login = client.post(
+        "/api/v1/auth/login", json={"username": "reviewer1", "password": "password-1"}
+    )
+    csrf = login.json()["csrfToken"]
+
+    claimed = client.post(
+        f"/api/v1/projects/{project.id}/screening/title_abstract/next",
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+
+    decision = client.post(
+        f"/api/v1/projects/{project.id}/screening/work-items/{claimed['id']}/decision",
+        headers={"X-CSRF-Token": csrf},
+        json={
+            "outcome": "include",
+            "criteriaAnswers": {criteria[0].id: True, criteria[1].id: False},
+            "notes": "looks relevant",
+        },
+    )
+    assert decision.status_code == 200
+
+    fetched = client.get(
+        f"/api/v1/projects/{project.id}/screening/work-items/{claimed['id']}"
+    )
+    assert fetched.status_code == 200
+    body = fetched.json()
+    assert body["id"] == claimed["id"]
+    assert body["publication"]["title"] == publication.title
+    assert body["decision"]["outcome"] == "include"
+    assert body["decision"]["notes"] == "looks relevant"
+    assert body["decision"]["criteriaAnswers"] == {
+        criteria[0].id: True,
+        criteria[1].id: False,
+    }
+
+    other_login = client.post(
+        "/api/v1/auth/login", json={"username": "reviewer2", "password": "password-2"}
+    )
+    assert other_login.status_code == 200
+    forbidden = client.get(
+        f"/api/v1/projects/{project.id}/screening/work-items/{claimed['id']}"
+    )
+    assert forbidden.status_code == 403
+
+
 def test_progress_endpoint_reports_assigned_and_completed_counts(client, db) -> None:
     project, publication, reviewer1, _, criteria = setup_screening(db)
     second = Publication(project_id=project.id, title="Second paper")
@@ -914,7 +964,12 @@ def test_progress_endpoint_reports_assigned_and_completed_counts(client, db) -> 
         headers={"X-CSRF-Token": csrf},
     )
     assert before.status_code == 200
-    assert before.json() == {"assigned": 2, "completed": 0}
+    assert before.json() == {
+        "assigned": 2,
+        "completed": 0,
+        "remaining": 0,
+        "claimMode": False,
+    }
 
     item = claim_next_work_item(
         db, project.id, ScreeningStage.TITLE_ABSTRACT, reviewer1.id
@@ -934,7 +989,119 @@ def test_progress_endpoint_reports_assigned_and_completed_counts(client, db) -> 
         headers={"X-CSRF-Token": csrf},
     )
     assert after.status_code == 200
-    assert after.json() == {"assigned": 2, "completed": 1}
+    assert after.json() == {
+        "assigned": 2,
+        "completed": 1,
+        "remaining": 0,
+        "claimMode": False,
+    }
+
+
+def test_progress_endpoint_reports_remaining_in_claim_mode(client, db) -> None:
+    project, _, reviewer1, _, criteria = setup_screening(db)
+    config = db.scalar(
+        select(ScreeningConfig).where(
+            ScreeningConfig.project_id == project.id,
+            ScreeningConfig.stage == ScreeningStage.TITLE_ABSTRACT,
+        )
+    )
+    config.allocation_mode = AllocationMode.CLAIM
+    db.commit()
+    create_screening_work_items(db, project, ScreeningStage.TITLE_ABSTRACT)
+    db.commit()
+
+    login = client.post(
+        "/api/v1/auth/login", json={"username": "reviewer1", "password": "password-1"}
+    )
+    csrf = login.json()["csrfToken"]
+
+    before = client.get(
+        f"/api/v1/projects/{project.id}/screening/title_abstract/progress",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert before.status_code == 200
+    assert before.json() == {
+        "assigned": 0,
+        "completed": 0,
+        "remaining": 1,
+        "claimMode": True,
+    }
+
+    item = claim_next_work_item(
+        db, project.id, ScreeningStage.TITLE_ABSTRACT, reviewer1.id
+    )
+    submit_decision(
+        db,
+        item,
+        reviewer1.id,
+        "include",
+        {criteria[0].id: True, criteria[1].id: False},
+        None,
+    )
+    db.commit()
+
+    after = client.get(
+        f"/api/v1/projects/{project.id}/screening/title_abstract/progress",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert after.status_code == 200
+    assert after.json() == {
+        "assigned": 1,
+        "completed": 1,
+        "remaining": 0,
+        "claimMode": True,
+    }
+
+
+def test_releasing_claimed_item_returns_it_to_the_open_pool(client, db) -> None:
+    """Releasing a claimed item (e.g. navigating away mid-screening) must clear
+    assigned_reviewer_id in claim mode, or the item becomes an orphan: still
+    counted in this reviewer's `remaining`, but never offered to anyone again
+    since claim_next_work_item only offers unassigned items."""
+    project, _, reviewer1, reviewer2, _ = setup_screening(db)
+    config = db.scalar(
+        select(ScreeningConfig).where(
+            ScreeningConfig.project_id == project.id,
+            ScreeningConfig.stage == ScreeningStage.TITLE_ABSTRACT,
+        )
+    )
+    config.allocation_mode = AllocationMode.CLAIM
+    db.commit()
+    create_screening_work_items(db, project, ScreeningStage.TITLE_ABSTRACT)
+    db.commit()
+
+    login = client.post(
+        "/api/v1/auth/login", json={"username": "reviewer1", "password": "password-1"}
+    )
+    csrf = login.json()["csrfToken"]
+
+    item = claim_next_work_item(
+        db, project.id, ScreeningStage.TITLE_ABSTRACT, reviewer1.id
+    )
+    db.commit()
+    assert item is not None
+    assert item.assigned_reviewer_id == reviewer1.id
+
+    released = client.post(
+        f"/api/v1/projects/{project.id}/screening/work-items/{item.id}/release",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert released.status_code == 200
+    db.refresh(item)
+    assert item.status == WorkItemStatus.AVAILABLE
+    assert item.assigned_reviewer_id is None
+
+    progress = client.get(
+        f"/api/v1/projects/{project.id}/screening/title_abstract/progress",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert progress.json()["remaining"] == 1
+
+    reclaimed = claim_next_work_item(
+        db, project.id, ScreeningStage.TITLE_ABSTRACT, reviewer2.id
+    )
+    assert reclaimed is not None
+    assert reclaimed.id == item.id
 
 
 def test_revising_decision_preserves_previous_revision(db) -> None:

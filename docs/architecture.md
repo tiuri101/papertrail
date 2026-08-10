@@ -28,7 +28,7 @@ Optional SMTP delivery uses the same queue. Domain actions create a deduplicated
 
 ## Reviewer queues
 
-Screening, extraction, and quality work items use deterministic ranks derived from the global seed, project, publication, and stage. A short transaction atomically claims an item; the one-day user reservation is stored as data rather than as a long-running database lock.
+Screening, extraction, and quality work items use deterministic ranks derived from the global seed, project, publication, and stage. A short transaction atomically claims an item; the one-hour user reservation is stored as data rather than as a long-running database lock.
 
 ## Data preservation
 

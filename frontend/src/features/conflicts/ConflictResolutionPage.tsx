@@ -5,6 +5,7 @@ import { useParams } from 'react-router-dom'
 import { apiRequest } from '../../api/client'
 import { useProjectManageState } from '../../hooks/useCanManageProject'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
+import { StageEyebrow } from '../projects/StageEyebrow'
 
 interface ConflictPublication {
   id: string
@@ -87,6 +88,9 @@ export function ConflictResolutionPage() {
   if (!canManage) {
     return (
       <main className="page">
+        <StageEyebrow
+          stage={stage === 'full_text' ? 'full_text_screening' : 'title_abstract_screening'}
+        />
         <h1>Conflict Resolution</h1>
         <p className="error" role="alert">
           Only the project owner or an administrator can resolve conflicts.
@@ -97,11 +101,14 @@ export function ConflictResolutionPage() {
 
   return (
     <main className="page">
+      <StageEyebrow
+        stage={stage === 'full_text' ? 'full_text_screening' : 'title_abstract_screening'}
+      />
       <h1>Conflict Resolution</h1>
       {conflicts.error ? <p className="error" role="alert">{conflicts.error.message}</p> : null}
       {resolve.error ? <p className="error" role="alert">{resolve.error.message}</p> : null}
       {addReviewer.error ? <p className="error" role="alert">{addReviewer.error.message}</p> : null}
-      <p>{list.length} unresolved publications</p>
+      <p>{list.length} unresolved conflicts</p>
       <ul className="card-list stacked">
         {list.map((conflict) => (
           <ConflictCard

@@ -153,7 +153,11 @@ def test_upload_view_replace_remove_and_history(client, db) -> None:
 
     removed = client.delete(endpoint, headers={"X-CSRF-Token": csrf})
     assert removed.status_code == 204
-    assert client.get(endpoint).json() == {"available": False, "document": None}
+    assert client.get(endpoint).json() == {
+        "available": False,
+        "document": None,
+        "retrievalStatus": None,
+    }
     assert len(client.get(f"{endpoint}/history").json()) == 2
     actions = set(db.scalars(select(AuditEvent.action)))
     assert {"pdf.uploaded_manual", "pdf.replaced", "pdf.removed"} <= actions

@@ -4,6 +4,8 @@ import { useParams } from 'react-router-dom'
 import { apiRequest } from '../../api/client'
 import { IconCheckCircle } from '../../components/icons'
 import { Tooltip } from '../../components/Tooltip'
+import { StageEyebrow } from '../projects/StageEyebrow'
+import { DuplicateDetectionAction } from './DuplicateDetectionAction'
 
 interface CandidatePublication {
   id: string
@@ -21,6 +23,11 @@ interface Candidate {
   matchReasons: string[]
   confidence: number
   status: string
+}
+
+interface ProjectAccess {
+  canManage: boolean
+  stage: string
 }
 
 const MATCH_REASON_LABELS: Record<string, string> = {
@@ -58,6 +65,11 @@ function PublicationSummary({ publication }: { publication: CandidatePublication
 export function DuplicateReviewPage() {
   const { projectId = '' } = useParams()
   const queryClient = useQueryClient()
+  const project = useQuery({
+    queryKey: ['project', projectId],
+    queryFn: () => apiRequest<ProjectAccess>(`/api/v1/projects/${projectId}`),
+    enabled: Boolean(projectId),
+  })
   const candidates = useQuery({
     queryKey: ['duplicates', projectId],
     queryFn: () => apiRequest<Candidate[]>(
@@ -92,10 +104,20 @@ export function DuplicateReviewPage() {
 
   return (
     <main className="page">
-      <p className="eyebrow">Review workspace</p>
+      <StageEyebrow stage="duplicate_review" />
       <h1>Duplicate Review</h1>
+      <p className="muted">
+        Candidate duplicate pairs found in this project. Compare each pair and keep the record
+        you want, or mark them as not duplicates.
+      </p>
+      {project.data?.canManage && project.data.stage === 'duplicate_review' ? (
+        <DuplicateDetectionAction projectId={projectId} />
+      ) : null}
       {candidates.error ? <p className="error" role="alert">{candidates.error.message}</p> : null}
       {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
+      {candidates.data && candidates.data.length > 0 ? (
+        <p>{candidates.data.filter((candidate) => candidate.status === 'unresolved').length} unresolved of {candidates.data.length} duplicates</p>
+      ) : null}
       {candidates.data && candidates.data.length === 0 ? <p className="muted">No duplicates found.</p> : null}
       <ul className="card-list stacked">
         {candidates.data?.map((candidate) => (

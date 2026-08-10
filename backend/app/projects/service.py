@@ -40,7 +40,7 @@ def create_project(
                 project_id=project.id,
                 stage=stage,
                 required_reviewers=1,
-                allocation_mode=AllocationMode.DIVIDED,
+                allocation_mode=AllocationMode.CLAIM,
                 conflict_resolution=ResolutionMethod.ADMIN_CONSENSUS,
                 uncertain_resolution=ResolutionMethod.ADMIN_CONSENSUS,
             )
@@ -202,7 +202,7 @@ def open_task_counts_for_user(
 
 
 def add_membership(
-    db: Session, project: Project, user: User, **eligibility: bool
+    db: Session, project: Project, user: User, **eligibility: bool | float
 ) -> ProjectMembership:
     if not user.is_active:
         raise ConflictError("Cannot add a deactivated user to a project")
@@ -235,7 +235,7 @@ def get_membership(db: Session, project_id: str, member_id: str) -> ProjectMembe
 
 
 def update_membership(
-    db: Session, membership: ProjectMembership, **eligibility: bool
+    db: Session, membership: ProjectMembership, **eligibility: bool | float
 ) -> ProjectMembership:
     for field, value in eligibility.items():
         setattr(membership, field, value)
@@ -246,6 +246,49 @@ def update_membership(
 def remove_membership(db: Session, membership: ProjectMembership) -> None:
     db.delete(membership)
     db.flush()
+
+
+def reviewer_weights(
+    db: Session, project_id: str, reviewer_ids: list[str]
+) -> dict[str, float]:
+    """Each reviewer's configured workload share for a project, defaulting to 1.0
+    for anyone without a membership row (e.g. a global admin filling in as a
+    reviewer)."""
+    if not reviewer_ids:
+        return {}
+    rows = db.execute(
+        select(ProjectMembership.user_id, ProjectMembership.workload_weight).where(
+            ProjectMembership.project_id == project_id,
+            ProjectMembership.user_id.in_(reviewer_ids),
+        )
+    ).all()
+    weights = {user_id: weight for user_id, weight in rows}
+    return {reviewer_id: weights.get(reviewer_id, 1.0) for reviewer_id in reviewer_ids}
+
+
+def weighted_round_robin_sequence(
+    reviewer_ids: list[str], weights: dict[str, float], count: int
+) -> list[str]:
+    """A deterministic sequence of `count` reviewer picks, proportioned to each
+    reviewer's weight, using the smooth weighted round-robin algorithm (as used
+    by nginx's upstream load balancer). Reviewers are interleaved rather than
+    assigned in weight-sized blocks, so consecutive publications are spread
+    across reviewers even when weights differ a lot.
+    """
+    if not reviewer_ids:
+        return []
+    current = {reviewer_id: 0.0 for reviewer_id in reviewer_ids}
+    total_weight = sum(
+        max(weights.get(reviewer_id, 1.0), 0.01) for reviewer_id in reviewer_ids
+    )
+    sequence: list[str] = []
+    for _ in range(count):
+        for reviewer_id in reviewer_ids:
+            current[reviewer_id] += max(weights.get(reviewer_id, 1.0), 0.01)
+        chosen = max(reviewer_ids, key=lambda r: (current[r], -reviewer_ids.index(r)))
+        sequence.append(chosen)
+        current[chosen] -= total_weight
+    return sequence
 
 
 def parse_highlight_keywords(raw: str) -> list[str]:

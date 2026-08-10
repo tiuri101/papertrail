@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 from app.accounts.models import User
 from app.api.errors import DomainError, ForbiddenError, NotFoundError
 from app.projects.models import (
+    AllocationMode,
     Criterion,
     Project,
     ProjectMembership,
@@ -19,6 +20,7 @@ from app.projects.models import (
     ScreeningConfig,
     ScreeningStage,
 )
+from app.projects.service import reviewer_weights, weighted_round_robin_sequence
 from app.publications.models import Publication
 from app.screening.models import (
     ScreeningDecision,
@@ -27,7 +29,7 @@ from app.screening.models import (
     WorkItemStatus,
 )
 
-RESERVATION_HOURS = 24
+RESERVATION_HOURS = 1
 
 
 def utcnow() -> datetime:
@@ -97,7 +99,21 @@ def create_screening_work_items(
     publications = list(db.scalars(query.order_by(Publication.id)))
     created = 0
     newly_eligible_publication_ids: set[str] = set()
-    for publication_index, publication in enumerate(publications):
+    # In claim mode, slots are left unassigned for reviewers to pick up themselves
+    # (see claim_next_work_item), so no assignment sequence is needed. Otherwise,
+    # slots are pre-assigned round-robin, weighted by each reviewer's configured
+    # workload share.
+    assignment_sequence: list[str] = (
+        []
+        if config.allocation_mode == AllocationMode.CLAIM
+        else weighted_round_robin_sequence(
+            reviewers,
+            reviewer_weights(db, project.id, reviewers),
+            len(publications) * config.required_reviewers,
+        )
+    )
+    assignment_position = 0
+    for publication in publications:
         rank = rank_for(project, publication.id, stage)
         for slot in range(config.required_reviewers):
             existing = db.scalar(
@@ -109,16 +125,18 @@ def create_screening_work_items(
             )
             if existing:
                 continue
-            reviewer_index = (
-                publication_index * config.required_reviewers + slot
-            ) % len(reviewers)
+            if config.allocation_mode == AllocationMode.CLAIM:
+                assigned_reviewer_id = None
+            else:
+                assigned_reviewer_id = assignment_sequence[assignment_position]
+                assignment_position += 1
             db.add(
                 ScreeningWorkItem(
                     project_id=project.id,
                     publication_id=publication.id,
                     stage=stage,
                     slot_number=slot + 1,
-                    assigned_reviewer_id=reviewers[reviewer_index],
+                    assigned_reviewer_id=assigned_reviewer_id,
                     random_rank=rank,
                 )
             )
@@ -154,10 +172,16 @@ def reassign_work_items_from_ineligible_reviewers(
     every other reviewer too, since each reviewer's queue only ever looks at items
     assigned to them specifically. Submitted items are left untouched: who actually
     screened a publication shouldn't change after the fact.
+
+    In claim mode, orphaned items are released back to the open pool (unassigned)
+    instead of being pushed onto a specific reviewer, matching how claim mode
+    hands out work everywhere else.
     """
     eligible = eligible_reviewer_ids(db, project_id, stage)
     if not eligible:
         return 0
+    config = get_screening_config(db, project_id, stage)
+    claim_mode = config is not None and config.allocation_mode == AllocationMode.CLAIM
     orphaned = list(
         db.scalars(
             select(ScreeningWorkItem)
@@ -172,7 +196,9 @@ def reassign_work_items_from_ineligible_reviewers(
         )
     )
     for index, item in enumerate(orphaned):
-        item.assigned_reviewer_id = eligible[index % len(eligible)]
+        item.assigned_reviewer_id = (
+            None if claim_mode else eligible[index % len(eligible)]
+        )
         if item.status == WorkItemStatus.RESERVED:
             item.status = WorkItemStatus.AVAILABLE
             item.reserved_by_id = None
@@ -193,10 +219,18 @@ def rebalance_pending_work_items(
     decided shouldn't move. A reviewer already committed to a publication (via a
     reserved or submitted item for one of its other slots) is never handed that
     publication's remaining slots, so dual screening stays independent.
+
+    A no-op when the stage is in claim mode: AVAILABLE items there are an
+    intentionally open pool for reviewers to pick from, not a backlog to
+    pre-assign.
     """
+    config = get_screening_config(db, project_id, stage)
+    if config is None or config.allocation_mode == AllocationMode.CLAIM:
+        return 0
     eligible = eligible_reviewer_ids(db, project_id, stage)
     if not eligible:
         return 0
+    weights = reviewer_weights(db, project_id, eligible)
     items = list(
         db.scalars(
             select(ScreeningWorkItem)
@@ -223,7 +257,8 @@ def rebalance_pending_work_items(
     for item in pending:
         taken = committed[item.publication_id]
         candidates = sorted(
-            (r for r in eligible if r not in taken), key=lambda r: (load[r], r)
+            (r for r in eligible if r not in taken),
+            key=lambda r: (load[r] / weights.get(r, 1.0), r),
         )
         if not candidates:
             continue
@@ -363,10 +398,20 @@ def claim_next_work_item(
             [WorkItemStatus.RESERVED, WorkItemStatus.SUBMITTED]
         ),
     )
+    config = get_screening_config(db, project_id, stage)
+    claim_mode = config is not None and config.allocation_mode == AllocationMode.CLAIM
+    # In claim mode, slots start unassigned and any eligible reviewer may pick one
+    # up from the shared pool. Otherwise, a reviewer only ever sees slots that
+    # were pre-assigned to them.
+    assignment_filter = (
+        ScreeningWorkItem.assigned_reviewer_id.is_(None)
+        if claim_mode
+        else ScreeningWorkItem.assigned_reviewer_id == reviewer_id
+    )
     filters = [
         ScreeningWorkItem.project_id == project_id,
         ScreeningWorkItem.stage == stage,
-        ScreeningWorkItem.assigned_reviewer_id == reviewer_id,
+        assignment_filter,
         ScreeningWorkItem.status != WorkItemStatus.SUBMITTED,
         or_(
             ScreeningWorkItem.status == WorkItemStatus.AVAILABLE,
@@ -392,6 +437,8 @@ def claim_next_work_item(
     item = db.scalar(query)
     if item is None:
         return None
+    if claim_mode:
+        item.assigned_reviewer_id = reviewer_id
     item.status = WorkItemStatus.RESERVED
     item.reserved_by_id = reviewer_id
     item.reserved_until = now + timedelta(hours=RESERVATION_HOURS)
@@ -399,12 +446,25 @@ def claim_next_work_item(
     return item
 
 
-def release_work_item(item: ScreeningWorkItem, reviewer_id: str) -> None:
+def release_work_item(db: Session, item: ScreeningWorkItem, reviewer_id: str) -> None:
+    """Return a reserved item to the pool.
+
+    In claim mode, releasing must also clear `assigned_reviewer_id` back to
+    None. Otherwise the item would stay pinned to this reviewer while
+    `claim_next_work_item` only ever offers unassigned items to claim,
+    stranding it: invisible in everyone's queue (including this reviewer's)
+    yet still counted in their `remaining` total by
+    `remaining_claimable_publications`, which only checks `assigned_reviewer_id`.
+    """
     if item.reserved_by_id != reviewer_id:
         raise ForbiddenError("This work item is not reserved by the current reviewer")
+    config = get_screening_config(db, item.project_id, item.stage)
+    claim_mode = config is not None and config.allocation_mode == AllocationMode.CLAIM
     item.status = WorkItemStatus.AVAILABLE
     item.reserved_by_id = None
     item.reserved_until = None
+    if claim_mode:
+        item.assigned_reviewer_id = None
 
 
 def save_draft(
@@ -476,6 +536,50 @@ def submit_decision(
     return decision
 
 
+def override_decision(
+    db: Session,
+    item: ScreeningWorkItem,
+    actor_id: str,
+    outcome: str | ScreeningOutcome,
+    criteria_answers: dict[str, bool],
+    notes: str | None,
+) -> tuple[ScreeningDecision, ScreeningDecision]:
+    current = db.scalar(
+        select(ScreeningDecision).where(
+            ScreeningDecision.work_item_id == item.id,
+            ScreeningDecision.is_current.is_(True),
+        )
+    )
+    if current is None:
+        raise DomainError(
+            "A submitted screening response is required before overriding it"
+        )
+    if set(criteria_answers) != set(current.criteria_answers) or any(
+        not isinstance(value, bool) for value in criteria_answers.values()
+    ):
+        raise DomainError(
+            "Every criterion in the submitted screening response must be explicitly answered"
+        )
+
+    current.is_current = False
+    decision = ScreeningDecision(
+        work_item_id=item.id,
+        reviewer_id=actor_id,
+        outcome=ScreeningOutcome(outcome),
+        criteria_answers=criteria_answers,
+        notes=notes,
+        version=current.version + 1,
+        is_current=True,
+    )
+    db.add(decision)
+
+    from app.conflicts.service import invalidate_final_decisions
+
+    invalidate_final_decisions(db, item.publication_id, item.stage)
+    db.flush()
+    return decision, current
+
+
 def decisions_visible(db: Session, publication_id: str, stage: ScreeningStage) -> bool:
     publication = db.get(Publication, publication_id)
     if publication is None:
@@ -542,11 +646,44 @@ def stage_completed(project: Project, stage: ScreeningStage) -> bool:
     )
 
 
+def remaining_claimable_publications(
+    db: Session, project_id: str, stage: ScreeningStage, reviewer_id: str
+) -> int:
+    """How many publications this reviewer could still screen for a stage in claim
+    mode: those already reserved by them plus those still open in the shared
+    pool, excluding publications they've already submitted a decision for."""
+    already_submitted = select(ScreeningWorkItem.publication_id).where(
+        ScreeningWorkItem.project_id == project_id,
+        ScreeningWorkItem.stage == stage,
+        ScreeningWorkItem.assigned_reviewer_id == reviewer_id,
+        ScreeningWorkItem.status == WorkItemStatus.SUBMITTED,
+    )
+    return (
+        db.scalar(
+            select(func.count(func.distinct(ScreeningWorkItem.publication_id)))
+            .select_from(ScreeningWorkItem)
+            .where(
+                ScreeningWorkItem.project_id == project_id,
+                ScreeningWorkItem.stage == stage,
+                ScreeningWorkItem.status != WorkItemStatus.SUBMITTED,
+                or_(
+                    ScreeningWorkItem.assigned_reviewer_id == reviewer_id,
+                    ScreeningWorkItem.assigned_reviewer_id.is_(None),
+                ),
+                ~ScreeningWorkItem.publication_id.in_(already_submitted),
+            )
+        )
+        or 0
+    )
+
+
 def my_progress(
     db: Session, project_id: str, stage: ScreeningStage, reviewer_id: str
-) -> dict[str, int]:
+) -> dict[str, int | bool]:
     """How many work items this reviewer has been assigned for a stage, and how
-    many of those they've already submitted a decision for."""
+    many of those they've already submitted a decision for. In claim mode, work
+    items start unassigned, so also report how many publications are still
+    available for this reviewer to pick up."""
     assigned = (
         db.scalar(
             select(func.count())
@@ -572,7 +709,19 @@ def my_progress(
         )
         or 0
     )
-    return {"assigned": assigned, "completed": completed}
+    config = get_screening_config(db, project_id, stage)
+    claim_mode = config is not None and config.allocation_mode == AllocationMode.CLAIM
+    remaining = (
+        remaining_claimable_publications(db, project_id, stage, reviewer_id)
+        if claim_mode
+        else 0
+    )
+    return {
+        "assigned": assigned,
+        "completed": completed,
+        "remaining": remaining,
+        "claim_mode": claim_mode,
+    }
 
 
 def my_submitted_work_items(

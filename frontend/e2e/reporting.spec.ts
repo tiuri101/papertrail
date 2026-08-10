@@ -26,7 +26,9 @@ test('administrator generates and downloads an Excel export', async ({ page }) =
   })
 
   await page.goto('/projects/project-1/reporting')
-  await expect(page.getByText(/"recordsScreened": 120/)).toBeVisible()
+  const counts = page.locator('.reporting-counts-card')
+  await expect(counts.getByText('Records Screened')).toBeVisible()
+  await expect(counts.getByText('120', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Generate Excel Workbook' }).click()
   await expect(page.getByRole('link', { name: 'papertrail-project-1.xlsx' })).toHaveAttribute(
     'href',

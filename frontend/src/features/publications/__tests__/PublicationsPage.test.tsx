@@ -23,6 +23,7 @@ const publications = [
     arxivId: null,
     fullText: { available: false },
     screeningStatus: { titleAbstract: 'include', fullText: 'exclude' },
+    extractionStatus: 'completed',
   },
   {
     id: 'publication-2',
@@ -41,6 +42,7 @@ const publications = [
     arxivId: null,
     fullText: { available: false },
     screeningStatus: { titleAbstract: null, fullText: null },
+    extractionStatus: null,
   },
 ]
 
@@ -77,10 +79,26 @@ describe('PublicationsPage', () => {
     expect(within(noAbstractCard).getByText('No abstract available.')).toBeInTheDocument()
   })
 
-  it('hides the multi-select checkbox and management controls from regular users', async () => {
+  it('shows management controls to regular project members, not just owners', async () => {
     mockFetch((input) => {
       const url = String(input)
-      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: false })
+      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: false, canManagePublications: true })
+      if (url.endsWith('/metadata-conflicts')) return jsonResponse([])
+      return jsonResponse(publications)
+    })
+    renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
+
+    expect(await screen.findByText('Urban Data in VR')).toBeInTheDocument()
+    expect(screen.getByLabelText('Select Urban Data in VR')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Urban Data in VR' })).toBeInTheDocument()
+    expect(screen.getAllByRole('button', { name: 'Edit' }).length).toBeGreaterThan(0)
+    expect(screen.getByText('Metadata Enrichment')).toBeInTheDocument()
+  })
+
+  it('hides the multi-select checkbox and management controls when publication management is unavailable', async () => {
+    mockFetch((input) => {
+      const url = String(input)
+      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: false, canManagePublications: false })
       return jsonResponse(publications)
     })
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
@@ -90,6 +108,39 @@ describe('PublicationsPage', () => {
     expect(screen.queryByRole('button', { name: 'Urban Data in VR' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
     expect(screen.queryByText('Metadata Enrichment')).not.toBeInTheDocument()
+  })
+
+  it('hides reviewer-decision override actions from regular project members', async () => {
+    const reviewDetails = {
+      screening: {
+        titleAbstract: {
+          finalDecision: null,
+          criteria: [],
+          reviewerDecisions: [
+            {
+              workItemId: 'screening-1', reviewerName: 'Reviewer One', outcome: 'include',
+              criteriaAnswers: {}, notes: null, version: 1,
+            },
+          ],
+        },
+        fullText: null,
+      },
+      extraction: null,
+    }
+    mockFetch((input) => {
+      const url = String(input)
+      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: false, canManagePublications: true })
+      if (url.endsWith('/metadata-conflicts')) return jsonResponse([])
+      if (url.endsWith('/review-details')) return jsonResponse(reviewDetails)
+      return jsonResponse(publications)
+    })
+    renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
+
+    const card = await screen.findByText('Urban Data in VR').then((element) => element.closest('li') as HTMLElement)
+    fireEvent.click(within(card).getByText('Review details'))
+
+    expect(await within(card).findByText('Reviewer One')).toBeInTheDocument()
+    expect(within(card).queryByRole('button', { name: 'Override Title/Abstract' })).not.toBeInTheDocument()
   })
 
   it('shows singular count for a single publication', async () => {
@@ -112,7 +163,7 @@ describe('PublicationsPage', () => {
   it('clicking a publication opens an edit form that saves metadata', async () => {
     const fetchMock = mockFetch((input) => {
       const url = String(input)
-      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
+      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
       if (url.includes('/publications/publication-1')) {
         return jsonResponse({ ...publications[0], title: 'Urban Data in Virtual Reality' })
       }
@@ -136,7 +187,7 @@ describe('PublicationsPage', () => {
   it('deleting a publication requires confirming a warning first', async () => {
     const fetchMock = mockFetch((input, init) => {
       const url = String(input)
-      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
+      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
       if (init?.method === 'DELETE') return emptyResponse(204)
       return jsonResponse(publications)
     })
@@ -158,7 +209,7 @@ describe('PublicationsPage', () => {
   it('triggers enrichment for a single publication with a DOI', async () => {
     const fetchMock = mockFetch((input, init) => {
       const url = String(input)
-      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
+      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
       if (url.endsWith('/publications/publication-1/enrich') && init?.method === 'POST') {
         return jsonResponse({ jobId: 'job-1' }, 202)
       }
@@ -182,7 +233,7 @@ describe('PublicationsPage', () => {
   it('enriches selected publications and all publications missing metadata', async () => {
     const fetchMock = mockFetch((input, init) => {
       const url = String(input)
-      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
+      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
       if (url.endsWith('/publications/enrich') && init?.method === 'POST') {
         return jsonResponse({ jobIds: ['job-1'] }, 202)
       }
@@ -231,7 +282,7 @@ describe('PublicationsPage', () => {
     ]
     const fetchMock = mockFetch((input, init) => {
       const url = String(input)
-      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
+      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
       if (url.endsWith('/metadata-conflicts')) return jsonResponse(conflicts)
       if (url.endsWith('/metadata-conflicts/conflict-1/resolve') && init?.method === 'POST') {
         return jsonResponse({ ...conflicts[0], status: 'accept_proposed' })
@@ -263,10 +314,12 @@ describe('PublicationsPage', () => {
     const includedCard = await screen.findByText('Urban Data in VR').then((el) => el.closest('li') as HTMLElement)
     expect(within(includedCard).getByText(/Title\/Abstract: Included/)).toBeInTheDocument()
     expect(within(includedCard).getByText(/Full text: Excluded/)).toBeInTheDocument()
+    expect(within(includedCard).getByText(/Data extraction: Completed/)).toBeInTheDocument()
 
     const pendingCard = screen.getByText('Paper without DOI').closest('li') as HTMLElement
     expect(within(pendingCard).getByText(/Title\/Abstract: Pending/)).toBeInTheDocument()
     expect(within(pendingCard).queryByText(/Full text:/)).not.toBeInTheDocument()
+    expect(within(pendingCard).queryByText(/Data extraction:/)).not.toBeInTheDocument()
 
     expect(screen.getByText('2 publications in this project')).toBeInTheDocument()
 
@@ -274,6 +327,176 @@ describe('PublicationsPage', () => {
     expect(screen.getByText('Urban Data in VR')).toBeInTheDocument()
     expect(screen.queryByText('Paper without DOI')).not.toBeInTheDocument()
     expect(screen.getByText('1 of 2 publications match your filters')).toBeInTheDocument()
+  })
+
+  it('shows the retrieval failure reason instead of "Pending" when full text could not be retrieved', async () => {
+    const unretrievable = {
+      ...publications[0],
+      id: 'publication-3',
+      title: 'Unreachable Paper',
+      fullText: { available: false, retrievalStatus: 'not_found' },
+      screeningStatus: { titleAbstract: 'include', fullText: null },
+    }
+    mockFetch(() => jsonResponse([unretrievable]))
+    renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
+
+    const card = await screen.findByText('Unreachable Paper').then((el) => el.closest('li') as HTMLElement)
+    expect(within(card).getByText(/Full text: Not found/)).toBeInTheDocument()
+    expect(within(card).queryByText(/Full text: Pending/)).not.toBeInTheDocument()
+  })
+
+  it('shows review details and lets the owner override screening and extraction', async () => {
+    let reviewDetails = {
+      screening: {
+        titleAbstract: {
+          finalDecision: {
+            outcome: 'include', resolutionMethod: 'agreement', note: null, resolvedBy: null,
+          },
+          criteria: [
+            { id: 'ic-1', kind: 'inclusion' as const, text: 'Relevant population' },
+            { id: 'ec-1', kind: 'exclusion' as const, text: 'Editorial or commentary' },
+          ],
+          reviewerDecisions: [
+            {
+              workItemId: 'screening-1', reviewerName: 'Reviewer One', outcome: 'include',
+              criteriaAnswers: { 'ic-1': true, 'ec-1': false }, notes: 'Relevant population',
+              version: 1,
+            },
+          ],
+        },
+        fullText: {
+          finalDecision: {
+            outcome: 'exclude', resolutionMethod: 'admin_consensus', note: 'Wrong design', resolvedBy: 'Owner',
+          },
+          criteria: [],
+          reviewerDecisions: [],
+        },
+      },
+      extraction: {
+        workItemId: 'extraction-1',
+        status: 'completed',
+        completedAt: '2026-08-01T12:00:00Z',
+        response: {
+          id: 'response-1',
+          version: 1,
+          reviewerName: 'Extractor One',
+          answers: { finding: 'Original finding', participants: 12 },
+          fields: [
+            {
+              stableKey: 'finding', label: 'Main finding', fieldType: 'long_text',
+              required: true, options: [],
+            },
+            {
+              stableKey: 'participants', label: 'Participants', fieldType: 'number',
+              required: false, options: [],
+            },
+          ],
+        },
+      },
+    }
+    const fetchMock = mockFetch((input, init) => {
+      const url = String(input)
+      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
+      if (url.endsWith('/metadata-conflicts')) return jsonResponse([])
+      if (url.endsWith('/review-details')) return jsonResponse(reviewDetails)
+      if (url.endsWith('/screening/work-items/screening-1/override') && init?.method === 'POST') {
+        const body = JSON.parse(String(init.body))
+        reviewDetails = {
+          ...reviewDetails,
+          screening: {
+            ...reviewDetails.screening,
+            titleAbstract: {
+              ...reviewDetails.screening.titleAbstract,
+              reviewerDecisions: [{
+                ...reviewDetails.screening.titleAbstract.reviewerDecisions[0],
+                reviewerName: 'Owner',
+                outcome: body.outcome,
+                criteriaAnswers: body.criteriaAnswers,
+                notes: body.notes,
+                version: 2,
+              }],
+            },
+          },
+        }
+        return jsonResponse({
+          id: 'decision-2', version: 2, outcome: body.outcome,
+          criteriaAnswers: body.criteriaAnswers, notes: body.notes,
+        })
+      }
+      if (url.endsWith('/extraction/extraction-1/override') && init?.method === 'POST') {
+        const body = JSON.parse(String(init.body))
+        reviewDetails = {
+          ...reviewDetails,
+          extraction: {
+            ...reviewDetails.extraction,
+            response: {
+              ...reviewDetails.extraction.response,
+              version: 2,
+              answers: body.answers,
+            },
+          },
+        }
+        return jsonResponse({ id: 'response-2', version: 2, answers: body.answers })
+      }
+      return jsonResponse(publications)
+    })
+    renderWithProviders(<PublicationsPage />, {
+      route: '/projects/p1/publications', path: '/projects/:projectId/publications',
+    })
+
+    const card = await screen.findByText('Urban Data in VR').then((element) => element.closest('li') as HTMLElement)
+    fireEvent.click(within(card).getByText('Review details'))
+
+    expect(await within(card).findByText('Reviewer One')).toBeInTheDocument()
+    expect(within(card).getByText('IC1')).toBeInTheDocument()
+    expect(within(card).getAllByText('Relevant population')).toHaveLength(2)
+    expect(within(card).getByRole('cell', { name: 'IC1: Fulfilled' })).toHaveTextContent('Yes')
+    expect(within(card).getByRole('cell', { name: 'IC1: Fulfilled' }).querySelector('svg')).toBeNull()
+    expect(within(card).getByText('EC1')).toBeInTheDocument()
+    expect(within(card).getByText('Editorial or commentary')).toBeInTheDocument()
+    expect(within(card).getByRole('cell', { name: 'EC1: Not fulfilled' })).toHaveTextContent('Yes')
+    expect(within(card).queryByText(/LLM suggestion/i)).not.toBeInTheDocument()
+    expect(within(card).getByText('Original finding')).toBeInTheDocument()
+    expect(within(card).getByText(/Version 1 by Extractor One/)).toBeInTheDocument()
+
+    fireEvent.click(within(card).getByRole('button', { name: 'Override Title/Abstract' }))
+    fireEvent.click(within(card).getByLabelText('IC1: Set not fulfilled'))
+    fireEvent.change(within(card).getByLabelText('Reason for override'), {
+      target: { value: 'The criterion was applied incorrectly' },
+    })
+    fireEvent.click(within(card).getByRole('button', { name: 'Save override' }))
+
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find(([input, init]) => (
+        String(input).endsWith('/screening/work-items/screening-1/override')
+        && init?.method === 'POST'
+      ))
+      expect(JSON.parse(String(call?.[1]?.body))).toEqual({
+        outcome: 'include',
+        criteriaAnswers: { 'ic-1': false, 'ec-1': false },
+        notes: 'Relevant population',
+        reason: 'The criterion was applied incorrectly',
+      })
+    })
+
+    fireEvent.click(within(card).getByRole('button', { name: 'Override data extraction' }))
+    fireEvent.change(within(card).getByLabelText('Main finding *'), {
+      target: { value: 'Owner-corrected finding' },
+    })
+    fireEvent.change(within(card).getByLabelText('Reason for override'), {
+      target: { value: 'Corrected from source PDF' },
+    })
+    fireEvent.click(within(card).getByRole('button', { name: 'Save extraction override' }))
+
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find(([input, init]) => (
+        String(input).endsWith('/extraction/extraction-1/override') && init?.method === 'POST'
+      ))
+      expect(JSON.parse(String(call?.[1]?.body))).toEqual({
+        answers: { finding: 'Owner-corrected finding', participants: 12 },
+        reason: 'Corrected from source PDF',
+      })
+    })
   })
 
   it('searches across publication metadata', async () => {
@@ -331,7 +554,7 @@ describe('PublicationsPage', () => {
   it('bulk-deletes the selected publications after confirming', async () => {
     const fetchMock = mockFetch((input, init) => {
       const url = String(input)
-      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
+      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
       if (url.endsWith('/metadata-conflicts')) return jsonResponse([])
       if (url.endsWith('/publications/delete') && init?.method === 'POST') {
         return jsonResponse({ deletedCount: 1 })
@@ -359,7 +582,7 @@ describe('PublicationsPage', () => {
   it('selects and deselects all filtered publications with Select All', async () => {
     mockFetch((input) => {
       const url = String(input)
-      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
+      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
       if (url.endsWith('/metadata-conflicts')) return jsonResponse([])
       return jsonResponse(publications)
     })
@@ -386,7 +609,7 @@ describe('PublicationsPage', () => {
   it('bulk-uploads and auto-matches PDFs against the whole project without any selection', async () => {
     const fetchMock = mockFetch((input, init) => {
       const url = String(input)
-      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
+      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
       if (url.endsWith('/metadata-conflicts')) return jsonResponse([])
       if (url.endsWith('/publications/pdfs') && init?.method === 'POST') {
         return jsonResponse({
@@ -428,10 +651,85 @@ describe('PublicationsPage', () => {
     expect(await screen.findByText('Review PDF matches')).toBeInTheDocument()
   })
 
+  it('shows per-publication export links, gating PDF export on availability', async () => {
+    mockFetch((input) => {
+      const url = String(input)
+      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
+      if (url.endsWith('/metadata-conflicts')) return jsonResponse([])
+      return jsonResponse([
+        { ...publications[0], fullText: { available: true } },
+        publications[1],
+      ])
+    })
+    renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
+
+    const withPdfCard = await screen.findByText('Urban Data in VR').then((el) => el.closest('li') as HTMLElement)
+    expect(within(withPdfCard).getByRole('link', { name: /Export BibTeX/ })).toHaveAttribute(
+      'href', '/api/v1/projects/p1/publications/publication-1/export/bib',
+    )
+    expect(within(withPdfCard).getByRole('link', { name: /Export PDF/ })).toHaveAttribute(
+      'href', '/api/v1/projects/p1/publications/publication-1/export/pdf',
+    )
+
+    const withoutPdfCard = screen.getByText('Paper without DOI').closest('li') as HTMLElement
+    expect(within(withoutPdfCard).getByRole('link', { name: /Export BibTeX/ })).toBeInTheDocument()
+    expect(within(withoutPdfCard).queryByRole('link', { name: /Export PDF/ })).not.toBeInTheDocument()
+  })
+
+  it('bulk-exports selected publications as a PDF+BibTeX bundle and links the finished download', async () => {
+    let jobStatus = 'queued'
+    const fetchMock = mockFetch((input, init) => {
+      const url = String(input)
+      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
+      if (url.endsWith('/metadata-conflicts')) return jsonResponse([])
+      if (url.endsWith('/exports') && init?.method === 'POST') {
+        return jsonResponse({ jobId: 'job-1' })
+      }
+      if (url.endsWith('/jobs')) {
+        return jsonResponse([
+          {
+            id: 'job-1',
+            jobType: 'generate_export',
+            status: jobStatus,
+            progressCurrent: 0,
+            progressTotal: 0,
+            progressMessage: null,
+            errorMessage: null,
+            createdAt: '2026-08-10T00:00:00Z',
+            completedAt: jobStatus === 'completed' ? '2026-08-10T00:01:00Z' : null,
+            result: jobStatus === 'completed' ? { artifactId: 'artifact-1' } : null,
+          },
+        ])
+      }
+      return jsonResponse(publications)
+    })
+    const { queryClient } = renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
+
+    await screen.findByText('Urban Data in VR')
+    fireEvent.click(screen.getByLabelText('Select Urban Data in VR'))
+    fireEvent.click(screen.getByRole('button', { name: 'Export Selected (1)' }))
+
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/exports') && init?.method === 'POST')
+      expect(call).toBeTruthy()
+      expect(JSON.parse(String(call?.[1]?.body))).toEqual({ exportType: 'pdf_bundle', publicationIds: ['publication-1'] })
+    })
+    expect(await screen.findByText(/Preparing export bundle/)).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Download bundle' })).not.toBeInTheDocument()
+
+    jobStatus = 'completed'
+    await queryClient.invalidateQueries({ queryKey: ['jobs', 'p1'] })
+
+    expect(await screen.findByRole('link', { name: 'Download bundle' })).toHaveAttribute(
+      'href', '/api/v1/projects/p1/exports/artifact-1/download',
+    )
+    expect(screen.queryByText(/Preparing export bundle/)).not.toBeInTheDocument()
+  })
+
   it('lets a manager attach a PDF from the publications page', async () => {
     const fetchMock = mockFetch((input, init) => {
       const url = String(input)
-      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
+      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
       if (url.endsWith('/metadata-conflicts')) return jsonResponse([])
       if (url.endsWith('/publications/publication-1/full-text') && init?.method === 'POST') {
         return jsonResponse({ available: true, document: { id: 'doc-1', originalFilename: 'paper.pdf', fileSize: 1024, uploadedAt: '2026-08-08T10:00:00Z', uploadedBy: null, isActive: true, removedAt: null } }, 201)

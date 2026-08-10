@@ -6,7 +6,8 @@ from typing import Any, Protocol
 
 import httpx
 
-from app.core.config import Settings, get_settings
+from app.core.config import Settings
+from app.llm.installation_settings import effective_llm_settings
 
 
 class OllamaError(RuntimeError):
@@ -139,4 +140,4 @@ class OllamaClient:
 
 
 def create_ollama_client() -> OllamaClientProtocol:
-    return OllamaClient(get_settings())
+    return OllamaClient(effective_llm_settings())

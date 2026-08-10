@@ -4,10 +4,12 @@ import { Link, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { SectionNavigationLayout } from '../../components/SectionNavigationLayout'
-import { Tooltip } from '../../components/Tooltip'
 import { ProjectDashboard } from '../administration/ProjectDashboard'
+import { DuplicateDetectionAction } from '../duplicates/DuplicateDetectionAction'
+import { type PdfSummary } from '../imports/PdfMatchReview'
 import { ProjectChecklistPanel } from './ProjectChecklistPanel'
 import { STAGES, StageProgress } from './StageProgress'
+import { useProjectDocumentTitle } from './useProjectDocumentTitle'
 
 interface ProjectDetail {
   id: string
@@ -15,6 +17,10 @@ interface ProjectDetail {
   stage: string
   canManage: boolean
   extractionValidationEnabled: boolean
+  canTitleAbstractScreen: boolean
+  canFullTextScreen: boolean
+  canExtract: boolean
+  canAssessQuality: boolean
 }
 
 interface WorkflowIntegrityIssue {
@@ -53,64 +59,88 @@ const STAGE_INDEX: Record<string, number> = {
   completed: 5,
 }
 
+type ProjectCapability =
+  | 'canTitleAbstractScreen'
+  | 'canFullTextScreen'
+  | 'canExtract'
+  | 'canAssessQuality'
+
 interface ProjectSectionLink {
   path: string
   label: string
   managerOnly?: boolean
   validationOnly?: boolean
+  requiresCapability?: ProjectCapability
 }
 
 interface ProjectSectionGroup {
   heading: string
   stage: string | null
+  color?: string
   links: ProjectSectionLink[]
   jobStages?: string[]
 }
 
 const projectSectionGroups: ProjectSectionGroup[] = [
   {
-    heading: 'Setup & Configuration',
+    heading: 'Administration',
     stage: null,
+    color: 'var(--color-text)',
     links: [
-      { path: 'admin', label: 'Administration', managerOnly: true },
+      { path: 'admin', label: 'Project Administration', managerOnly: true },
       { path: 'setup', label: 'Setup Wizard', managerOnly: true },
-      { path: 'research-agenda', label: 'Research Agenda' },
-      { path: 'forms', label: 'Forms and Templates', managerOnly: true },
+      { path: 'publications', label: 'Publications' },
       { path: 'jobs', label: 'Jobs' },
     ],
   },
   {
-    heading: 'Searches & Publications',
-    stage: null,
+    heading: 'Draft',
+    stage: 'draft',
     links: [
+      { path: 'research-agenda', label: 'Research Agenda' },
+      { path: 'forms', label: 'Forms and Templates', managerOnly: true },
       { path: 'imports', label: 'Searches and Imports' },
-      { path: 'publications', label: 'Publications' },
-      { path: 'publications/add', label: 'Add a Publication' },
     ],
     jobStages: ['Publication import', 'Publication metadata'],
   },
   {
-    heading: 'Deduplication',
+    heading: 'Duplicate Review',
     stage: 'duplicate_review',
-    links: [{ path: 'duplicates', label: 'Duplicate Review' }],
+    links: [{ path: 'duplicates', label: 'Review Duplicate Candidates' }],
     jobStages: ['Duplicate review'],
   },
   {
     heading: 'Title/Abstract Screening',
     stage: 'title_abstract_screening',
     links: [
-      { path: 'screening/title_abstract', label: 'Title/Abstract Screening' },
-      { path: 'screening/title_abstract/my-decisions', label: 'My Title/Abstract Decisions' },
+      {
+        path: 'screening/title_abstract',
+        label: 'Title/Abstract Screening',
+        requiresCapability: 'canTitleAbstractScreen',
+      },
+      {
+        path: 'screening/title_abstract/my-decisions',
+        label: 'My Title/Abstract Decisions',
+        requiresCapability: 'canTitleAbstractScreen',
+      },
       { path: 'conflicts/title_abstract', label: 'Title/Abstract Conflicts', managerOnly: true },
     ],
     jobStages: ['Title/abstract screening'],
   },
   {
-    heading: 'Full-Text',
+    heading: 'Full-Text Screening',
     stage: 'full_text_screening',
     links: [
-      { path: 'full-text', label: 'Full-Text' },
-      { path: 'screening/full_text/my-decisions', label: 'My Full-Text Decisions' },
+      {
+        path: 'full-text',
+        label: 'Retrieve & Screen Full Texts',
+        requiresCapability: 'canFullTextScreen',
+      },
+      {
+        path: 'screening/full_text/my-decisions',
+        label: 'My Full-Text Decisions',
+        requiresCapability: 'canFullTextScreen',
+      },
       { path: 'conflicts/full_text', label: 'Full-Text Conflicts', managerOnly: true },
     ],
     jobStages: ['Full-text preparation', 'Full-text screening'],
@@ -119,20 +149,29 @@ const projectSectionGroups: ProjectSectionGroup[] = [
     heading: 'Extraction & Quality',
     stage: 'extraction_quality',
     links: [
-      { path: 'extraction', label: 'Data Extraction' },
-      { path: 'extraction/mine', label: 'My Submitted Extractions' },
+      { path: 'extraction', label: 'Data Extraction', requiresCapability: 'canExtract' },
+      {
+        path: 'extraction/mine',
+        label: 'My Submitted Extractions',
+        requiresCapability: 'canExtract',
+      },
       {
         path: 'extraction/validation',
         label: 'Review LLM Extraction Validation',
         validationOnly: true,
+        requiresCapability: 'canExtract',
       },
-      { path: 'quality', label: 'Quality Assessment' },
-      { path: 'quality/mine', label: 'My Submitted Quality Assessments' },
+      { path: 'quality', label: 'Quality Assessment', requiresCapability: 'canAssessQuality' },
+      {
+        path: 'quality/mine',
+        label: 'My Submitted Quality Assessments',
+        requiresCapability: 'canAssessQuality',
+      },
     ],
     jobStages: ['Data extraction', 'Extraction validation'],
   },
   {
-    heading: 'Final Results',
+    heading: 'Completed',
     stage: 'completed',
     links: [
       { path: 'results', label: 'Final Results' },
@@ -158,8 +197,8 @@ const stageColors: Record<string, string> = Object.fromEntries(
   STAGES.map((step) => [step.value, step.color]),
 )
 
-function groupColorStyle(stage: string | null): CSSProperties {
-  const color = stage ? stageColors[stage] : undefined
+function groupColorStyle(group: ProjectSectionGroup): CSSProperties {
+  const color = group.color ?? (group.stage ? stageColors[group.stage] : undefined)
   return color ? ({ '--group-color': color } as CSSProperties) : {}
 }
 
@@ -170,6 +209,7 @@ export function ProjectPage() {
     queryFn: () => apiRequest<ProjectDetail>(`/api/v1/projects/${projectId}`),
     enabled: Boolean(projectId),
   })
+  useProjectDocumentTitle(project.data?.name)
   const integrity = useQuery({
     queryKey: ['project-integrity', projectId],
     queryFn: () => apiRequest<WorkflowIntegrityResponse>(
@@ -194,6 +234,17 @@ export function ProjectPage() {
     ),
     enabled: Boolean(projectId && project.data?.canManage),
   })
+  const pdfMatches = useQuery({
+    queryKey: ['pdf-matches', projectId, 'project-wide'],
+    queryFn: () => apiRequest<{ summary: PdfSummary }>(`/api/v1/projects/${projectId}/pdf-matches`),
+    enabled: Boolean(projectId),
+  })
+  const pdfMatchSummary = pdfMatches.data?.summary
+  const pdfMatchesNeedingReview = pdfMatchSummary
+    ? (pdfMatchSummary.ambiguous ?? 0)
+      + (pdfMatchSummary.unmatched ?? 0)
+      + (pdfMatchSummary.conflict_existing_pdf ?? 0)
+    : 0
   if (project.isLoading) return <main className="page"><p>Loading…</p></main>
   if (!project.data) return <main className="page"><p className="error" role="alert">Project could not be loaded.</p></main>
 
@@ -227,54 +278,73 @@ export function ProjectPage() {
             </p>
           </section>
         ) : null}
+        {pdfMatchesNeedingReview ? (
+          <section className="alert" role="status" aria-labelledby="pdf-match-heading">
+            <h2 id="pdf-match-heading">PDF matches need review</h2>
+            <p>
+              {pdfMatchesNeedingReview} imported PDF{pdfMatchesNeedingReview === 1 ? '' : 's'} still
+              need{pdfMatchesNeedingReview === 1 ? 's' : ''} a publication match.{' '}
+              <Link to={`/projects/${projectId}/imports`}>Review PDF matches</Link>
+            </p>
+          </section>
+        ) : null}
         <StageProgress stage={project.data.stage} />
         <ProjectChecklistPanel projectId={projectId} canManage={project.data.canManage} />
       <section id="section-project-actions" className="card">
         <h2>Actions</h2>
-        <nav className="workflow-nav" aria-label="Project workflow">
-          {projectSectionGroups.map((group) => {
+        <nav aria-label="Project workflow">
+          <ol className="workflow-nav">
+            {projectSectionGroups.map((group, index) => {
             const upcoming = group.stage !== null && STAGE_INDEX[group.stage] > currentIndex
             const visibleLinks = group.links.filter(
               (link) => (
                 (!link.managerOnly || project.data.canManage)
                 && (!link.validationOnly || project.data.extractionValidationEnabled)
+                && (!link.requiresCapability || project.data[link.requiresCapability])
               ),
             )
             if (visibleLinks.length === 0) return null
             const summaryText = jobSummaryText(jobSummary.data ?? [], group.jobStages)
             return (
-              <div
+              <li
                 className={upcoming ? 'nav-group nav-group--upcoming' : 'nav-group'}
                 key={group.heading}
-                style={groupColorStyle(group.stage)}
+                style={groupColorStyle(group)}
               >
-                <h3>
-                  {group.heading}
-                  {summaryText ? (
-                    <Tooltip text="Background jobs are automated tasks (like importing files or checking for duplicates) that run behind the scenes. This shows how many have finished for this stage.">
-                      <span className="job-stage-summary"> · {summaryText}</span>
-                    </Tooltip>
-                  ) : null}
-                </h3>
-                <div className="toolbar">
-                  {visibleLinks.map(({ path, label }) => (
-                    upcoming ? (
-                      <span
-                        key={path}
-                        className="nav-link-disabled"
-                        aria-disabled="true"
-                        title="Not available yet — this stage hasn't started."
-                      >
-                        {label}
-                      </span>
-                    ) : (
-                      <Link key={path} to={`/projects/${projectId}/${path}`}>{label}</Link>
-                    )
-                  ))}
+                <span className="workflow-nav__number" aria-hidden="true">{index}</span>
+                <div className="workflow-nav__body">
+                  <h3>
+                    {group.heading}
+                    {summaryText ? (
+                      <span className="job-stage-summary">{'\u00a0·\u00a0'}{summaryText}</span>
+                    ) : null}
+                  </h3>
+                  <div className="toolbar">
+                    {visibleLinks.map(({ path, label }) => (
+                      upcoming ? (
+                        <span
+                          key={path}
+                          className="nav-link-disabled"
+                          aria-disabled="true"
+                          title="Not available yet — this stage hasn't started."
+                        >
+                          {label}
+                        </span>
+                      ) : (
+                        <Link key={path} to={`/projects/${projectId}/${path}`}>{label}</Link>
+                      )
+                    ))}
+                    {group.stage === 'duplicate_review'
+                      && project.data.stage === 'duplicate_review'
+                      && project.data.canManage ? (
+                        <DuplicateDetectionAction projectId={projectId} compact />
+                      ) : null}
+                  </div>
                 </div>
-              </div>
+              </li>
             )
-          })}
+            })}
+          </ol>
         </nav>
       </section>
         <ProjectDashboard projectId={projectId} />

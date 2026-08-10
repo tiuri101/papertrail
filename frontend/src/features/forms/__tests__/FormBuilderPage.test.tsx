@@ -397,4 +397,53 @@ describe('FormBuilderPage', () => {
     await screen.findByText('Template saved.')
   })
 
+  it('lets an administrator inspect, rename, and remove a template', async () => {
+    let templates = [{ id: 'template-1', name: 'General extraction', kind: 'extraction', isTemplate: true, activeVersionId: 'v1' }]
+    const fields = [{ id: 'field-1', stableKey: 'stable-1', label: 'Main finding', fieldType: 'long_text', required: true, position: 0, isArchived: false, options: [], scoring: {} }]
+    const fetchMock = mockFetch(async (input, init) => {
+      const path = String(input)
+      if (path.endsWith('/auth/session')) {
+        return jsonResponse({ user: { id: 'admin', isAdmin: true }, csrfToken: 'csrf' })
+      }
+      if (path.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
+      if (path.endsWith('/form-templates')) return jsonResponse(templates)
+      if (path.endsWith('/forms/template-1/fields')) return jsonResponse(fields)
+      if (path.endsWith('/forms/template-1') && init?.method === 'PATCH') {
+        templates = [{ ...templates[0], name: JSON.parse(String(init.body)).name }]
+        return jsonResponse(templates[0])
+      }
+      if (path.endsWith('/forms/template-1') && init?.method === 'DELETE') {
+        templates = []
+        return jsonResponse(undefined, 204)
+      }
+      if (path.endsWith('/projects/p1/forms')) return jsonResponse([])
+      return jsonResponse({})
+    })
+    renderWithProviders(<FormBuilderPage />, { route: '/projects/p1/forms', path: '/projects/:projectId/forms' })
+
+    expect(screen.queryByText(/Inspect the fields in any shared template/)).not.toBeInTheDocument()
+    const inspectButton = await screen.findByRole('button', { name: 'Inspect & Edit' })
+    expect(inspectButton.closest('.form-template-card__actions')).toContainElement(
+      screen.getByRole('button', { name: 'Remove' }),
+    )
+    fireEvent.click(inspectButton)
+    await screen.findByDisplayValue('General extraction')
+    expect(screen.getByText('Reusable template', { selector: '.form-editor-selection-type' }))
+      .toBeInTheDocument()
+    expect(document.querySelector('.form-editor-selection-heading h3')).not.toBeInTheDocument()
+    expect(await screen.findByText('Main finding', { selector: 'strong' })).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Name', { selector: '.form-editor-rename input' }), {
+      target: { value: 'Evidence extraction' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Save Name' }))
+    await waitFor(() => expect(screen.getAllByRole('heading', { name: 'Evidence extraction' })).not.toHaveLength(0))
+
+    fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Remove Template' }))
+    await waitFor(() => expect(screen.queryByRole('heading', { name: 'Evidence extraction' })).not.toBeInTheDocument())
+    expect(fetchMock.mock.calls.some(([input, init]) => (
+      String(input).endsWith('/forms/template-1') && init?.method === 'DELETE'
+    ))).toBe(true)
+  })
+
 })

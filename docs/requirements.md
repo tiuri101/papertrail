@@ -406,7 +406,7 @@ The queue uses one randomized project-wide order generated from a stored global 
 When a reviewer opens a record for screening:
 
 - The relevant reviewer slot is reserved for that reviewer.
-- The reservation lasts up to one day.
+- The reservation lasts up to one hour.
 - Other reviewers cannot take the same slot during the reservation.
 - The reviewer may skip or release the record, returning it to the queue.
 - Draft form content should be autosaved.

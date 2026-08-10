@@ -15,6 +15,10 @@ class FormCreate(ApiModel):
     template_id: str | None = Field(default=None, alias="templateId")
 
 
+class FormUpdate(ApiModel):
+    name: str = Field(min_length=1, max_length=300)
+
+
 class FieldCreate(ApiModel):
     label: str
     field_type: str = Field(alias="fieldType")

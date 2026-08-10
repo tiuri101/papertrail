@@ -3,8 +3,10 @@ from sqlalchemy import select
 
 from app.accounts.service import create_user
 from app.api.errors import DomainError, ForbiddenError
+from app.audit.models import AuditEvent
 from app.conflicts.service import record_final_decision
 from app.extraction.models import (
+    ExtractionConfig,
     ExtractionResponse,
     ExtractionStatus,
     ExtractionWorkItem,
@@ -25,8 +27,20 @@ from app.projects.models import (
     ProjectStage,
     ReviewType,
     ScreeningStage,
+    TaskAllocationMode,
 )
 from app.publications.models import Publication
+
+
+def set_pre_assigned(db, project) -> None:
+    """Extraction defaults to claim mode; opt a test into pre-assignment when
+    that's specifically what it exercises."""
+    db.add(
+        ExtractionConfig(
+            project_id=project.id, allocation_mode=TaskAllocationMode.PRE_ASSIGNED
+        )
+    )
+    db.commit()
 
 
 def setup_extraction(db):
@@ -86,8 +100,17 @@ def setup_extraction(db):
     return project, form, required, optional, publications, r1, r2
 
 
+def login(client) -> str:
+    response = client.post(
+        "/api/v1/auth/login",
+        json={"username": "admin", "password": "secret-password"},
+    )
+    return response.json()["csrfToken"]
+
+
 def test_initialize_assigns_exactly_one_extractor_per_included_publication(db) -> None:
     project, _, _, _, publications, r1, r2 = setup_extraction(db)
+    set_pre_assigned(db, project)
     assert initialize_extraction(db, project) == 2
     db.commit()
     items = list(
@@ -123,6 +146,59 @@ def test_extraction_validates_required_fields_and_preserves_revisions(db) -> Non
     assert [response.version for response in responses] == [1, 2]
     assert first.is_current is False
     assert second.is_current is True
+
+
+def test_owner_can_view_and_override_extraction_with_audit_history(client, db) -> None:
+    project, _, required, optional, _, r1, _ = setup_extraction(db)
+    initialize_extraction(db, project)
+    db.commit()
+    item = claim_next_extraction(db, project.id, r1.id)
+    assert item is not None
+    first = submit_extraction(
+        db,
+        item,
+        r1.id,
+        {required.stable_key: "Original finding", optional.stable_key: 12},
+    )
+    db.commit()
+    csrf = login(client)
+
+    details = client.get(
+        f"/api/v1/projects/{project.id}/publications/{item.publication_id}/review-details"
+    )
+    assert details.status_code == 200
+    extraction = details.json()["extraction"]
+    assert extraction["workItemId"] == item.id
+    assert extraction["response"]["version"] == 1
+    assert extraction["response"]["reviewerName"] == "R1"
+    assert extraction["response"]["answers"][required.stable_key] == "Original finding"
+
+    override = client.post(
+        f"/api/v1/projects/{project.id}/extraction/{item.id}/override",
+        json={
+            "answers": {
+                required.stable_key: "Owner-corrected finding",
+                optional.stable_key: 12,
+            },
+            "reason": "Corrected against the source PDF",
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert override.status_code == 200
+    assert override.json()["version"] == 2
+    db.refresh(first)
+    assert first.is_current is False
+    audit = db.scalar(
+        select(AuditEvent).where(
+            AuditEvent.project_id == project.id,
+            AuditEvent.action == "extraction.overridden",
+        )
+    )
+    assert audit is not None
+    assert audit.event_metadata["previousVersion"] == 1
+    assert audit.event_metadata["newVersion"] == 2
+    assert required.stable_key in audit.event_metadata["changedFields"]
+    assert audit.event_metadata["reason"] == "Corrected against the source PDF"
 
 
 def test_save_draft_persists_in_progress_answers(db) -> None:
@@ -184,6 +260,7 @@ def test_removing_a_reviewer_reassigns_their_pending_extraction_items(
     client, db
 ) -> None:
     project, _, _, _, _, r1, r2 = setup_extraction(db)
+    set_pre_assigned(db, project)
     initialize_extraction(db, project)
     db.commit()
     membership2 = db.scalar(
@@ -216,6 +293,7 @@ def test_removing_a_reviewer_reassigns_their_pending_extraction_items(
 
 def test_revoking_extraction_permission_reassigns_work_items(client, db) -> None:
     project, _, _, _, _, r1, r2 = setup_extraction(db)
+    set_pre_assigned(db, project)
     initialize_extraction(db, project)
     db.commit()
     membership2 = db.scalar(
@@ -248,6 +326,7 @@ def test_revoking_extraction_permission_reassigns_work_items(client, db) -> None
 
 def test_completed_extraction_items_are_not_reassigned(db) -> None:
     project, _, required, _, _, r1, r2 = setup_extraction(db)
+    set_pre_assigned(db, project)
     initialize_extraction(db, project)
     db.commit()
     r2_item = next(
@@ -284,6 +363,7 @@ def test_next_extraction_endpoint_returns_the_publication_and_active_fields(
     client, db
 ) -> None:
     project, _, required, optional, publications, r1, _ = setup_extraction(db)
+    set_pre_assigned(db, project)
     initialize_extraction(db, project)
     assigned_item = db.scalar(
         select(ExtractionWorkItem).where(
@@ -332,6 +412,7 @@ def test_next_extraction_endpoint_returns_the_publication_and_active_fields(
 
 def test_progress_endpoint_reports_assigned_and_completed_counts(client, db) -> None:
     project, _, required, _, _, r1, _ = setup_extraction(db)
+    set_pre_assigned(db, project)
     initialize_extraction(db, project)
     db.commit()
     csrf = client.post(
@@ -343,7 +424,12 @@ def test_progress_endpoint_reports_assigned_and_completed_counts(client, db) -> 
         headers={"X-CSRF-Token": csrf},
     )
     assert before.status_code == 200
-    assert before.json() == {"assigned": 1, "completed": 0}
+    assert before.json() == {
+        "assigned": 1,
+        "completed": 0,
+        "remaining": 0,
+        "claimMode": False,
+    }
 
     item = claim_next_extraction(db, project.id, r1.id)
     submit_extraction(db, item, r1.id, {required.stable_key: "Finding"})
@@ -354,7 +440,49 @@ def test_progress_endpoint_reports_assigned_and_completed_counts(client, db) -> 
         headers={"X-CSRF-Token": csrf},
     )
     assert after.status_code == 200
-    assert after.json() == {"assigned": 1, "completed": 1}
+    assert after.json() == {
+        "assigned": 1,
+        "completed": 1,
+        "remaining": 0,
+        "claimMode": False,
+    }
+
+
+def test_progress_endpoint_reports_remaining_in_claim_mode(client, db) -> None:
+    project, _, required, _, _, r1, _ = setup_extraction(db)
+    initialize_extraction(db, project)
+    db.commit()
+    csrf = client.post(
+        "/api/v1/auth/login", json={"username": "r1", "password": "password-1"}
+    ).json()["csrfToken"]
+
+    before = client.get(
+        f"/api/v1/projects/{project.id}/extraction/progress",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert before.status_code == 200
+    assert before.json() == {
+        "assigned": 0,
+        "completed": 0,
+        "remaining": 2,
+        "claimMode": True,
+    }
+
+    item = claim_next_extraction(db, project.id, r1.id)
+    submit_extraction(db, item, r1.id, {required.stable_key: "Finding"})
+    db.commit()
+
+    after = client.get(
+        f"/api/v1/projects/{project.id}/extraction/progress",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert after.status_code == 200
+    assert after.json() == {
+        "assigned": 1,
+        "completed": 1,
+        "remaining": 1,
+        "claimMode": True,
+    }
 
 
 def test_mine_endpoint_lists_only_the_callers_completed_extractions(client, db) -> None:

@@ -7,6 +7,7 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     Enum,
+    Float,
     ForeignKey,
     Integer,
     String,
@@ -47,6 +48,16 @@ class ScreeningStage(enum.StrEnum):
 class AllocationMode(enum.StrEnum):
     INDEPENDENT = "independent"
     DIVIDED = "divided"
+    CLAIM = "claim"
+
+
+class TaskAllocationMode(enum.StrEnum):
+    """Assignment strategy for stages with exactly one reviewer per publication
+    (data extraction, quality assessment): either pre-assigned round-robin at
+    creation time, or left open for reviewers to claim as they go."""
+
+    PRE_ASSIGNED = "pre_assigned"
+    CLAIM = "claim"
 
 
 class ResolutionMethod(enum.StrEnum):
@@ -132,6 +143,9 @@ class ProjectMembership(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Boolean, default=False, nullable=False
     )
     can_adjudicate: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    workload_weight: Mapped[float] = mapped_column(
+        Float, default=1.0, server_default="1", nullable=False
+    )
 
     project: Mapped[Project] = relationship(back_populates="memberships")
 
@@ -175,7 +189,7 @@ class ScreeningConfig(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     stage: Mapped[ScreeningStage] = mapped_column(Enum(ScreeningStage), nullable=False)
     required_reviewers: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     allocation_mode: Mapped[AllocationMode] = mapped_column(
-        Enum(AllocationMode), default=AllocationMode.DIVIDED, nullable=False
+        Enum(AllocationMode), default=AllocationMode.CLAIM, nullable=False
     )
     conflict_resolution: Mapped[ResolutionMethod] = mapped_column(
         Enum(ResolutionMethod), default=ResolutionMethod.ADMIN_CONSENSUS, nullable=False

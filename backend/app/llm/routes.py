@@ -9,18 +9,25 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
-from app.accounts.dependencies import get_current_user, require_csrf
+from app.accounts.dependencies import (
+    get_current_user,
+    require_admin_csrf,
+    require_csrf,
+)
 from app.accounts.models import User, UserSession
 from app.api.errors import DomainError, ForbiddenError, NotFoundError
 from app.audit.service import record_audit
 from app.conflicts.models import FinalDecision
-from app.core.config import get_settings
 from app.db.session import get_db
 from app.extraction.models import ExtractionResponse, ExtractionWorkItem
 from app.forms.schemas import FieldResponse
 from app.fulltext.documents import active_document
 from app.fulltext.models import PublicationDocument
 from app.jobs.models import BackgroundJob
+from app.llm.installation_settings import (
+    effective_llm_settings,
+    update_installation_settings,
+)
 from app.llm.models import (
     DocumentTextExtraction,
     LlmExtractionRun,
@@ -42,6 +49,7 @@ from app.llm.schema_service import (
 from app.llm.schemas import (
     AssistanceResponse,
     ExtractionValidationResponse,
+    LlmInstallationSettingsUpdate,
     LlmSchemaUpdate,
     LlmSettingsUpdate,
     ManualRunRequest,
@@ -128,12 +136,12 @@ def _schema_payload(
 @router.get("/projects/{project_id}/llm/settings")
 def get_llm_settings(
     project_id: str,
-    _: User = Depends(require_project_manager),
+    user: User = Depends(require_project_manager),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
-    config = get_settings()
+    config = effective_llm_settings(db)
     settings = project_settings(db, project_id)
-    return {
+    result = {
         "enabled": bool(settings and settings.enabled),
         "titleAbstractScreeningEnabled": bool(
             settings and settings.title_abstract_screening_enabled
@@ -146,12 +154,59 @@ def get_llm_settings(
         ),
         "installationEnabled": config.llm_enabled,
         "provider": "Ollama",
-        "endpoint": _public_endpoint(config.ollama_base_url),
         "model": config.ollama_model,
         "contextLength": config.llm_context_length,
+        "canManageInstallation": user.is_admin,
         "currentSchemaVersionId": (
             settings.current_schema_version_id if settings else None
         ),
+    }
+    if user.is_admin:
+        result["endpoint"] = _public_endpoint(config.ollama_base_url)
+    return result
+
+
+@router.patch("/llm/installation-settings")
+def update_llm_installation_settings(
+    payload: LlmInstallationSettingsUpdate,
+    admin: User = Depends(require_admin_csrf),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    previous = effective_llm_settings(db)
+    stored = update_installation_settings(
+        db,
+        enabled=payload.enabled,
+        endpoint=payload.endpoint,
+        model=payload.model,
+        context_length=payload.context_length,
+        updated_by_user_id=admin.id,
+    )
+    changes: dict[str, Any] = {}
+    for key, before, after in (
+        ("enabled", previous.llm_enabled, stored.enabled),
+        ("endpoint", _public_endpoint(previous.ollama_base_url), stored.endpoint),
+        ("model", previous.ollama_model, stored.model),
+        ("contextLength", previous.llm_context_length, stored.context_length),
+    ):
+        if before != after:
+            changes[key] = {"from": before, "to": after}
+    record_audit(
+        db,
+        action="llm.installation_settings_updated",
+        entity_type="llm_installation_settings",
+        entity_id=stored.id,
+        actor_id=admin.id,
+        summary="Updated installation LLM settings",
+        metadata={"changes": changes},
+    )
+    db.commit()
+    return {
+        "installationEnabled": stored.enabled,
+        "provider": "Ollama",
+        "endpoint": _public_endpoint(stored.endpoint),
+        "model": stored.model,
+        "contextLength": stored.context_length,
+        "canManageInstallation": True,
     }
 
 
@@ -180,7 +235,7 @@ def update_llm_settings(
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
     changes = payload.model_dump(exclude_none=True)
-    if any(changes.values()) and not get_settings().llm_enabled:
+    if any(changes.values()) and not effective_llm_settings(db).llm_enabled:
         raise DomainError("LLM support is disabled for this Papertrail installation")
     settings = project_settings(db, project_id, create=True)
     assert settings is not None

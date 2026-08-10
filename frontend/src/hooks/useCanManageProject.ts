@@ -4,6 +4,7 @@ import { apiRequest } from '../api/client'
 
 interface ProjectManageFlag {
   canManage: boolean
+  canManagePublications: boolean
 }
 
 /**
@@ -32,4 +33,18 @@ export function useProjectManageState(projectId: string): { canManage: boolean; 
     enabled: Boolean(projectId),
   })
   return { canManage: query.data?.canManage ?? false, isLoading: query.isLoading }
+}
+
+/**
+ * Publication data management (edit, delete, export, PDF attach, metadata
+ * enrichment) is open to any project member, not just owners/admins -- unlike
+ * useCanManageProject, which gates project-level administration.
+ */
+export function useCanManagePublications(projectId: string): boolean {
+  const query = useQuery({
+    queryKey: ['project', projectId],
+    queryFn: () => apiRequest<ProjectManageFlag>(`/api/v1/projects/${projectId}`),
+    enabled: Boolean(projectId),
+  })
+  return query.data?.canManagePublications ?? false
 }

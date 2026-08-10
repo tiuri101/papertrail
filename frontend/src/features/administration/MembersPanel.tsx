@@ -4,7 +4,8 @@ import { useEffect, useState } from 'react'
 import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { ConfirmButton } from '../../components/ConfirmButton'
-import { IconCheckCircle, IconPlus, IconTrash } from '../../components/icons'
+import { IconCheckCircle, IconPlus, IconTrash, IconUsers } from '../../components/icons'
+import { InfoBox } from '../../components/InfoBox'
 import type { User } from '../auth/types'
 
 type RoleKey =
@@ -17,6 +18,7 @@ type RoleKey =
 interface Membership extends Record<RoleKey, boolean> {
   id: string
   userId: string
+  workloadWeight: number
 }
 
 interface ProjectMembers {
@@ -57,18 +59,23 @@ function MemberRow({
 }: {
   label: string
   membership: Membership
-  onSave: (roles: Record<RoleKey, boolean>) => void
+  onSave: (roles: Record<RoleKey, boolean>, workloadWeight: number) => void
   onDelete: () => void
   pending: boolean
   onDirtyChange?: (dirty: boolean) => void
 }) {
   const [editing, setEditing] = useState(false)
   const [draft, setDraft] = useState<Record<RoleKey, boolean>>(rolesOf(membership))
+  const [weight, setWeight] = useState(String(membership.workloadWeight))
 
   useEffect(() => {
     const saved = rolesOf(membership)
-    onDirtyChange?.(editing && ROLE_FIELDS.some(([field]) => draft[field] !== saved[field]))
-  }, [editing, draft, membership, onDirtyChange])
+    onDirtyChange?.(
+      editing
+      && (ROLE_FIELDS.some(([field]) => draft[field] !== saved[field])
+        || weight !== String(membership.workloadWeight)),
+    )
+  }, [editing, draft, weight, membership, onDirtyChange])
 
   if (editing) {
     return (
@@ -79,7 +86,7 @@ function MemberRow({
             onSubmit={(event) => {
               event.preventDefault()
               setEditing(false)
-              onSave(draft)
+              onSave(draft, Number(weight))
             }}
           >
             <fieldset>
@@ -95,12 +102,28 @@ function MemberRow({
                 </label>
               ))}
             </fieldset>
+            <label>
+              Workload weight
+              <input
+                type="number"
+                min={0.1}
+                max={100}
+                step={0.1}
+                value={weight}
+                onChange={(event) => setWeight(event.target.value)}
+                required
+              />
+            </label>
             <div className="toolbar">
               <button type="submit" disabled={pending}><IconCheckCircle />Save</button>
               <button
                 type="button"
                 className="button-secondary"
-                onClick={() => { setDraft(rolesOf(membership)); setEditing(false) }}
+                onClick={() => {
+                  setDraft(rolesOf(membership))
+                  setWeight(String(membership.workloadWeight))
+                  setEditing(false)
+                }}
               >
                 Cancel
               </button>
@@ -118,7 +141,10 @@ function MemberRow({
   return (
     <tr>
       <td>{label}</td>
-      <td>{activeRoles.length > 0 ? activeRoles.join(', ') : 'No roles assigned'}</td>
+      <td>
+        {activeRoles.length > 0 ? activeRoles.join(', ') : 'No roles assigned'}
+        <span className="muted"> — weight {membership.workloadWeight}×</span>
+      </td>
       <td>
         <div className="toolbar">
           <button type="button" onClick={() => setEditing(true)} disabled={pending}>Edit</button>
@@ -156,6 +182,7 @@ export function MembersPanel({
 
   const [selectedUserId, setSelectedUserId] = useState('')
   const [roles, setRoles] = useState<Record<RoleKey, boolean>>(emptyRoles)
+  const [newWeight, setNewWeight] = useState('1')
   const [dirtyRows, setDirtyRows] = useState<Record<string, boolean>>({})
 
   useEffect(() => {
@@ -167,20 +194,25 @@ export function MembersPanel({
   const addMember = useMutation({
     mutationFn: () => apiRequest<Membership>(`/api/v1/projects/${projectId}/members`, {
       method: 'POST',
-      body: JSON.stringify({ userId: selectedUserId, ...roles }),
+      body: JSON.stringify({ userId: selectedUserId, ...roles, workloadWeight: Number(newWeight) }),
     }),
     onSuccess: () => {
       setSelectedUserId('')
       setRoles(emptyRoles)
+      setNewWeight('1')
       refresh()
     },
   })
 
   const updateMember = useMutation({
-    mutationFn: ({ id, roles: nextRoles }: { id: string; roles: Record<RoleKey, boolean> }) =>
+    mutationFn: ({ id, roles: nextRoles, workloadWeight }: {
+      id: string
+      roles: Record<RoleKey, boolean>
+      workloadWeight: number
+    }) =>
       apiRequest<Membership>(`/api/v1/projects/${projectId}/members/${id}`, {
         method: 'PATCH',
-        body: JSON.stringify(nextRoles),
+        body: JSON.stringify({ ...nextRoles, workloadWeight }),
       }),
     onSuccess: refresh,
   })
@@ -205,10 +237,19 @@ export function MembersPanel({
   const mutationError = addMember.error ?? updateMember.error ?? removeMember.error
 
   return (
-    <CollapsibleSection id="section-project-members" title="Project Members">
+    <CollapsibleSection id="section-project-members" title="Project Members" icon={<IconUsers />}>
+      <InfoBox icon={<IconUsers />}>
+        <p>
+          Add the reviewers who will work on this project and choose which stages each one can
+          take part in. Reviewers only see the stages they&apos;re given a role for. Workload
+          weight controls how publications are split when a stage pre-assigns work rather than
+          letting reviewers claim it themselves — a reviewer with weight 2 gets roughly twice as
+          many publications as one with weight 1.
+        </p>
+      </InfoBox>
       {users.error ? <p className="error" role="alert">{users.error.message}</p> : null}
       {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
-      <table>
+      <table className="table-compact">
         <thead>
           <tr>
             <th scope="col">Reviewer</th>
@@ -231,7 +272,9 @@ export function MembersPanel({
                 label={label}
                 membership={membership}
                 pending={memberPending}
-                onSave={(nextRoles) => updateMember.mutate({ id: membership.id, roles: nextRoles })}
+                onSave={(nextRoles, workloadWeight) => updateMember.mutate({
+                  id: membership.id, roles: nextRoles, workloadWeight,
+                })}
                 onDelete={() => removeMember.mutate(membership.id)}
                 onDirtyChange={(rowDirty) => setDirtyRows((current) => (
                   current[membership.id] === rowDirty ? current : { ...current, [membership.id]: rowDirty }
@@ -256,19 +299,33 @@ export function MembersPanel({
           </select>
         </label>
         {selectedUserId ? (
-          <fieldset>
-            <legend className="subsection-heading">Stages</legend>
-            {ROLE_FIELDS.map(([field, label]) => (
-              <label key={field}>
-                <input
-                  type="checkbox"
-                  checked={roles[field]}
-                  onChange={(event) => setRoles({ ...roles, [field]: event.target.checked })}
-                />
-                {label}
-              </label>
-            ))}
-          </fieldset>
+          <>
+            <fieldset>
+              <legend className="subsection-heading">Stages</legend>
+              {ROLE_FIELDS.map(([field, label]) => (
+                <label key={field}>
+                  <input
+                    type="checkbox"
+                    checked={roles[field]}
+                    onChange={(event) => setRoles({ ...roles, [field]: event.target.checked })}
+                  />
+                  {label}
+                </label>
+              ))}
+            </fieldset>
+            <label>
+              Workload weight
+              <input
+                type="number"
+                min={0.1}
+                max={100}
+                step={0.1}
+                value={newWeight}
+                onChange={(event) => setNewWeight(event.target.value)}
+                required
+              />
+            </label>
+          </>
         ) : null}
         <button type="submit" disabled={addMember.isPending || selectedUserId === ''}>
           <IconPlus />

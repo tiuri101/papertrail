@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
 from app.accounts.models import User
-from app.api.errors import NotFoundError
+from app.api.errors import DomainError, NotFoundError
 from app.audit.service import record_audit
 from app.conflicts.models import FinalDecision
 from app.conflicts.schemas import (
@@ -17,6 +17,7 @@ from app.conflicts.service import (
     conflicted_publication_ids,
     record_final_decision,
     transition_if_screening_complete,
+    valid_final_decision,
 )
 from app.db.session import get_db
 from app.projects.dependencies import require_project_manager_csrf
@@ -67,6 +68,12 @@ def resolve_conflict(
     publication = db.get(Publication, publication_id)
     if publication is None or publication.project_id != project_id:
         raise NotFoundError("Publication not found")
+    if (
+        payload.resolution_method == "owner_override"
+        and not (payload.note or "").strip()
+    ):
+        raise DomainError("A reason is required when overriding a screening decision")
+    previous = valid_final_decision(db, publication_id, stage)
     final = record_final_decision(
         db,
         publication_id,
@@ -77,17 +84,28 @@ def resolve_conflict(
         payload.note,
     )
     transition_if_screening_complete(db, get_project(db, project_id), stage)
+    is_override = payload.resolution_method == "owner_override"
     record_audit(
         db,
-        action="screening.consensus_recorded",
+        action=(
+            "screening.decision_overridden"
+            if is_override
+            else "screening.consensus_recorded"
+        ),
         entity_type="final_decision",
         entity_id=final.id,
         project_id=project_id,
         actor_id=admin.id,
-        summary=f"Recorded final {stage.value} decision",
+        summary=(
+            f'Overrode {stage.value.replace("_", "/")} screening decision for "{publication.title}"'
+            if is_override
+            else f"Recorded final {stage.value} decision"
+        ),
         metadata={
+            "previousOutcome": previous.outcome.value if previous else None,
             "outcome": final.outcome.value,
             "resolutionMethod": final.resolution_method,
+            "reason": payload.note,
         },
     )
     db.commit()

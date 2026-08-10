@@ -44,6 +44,7 @@ export function UsersPage() {
     <main className="page">
       <p className="eyebrow">Installation administration</p>
       <h1>Users</h1>
+      <p className="muted">Manage reviewer accounts for this Papertrail installation.</p>
       {showCreateForm ? (
         <section className="card">
           <h2>Create Reviewer</h2>

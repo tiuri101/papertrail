@@ -116,12 +116,95 @@ describe('ProjectSetupWizard', () => {
 
     fireEvent.click(screen.getByRole('button', { name: /LLM Assistance/ }))
 
-    expect(await screen.findByRole('heading', { name: 'LLM Assistance' })).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Processing status' })).not.toBeInTheDocument()
-    expect(screen.queryByText('Processing status')).not.toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'LLM Installation' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Processing Status' })).not.toBeInTheDocument()
+    expect(screen.queryByText('Processing Status')).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Finish Setup' }))
 
     expect(await screen.findByText('Project landing page')).toBeInTheDocument()
+  })
+
+  it('saves and publishes the LLM schema through Finish Setup without showing version controls', async () => {
+    const schema = {
+      id: 'schema-1',
+      versionNumber: 1,
+      status: 'draft',
+      fields: [{
+        id: 'field-1',
+        stableKey: 'outcome',
+        label: 'Outcome',
+        instruction: 'Extract the reported outcome.',
+        fieldType: 'short_text',
+        mappedExtractionFieldKey: 'outcome',
+        options: [],
+        evidenceRequired: true,
+        allowInferred: false,
+        enabled: true,
+        position: 0,
+        mappingState: 'active',
+      }],
+    }
+    const fetchMock = mockFetch(async (input, init) => {
+      const url = String(input)
+      if (url === '/api/v1/projects/p1') {
+        return jsonResponse({ id: 'p1', name: 'LLM setup', description: null, reviewType: 'other' })
+      }
+      if (url === '/api/v1/projects/p1/llm/settings') {
+        return jsonResponse({
+          enabled: true,
+          titleAbstractScreeningEnabled: false,
+          fullTextScreeningEnabled: false,
+          extractionValidationEnabled: false,
+          installationEnabled: true,
+          provider: 'ollama',
+          endpoint: null,
+          model: 'test-model',
+          contextLength: 4096,
+          currentSchemaVersionId: null,
+        })
+      }
+      if (url === '/api/v1/projects/p1/llm/schema/schema-1' && init?.method === 'PUT') {
+        return jsonResponse({ ...schema, fields: JSON.parse(String(init.body)).fields })
+      }
+      if (url === '/api/v1/projects/p1/llm/schema/schema-1/publish' && init?.method === 'POST') {
+        return jsonResponse({ ...schema, status: 'published' })
+      }
+      if (url === '/api/v1/projects/p1/llm/schema') {
+        return jsonResponse({
+          schema,
+          extractionFields: [{ stableKey: 'outcome', label: 'Outcome', fieldType: 'short_text', options: [] }],
+        })
+      }
+      return jsonResponse({})
+    })
+
+    renderWithProviders(
+      <Routes>
+        <Route path="/projects/:projectId/setup" element={<ProjectSetupWizard />} />
+        <Route path="/projects/:projectId" element={<p>Project landing page</p>} />
+      </Routes>,
+      { route: '/projects/p1/setup' },
+    )
+
+    fireEvent.click(await screen.findByRole('button', { name: /LLM Assistance/ }))
+    expect(await screen.findByText('Version 1 · draft')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Save draft' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Publish version' })).not.toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Extraction instruction'), {
+      target: { value: 'Extract the primary reported outcome.' },
+    })
+    fireEvent.click(screen.getByRole('button', { name: 'Finish Setup' }))
+
+    expect(await screen.findByText('Project landing page')).toBeInTheDocument()
+    const putCall = fetchMock.mock.calls.find(([input, init]) => (
+      String(input) === '/api/v1/projects/p1/llm/schema/schema-1' && init?.method === 'PUT'
+    ))
+    expect(JSON.parse(String(putCall?.[1]?.body)).fields[0].instruction)
+      .toBe('Extract the primary reported outcome.')
+    expect(fetchMock.mock.calls.some(([input, init]) => (
+      String(input) === '/api/v1/projects/p1/llm/schema/schema-1/publish' && init?.method === 'POST'
+    ))).toBe(true)
   })
 })
