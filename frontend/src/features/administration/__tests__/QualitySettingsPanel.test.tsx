@@ -7,7 +7,7 @@ import { renderWithProviders } from '../../../test/render'
 
 describe('QualitySettingsPanel', () => {
   it('loads and saves quality assessment settings with separated controls', async () => {
-    let config = { enabled: false, mode: 'both', aggregation: 'sum' }
+    let config = { enabled: false, mode: 'both', aggregation: 'sum', allocationMode: 'claim' }
     const fetchMock = mockFetch(async (input, init) => {
       const path = String(input)
       if (path.endsWith('/quality-config') && init?.method === 'PUT') {
@@ -36,6 +36,7 @@ describe('QualitySettingsPanel', () => {
         enabled: true,
         mode: 'numeric',
         aggregation: 'weighted_average',
+        allocationMode: 'claim',
       })
     })
     await screen.findByText('Saved.')

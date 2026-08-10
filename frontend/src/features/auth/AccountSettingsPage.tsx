@@ -54,6 +54,7 @@ export function AccountSettingsPage() {
     <main className="page">
       <p className="eyebrow">Personal settings</p>
       <h1>Account Settings</h1>
+      <p className="muted">Manage your profile, password, and personal preferences.</p>
       <section className="card">
         <h2>Profile</h2>
         <p className="muted">Changes save automatically when you leave a field.</p>

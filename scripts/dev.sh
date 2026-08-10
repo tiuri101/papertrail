@@ -46,6 +46,7 @@ Papertrail local-development helper
 Run these in separate terminals:
   ./scripts/dev.sh api
   ./scripts/dev.sh worker
+  ./scripts/dev.sh llm-worker
   ./scripts/dev.sh frontend
 
 Database:
@@ -100,6 +101,9 @@ case "$COMMAND" in
     ;;
   worker)
     backend_python -m app.jobs.worker
+    ;;
+  llm-worker)
+    backend_python -m app.jobs.worker --llm
     ;;
   frontend)
     (cd "$FRONTEND" && npm run dev)

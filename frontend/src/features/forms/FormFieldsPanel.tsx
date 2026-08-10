@@ -3,7 +3,8 @@ import { useEffect, useRef, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { ConfirmButton } from '../../components/ConfirmButton'
-import { IconCheckCircle, IconPlus, IconTrash } from '../../components/icons'
+import { IconCheckCircle, IconDownload, IconPlus, IconTrash } from '../../components/icons'
+import { InfoBox } from '../../components/InfoBox'
 import { DynamicForm } from './DynamicForm'
 import {
   buildScoring,
@@ -37,10 +38,22 @@ interface FormField {
   scoring: Record<string, unknown>
 }
 
+type TaskAllocationMode = 'pre_assigned' | 'claim'
+
+const TASK_ALLOCATION_MODE_LABELS: Record<TaskAllocationMode, string> = {
+  claim: 'Claim (reviewers pick up publications themselves)',
+  pre_assigned: 'Pre-assigned (publications are split across reviewers)',
+}
+
 interface QualityConfig {
   enabled: boolean
   mode: string
   aggregation: string
+  allocationMode: TaskAllocationMode
+}
+
+interface ExtractionConfig {
+  allocationMode: TaskAllocationMode
 }
 
 export function FormFieldsPanel({
@@ -85,6 +98,8 @@ export function FormFieldsPanel({
   const [qcEnabled, setQcEnabled] = useState(false)
   const [qcMode, setQcMode] = useState('both')
   const [qcAggregation, setQcAggregation] = useState('sum')
+  const [qcAllocationMode, setQcAllocationMode] = useState<TaskAllocationMode>('claim')
+  const [extractionAllocationMode, setExtractionAllocationMode] = useState<TaskAllocationMode>('claim')
 
   const forms = useQuery({
     queryKey: ['forms', projectId],
@@ -117,8 +132,21 @@ export function FormFieldsPanel({
       setQcEnabled(qualityConfig.data.enabled ?? false)
       setQcMode(qualityConfig.data.mode ?? 'both')
       setQcAggregation(qualityConfig.data.aggregation ?? 'sum')
+      setQcAllocationMode(qualityConfig.data.allocationMode ?? 'claim')
     }
   }, [qualityConfig.data])
+  const extractionConfig = useQuery({
+    queryKey: ['extraction-config', projectId],
+    queryFn: () => apiRequest<ExtractionConfig>(`/api/v1/projects/${projectId}/extraction-config`),
+    enabled: Boolean(projectId) && !isQualityForm,
+  })
+  const extractionConfigSeeded = useRef(false)
+  useEffect(() => {
+    if (extractionConfig.data && !extractionConfigSeeded.current) {
+      extractionConfigSeeded.current = true
+      setExtractionAllocationMode(extractionConfig.data.allocationMode ?? 'claim')
+    }
+  }, [extractionConfig.data])
 
   const templatesForKind = templates.data?.filter((template) => template.kind === kind) ?? []
   const showOptions = selectFieldTypes.has(fieldType)
@@ -195,17 +223,29 @@ export function FormFieldsPanel({
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['form-fields', existingForm?.id] }),
   })
   const saveQualityConfig = useMutation({
-    mutationFn: (next: { enabled: boolean; mode: string; aggregation: string }) => apiRequest(
+    mutationFn: (next: QualityConfig) => apiRequest(
       `/api/v1/projects/${projectId}/quality-config`,
       { method: 'PUT', body: JSON.stringify(next) },
     ),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['quality-config', projectId] }),
   })
-  const updateQualityConfig = (next: { enabled: boolean; mode: string; aggregation: string }) => {
+  const updateQualityConfig = (next: QualityConfig) => {
     setQcEnabled(next.enabled)
     setQcMode(next.mode)
     setQcAggregation(next.aggregation)
+    setQcAllocationMode(next.allocationMode)
     if (qualityConfigSeeded.current) saveQualityConfig.mutate(next)
+  }
+  const saveExtractionConfig = useMutation({
+    mutationFn: (next: ExtractionConfig) => apiRequest(
+      `/api/v1/projects/${projectId}/extraction-config`,
+      { method: 'PUT', body: JSON.stringify(next) },
+    ),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['extraction-config', projectId] }),
+  })
+  const updateExtractionAllocationMode = (allocationMode: TaskAllocationMode) => {
+    setExtractionAllocationMode(allocationMode)
+    if (extractionConfigSeeded.current) saveExtractionConfig.mutate({ allocationMode })
   }
 
   const beginEditingField = (field: FormField) => {
@@ -252,8 +292,19 @@ export function FormFieldsPanel({
 
   return (
     <section className="card">
-      <h2>{title}</h2>
-      {description ? <p className="muted">{description}</p> : null}
+      <h2>
+        <span className="collapsible-section__title">
+          <span className="collapsible-section__icon" aria-hidden="true">
+            {isQualityForm ? <IconCheckCircle /> : <IconDownload />}
+          </span>
+          {title}
+        </span>
+      </h2>
+      {description ? (
+        <InfoBox icon={isQualityForm ? <IconCheckCircle /> : <IconDownload />}>
+          <p>{description}</p>
+        </InfoBox>
+      ) : null}
       {forms.error ? <p className="error" role="alert">{forms.error.message}</p> : null}
       {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
 
@@ -263,7 +314,9 @@ export function FormFieldsPanel({
             <input
               type="checkbox"
               checked={qcEnabled}
-              onChange={(event) => updateQualityConfig({ enabled: event.target.checked, mode: qcMode, aggregation: qcAggregation })}
+              onChange={(event) => updateQualityConfig({
+                enabled: event.target.checked, mode: qcMode, aggregation: qcAggregation, allocationMode: qcAllocationMode,
+              })}
             />
             Enable quality assessment
           </label>
@@ -272,7 +325,9 @@ export function FormFieldsPanel({
               Mode
               <select
                 value={qcMode}
-                onChange={(event) => updateQualityConfig({ enabled: qcEnabled, mode: event.target.value, aggregation: qcAggregation })}
+                onChange={(event) => updateQualityConfig({
+                  enabled: qcEnabled, mode: event.target.value, aggregation: qcAggregation, allocationMode: qcAllocationMode,
+                })}
               >
                 <option value="qualitative">Qualitative only</option>
                 <option value="numeric">Numerical scoring only</option>
@@ -283,11 +338,27 @@ export function FormFieldsPanel({
               Aggregation
               <select
                 value={qcAggregation}
-                onChange={(event) => updateQualityConfig({ enabled: qcEnabled, mode: qcMode, aggregation: event.target.value })}
+                onChange={(event) => updateQualityConfig({
+                  enabled: qcEnabled, mode: qcMode, aggregation: event.target.value, allocationMode: qcAllocationMode,
+                })}
               >
                 <option value="sum">Simple sum</option>
                 <option value="average">Average</option>
                 <option value="weighted_average">Weighted average</option>
+              </select>
+            </label>
+            <label>
+              Allocation
+              <select
+                value={qcAllocationMode}
+                onChange={(event) => updateQualityConfig({
+                  enabled: qcEnabled, mode: qcMode, aggregation: qcAggregation,
+                  allocationMode: event.target.value as TaskAllocationMode,
+                })}
+              >
+                {(Object.keys(TASK_ALLOCATION_MODE_LABELS) as TaskAllocationMode[]).map((value) => (
+                  <option key={value} value={value}>{TASK_ALLOCATION_MODE_LABELS[value]}</option>
+                ))}
               </select>
             </label>
           </div>
@@ -296,7 +367,25 @@ export function FormFieldsPanel({
             {saveQualityConfig.isPending ? 'Saving…' : saveQualityConfig.isSuccess ? 'Saved.' : ' '}
           </p>
         </div>
-      ) : null}
+      ) : (
+        <div className="quality-settings-fields">
+          <label>
+            Allocation
+            <select
+              value={extractionAllocationMode}
+              onChange={(event) => updateExtractionAllocationMode(event.target.value as TaskAllocationMode)}
+            >
+              {(Object.keys(TASK_ALLOCATION_MODE_LABELS) as TaskAllocationMode[]).map((value) => (
+                <option key={value} value={value}>{TASK_ALLOCATION_MODE_LABELS[value]}</option>
+              ))}
+            </select>
+          </label>
+          {saveExtractionConfig.error ? <p className="error" role="alert">{saveExtractionConfig.error.message}</p> : null}
+          <p className="muted" aria-live="polite">
+            {saveExtractionConfig.isPending ? 'Saving…' : saveExtractionConfig.isSuccess ? 'Saved.' : ' '}
+          </p>
+        </div>
+      )}
 
       {!existingForm ? (
         <form onSubmit={(event) => { event.preventDefault(); createForm.mutate() }}>

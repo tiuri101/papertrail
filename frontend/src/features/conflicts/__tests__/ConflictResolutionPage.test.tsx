@@ -34,7 +34,7 @@ describe('ConflictResolutionPage', () => {
     })
 
     expect(await screen.findByRole('heading', { name: 'Urban Data in VR' })).toBeInTheDocument()
-    expect(screen.getByText('1 unresolved publications')).toBeInTheDocument()
+    expect(screen.getByText('1 unresolved conflicts')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'View publication' })).toHaveAttribute('href', 'https://doi.org/10.1/vr')
     expect(screen.getByText('Reviewer One')).toBeInTheDocument()
     expect(screen.getByText('Reviewer Two')).toBeInTheDocument()
@@ -61,7 +61,7 @@ describe('ConflictResolutionPage', () => {
     fireEvent.change(screen.getByLabelText('Resolution note'), { target: { value: 'Agreed after discussion' } })
     fireEvent.click(screen.getByRole('button', { name: 'Include' }))
 
-    await waitFor(() => expect(screen.getByText('0 unresolved publications')).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByText('0 unresolved conflicts')).toBeInTheDocument())
     const postCall = fetchMock.mock.calls.find(([input, init]) => init?.method === 'POST' && String(input).endsWith('/final'))
     expect(postCall?.[0]).toBe('/api/v1/projects/p1/screening/title_abstract/publications/publication-1/final')
     expect(JSON.parse(String(postCall?.[1]?.body))).toEqual({

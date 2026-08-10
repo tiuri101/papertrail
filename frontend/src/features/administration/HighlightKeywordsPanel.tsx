@@ -4,7 +4,8 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { HighlightedText } from '../../components/HighlightedText'
-import { IconPlus, IconTrash } from '../../components/icons'
+import { InfoBox } from '../../components/InfoBox'
+import { IconHighlighter, IconPlus, IconTrash } from '../../components/icons'
 
 function cleanKeywords(keywords: string[]): string[] {
   return keywords.map((keyword) => keyword.trim()).filter(Boolean)
@@ -68,8 +69,10 @@ export function HighlightKeywordsPanel({ projectId }: { projectId: string }) {
   }
 
   return (
-    <CollapsibleSection id="section-highlighted-keywords" title="Highlighted Keywords">
-      <p className="muted">Keywords entered here are highlighted wherever reviewers see publication titles and abstracts. The preview shows the color reviewers will see. Changes save automatically.</p>
+    <CollapsibleSection id="section-highlighted-keywords" title="Highlighted Keywords" icon={<IconHighlighter />}>
+      <InfoBox icon={<IconHighlighter />}>
+        <p>Keywords entered here are highlighted wherever reviewers see publication titles and abstracts. The preview shows the color reviewers will see. Changes save automatically.</p>
+      </InfoBox>
       {keywords.error ? <p className="error" role="alert">{keywords.error.message}</p> : null}
       {keywords.isPending ? <p className="muted">Loading keywords…</p> : null}
       {!keywords.isPending && draft.length === 0 ? (

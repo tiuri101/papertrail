@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.accounts.dependencies import get_current_user, require_csrf
 from app.accounts.models import User, UserSession
-from app.api.errors import DomainError, NotFoundError
+from app.api.errors import DomainError, ForbiddenError, NotFoundError
 from app.audit.service import record_audit
 from app.db.session import get_db
 from app.projects.dependencies import (
@@ -17,7 +17,7 @@ from app.projects.dependencies import (
     require_project_manager_csrf,
 )
 from app.projects.models import Criterion, ScreeningStage
-from app.projects.service import get_project, require_project_access
+from app.projects.service import get_project, is_project_manager, require_project_access
 from app.publications.models import Publication
 from app.screening.models import (
     ScreeningDecision,
@@ -30,6 +30,7 @@ from app.screening.schemas import (
     AssignmentsPage,
     BulkReassignRequest,
     BulkReassignResponse,
+    DecisionOverride,
     DecisionResponse,
     DecisionSubmit,
     DecisionSubmitResponse,
@@ -37,6 +38,7 @@ from app.screening.schemas import (
     MyDecisionsResponse,
     MyProgressResponse,
     ReassignRequest,
+    WorkItemDetailResponse,
     WorkItemResponse,
 )
 from app.screening.service import (
@@ -46,6 +48,7 @@ from app.screening.service import (
     current_decisions,
     my_progress,
     my_submitted_work_items,
+    override_decision,
     reassign_work_item,
     reassign_work_items_from_ineligible_reviewers,
     release_work_item,
@@ -246,6 +249,35 @@ def next_item(
     return work_item_payload(db, item) if item else None
 
 
+@router.get(
+    "/projects/{project_id}/screening/work-items/{item_id}",
+    response_model=WorkItemDetailResponse,
+)
+def get_work_item(
+    project_id: str,
+    item_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    require_project_access(db, project_id, user)
+    item = db.get(ScreeningWorkItem, item_id)
+    if item is None or item.project_id != project_id:
+        raise NotFoundError("Screening work item not found")
+    if (
+        not is_project_manager(db, project_id, user)
+        and item.assigned_reviewer_id != user.id
+    ):
+        raise ForbiddenError("Screening work item is assigned to another reviewer")
+    payload = work_item_payload(db, item)
+    payload["decision"] = db.scalar(
+        select(ScreeningDecision).where(
+            ScreeningDecision.work_item_id == item.id,
+            ScreeningDecision.is_current.is_(True),
+        )
+    )
+    return payload
+
+
 @router.put("/projects/{project_id}/screening/work-items/{item_id}/draft")
 def update_draft(
     project_id: str,
@@ -272,7 +304,7 @@ def release_item(
     item = db.get(ScreeningWorkItem, item_id)
     if item is None or item.project_id != project_id:
         raise NotFoundError("Screening work item not found")
-    release_work_item(item, session.user.id)
+    release_work_item(db, item, session.user.id)
     db.commit()
     return {"status": "released"}
 
@@ -343,6 +375,95 @@ def decide(
     }
     db.commit()
     return response
+
+
+@router.post(
+    "/projects/{project_id}/screening/work-items/{item_id}/override",
+    response_model=DecisionResponse,
+)
+def override_screening_response(
+    project_id: str,
+    item_id: str,
+    payload: DecisionOverride,
+    admin: User = Depends(require_project_manager_csrf),
+    db: Session = Depends(get_db),
+) -> ScreeningDecision:
+    item = db.get(ScreeningWorkItem, item_id)
+    if item is None or item.project_id != project_id:
+        raise NotFoundError("Screening work item not found")
+    reason = payload.reason.strip()
+    if not reason:
+        raise DomainError("A reason is required when overriding screening responses")
+
+    decision, previous = override_decision(
+        db,
+        item,
+        admin.id,
+        payload.outcome,
+        payload.criteria_answers,
+        payload.notes,
+    )
+
+    from app.conflicts.service import (
+        record_final_decision,
+        transition_if_screening_complete,
+    )
+
+    record_final_decision(
+        db,
+        item.publication_id,
+        item.stage,
+        decision.outcome,
+        "owner_override",
+        admin.id,
+        reason,
+    )
+    transition_if_screening_complete(db, get_project(db, project_id), item.stage)
+    criteria_by_id = {
+        criterion.id: criterion
+        for criterion in db.scalars(
+            select(Criterion).where(Criterion.id.in_(decision.criteria_answers))
+        )
+    }
+    changed_criteria = [
+        {
+            "criterionId": criterion_id,
+            "criterionKind": criteria_by_id[criterion_id].kind.value,
+            "criterionText": criteria_by_id[criterion_id].text,
+            "previousAnswer": previous.criteria_answers[criterion_id],
+            "answer": answer,
+        }
+        for criterion_id, answer in decision.criteria_answers.items()
+        if previous.criteria_answers[criterion_id] != answer
+    ]
+    publication = db.get(Publication, item.publication_id)
+    assert publication is not None
+    record_audit(
+        db,
+        action="screening.criteria_answers_overridden",
+        entity_type="screening_decision",
+        entity_id=decision.id,
+        project_id=project_id,
+        actor_id=admin.id,
+        summary=(
+            f"Overrode {item.stage.value.replace('_', '/')} screening response for "
+            f'"{publication.title}" ({len(changed_criteria)} IC/EC answers changed)'
+        ),
+        metadata={
+            "reason": reason,
+            "workItemId": item.id,
+            "previousDecisionId": previous.id,
+            "previousVersion": previous.version,
+            "version": decision.version,
+            "previousOutcome": previous.outcome.value,
+            "outcome": decision.outcome.value,
+            "previousNotes": previous.notes,
+            "notes": decision.notes,
+            "changedCriteria": changed_criteria,
+        },
+    )
+    db.commit()
+    return decision
 
 
 @router.get(

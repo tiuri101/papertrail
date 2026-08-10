@@ -36,15 +36,20 @@ describe('ProjectPage', () => {
         name: 'Immersive analytics review',
         stage: 'title_abstract_screening',
         canManage: true,
+        canTitleAbstractScreen: true,
+        canFullTextScreen: true,
+        canExtract: true,
+        canAssessQuality: true,
       })
     })
     renderWithProviders(<ProjectPage />, { route: '/projects/p1', path: '/projects/:projectId' })
 
     expect(await screen.findByRole('heading', { name: 'Immersive analytics review' })).toBeInTheDocument()
+    expect(document.title).toBe('Immersive analytics review · Papertrail')
     expect(screen.getByRole('link', { name: 'Title/Abstract Screening' })).toHaveAttribute('href', '/projects/p1/screening/title_abstract')
     expect(screen.queryByRole('heading', { name: 'Reporting' })).not.toBeInTheDocument()
-    const finalResultsGroup = screen.getByRole('heading', { name: 'Final Results' }).closest('.nav-group') as HTMLElement
-    expect(within(finalResultsGroup).getByText('Reporting and Exports')).toHaveAttribute('aria-disabled', 'true')
+    const completedGroup = screen.getByRole('heading', { name: 'Completed' }).closest('.nav-group') as HTMLElement
+    expect(within(completedGroup).getByText('Reporting and Exports')).toHaveAttribute('aria-disabled', 'true')
 
     const currentStage = screen.getByRole('listitem', { current: 'step' })
     expect(currentStage).toHaveTextContent('Title/Abstract Screening')
@@ -64,16 +69,39 @@ describe('ProjectPage', () => {
       .find((el) => el.tagName === 'H3')
     const currentGroup = currentGroupHeading?.closest('.nav-group')
     expect(currentGroup).not.toHaveClass('nav-group--upcoming')
-    const pastGroup = screen.getByText('Deduplication').closest('.nav-group')
+    const pastGroup = screen.getByRole('heading', { name: 'Duplicate Review' }).closest('.nav-group')
     expect(pastGroup).not.toHaveClass('nav-group--upcoming')
     const upcomingGroupHeading = screen.getAllByText('Extraction & Quality').find((el) => el.tagName === 'H3')
     const upcomingGroup = upcomingGroupHeading?.closest('.nav-group')
     expect(upcomingGroup).toHaveClass('nav-group--upcoming')
-    const setupGroup = screen.getByText('Setup & Configuration').closest('.nav-group')
-    expect(setupGroup).not.toHaveClass('nav-group--upcoming')
+    const workflow = screen.getByRole('navigation', { name: 'Project workflow' })
+    const actionStages = within(workflow).getAllByRole('listitem')
+    expect(actionStages).toHaveLength(7)
+    expect(actionStages.map((stage) => within(stage).getByRole('heading').textContent)).toEqual([
+      'Administration',
+      'Draft',
+      'Duplicate Review',
+      'Title/Abstract Screening',
+      'Full-Text Screening',
+      'Extraction & Quality',
+      'Completed',
+    ])
+    expect(actionStages[0]).toHaveTextContent('Project Administration')
+    expect(actionStages[0]).toHaveTextContent('Setup Wizard')
+    expect(actionStages[0]).toHaveTextContent('Publications')
+    expect(actionStages[0]).toHaveTextContent('Jobs')
+    expect(actionStages[0]).not.toHaveTextContent('Searches and Imports')
+    expect(actionStages[0]).not.toHaveClass('nav-group--upcoming')
+    expect(within(actionStages[0]).getByText('0')).toHaveClass('workflow-nav__number')
+    expect(actionStages[1]).toHaveTextContent('Draft')
+    expect(actionStages[1]).toHaveTextContent('Searches and Imports')
+    expect(actionStages[1]).not.toHaveTextContent('Publications')
+    expect(actionStages[1]).not.toHaveTextContent('Project Administration')
+    expect(within(actionStages[1]).getByText('1')).toHaveClass('workflow-nav__number')
+    expect(screen.queryByText('Add a Publication')).not.toBeInTheDocument()
 
     expect(screen.getByRole('heading', { name: 'Actions' }).closest('.card')).toContainElement(
-      screen.getByRole('navigation', { name: 'Project workflow' }),
+      workflow,
     )
     expect(screen.queryByRole('link', { name: 'Data Extraction' })).not.toBeInTheDocument()
     const disabledExtraction = screen.getByText('Data Extraction')
@@ -109,6 +137,10 @@ describe('ProjectPage', () => {
         stage: 'extraction_quality',
         canManage: true,
         extractionValidationEnabled: false,
+        canTitleAbstractScreen: true,
+        canFullTextScreen: true,
+        canExtract: true,
+        canAssessQuality: true,
       })
     })
     renderWithProviders(<ProjectPage />, { route: '/projects/p1', path: '/projects/:projectId' })
@@ -131,6 +163,10 @@ describe('ProjectPage', () => {
         stage: 'draft',
         canManage: true,
         extractionValidationEnabled: false,
+        canTitleAbstractScreen: true,
+        canFullTextScreen: true,
+        canExtract: true,
+        canAssessQuality: true,
       })
     })
     renderWithProviders(<ProjectPage />, { route: '/projects/p1', path: '/projects/:projectId' })
@@ -160,16 +196,47 @@ describe('ProjectPage', () => {
       return jsonResponse({
         id: 'p1', name: 'Review', stage: 'extraction_quality', canManage: true,
         extractionValidationEnabled: false,
+        canTitleAbstractScreen: true, canFullTextScreen: true,
+        canExtract: true, canAssessQuality: true,
       })
     })
     renderWithProviders(<ProjectPage />, { route: '/projects/p1', path: '/projects/:projectId' })
 
-    const dedupHeading = await screen.findByRole('heading', { name: /Deduplication/ })
+    const dedupHeading = await screen.findByRole('heading', { name: /Duplicate Review/ })
     expect(dedupHeading).toHaveTextContent('All background jobs completed')
     const extractionHeading = screen.getByRole('heading', { name: /Extraction & Quality/ })
     expect(extractionHeading).toHaveTextContent('2/3 background jobs completed')
     const screeningHeading = screen.getByRole('heading', { name: /Title\/Abstract Screening/ })
     expect(screeningHeading).not.toHaveTextContent('background jobs')
+  })
+
+  it('shows duplicate detection rerun under Duplicate Review for the project owner', async () => {
+    mockFetch((input) => {
+      const url = String(input)
+      if (url.endsWith('/checklist')) {
+        return jsonResponse({
+          stage: 'duplicate_review',
+          stages: [{
+            stage: 'duplicate_review', label: 'Resolve Duplicates', isCurrent: true,
+            isComplete: false, autoAdvances: true, action: null, items: [],
+          }],
+        })
+      }
+      if (url.endsWith('/dashboard')) return jsonResponse({ stage: 'duplicate_review' })
+      if (url.endsWith('/integrity')) return jsonResponse({ issues: [] })
+      if (url.endsWith('/jobs/summary')) return jsonResponse([])
+      if (url.endsWith('/metadata-conflicts')) return jsonResponse([])
+      return jsonResponse({
+        id: 'p1', name: 'Review', stage: 'duplicate_review', canManage: true,
+        extractionValidationEnabled: false,
+        canTitleAbstractScreen: true, canFullTextScreen: true,
+        canExtract: true, canAssessQuality: true,
+      })
+    })
+    renderWithProviders(<ProjectPage />, { route: '/projects/p1', path: '/projects/:projectId' })
+
+    const group = (await screen.findByRole('heading', { name: 'Duplicate Review' })).closest('.nav-group') as HTMLElement
+    expect(within(group).getByRole('button', { name: 'Re-run Duplicate Detection' })).toBeInTheDocument()
   })
 
   it('shows the validation review action only when extraction validation is enabled', async () => {
@@ -190,6 +257,8 @@ describe('ProjectPage', () => {
       return jsonResponse({
         id: 'p1', name: 'Review', stage: 'extraction_quality', canManage: true,
         extractionValidationEnabled: true,
+        canTitleAbstractScreen: true, canFullTextScreen: true,
+        canExtract: true, canAssessQuality: true,
       })
     })
     renderWithProviders(<ProjectPage />, { route: '/projects/p1', path: '/projects/:projectId' })
@@ -198,5 +267,34 @@ describe('ProjectPage', () => {
       'href',
       '/projects/p1/extraction/validation',
     )
+  })
+
+  it('hides screening, extraction, and quality actions a reviewer is not assigned to', async () => {
+    mockFetch((input) => {
+      const url = String(input)
+      if (url.endsWith('/checklist')) return jsonResponse({ stage: 'extraction_quality', stages: [] })
+      if (url.endsWith('/dashboard')) return jsonResponse({ stage: 'extraction_quality' })
+      if (url.endsWith('/jobs/summary')) return jsonResponse([])
+      return jsonResponse({
+        id: 'p1',
+        name: 'Review',
+        stage: 'extraction_quality',
+        canManage: false,
+        extractionValidationEnabled: true,
+        canTitleAbstractScreen: false,
+        canFullTextScreen: false,
+        canExtract: true,
+        canAssessQuality: false,
+      })
+    })
+    renderWithProviders(<ProjectPage />, { route: '/projects/p1', path: '/projects/:projectId' })
+
+    expect(await screen.findByRole('link', { name: 'Data Extraction' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'My Submitted Extractions' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Review LLM Extraction Validation' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Quality Assessment' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'My Submitted Quality Assessments' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /Title\/Abstract Screening/ })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: /Full-Text Screening/ })).not.toBeInTheDocument()
   })
 })

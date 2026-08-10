@@ -206,6 +206,56 @@ def test_bulk_matching_by_doi_title_ambiguity_and_conflict(db) -> None:
     )
 
 
+def test_project_wide_pdf_matches_can_be_reviewed_and_resolved_later(
+    client, db
+) -> None:
+    """Unresolved PDF matches must stay reachable after the import session ends."""
+    user, project, batch = setup_batch(db)
+    same_title_a = add_batch_publication(db, batch, "Same title")
+    same_title_b = add_batch_publication(db, batch, "Same title")
+    ambiguous = add_item(db, batch, pdf_bytes("Same title"), "ambiguous.pdf")
+    db.commit()
+    process_pdf_matches(db, batch)
+    db.refresh(ambiguous)
+    assert ambiguous.status == PdfMatchStatus.AMBIGUOUS
+
+    csrf = client.post(
+        "/api/v1/auth/login",
+        json={"username": user.username, "password": "owner-password"},
+    ).json()["csrfToken"]
+
+    listed = client.get(f"/api/v1/projects/{project.id}/pdf-matches")
+    assert listed.status_code == 200
+    body = listed.json()
+    assert body["summary"]["ambiguous"] == 1
+    matching_item = next(item for item in body["items"] if item["id"] == ambiguous.id)
+    assert {
+        candidate["publicationId"] for candidate in matching_item["candidates"]
+    } == {
+        same_title_a.id,
+        same_title_b.id,
+    }
+
+    resolved = client.post(
+        f"/api/v1/projects/{project.id}/pdf-matches/resolve",
+        json={
+            "itemId": ambiguous.id,
+            "publicationId": same_title_a.id,
+            "action": "attach",
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert resolved.status_code == 200
+    assert resolved.json()["status"] == "matched"
+    db.refresh(ambiguous)
+    assert ambiguous.status == PdfMatchStatus.MATCHED
+    assert ambiguous.matched_publication_id == same_title_a.id
+
+    after = client.get(f"/api/v1/projects/{project.id}/pdf-matches").json()
+    assert after["summary"]["ambiguous"] == 0
+    assert after["summary"]["matched"] == 1
+
+
 def test_manual_match_resolution_and_deduplication_preserve_documents(db) -> None:
     user, project, batch = setup_batch(db)
     canonical = add_batch_publication(db, batch, "Canonical")

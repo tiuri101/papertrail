@@ -37,6 +37,7 @@ class PublicationResponse(ApiModel):
     screening_status: ScreeningStatusResponse = Field(
         serialization_alias="screeningStatus"
     )
+    extraction_status: str | None = Field(serialization_alias="extractionStatus")
 
 
 class PublicationUpdate(ApiModel):

@@ -126,6 +126,10 @@ export function ProjectsPage() {
   return (
     <main className="page">
       <h1>Projects</h1>
+      <p className="muted">
+        Review projects you're a member of. Open one to continue where you left off, or start a
+        new review.
+      </p>
       {projects.isLoading ? <p>Loading…</p> : null}
       {projects.error ? <p className="error" role="alert">{projects.error.message}</p> : null}
       {projects.data && projects.data.length > 0 ? (
@@ -194,7 +198,7 @@ export function ProjectsPage() {
       {projects.data && projects.data.length > 0 && filteredProjects.length === 0 ? (
         <p className="muted">No projects match your filters.</p>
       ) : null}
-      <ul className="card-list">
+      <ul className="card-list stacked" aria-label="Projects">
         {filteredProjects.map((project) => (
           <li key={project.id} className="card">
             <h2><Link to={`/projects/${project.id}`}>{project.name}</Link></h2>

@@ -12,6 +12,7 @@ from app.projects.models import (
     ProjectStage,
     ReviewType,
     ScreeningStage,
+    TaskAllocationMode,
 )
 from app.publications.models import Publication
 from app.quality.models import (
@@ -74,6 +75,16 @@ def setup_quality(db, enabled=True):
     )
     db.commit()
     return project, form, design, reporting, reviewer, publication
+
+
+def set_pre_assigned(db, project) -> None:
+    """Quality defaults to claim mode; opt a test into pre-assignment when
+    that's specifically what it exercises."""
+    config = db.scalar(
+        select(QualityConfig).where(QualityConfig.project_id == project.id)
+    )
+    config.allocation_mode = TaskAllocationMode.PRE_ASSIGNED
+    db.commit()
 
 
 def test_disabled_quality_assessment_creates_no_work(db) -> None:
@@ -143,6 +154,7 @@ def test_quality_revision_preserves_old_response(db) -> None:
 
 def test_removing_a_reviewer_reassigns_their_pending_quality_item(client, db) -> None:
     project, _, _, _, reviewer, _ = setup_quality(db)
+    set_pre_assigned(db, project)
     initialize_quality(db, project)
     db.commit()
     membership = db.scalar(
@@ -171,6 +183,7 @@ def test_removing_a_reviewer_reassigns_their_pending_quality_item(client, db) ->
 
 def test_revoking_quality_permission_reassigns_work_items(client, db) -> None:
     project, _, _, _, reviewer, _ = setup_quality(db)
+    set_pre_assigned(db, project)
     initialize_quality(db, project)
     db.commit()
     membership = db.scalar(
@@ -247,11 +260,21 @@ def test_quality_config_endpoint_reads_defaults_then_the_written_settings(
         f"/api/v1/projects/{project.id}/quality-config", headers={"X-CSRF-Token": csrf}
     )
     assert defaults.status_code == 200
-    assert defaults.json() == {"enabled": False, "mode": "both", "aggregation": "sum"}
+    assert defaults.json() == {
+        "enabled": False,
+        "mode": "both",
+        "aggregation": "sum",
+        "allocationMode": "claim",
+    }
 
     updated = client.put(
         f"/api/v1/projects/{project.id}/quality-config",
-        json={"enabled": True, "mode": "numeric", "aggregation": "weighted_average"},
+        json={
+            "enabled": True,
+            "mode": "numeric",
+            "aggregation": "weighted_average",
+            "allocationMode": "pre_assigned",
+        },
         headers={"X-CSRF-Token": csrf},
     )
     assert updated.status_code == 200
@@ -263,6 +286,7 @@ def test_quality_config_endpoint_reads_defaults_then_the_written_settings(
         "enabled": True,
         "mode": "numeric",
         "aggregation": "weighted_average",
+        "allocationMode": "pre_assigned",
     }
 
 
@@ -295,6 +319,7 @@ def test_next_quality_endpoint_returns_the_publication_and_active_fields(
 
 def test_progress_endpoint_reports_assigned_and_completed_counts(client, db) -> None:
     project, _, design, reporting, reviewer, _ = setup_quality(db)
+    set_pre_assigned(db, project)
     initialize_quality(db, project)
     db.commit()
     csrf = login(client, "reviewer", "reviewer-password")
@@ -304,7 +329,12 @@ def test_progress_endpoint_reports_assigned_and_completed_counts(client, db) -> 
         headers={"X-CSRF-Token": csrf},
     )
     assert before.status_code == 200
-    assert before.json() == {"assigned": 1, "completed": 0}
+    assert before.json() == {
+        "assigned": 1,
+        "completed": 0,
+        "remaining": 0,
+        "claimMode": False,
+    }
 
     item = claim_next_quality(db, project.id, reviewer.id)
     submit_quality(
@@ -317,7 +347,49 @@ def test_progress_endpoint_reports_assigned_and_completed_counts(client, db) -> 
         headers={"X-CSRF-Token": csrf},
     )
     assert after.status_code == 200
-    assert after.json() == {"assigned": 1, "completed": 1}
+    assert after.json() == {
+        "assigned": 1,
+        "completed": 1,
+        "remaining": 0,
+        "claimMode": False,
+    }
+
+
+def test_progress_endpoint_reports_remaining_in_claim_mode(client, db) -> None:
+    project, _, design, reporting, reviewer, _ = setup_quality(db)
+    initialize_quality(db, project)
+    db.commit()
+    csrf = login(client, "reviewer", "reviewer-password")
+
+    before = client.get(
+        f"/api/v1/projects/{project.id}/quality/progress",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert before.status_code == 200
+    assert before.json() == {
+        "assigned": 0,
+        "completed": 0,
+        "remaining": 1,
+        "claimMode": True,
+    }
+
+    item = claim_next_quality(db, project.id, reviewer.id)
+    submit_quality(
+        db, item, reviewer.id, {design.stable_key: "strong", reporting.stable_key: 4}
+    )
+    db.commit()
+
+    after = client.get(
+        f"/api/v1/projects/{project.id}/quality/progress",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert after.status_code == 200
+    assert after.json() == {
+        "assigned": 1,
+        "completed": 1,
+        "remaining": 0,
+        "claimMode": True,
+    }
 
 
 def test_mine_endpoint_lists_only_the_callers_completed_assessments(client, db) -> None:

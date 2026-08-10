@@ -20,6 +20,7 @@ from app.projects.models import (
 )
 from app.publications.models import Publication
 from app.quality.models import QualityConfig, QualityStatus, QualityWorkItem
+from app.screening.models import ScreeningWorkItem, WorkItemStatus
 
 STAGE_ORDER = [
     ProjectStage.DRAFT,
@@ -59,7 +60,9 @@ def _count(db: Session, *clauses: Any) -> int:
     return db.scalar(select(func.count()).select_from(Publication).where(*clauses)) or 0
 
 
-def _draft_items(db: Session, project: Project) -> list[dict[str, Any]]:
+def _draft_items(
+    db: Session, project: Project, user_id: str | None
+) -> list[dict[str, Any]]:
     rq_count = sum(1 for item in project.research_questions if item.is_active)
     inclusion_count = sum(
         1
@@ -110,7 +113,9 @@ def _draft_items(db: Session, project: Project) -> list[dict[str, Any]]:
     ]
 
 
-def _duplicate_review_items(db: Session, project: Project) -> list[dict[str, Any]]:
+def _duplicate_review_items(
+    db: Session, project: Project, user_id: str | None
+) -> list[dict[str, Any]]:
     latest_job = db.scalar(
         select(BackgroundJob)
         .where(
@@ -157,28 +162,62 @@ def _duplicate_review_items(db: Session, project: Project) -> list[dict[str, Any
     ]
 
 
-def _title_abstract_items(db: Session, project: Project) -> list[dict[str, Any]]:
-    total = _count(
-        db,
-        Publication.project_id == project.id,
-        Publication.is_active.is_(True),
-        Publication.merged_into_id.is_(None),
+def _my_open_work_item_count(
+    db: Session,
+    model: Any,
+    project_id: str,
+    user_id: str | None,
+    *,
+    extra_clauses: tuple[Any, ...] = (),
+) -> int:
+    if not user_id:
+        return 0
+    open_status = {
+        ScreeningWorkItem: WorkItemStatus.SUBMITTED,
+        ExtractionWorkItem: ExtractionStatus.COMPLETED,
+        QualityWorkItem: QualityStatus.COMPLETED,
+    }[model]
+    return (
+        db.scalar(
+            select(func.count())
+            .select_from(model)
+            .where(
+                model.project_id == project_id,
+                model.assigned_reviewer_id == user_id,
+                model.status != open_status,
+                *extra_clauses,
+            )
+        )
+        or 0
     )
+
+
+def _title_abstract_items(
+    db: Session, project: Project, user_id: str | None
+) -> list[dict[str, Any]]:
     unresolved = len(
         unresolved_publication_ids(db, project.id, ScreeningStage.TITLE_ABSTRACT)
     )
-    decided = total - unresolved
+    my_open = _my_open_work_item_count(
+        db,
+        ScreeningWorkItem,
+        project.id,
+        user_id,
+        extra_clauses=(ScreeningWorkItem.stage == ScreeningStage.TITLE_ABSTRACT,),
+    )
     return [
         _item(
             "title_abstract_decisions",
             "Reach a final include/exclude decision for every publication",
             unresolved == 0,
-            f"{decided} of {total} decided",
+            f"{my_open} awaiting your decision ({unresolved} open in total)",
         ),
     ]
 
 
-def _full_text_items(db: Session, project: Project) -> list[dict[str, Any]]:
+def _full_text_items(
+    db: Session, project: Project, user_id: str | None
+) -> list[dict[str, Any]]:
     from app.extraction.service import project_form
 
     retrievals = list(
@@ -205,6 +244,13 @@ def _full_text_items(db: Session, project: Project) -> list[dict[str, Any]]:
         is not None
     )
     has_extraction_form = project_form(db, project.id) is not None
+    my_open = _my_open_work_item_count(
+        db,
+        ScreeningWorkItem,
+        project.id,
+        user_id,
+        extra_clauses=(ScreeningWorkItem.stage == ScreeningStage.FULL_TEXT,),
+    )
     return [
         _item(
             "full_text_retrieval",
@@ -216,7 +262,7 @@ def _full_text_items(db: Session, project: Project) -> list[dict[str, Any]]:
             "full_text_decisions",
             "Screen every retrieved full text",
             decided == len(available),
-            f"{decided} of {len(available)} screened",
+            f"{my_open} awaiting your decision ({len(available) - decided} open in total)",
         ),
         _item(
             "extraction_form",
@@ -227,7 +273,9 @@ def _full_text_items(db: Session, project: Project) -> list[dict[str, Any]]:
     ]
 
 
-def _extraction_items(db: Session, project: Project) -> list[dict[str, Any]]:
+def _extraction_items(
+    db: Session, project: Project, user_id: str | None
+) -> list[dict[str, Any]]:
     extraction_total = (
         db.scalar(
             select(func.count())
@@ -247,12 +295,14 @@ def _extraction_items(db: Session, project: Project) -> list[dict[str, Any]]:
         )
         or 0
     )
+    my_open = _my_open_work_item_count(db, ExtractionWorkItem, project.id, user_id)
     items = [
         _item(
             "extraction",
             "Complete data extraction for every included publication",
             extraction_done == extraction_total,
-            f"{extraction_done} of {extraction_total} extracted",
+            f"{my_open} awaiting your extraction "
+            f"({extraction_total - extraction_done} open in total)",
         ),
     ]
     llm_settings = db.scalar(
@@ -300,12 +350,16 @@ def _extraction_items(db: Session, project: Project) -> list[dict[str, Any]]:
             )
             or 0
         )
+        my_open_quality = _my_open_work_item_count(
+            db, QualityWorkItem, project.id, user_id
+        )
         items.append(
             _item(
                 "quality",
                 "Complete quality assessment for every included publication",
                 quality_done == quality_total,
-                f"{quality_done} of {quality_total} assessed",
+                f"{my_open_quality} awaiting your assessment "
+                f"({quality_total - quality_done} open in total)",
             )
         )
     return items
@@ -320,12 +374,14 @@ STAGE_BUILDERS = {
 }
 
 
-def project_checklist(db: Session, project: Project) -> dict[str, Any]:
+def project_checklist(
+    db: Session, project: Project, user_id: str | None = None
+) -> dict[str, Any]:
     current_index = STAGE_ORDER.index(project.stage)
     stages = []
     for index, stage in enumerate(STAGE_ORDER):
         builder = STAGE_BUILDERS.get(stage)
-        items = builder(db, project) if builder else []
+        items = builder(db, project, user_id) if builder else []
         is_complete = index < current_index or (
             stage == ProjectStage.COMPLETED and project.stage == ProjectStage.COMPLETED
         )

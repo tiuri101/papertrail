@@ -4,13 +4,14 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
-import { IconArrowRight, IconCheckCircle } from '../../components/icons'
+import { IconArrowRight, IconCheckCircle, IconFolder } from '../../components/icons'
+import { InfoBox } from '../../components/InfoBox'
 import { CriteriaPanel, ResearchQuestionsPanel } from '../administration/ResearchAgendaPanel'
 import { HighlightKeywordsPanel } from '../administration/HighlightKeywordsPanel'
 import { MembersPanel } from '../administration/MembersPanel'
 import { ScreeningConfigPanel } from '../administration/ScreeningConfigPanel'
 import { FormFieldsPanel } from '../forms/FormFieldsPanel'
-import { LlmAssistancePanel } from '../llm/LlmAssistancePanel'
+import { LlmAssistancePanel, type LlmAssistancePanelHandle } from '../llm/LlmAssistancePanel'
 
 interface ProjectDetails {
   id: string
@@ -105,8 +106,18 @@ function ProjectDetailsStep({
 
   return (
     <section className="card">
-      <h2>Project Name and Description</h2>
-      <p className="muted">Give the project a clear name and a short description of its scope.</p>
+      <h2>
+        <span className="collapsible-section__title">
+          <span className="collapsible-section__icon" aria-hidden="true"><IconFolder /></span>
+          Project Name and Description
+        </span>
+      </h2>
+      <InfoBox icon={<IconFolder />}>
+        <p>
+          Give the project a clear name and a short description of its scope. You can revisit
+          every step but this one later from the project&apos;s Project Administration page.
+        </p>
+      </InfoBox>
       {project.isLoading ? <p>Loading…</p> : (
         <form
           onSubmit={(event) => {
@@ -162,9 +173,11 @@ export function ProjectSetupWizard() {
   const [createdProjectId, setCreatedProjectId] = useState<string | null>(null)
   const [step, setStep] = useState(0)
   const [stepDirty, setStepDirty] = useState(false)
+  const [isFinishing, setIsFinishing] = useState(false)
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null)
   const projectId = routeProjectId ?? createdProjectId ?? ''
   const currentStepRef = useRef<HTMLLIElement>(null)
+  const llmPanelRef = useRef<LlmAssistancePanelHandle>(null)
 
   useEffect(() => {
     currentStepRef.current?.scrollIntoView?.({ block: 'nearest', inline: 'center' })
@@ -192,8 +205,17 @@ export function ProjectSetupWizard() {
   }
   const isLastStep = step === WIZARD_STEPS.length - 1
 
-  const finish = () => {
-    guardedNavigate(() => navigate(`/projects/${projectId}`))
+  const finish = async () => {
+    setIsFinishing(true)
+    try {
+      await llmPanelRef.current?.finishSetup()
+      setStepDirty(false)
+      navigate(`/projects/${projectId}`)
+    } catch {
+      // The LLM panel displays the mutation error and keeps the wizard open.
+    } finally {
+      setIsFinishing(false)
+    }
   }
 
   return (
@@ -202,8 +224,8 @@ export function ProjectSetupWizard() {
       <h1>Project Setup Wizard</h1>
       <p className="muted">
         {project.data?.name
-          ? `Setting up "${project.data.name}". Every step but the first can be revisited later from the project's Administration page.`
-          : 'Create a project by walking through each setup step. You can finish the rest later from the project\'s Administration page.'}
+          ? `Setting up "${project.data.name}". Every step but the first can be revisited later from the project's Project Administration page.`
+          : 'Create a project by walking through each setup step. You can finish the rest later from the project\'s Project Administration page.'}
       </p>
 
       <div className="wizard-steps-wrap">
@@ -253,12 +275,7 @@ export function ProjectSetupWizard() {
         <CriteriaPanel projectId={projectId} onDirtyChange={setStepDirty} />
       ) : null}
       {WIZARD_STEPS[step].key === 'reviewers' ? (
-        <>
-          <p className="muted">
-            Add the reviewers who will work on this project and choose which stages each one can take part in.
-          </p>
-          <MembersPanel projectId={projectId} onDirtyChange={setStepDirty} />
-        </>
+        <MembersPanel projectId={projectId} onDirtyChange={setStepDirty} />
       ) : null}
       {WIZARD_STEPS[step].key === 'screening' ? (
         <ScreeningConfigPanel projectId={projectId} onDirtyChange={setStepDirty} />
@@ -283,13 +300,13 @@ export function ProjectSetupWizard() {
         <HighlightKeywordsPanel projectId={projectId} />
       ) : null}
       {WIZARD_STEPS[step].key === 'llm' ? (
-        <>
-          <p className="muted">
-            LLM assistance is optional. You can enable it now or come back to it later from the project&apos;s
-            Administration page.
-          </p>
-          <LlmAssistancePanel projectId={projectId} showProcessingStatus={false} onDirtyChange={setStepDirty} />
-        </>
+        <LlmAssistancePanel
+          ref={llmPanelRef}
+          projectId={projectId}
+          showProcessingStatus={false}
+          onDirtyChange={setStepDirty}
+          setupMode
+        />
       ) : null}
 
       {WIZARD_STEPS[step].key !== 'details' ? (
@@ -298,9 +315,9 @@ export function ProjectSetupWizard() {
             Back
           </button>
           {isLastStep ? (
-            <button type="button" onClick={finish}>
+            <button type="button" onClick={finish} disabled={isFinishing}>
               <IconCheckCircle />
-              Finish Setup
+              {isFinishing ? 'Finishing…' : 'Finish Setup'}
             </button>
           ) : (
             <button type="button" onClick={() => goTo(step + 1)}>
@@ -330,7 +347,7 @@ export function ProjectSetupWizard() {
       {pendingAction ? (
         <ConfirmDialog
           title="Discard unsaved changes?"
-          message="You have unsaved changes on this step that require their own Save/Publish button to keep. Leaving now will discard them."
+          message="You have unsaved changes on this step. Leaving now will discard them."
           confirmLabel="Discard & Continue"
           cancelLabel="Stay on this step"
           variant="danger"

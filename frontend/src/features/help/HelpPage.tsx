@@ -167,6 +167,7 @@ const stages: StageResponsibilities[] = [
     name: 'Title/Abstract Screening',
     owner: [
       'Monitor reviewer progress and adjust screening assignments as needed.',
+      'Choose how publications reach reviewers: Claim (default) lets reviewers pick up the next unclaimed publication themselves; Divided pre-assigns publications round-robin, weighted by each reviewer’s workload weight; Independent shows every publication to every reviewer.',
       'Resolve screening conflicts and uncertain decisions according to the configured resolution method.',
     ],
     reviewer: [
@@ -191,6 +192,7 @@ const stages: StageResponsibilities[] = [
     name: 'Extraction & Quality Assessment',
     owner: [
       'Configure the project’s extraction and quality-assessment forms.',
+      'Choose how publications reach extractors and quality assessors: Claim (default) lets reviewers pick up the next unclaimed publication themselves; Pre-assigned splits publications round-robin, weighted by each reviewer’s workload weight.',
       'Reopen a reviewer’s submitted extraction or quality assessment if it needs correction, and review LLM extraction-validation results when that’s enabled.',
     ],
     reviewer: [
@@ -318,7 +320,7 @@ const goodToKnowItems = [
   {
     label: 'Work reservations',
     title: 'Claims expire automatically',
-    description: 'An opened screening item stays reserved to you for up to one day unless you release it, so work cannot remain blocked indefinitely.',
+    description: 'An opened screening item stays reserved to you for up to one hour unless you release it, so work cannot remain blocked indefinitely.',
     icon: <IconClock />,
     tone: 'warning',
   },
@@ -488,6 +490,7 @@ export function HelpPage() {
     <SectionNavigationLayout items={helpSections} label="On this page">
       <main className="page">
         <h1>Help</h1>
+        <p className="muted">Documentation and guidance for using Papertrail.</p>
         <CollapsibleSection id="section-help-overview" title="What Papertrail Does" icon={<IconInfo />}>
           <PapertrailOverview />
         </CollapsibleSection>

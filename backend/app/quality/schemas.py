@@ -4,6 +4,7 @@ from typing import Any
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.forms.schemas import FieldResponse
+from app.projects.models import TaskAllocationMode
 from app.screening.schemas import PublicationItem
 
 
@@ -15,12 +16,16 @@ class QualityConfigUpdate(ApiModel):
     enabled: bool
     mode: str = "both"
     aggregation: str = "sum"
+    allocation_mode: TaskAllocationMode = Field(
+        default=TaskAllocationMode.CLAIM, alias="allocationMode"
+    )
 
 
 class QualityConfigResponse(ApiModel):
     enabled: bool
     mode: str
     aggregation: str
+    allocation_mode: TaskAllocationMode = Field(serialization_alias="allocationMode")
 
 
 class QualitySubmit(ApiModel):

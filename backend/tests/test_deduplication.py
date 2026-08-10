@@ -10,7 +10,8 @@ from app.deduplication.service import (
     transition_if_duplicate_review_complete,
 )
 from app.imports.models import ImportBatch, ImportedRecord, ImportStatus
-from app.projects.models import Project, ProjectStage, ReviewType
+from app.jobs.models import BackgroundJob, JobStatus
+from app.projects.models import Project, ProjectMembership, ProjectStage, ReviewType
 from app.publications.models import MetadataConflict, Publication, PublicationSource
 
 
@@ -94,6 +95,43 @@ def test_marking_an_incomplete_draft_project_ready_is_rejected(client, db) -> No
 
     project = client.get(f"/api/v1/projects/{project_id}")
     assert project.json()["stage"] == "draft"
+
+
+def test_project_owner_can_rerun_duplicate_detection(client, db) -> None:
+    owner = create_user(db, "admin", "Project Owner", "secret-password")
+    project = Project(
+        name="Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.DUPLICATE_REVIEW,
+    )
+    db.add(project)
+    db.flush()
+    db.add(ProjectMembership(project_id=project.id, user_id=owner.id, is_owner=True))
+    db.commit()
+    csrf = login(client)
+
+    response = client.post(
+        f"/api/v1/projects/{project.id}/duplicates/detect",
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    assert response.status_code == 202
+    job = db.scalar(
+        select(BackgroundJob).where(
+            BackgroundJob.project_id == project.id,
+            BackgroundJob.job_type == "detect_duplicates",
+        )
+    )
+    assert job is not None
+    assert job.status == JobStatus.QUEUED
+    assert response.json() == {"jobId": job.id, "status": "queued"}
+
+    duplicate_click = client.post(
+        f"/api/v1/projects/{project.id}/duplicates/detect",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert duplicate_click.status_code == 409
 
 
 def test_list_candidates_includes_publication_details(client, db) -> None:

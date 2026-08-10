@@ -21,7 +21,8 @@ describe('ReportingPage', () => {
     })
     renderWithProviders(<ReportingPage />, { route: '/projects/p1/reporting', path: '/projects/:projectId/reporting' })
 
-    expect(await screen.findByText(/"recordsScreened": 120/)).toBeInTheDocument()
+    const countLabel = await screen.findByText('Records Screened')
+    expect(countLabel.parentElement).toHaveTextContent('120')
     fireEvent.click(screen.getByRole('button', { name: 'Generate Excel Workbook' }))
 
     const link = await screen.findByRole('link', { name: 'papertrail.xlsx' })
@@ -80,7 +81,7 @@ describe('ReportingPage', () => {
     let artifacts = [{ id: 'artifact-1', type: 'xlsx', filename: 'Review_2026-07-30.xlsx', createdAt: '2026-07-30T08:00:00Z' }]
     const fetchMock = mockFetch(async (input, init) => {
       const path = String(input)
-      if (path.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
+      if (path.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
       if (path.endsWith('/prisma')) return jsonResponse({})
       if (path.endsWith('/artifact-1') && init?.method === 'DELETE') {
         artifacts = []
@@ -95,6 +96,7 @@ describe('ReportingPage', () => {
     expect(link).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    expect(screen.getByRole('alertdialog', { name: 'Delete export?' })).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Delete Export' }))
 
     await waitForElementToBeRemoved(() => screen.queryByRole('link', { name: 'Review_2026-07-30.xlsx' }))
@@ -106,8 +108,12 @@ describe('ReportingPage', () => {
     mockFetch(async (input) => String(input).endsWith('/prisma') ? jsonResponse({}) : jsonResponse([]))
     renderWithProviders(<ReportingPage />, { route: '/projects/p1/reporting', path: '/projects/:projectId/reporting' })
 
-    const figure = await screen.findByAltText(/PRISMA 2020 flow diagram/)
+    const figure = await screen.findByAltText(/PRISMA flow diagram/)
     expect(figure).toHaveAttribute('src', '/api/v1/projects/p1/prisma/svg')
+    expect(screen.getByText('Study selection')).toHaveClass('eyebrow')
+    expect(screen.getByRole('heading', { name: 'PRISMA Flow' })).toBeInTheDocument()
+    expect(screen.queryByText('Living diagram')).not.toBeInTheDocument()
+    expect(screen.queryByText(/Counts update automatically/)).not.toBeInTheDocument()
   })
 
   it('offers all required export families', async () => {

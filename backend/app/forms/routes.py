@@ -19,6 +19,7 @@ from app.forms.schemas import (
     FieldUpdate,
     FormCreate,
     FormResponse,
+    FormUpdate,
     SaveAsTemplateRequest,
 )
 from app.forms.service import (
@@ -40,7 +41,11 @@ from app.projects.dependencies import (
     require_project_manager,
     require_project_manager_csrf,
 )
-from app.projects.service import get_project, require_manager_for
+from app.projects.service import (
+    get_project,
+    is_any_project_manager,
+    require_manager_for,
+)
 
 router = APIRouter(tags=["forms"])
 
@@ -146,6 +151,34 @@ def delete_form_endpoint(
     db.commit()
 
 
+@router.patch("/forms/{form_id}", response_model=FormResponse)
+def update_form_endpoint(
+    form_id: str,
+    payload: FormUpdate,
+    session: UserSession = Depends(require_csrf),
+    db: Session = Depends(get_db),
+) -> ReviewForm:
+    admin = session.user
+    form = db.get(ReviewForm, form_id)
+    if form is None:
+        raise NotFoundError("Form not found")
+    require_manager_for(db, admin, form.project_id)
+    previous_name = form.name
+    form.name = payload.name.strip()
+    record_audit(
+        db,
+        action="form_template.updated" if form.is_template else "form.updated",
+        entity_type="review_form",
+        entity_id=form.id,
+        project_id=form.project_id,
+        actor_id=admin.id,
+        summary=f"Renamed form '{previous_name}' to '{form.name}'",
+        metadata={"changes": {"name": {"from": previous_name, "to": form.name}}},
+    )
+    db.commit()
+    return form
+
+
 @router.post(
     "/forms/{form_id}/fields",
     response_model=FieldResponse,
@@ -209,7 +242,11 @@ def list_form_fields(
     form = db.get(ReviewForm, form_id)
     if form is None or not form.active_version_id:
         raise NotFoundError("Form not found")
-    require_manager_for(db, user, form.project_id)
+    if form.is_template:
+        if not is_any_project_manager(db, user):
+            raise NotFoundError("Form not found")
+    else:
+        require_manager_for(db, user, form.project_id)
     return list(
         db.scalars(
             select(FormField)

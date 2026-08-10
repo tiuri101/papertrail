@@ -4,6 +4,7 @@ set -eu
 backup=${1:?Usage: scripts/restore.sh PATH_TO_BACKUP_DIRECTORY}
 [ -f "$backup/database.dump" ] || { echo "Missing database.dump" >&2; exit 1; }
 [ -f "$backup/files.tar.gz" ] || { echo "Missing files.tar.gz" >&2; exit 1; }
+[ -f "$backup/pdfs.tar.gz" ] || { echo "Missing pdfs.tar.gz" >&2; exit 1; }
 
 if [ -f .env ]; then
   set -a
@@ -13,7 +14,7 @@ if [ -f .env ]; then
 fi
 
 echo "Stopping application services..."
-docker compose stop gateway frontend worker api
+docker compose stop frontend worker llm-worker api
 
 echo "Restoring database..."
 docker compose exec -T postgres dropdb \
@@ -32,6 +33,12 @@ docker run --rm \
   -v papertrail_files:/data \
   -v "$(cd "$backup" && pwd)":/backup:ro \
   alpine:3.22 sh -c 'rm -rf /data/* && tar -C /data -xzf /backup/files.tar.gz'
+
+echo "Restoring stored PDFs..."
+docker run --rm \
+  -v papertrail_pdf_data:/pdf-data \
+  -v "$(cd "$backup" && pwd)":/backup:ro \
+  alpine:3.22 sh -c 'rm -rf /pdf-data/* && tar -C /pdf-data -xzf /backup/pdfs.tar.gz'
 
 echo "Applying migrations and restarting services..."
 docker compose run --rm migrate

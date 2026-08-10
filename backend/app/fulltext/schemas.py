@@ -34,6 +34,9 @@ class DocumentResponse(ApiModel):
 class FullTextDocumentResponse(ApiModel):
     available: bool
     document: DocumentResponse | None = None
+    retrieval_status: str | None = Field(
+        default=None, serialization_alias="retrievalStatus"
+    )
 
 
 class RetrievalPublication(ApiModel):

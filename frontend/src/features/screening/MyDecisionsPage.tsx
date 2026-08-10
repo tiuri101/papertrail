@@ -5,10 +5,13 @@ import { Link, useParams } from 'react-router-dom'
 import { apiRequest } from '../../api/client'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { HighlightedText } from '../../components/HighlightedText'
+import { IconAlertTriangle } from '../../components/icons'
+import { InfoBox } from '../../components/InfoBox'
 import { OutcomeBadge } from '../../components/OutcomeBadge'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { ScreeningLlmPanel } from '../llm/LlmTaskComponents'
+import { StageEyebrow } from '../projects/StageEyebrow'
 import { CriteriaAnswerFields } from './CriteriaAnswerFields'
 import type { CriterionAnswer, ScreeningCriterion } from './useScreeningQueue'
 
@@ -249,7 +252,7 @@ function DecisionCard({
         </div>
       </div>
       <details className="publication-card__abstract">
-        <summary>Decision details</summary>
+        <summary>Publication details</summary>
         {publication.venue ? <p><strong>Venue:</strong> {publication.venue}</p> : null}
         <p>
           <strong>Abstract:</strong>{' '}
@@ -321,17 +324,25 @@ export function MyDecisionsPage() {
 
   return (
     <main className="page">
+      <StageEyebrow
+        stage={stage === 'full_text' ? 'full_text_screening' : 'title_abstract_screening'}
+      />
       <h1>My {stageTitles[stage] ?? stage} Decisions</h1>
+      <p className="muted">
+        Decisions you have already submitted for this stage. Open one to review or revise it.
+      </p>
       <p><Link to={`/projects/${projectId}/screening/${stage}`}>← Back to screening queue</Link></p>
       {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
       {query.isLoading ? <p>Loading…</p> : null}
       {query.data ? (
         <>
           {query.data.stageCompleted ? (
-            <p className="error" role="alert">
-              This stage has been completed. You can still change a decision, but doing so may affect results that
-              have already been finalized.
-            </p>
+            <InfoBox icon={<IconAlertTriangle />} tone="warning" alert>
+              <h3>This stage has been completed</h3>
+              <p>
+                You can still change a decision, but doing so may affect results that have already been finalized.
+              </p>
+            </InfoBox>
           ) : null}
           {workflowImpact ? (
             <section className="error alert" role="alert" aria-labelledby="revision-impact-heading">

@@ -3,11 +3,21 @@ import { useEffect, useRef, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
+import { InfoBox } from '../../components/InfoBox'
+import { IconCheckCircle } from '../../components/icons'
+
+type TaskAllocationMode = 'pre_assigned' | 'claim'
 
 interface QualityConfig {
   enabled: boolean
   mode: string
   aggregation: string
+  allocationMode: TaskAllocationMode
+}
+
+const TASK_ALLOCATION_MODE_LABELS: Record<TaskAllocationMode, string> = {
+  claim: 'Claim (reviewers pick up publications themselves)',
+  pre_assigned: 'Pre-assigned (publications are split across reviewers)',
 }
 
 export function QualitySettingsPanel({ projectId }: { projectId: string }) {
@@ -15,6 +25,7 @@ export function QualitySettingsPanel({ projectId }: { projectId: string }) {
   const [enabled, setEnabled] = useState(false)
   const [mode, setMode] = useState('both')
   const [aggregation, setAggregation] = useState('sum')
+  const [allocationMode, setAllocationMode] = useState<TaskAllocationMode>('claim')
   const seeded = useRef(false)
   const config = useQuery({
     queryKey: ['quality-config', projectId],
@@ -28,6 +39,7 @@ export function QualitySettingsPanel({ projectId }: { projectId: string }) {
     setEnabled(config.data.enabled ?? false)
     setMode(config.data.mode ?? 'both')
     setAggregation(config.data.aggregation ?? 'sum')
+    setAllocationMode(config.data.allocationMode ?? 'claim')
   }, [config.data])
 
   const save = useMutation({
@@ -41,14 +53,15 @@ export function QualitySettingsPanel({ projectId }: { projectId: string }) {
     setEnabled(next.enabled)
     setMode(next.mode)
     setAggregation(next.aggregation)
+    setAllocationMode(next.allocationMode)
     if (seeded.current) save.mutate(next)
   }
 
   return (
-    <CollapsibleSection id="section-quality-assessment-settings" title="Quality Assessment Settings">
-      <p className="muted">
-        Configure whether reviewers assess methodological quality and how numerical scores are combined.
-      </p>
+    <CollapsibleSection id="section-quality-assessment-settings" title="Quality Assessment Settings" icon={<IconCheckCircle />}>
+      <InfoBox icon={<IconCheckCircle />}>
+        <p>Configure whether reviewers assess methodological quality and how numerical scores are combined.</p>
+      </InfoBox>
       {config.error ? <p className="error" role="alert">{config.error.message}</p> : null}
       {config.isLoading ? <p>Loadingâ€¦</p> : (
         <div className="quality-settings-fields">
@@ -56,7 +69,7 @@ export function QualitySettingsPanel({ projectId }: { projectId: string }) {
             <input
               type="checkbox"
               checked={enabled}
-              onChange={(event) => update({ enabled: event.target.checked, mode, aggregation })}
+              onChange={(event) => update({ enabled: event.target.checked, mode, aggregation, allocationMode })}
             />
             Enable quality assessment
           </label>
@@ -65,7 +78,7 @@ export function QualitySettingsPanel({ projectId }: { projectId: string }) {
               Mode
               <select
                 value={mode}
-                onChange={(event) => update({ enabled, mode: event.target.value, aggregation })}
+                onChange={(event) => update({ enabled, mode: event.target.value, aggregation, allocationMode })}
               >
                 <option value="qualitative">Qualitative only</option>
                 <option value="numeric">Numerical scoring only</option>
@@ -76,11 +89,24 @@ export function QualitySettingsPanel({ projectId }: { projectId: string }) {
               Aggregation
               <select
                 value={aggregation}
-                onChange={(event) => update({ enabled, mode, aggregation: event.target.value })}
+                onChange={(event) => update({ enabled, mode, aggregation: event.target.value, allocationMode })}
               >
                 <option value="sum">Simple sum</option>
                 <option value="average">Average</option>
                 <option value="weighted_average">Weighted average</option>
+              </select>
+            </label>
+            <label>
+              Allocation
+              <select
+                value={allocationMode}
+                onChange={(event) => update({
+                  enabled, mode, aggregation, allocationMode: event.target.value as TaskAllocationMode,
+                })}
+              >
+                {(Object.keys(TASK_ALLOCATION_MODE_LABELS) as TaskAllocationMode[]).map((value) => (
+                  <option key={value} value={value}>{TASK_ALLOCATION_MODE_LABELS[value]}</option>
+                ))}
               </select>
             </label>
           </div>

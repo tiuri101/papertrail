@@ -9,12 +9,27 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from app.db.types import JSONType
+from app.projects.models import TaskAllocationMode
 
 
 class ExtractionStatus(enum.StrEnum):
     AVAILABLE = "available"
     RESERVED = "reserved"
     COMPLETED = "completed"
+
+
+class ExtractionConfig(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    __tablename__ = "extraction_configs"
+    __table_args__ = (
+        UniqueConstraint("project_id", name="uq_extraction_config_project"),
+    )
+
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
+    allocation_mode: Mapped[TaskAllocationMode] = mapped_column(
+        default=TaskAllocationMode.CLAIM, nullable=False
+    )
 
 
 class ExtractionWorkItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -29,8 +44,8 @@ class ExtractionWorkItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     publication_id: Mapped[str] = mapped_column(
         ForeignKey("publications.id", ondelete="CASCADE"), index=True
     )
-    assigned_reviewer_id: Mapped[str] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    assigned_reviewer_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), index=True
     )
     reserved_until: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), index=True

@@ -4,7 +4,7 @@ import hashlib
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.accounts.models import User
@@ -12,7 +12,13 @@ from app.api.errors import DomainError, ForbiddenError, NotFoundError
 from app.conflicts.models import FinalDecision
 from app.extraction.service import validate_answers
 from app.forms.models import FieldType, FormField, FormKind, ReviewForm
-from app.projects.models import Project, ProjectMembership, ScreeningStage
+from app.projects.models import (
+    Project,
+    ProjectMembership,
+    ScreeningStage,
+    TaskAllocationMode,
+)
+from app.projects.service import reviewer_weights, weighted_round_robin_sequence
 from app.quality.models import (
     QualityConfig,
     QualityResponse,
@@ -85,10 +91,19 @@ def initialize_quality(db: Session, project: Project) -> int:
     reviewers = eligible_assessors(db, project.id)
     if not reviewers:
         raise DomainError("At least one eligible quality assessor is required")
+    claim_mode = config.allocation_mode == TaskAllocationMode.CLAIM
+    publication_ids = sorted(included_publication_ids(db, project.id))
+    assignment_sequence = (
+        []
+        if claim_mode
+        else weighted_round_robin_sequence(
+            reviewers,
+            reviewer_weights(db, project.id, reviewers),
+            len(publication_ids),
+        )
+    )
     created = 0
-    for index, publication_id in enumerate(
-        sorted(included_publication_ids(db, project.id))
-    ):
+    for index, publication_id in enumerate(publication_ids):
         if db.scalar(
             select(QualityWorkItem.id).where(
                 QualityWorkItem.publication_id == publication_id
@@ -102,7 +117,7 @@ def initialize_quality(db: Session, project: Project) -> int:
             QualityWorkItem(
                 project_id=project.id,
                 publication_id=publication_id,
-                assigned_reviewer_id=reviewers[index % len(reviewers)],
+                assigned_reviewer_id=None if claim_mode else assignment_sequence[index],
                 random_rank=rank,
             )
         )
@@ -122,23 +137,33 @@ def reassign_work_items_from_ineligible_reviewers(db: Session, project_id: str) 
     revoked afterward, their existing AVAILABLE/RESERVED items would otherwise sit
     assigned to someone who can no longer claim them. Completed items are left
     untouched: who actually assessed a publication shouldn't change after the fact.
+
+    In claim mode, orphaned items are released back to the open pool (unassigned)
+    instead of being pushed onto a specific reviewer.
     """
     eligible = eligible_assessors(db, project_id)
     if not eligible:
         return 0
+    config = quality_config(db, project_id)
+    claim_mode = (
+        config is not None and config.allocation_mode == TaskAllocationMode.CLAIM
+    )
     orphaned = list(
         db.scalars(
             select(QualityWorkItem)
             .where(
                 QualityWorkItem.project_id == project_id,
                 QualityWorkItem.status != QualityStatus.COMPLETED,
+                QualityWorkItem.assigned_reviewer_id.is_not(None),
                 QualityWorkItem.assigned_reviewer_id.not_in(eligible),
             )
             .order_by(QualityWorkItem.random_rank)
         )
     )
     for index, item in enumerate(orphaned):
-        item.assigned_reviewer_id = eligible[index % len(eligible)]
+        item.assigned_reviewer_id = (
+            None if claim_mode else eligible[index % len(eligible)]
+        )
         item.status = QualityStatus.AVAILABLE
         item.reserved_until = None
     db.flush()
@@ -149,10 +174,17 @@ def rebalance_pending_work_items(db: Session, project_id: str) -> int:
     """Spread not-yet-claimed (AVAILABLE) quality work items evenly across all
     currently eligible assessors, so someone just granted access picks up a fair
     share of the backlog. Reserved and completed items are left untouched.
+
+    A no-op in claim mode: AVAILABLE items there are an intentionally open pool
+    for reviewers to pick from, not a backlog to pre-assign.
     """
+    config = quality_config(db, project_id)
+    if config is not None and config.allocation_mode == TaskAllocationMode.CLAIM:
+        return 0
     eligible = eligible_assessors(db, project_id)
     if not eligible:
         return 0
+    weights = reviewer_weights(db, project_id, eligible)
     items = list(
         db.scalars(
             select(QualityWorkItem)
@@ -170,7 +202,7 @@ def rebalance_pending_work_items(db: Session, project_id: str) -> int:
 
     reassigned = 0
     for item in pending:
-        chosen = min(eligible, key=lambda r: (load[r], r))
+        chosen = min(eligible, key=lambda r: (load[r] / weights.get(r, 1.0), r))
         if item.assigned_reviewer_id != chosen:
             item.assigned_reviewer_id = chosen
             reassigned += 1
@@ -179,9 +211,35 @@ def rebalance_pending_work_items(db: Session, project_id: str) -> int:
     return reassigned
 
 
-def my_progress(db: Session, project_id: str, reviewer_id: str) -> dict[str, int]:
+def remaining_claimable_assessments(
+    db: Session, project_id: str, reviewer_id: str
+) -> int:
+    """How many quality-assessment work items this reviewer could still claim
+    or complete in claim mode: their own incomplete items plus unclaimed ones."""
+    return (
+        db.scalar(
+            select(func.count())
+            .select_from(QualityWorkItem)
+            .where(
+                QualityWorkItem.project_id == project_id,
+                QualityWorkItem.status != QualityStatus.COMPLETED,
+                or_(
+                    QualityWorkItem.assigned_reviewer_id == reviewer_id,
+                    QualityWorkItem.assigned_reviewer_id.is_(None),
+                ),
+            )
+        )
+        or 0
+    )
+
+
+def my_progress(
+    db: Session, project_id: str, reviewer_id: str
+) -> dict[str, int | bool]:
     """How many quality-assessment work items this reviewer has been assigned,
-    and how many of those they've already completed."""
+    and how many of those they've already completed. In claim mode, work items
+    start unassigned, so also report how many are still available to this
+    reviewer."""
     assigned = (
         db.scalar(
             select(func.count())
@@ -205,7 +263,21 @@ def my_progress(db: Session, project_id: str, reviewer_id: str) -> dict[str, int
         )
         or 0
     )
-    return {"assigned": assigned, "completed": completed}
+    config = quality_config(db, project_id)
+    claim_mode = (
+        config is not None and config.allocation_mode == TaskAllocationMode.CLAIM
+    )
+    remaining = (
+        remaining_claimable_assessments(db, project_id, reviewer_id)
+        if claim_mode
+        else 0
+    )
+    return {
+        "assigned": assigned,
+        "completed": completed,
+        "remaining": remaining,
+        "claim_mode": claim_mode,
+    }
 
 
 def claim_next_quality(
@@ -215,11 +287,20 @@ def claim_next_quality(
     excluded_item_ids: set[str] | None = None,
 ) -> QualityWorkItem | None:
     now = utcnow()
+    config = quality_config(db, project_id)
+    claim_mode = (
+        config is not None and config.allocation_mode == TaskAllocationMode.CLAIM
+    )
+    assignment_filter = (
+        QualityWorkItem.assigned_reviewer_id.is_(None)
+        if claim_mode
+        else QualityWorkItem.assigned_reviewer_id == reviewer_id
+    )
     query = (
         select(QualityWorkItem)
         .where(
+            assignment_filter,
             QualityWorkItem.project_id == project_id,
-            QualityWorkItem.assigned_reviewer_id == reviewer_id,
             QualityWorkItem.status != QualityStatus.COMPLETED,
             (
                 (QualityWorkItem.status == QualityStatus.AVAILABLE)
@@ -235,8 +316,10 @@ def claim_next_quality(
         query = query.with_for_update(skip_locked=True)
     item = db.scalar(query)
     if item:
+        if claim_mode:
+            item.assigned_reviewer_id = reviewer_id
         item.status = QualityStatus.RESERVED
-        item.reserved_until = now + timedelta(days=1)
+        item.reserved_until = now + timedelta(hours=1)
         db.flush()
     return item
 

@@ -35,6 +35,7 @@ describe('ProjectsPage', () => {
 
     renderWithProviders(<ProjectsPage />)
 
+    expect(await screen.findByRole('list', { name: 'Projects' })).toHaveClass('stacked')
     const projectLink = await screen.findByRole('link', { name: 'Existing review' })
     expect(projectLink).toHaveAttribute('href', '/projects/p1')
     expect(screen.getByText('Systematic review', { selector: '.review-type-badge' })).toHaveClass(

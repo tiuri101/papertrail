@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { screen } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import { ProjectLifecyclePanel } from '../ProjectLifecyclePanel'
@@ -6,9 +6,8 @@ import { jsonResponse, mockFetch } from '../../../test/http'
 import { renderWithProviders } from '../../../test/render'
 
 describe('ProjectLifecyclePanel', () => {
-  it('shows integrity issues and reopens at the selected stage', async () => {
-    const fetchMock = mockFetch(async (input, init) => {
-      if (String(input).endsWith('/reopen') && init?.method === 'POST') return jsonResponse({ stage: 'duplicate_review' })
+  it('shows integrity issues for the project', async () => {
+    mockFetch(async (input) => {
       if (String(input).endsWith('/integrity')) return jsonResponse({ issues: [{ code: 'unresolved_duplicates', message: 'Two duplicate candidates remain.' }] })
       return jsonResponse({ stage: 'completed' })
     })
@@ -16,27 +15,7 @@ describe('ProjectLifecyclePanel', () => {
 
     expect(await screen.findByText('Two duplicate candidates remain.')).toBeInTheDocument()
     const integrityHeading = screen.getByRole('heading', { name: 'Workflow Integrity' })
-    const reopenHeading = screen.getByRole('heading', { name: 'Reopen Project' })
-    const integritySection = integrityHeading.closest('section')
-    const reopenSection = reopenHeading.closest('section')
-    expect(integritySection).toHaveClass('card')
-    expect(reopenSection).toHaveClass('card')
-    expect(reopenSection).not.toBe(integritySection)
-    expect(within(integrityHeading).getByRole('button', { name: 'About Workflow Integrity' })).toBeInTheDocument()
-    expect(within(reopenHeading).getByRole('button', { name: 'About Reopen Project' })).toBeInTheDocument()
-    expect(screen.getByRole('option', { name: 'Duplicate Review' })).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Move back to'), { target: { value: 'duplicate_review' } })
-    const reopenButtons = within(reopenSection as HTMLElement).getAllByRole(
-      'button',
-      { name: 'Reopen Project' },
-    )
-    fireEvent.click(reopenButtons.find((button) => !button.hasAttribute('aria-expanded'))!)
-    fireEvent.click(within(reopenSection as HTMLElement).getByRole('button', { name: 'Reopen' }))
-
-    await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(true))
-    const call = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')
-    expect(call?.[0]).toBe('/api/v1/projects/p1/reopen')
-    expect(JSON.parse(String(call?.[1]?.body))).toEqual({ targetStage: 'duplicate_review' })
+    expect(integrityHeading.closest('section')).toHaveClass('card')
     expect(screen.queryByRole('button', { name: 'Mark Project Ready' })).not.toBeInTheDocument()
   })
 
@@ -47,7 +26,6 @@ describe('ProjectLifecyclePanel', () => {
     })
     renderWithProviders(<ProjectLifecyclePanel projectId="p1" />)
     expect(await screen.findByText('No consistency issues detected.')).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Reopen Project' })).not.toBeInTheDocument()
   })
 
   it('only offers stages before the current stage when moving an in-progress project back', async () => {

@@ -74,6 +74,21 @@ describe('QualityPage', () => {
     expect(await screen.findByText('2 of 5 assigned papers assessed')).toBeInTheDocument()
   })
 
+  it('shows papers remaining instead of assigned counts in claim mode', async () => {
+    mockFetch(async (input) => {
+      const path = String(input)
+      if (path.endsWith('/next')) return jsonResponse(workItem)
+      if (path.endsWith('/quality/progress')) {
+        return jsonResponse({ assigned: 1, completed: 0, remaining: 3, claimMode: true })
+      }
+      return jsonResponse({})
+    })
+    renderWithProviders(<QualityPage />, { route: '/projects/p1/quality', path: '/projects/:projectId/quality' })
+
+    expect(await screen.findByText('3 papers remaining')).toBeInTheDocument()
+    expect(screen.queryByText(/assigned papers assessed/)).not.toBeInTheDocument()
+  })
+
   it('disables submit until every required field is answered', async () => {
     mockFetch(async (input) => String(input).endsWith('/next') ? jsonResponse(workItem) : jsonResponse({}))
     renderWithProviders(<QualityPage />, { route: '/projects/p1/quality', path: '/projects/:projectId/quality' })
