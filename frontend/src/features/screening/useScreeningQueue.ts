@@ -27,6 +27,7 @@ export interface ScreeningWorkItem {
   }
   criteria: ScreeningCriterion[]
   draft: Record<string, unknown>
+  llmAssistanceEnabled: boolean
 }
 
 interface ScreeningDecisionResponse {
@@ -143,8 +144,10 @@ export function useScreeningQueue(projectId: string, stage: string) {
       // The full-text LLM suggestion is visible before submitting (unlike
       // title/abstract, which hides it until a first decision is in, to
       // avoid anchoring bias), so there's nothing new to reveal that would
-      // warrant a second confirmation click here.
-      if (stage === 'full_text') {
+      // warrant a second confirmation click here. Same when LLM assistance
+      // is off for this stage: no suggestion is ever shown, so there's
+      // nothing to reveal and nothing to confirm against.
+      if (stage === 'full_text' || !item.llmAssistanceEnabled) {
         continueAfterDecision()
         return
       }

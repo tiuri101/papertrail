@@ -1067,3 +1067,10 @@ def test_reviewer_can_revise_decision_via_http_and_gets_flagged_after_completion
     revised_body = revise.json()
     assert revised_body["version"] == 2
     assert revised_body["outcome"] == "exclude"
+    assert revised_body["projectStage"] == ProjectStage.FULL_TEXT
+    assert revised_body["stageUnchanged"] is True
+    assert revised_body["pendingWorkflowSteps"] == [
+        "Resolve the revised title/abstract screening decision"
+    ]
+    db.refresh(project)
+    assert project.stage == ProjectStage.FULL_TEXT

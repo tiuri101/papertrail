@@ -142,4 +142,45 @@ describe('MyDecisionsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save Anyway' }))
     await waitFor(() => expect(decisionCalls()).toHaveLength(1))
   })
+
+  it('keeps the current project stage and lists outstanding work after a late revision', async () => {
+    renderMyDecisions(async (input, init) => {
+      const path = String(input)
+      if (path.endsWith('/my-decisions')) {
+        return jsonResponse({ stageCompleted: true, criteria, items: [baseItem] })
+      }
+      if (path.endsWith('/decision') && init?.method === 'POST') {
+        return jsonResponse({
+          id: 'decision-1',
+          outcome: 'include',
+          criteriaAnswers: baseItem.decision.criteriaAnswers,
+          notes: null,
+          version: 2,
+          projectStage: 'extraction_quality',
+          stageUnchanged: true,
+          pendingWorkflowSteps: [
+            'Complete full-text screening',
+            'Wait for automated document and LLM processing',
+          ],
+        })
+      }
+      return jsonResponse({})
+    })
+
+    await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Decision' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save Changes' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save Anyway' }))
+
+    const warning = await screen.findByRole('heading', {
+      name: 'Decision revised without changing the project stage',
+    })
+    expect(warning.closest('[role="alert"]')).toHaveTextContent(
+      'The project remains in Data Extraction and Quality Assessment',
+    )
+    expect(warning.closest('[role="alert"]')).toHaveTextContent('Complete full-text screening')
+    expect(warning.closest('[role="alert"]')).toHaveTextContent(
+      'Wait for automated document and LLM processing',
+    )
+  })
 })

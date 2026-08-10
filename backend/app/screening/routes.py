@@ -19,7 +19,12 @@ from app.projects.dependencies import (
 from app.projects.models import Criterion, ScreeningStage
 from app.projects.service import get_project, require_project_access
 from app.publications.models import Publication
-from app.screening.models import ScreeningDecision, ScreeningWorkItem, WorkItemStatus
+from app.screening.models import (
+    ScreeningDecision,
+    ScreeningOutcome,
+    ScreeningWorkItem,
+    WorkItemStatus,
+)
 from app.screening.schemas import (
     AssignmentItem,
     AssignmentsPage,
@@ -27,6 +32,7 @@ from app.screening.schemas import (
     BulkReassignResponse,
     DecisionResponse,
     DecisionSubmit,
+    DecisionSubmitResponse,
     DraftUpdate,
     MyDecisionsResponse,
     MyProgressResponse,
@@ -51,7 +57,117 @@ from app.screening.service import (
 router = APIRouter(tags=["screening"])
 
 
+def _pending_workflow_steps(db: Session, item: ScreeningWorkItem) -> list[str]:
+    """Describe work introduced by revising a completed screening stage."""
+    from app.conflicts.service import valid_final_decision
+    from app.extraction.models import ExtractionStatus, ExtractionWorkItem
+    from app.fulltext.models import FullTextRetrieval, RetrievalStatus
+    from app.projects.models import ProjectStage
+    from app.quality.models import QualityConfig, QualityStatus, QualityWorkItem
+
+    final = valid_final_decision(db, item.publication_id, item.stage)
+    if final is None:
+        stage_label = {
+            ScreeningStage.TITLE_ABSTRACT: "title/abstract",
+            ScreeningStage.FULL_TEXT: "full-text",
+        }[item.stage]
+        return [f"Resolve the revised {stage_label} screening decision"]
+    if final.outcome != ScreeningOutcome.INCLUDE:
+        return []
+
+    steps: list[str] = []
+    if item.stage == ScreeningStage.TITLE_ABSTRACT:
+        retrieval = db.scalar(
+            select(FullTextRetrieval).where(
+                FullTextRetrieval.publication_id == item.publication_id
+            )
+        )
+        if retrieval is None or retrieval.status in {
+            RetrievalStatus.NOT_YET_SOUGHT,
+            RetrievalStatus.REQUESTED,
+        }:
+            steps.extend(["Retrieve the full text", "Complete full-text screening"])
+        elif retrieval.status == RetrievalStatus.AVAILABLE:
+            full_text_final = valid_final_decision(
+                db, item.publication_id, ScreeningStage.FULL_TEXT
+            )
+            if full_text_final is None:
+                steps.append("Complete full-text screening")
+                _append_automated_processing_step(db, item.publication_id, steps)
+                return steps
+            if full_text_final.outcome != ScreeningOutcome.INCLUDE:
+                _append_automated_processing_step(db, item.publication_id, steps)
+                return steps
+        else:
+            # A not-found or inaccessible report resolves retrieval without a
+            # full-text screening decision.
+            _append_automated_processing_step(db, item.publication_id, steps)
+            return steps
+
+    project = get_project(db, item.project_id)
+    if project.stage in {ProjectStage.EXTRACTION, ProjectStage.COMPLETED}:
+        extraction = db.scalar(
+            select(ExtractionWorkItem).where(
+                ExtractionWorkItem.publication_id == item.publication_id
+            )
+        )
+        if extraction is None or extraction.status != ExtractionStatus.COMPLETED:
+            steps.append("Complete data extraction")
+
+        quality_config = db.scalar(
+            select(QualityConfig).where(QualityConfig.project_id == item.project_id)
+        )
+        if quality_config is not None and quality_config.enabled:
+            quality = db.scalar(
+                select(QualityWorkItem).where(
+                    QualityWorkItem.publication_id == item.publication_id
+                )
+            )
+            if quality is None or quality.status != QualityStatus.COMPLETED:
+                steps.append("Complete quality assessment")
+
+    _append_automated_processing_step(db, item.publication_id, steps)
+    return steps
+
+
+def _append_automated_processing_step(
+    db: Session, publication_id: str, steps: list[str]
+) -> None:
+    from app.fulltext.documents import active_document
+    from app.llm.models import (
+        DocumentTextExtraction,
+        LlmExtractionRun,
+        ProcessingStatus,
+    )
+
+    document = active_document(db, publication_id)
+    if document is None:
+        return
+    extraction = db.scalar(
+        select(DocumentTextExtraction).where(
+            DocumentTextExtraction.document_id == document.id
+        )
+    )
+    text_processing = extraction is not None and extraction.status in {
+        ProcessingStatus.PENDING,
+        ProcessingStatus.PROCESSING,
+    }
+    llm_processing = db.scalar(
+        select(LlmExtractionRun.id).where(
+            LlmExtractionRun.publication_id == publication_id,
+            LlmExtractionRun.status.in_(
+                [ProcessingStatus.PENDING, ProcessingStatus.PROCESSING]
+            ),
+        )
+    )
+    if text_processing or llm_processing is not None:
+        steps.append("Wait for automated document and LLM processing")
+
+
 def work_item_payload(db: Session, item: ScreeningWorkItem) -> dict[str, Any]:
+    from app.llm.models import LlmTaskType
+    from app.llm.task_service import feature_enabled
+
     publication = db.get(Publication, item.publication_id)
     criteria = list(
         db.scalars(
@@ -62,6 +178,10 @@ def work_item_payload(db: Session, item: ScreeningWorkItem) -> dict[str, Any]:
             .order_by(Criterion.position)
         )
     )
+    task_type = {
+        ScreeningStage.TITLE_ABSTRACT: LlmTaskType.TITLE_ABSTRACT_SCREENING,
+        ScreeningStage.FULL_TEXT: LlmTaskType.FULL_TEXT_SCREENING,
+    }[item.stage]
     return {
         "id": item.id,
         "project_id": item.project_id,
@@ -73,6 +193,7 @@ def work_item_payload(db: Session, item: ScreeningWorkItem) -> dict[str, Any]:
         "draft": item.draft,
         "publication": publication,
         "criteria": criteria,
+        "llm_assistance_enabled": feature_enabled(db, item.project_id, task_type),
     }
 
 
@@ -151,7 +272,7 @@ def release_item(
 
 @router.post(
     "/projects/{project_id}/screening/work-items/{item_id}/decision",
-    response_model=DecisionResponse,
+    response_model=DecisionSubmitResponse,
 )
 def decide(
     project_id: str,
@@ -159,7 +280,7 @@ def decide(
     payload: DecisionSubmit,
     session: UserSession = Depends(require_csrf),
     db: Session = Depends(get_db),
-) -> ScreeningDecision:
+) -> dict[str, Any]:
     item = db.get(ScreeningWorkItem, item_id)
     if item is None or item.project_id != project_id:
         raise NotFoundError("Screening work item not found")
@@ -200,8 +321,21 @@ def decide(
             "revisedAfterStageCompletion": was_stage_completed,
         },
     )
+    late_revision = was_stage_completed and decision.version > 1
+    pending_steps = _pending_workflow_steps(db, item) if late_revision else []
+    response = {
+        "id": decision.id,
+        "reviewer_id": decision.reviewer_id,
+        "outcome": decision.outcome,
+        "criteria_answers": decision.criteria_answers,
+        "notes": decision.notes,
+        "version": decision.version,
+        "project_stage": project.stage,
+        "stage_unchanged": late_revision,
+        "pending_workflow_steps": pending_steps,
+    }
     db.commit()
-    return decision
+    return response
 
 
 @router.get(

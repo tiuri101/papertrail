@@ -39,6 +39,7 @@ class WorkItemResponse(ApiModel):
     draft: dict[str, Any]
     publication: PublicationItem
     criteria: list[CriterionItem]
+    llm_assistance_enabled: bool = Field(serialization_alias="llmAssistanceEnabled")
 
 
 class DraftUpdate(ApiModel):
@@ -58,6 +59,14 @@ class DecisionResponse(ApiModel):
     criteria_answers: dict[str, bool] = Field(serialization_alias="criteriaAnswers")
     notes: str | None
     version: int
+
+
+class DecisionSubmitResponse(DecisionResponse):
+    project_stage: str | None = Field(default=None, serialization_alias="projectStage")
+    stage_unchanged: bool = Field(default=False, serialization_alias="stageUnchanged")
+    pending_workflow_steps: list[str] = Field(
+        default_factory=list, serialization_alias="pendingWorkflowSteps"
+    )
 
 
 class MyDecisionItem(ApiModel):

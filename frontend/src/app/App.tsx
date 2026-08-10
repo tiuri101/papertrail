@@ -33,6 +33,7 @@ import { MyExtractionsPage } from '../features/extraction/MyExtractionsPage'
 import { ValidationReviewPage } from '../features/extraction/ValidationReviewPage'
 import { FormBuilderPage } from '../features/forms/FormBuilderPage'
 import { FullTextPage } from '../features/fulltext/FullTextPage'
+import { HelpPage } from '../features/help/HelpPage'
 import { ImportPage } from '../features/imports/ImportPage'
 import { JobsPage } from '../features/jobs/JobsPage'
 import { LlmAssistancePanel } from '../features/llm/LlmAssistancePanel'
@@ -144,6 +145,7 @@ export function App() {
         <Route element={<AppShell />}>
           <Route path="/" element={<ProjectsPage />} />
           <Route path="/account" element={<AccountSettingsPage />} />
+          <Route path="/help" element={<HelpPage />} />
           <Route element={<AdminGate />}>
             <Route path="/users" element={<UsersPage />} />
           </Route>

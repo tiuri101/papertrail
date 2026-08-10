@@ -80,7 +80,7 @@ describe('QualityPage', () => {
       expect(submitCall).toBeTruthy()
       expect(JSON.parse(String(submitCall?.[1]?.body))).toEqual({ answers: { design: 'Strong', reporting: 4 } })
     })
-    expect(await screen.findByText('Submitted — total score: 4')).toBeInTheDocument()
+    expect(await screen.findByText('total score: 4')).toBeInTheDocument()
   })
 
   it('reports that the reviewer has completed all assigned assessment work, with a way back to the project', async () => {

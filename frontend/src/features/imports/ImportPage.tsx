@@ -5,6 +5,7 @@ import { useParams } from 'react-router-dom'
 import { apiRequest } from '../../api/client'
 import { DateField } from '../../components/DateField'
 import { IconUpload } from '../../components/icons'
+import { InfoTooltip } from '../../components/Tooltip'
 import { getCsrfToken } from '../auth/session'
 import { BackgroundJob, findJob, hasActiveJob, isJobActive } from '../jobs/jobStatus'
 import { AttachPdfsPanel } from './AttachPdfsPanel'
@@ -184,7 +185,10 @@ export function ImportPage() {
                   + (pdfSummary.conflict_existing_pdf ?? 0)
                 return (
                   <div className="import-summary">
-                    <h3>PDF import</h3>
+                    <h3>
+                      PDF import
+                      <InfoTooltip text="Matched: automatically linked to a publication by title, DOI, or filename. Need review: the match was uncertain, no match was found, or it conflicts with a PDF already attached — check these manually. Duplicate: this file was already imported. Invalid: the file couldn't be read as a PDF." />
+                    </h3>
                     <p>{pdfSummary.total} files processed · {pdfSummary.matched ?? 0} matched · {needsReview} need review · {pdfSummary.duplicate ?? 0} duplicate · {pdfSummary.invalid ?? 0} invalid</p>
                     {needsReview ? (
                       <button type="button" onClick={() => setShowPdfReview(true)}>

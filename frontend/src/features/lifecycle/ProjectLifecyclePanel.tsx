@@ -4,6 +4,7 @@ import { api } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { IconRestart } from '../../components/icons'
+import { InfoTooltip } from '../../components/Tooltip'
 
 const stages = [
   'draft',
@@ -74,6 +75,11 @@ export function ProjectLifecyclePanel({ projectId }: { projectId: string }) {
   return (
     <>
       <CollapsibleSection id="section-workflow-integrity" title="Workflow Integrity">
+        <p className="muted">
+          Automated checks for inconsistencies across a project's stages, such as decisions or
+          data left over from a stage the project has already moved past.
+          <InfoTooltip text="These checks run automatically whenever this page loads. They don't block your work — they just flag things worth a second look." />
+        </p>
         {integrity.data?.issues.length ? (
           <ul>
             {integrity.data.issues.map((issue) => (
@@ -84,7 +90,10 @@ export function ProjectLifecyclePanel({ projectId }: { projectId: string }) {
       </CollapsibleSection>
       {isCompleted && reopenOptions.length ? (
         <CollapsibleSection id="section-reopen-project" title="Reopen Project">
-          <p>Move a completed project back to an earlier stage to resume work. Screening, extraction, and quality-assessment data already recorded is kept, not deleted.</p>
+          <p>
+            Move a completed project back to an earlier stage to resume work. Screening, extraction, and quality-assessment data already recorded is kept, not deleted.
+            <InfoTooltip text="Only shown once a project has reached Completed. If the project is still active, use Move Project Back instead." />
+          </p>
           {reopen.error ? <p className="error" role="alert">{reopen.error.message}</p> : null}
           <label>
             Move back to
@@ -107,7 +116,10 @@ export function ProjectLifecyclePanel({ projectId }: { projectId: string }) {
       ) : null}
       {isActiveStage && moveBackOptions.length ? (
         <CollapsibleSection id="section-move-project-back" title="Move Project Back">
-          <p>Move an in-progress project back to an earlier stage without deleting any screening, extraction, or quality-assessment data already recorded. That data is kept for traceability but excluded from active workflow counts until the project reaches that stage again.</p>
+          <p>
+            Move an in-progress project back to an earlier stage without deleting any screening, extraction, or quality-assessment data already recorded. That data is kept for traceability but excluded from active workflow counts until the project reaches that stage again.
+            <InfoTooltip text="Only shown while a project is still active (not yet completed). Once a project reaches Completed, use Reopen Project instead." />
+          </p>
           {moveBack.error ? <p className="error" role="alert">{moveBack.error.message}</p> : null}
           <label>
             Move back to

@@ -1,9 +1,14 @@
+from sqlalchemy import select
+
 from app.accounts.service import create_user
 from app.conflicts.service import (
     record_final_decision,
     refresh_automatic_final_decision,
     transition_if_screening_complete,
 )
+from app.fulltext.models import FullTextRetrieval, PublicationDocument, RetrievalStatus
+from app.jobs.models import BackgroundJob, JobStatus
+from app.llm.models import ProjectLlmSettings
 from app.projects.models import (
     AllocationMode,
     Criterion,
@@ -16,6 +21,7 @@ from app.projects.models import (
     ScreeningStage,
 )
 from app.publications.models import Publication
+from app.screening.models import ScreeningWorkItem
 from app.screening.service import (
     claim_next_work_item,
     create_screening_work_items,
@@ -136,6 +142,122 @@ def test_revision_invalidates_existing_consensus(db) -> None:
     db.refresh(final)
     assert final.is_valid is False
     assert final.invalidated_at is not None
+
+
+def test_late_title_abstract_inclusion_backfills_review_and_background_work(
+    db, monkeypatch
+) -> None:
+    from app.core.config import get_settings
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "llm_enabled", True)
+    monkeypatch.setattr(settings, "ollama_model", "test-model:latest")
+
+    admin = create_user(db, "late-admin", "Late Admin", "secret-password")
+    reviewer = create_user(db, "late-reviewer", "Late Reviewer", "password-1")
+    project = Project(
+        name="Late inclusion",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="late-seed",
+        stage=ProjectStage.EXTRACTION,
+    )
+    db.add(project)
+    db.flush()
+    db.add(
+        ProjectMembership(
+            project_id=project.id,
+            user_id=reviewer.id,
+            can_full_text_screen=True,
+        )
+    )
+    db.add(
+        ScreeningConfig(
+            project_id=project.id,
+            stage=ScreeningStage.FULL_TEXT,
+            required_reviewers=1,
+            allocation_mode=AllocationMode.INDEPENDENT,
+        )
+    )
+    db.add(
+        ProjectLlmSettings(
+            project_id=project.id,
+            full_text_screening_enabled=True,
+        )
+    )
+    publication = Publication(project_id=project.id, title="Reconsidered paper")
+    db.add(publication)
+    db.flush()
+    document = PublicationDocument(
+        project_id=project.id,
+        publication_id=publication.id,
+        original_filename="reconsidered.pdf",
+        storage_key=f"projects/{project.id}/reconsidered.pdf",
+        mime_type="application/pdf",
+        file_size=100,
+        sha256="a" * 64,
+        uploaded_by_user_id=admin.id,
+    )
+    db.add(document)
+    record_final_decision(
+        db,
+        publication.id,
+        ScreeningStage.TITLE_ABSTRACT,
+        "exclude",
+        "agreement",
+        admin.id,
+        None,
+    )
+    db.flush()
+
+    record_final_decision(
+        db,
+        publication.id,
+        ScreeningStage.TITLE_ABSTRACT,
+        "include",
+        "revised_consensus",
+        admin.id,
+        "Reconsidered after title/abstract screening",
+    )
+    # The revised publication enters downstream work immediately without the
+    # completed title/abstract stage rewinding the project.
+    assert (
+        transition_if_screening_complete(db, project, ScreeningStage.TITLE_ABSTRACT)
+        is False
+    )
+    db.commit()
+
+    assert project.stage == ProjectStage.EXTRACTION
+
+    retrieval = db.scalar(
+        select(FullTextRetrieval).where(
+            FullTextRetrieval.publication_id == publication.id
+        )
+    )
+    assert retrieval is not None
+    assert retrieval.status == RetrievalStatus.AVAILABLE
+
+    item = db.scalar(
+        select(ScreeningWorkItem).where(
+            ScreeningWorkItem.publication_id == publication.id,
+            ScreeningWorkItem.stage == ScreeningStage.FULL_TEXT,
+        )
+    )
+    assert item is not None
+    assert item.assigned_reviewer_id == reviewer.id
+
+    jobs = list(
+        db.scalars(
+            select(BackgroundJob).where(
+                BackgroundJob.project_id == project.id,
+                BackgroundJob.status == JobStatus.QUEUED,
+            )
+        )
+    )
+    assert any(
+        job.job_type == "extract_document_text"
+        and job.payload["document_id"] == document.id
+        for job in jobs
+    )
 
 
 def test_list_conflicts_includes_publication_and_reviewer_decisions(client, db) -> None:

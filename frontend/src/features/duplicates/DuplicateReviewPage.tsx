@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { IconCheckCircle } from '../../components/icons'
+import { Tooltip } from '../../components/Tooltip'
 
 interface CandidatePublication {
   id: string
@@ -99,7 +100,10 @@ export function DuplicateReviewPage() {
         {candidates.data?.map((candidate) => (
           <li className="card" key={candidate.id}>
             <p className="muted">
-              {candidate.matchReasons.map(humanizeMatchReason).join(', ')} — {Math.round(candidate.confidence * 100)}% match
+              {candidate.matchReasons.map(humanizeMatchReason).join(', ')} —{' '}
+              <Tooltip text="How closely the two records match across signals like DOI, title, authors, and publication year. A high score is a strong hint, not proof — always compare the details below before merging.">
+                <span>{Math.round(candidate.confidence * 100)}% match</span>
+              </Tooltip>
               {' — '}{candidate.status}
             </p>
             <div className="compare-columns duplicate-publications">
