@@ -1,7 +1,22 @@
 import type { CSSProperties } from 'react'
 
 import { CollapsibleSection } from '../../components/CollapsibleSection'
-import { IconArrowRight, IconFolder, IconInfo, IconLightbulb, IconUsers } from '../../components/icons'
+import {
+  IconArrowRight,
+  IconCheckCircle,
+  IconClock,
+  IconFolder,
+  IconInfo,
+  IconLightbulb,
+  IconPerson,
+  IconPlus,
+  IconRestart,
+  IconSparkle,
+  IconSwap,
+  IconTrash,
+  IconUpload,
+  IconUsers,
+} from '../../components/icons'
 import { SectionNavigationLayout } from '../../components/SectionNavigationLayout'
 import { STAGES } from '../projects/StageProgress'
 
@@ -10,6 +25,7 @@ const helpSections = [
   { id: 'section-help-stages', label: 'Review Stages' },
   { id: 'section-help-reviewer', label: 'Reviewer' },
   { id: 'section-help-owner', label: 'Project Owner' },
+  { id: 'section-help-llm', label: 'LLM Assistance' },
   { id: 'section-help-good-to-know', label: 'Good to Know' },
 ]
 
@@ -22,9 +38,80 @@ const stageDescriptions: Record<string, string> = {
   completed: 'Review integrity warnings, generate PRISMA, Excel, and BibTeX exports, or reopen an earlier stage if corrections are still needed.',
 }
 
-function StageTimeline() {
+const llmStageDescriptions: Record<string, string> = {
+  draft: 'No review suggestions are generated. The project owner can enable LLM support for every stage independently, prepare the extraction schema, and add project-specific prompt instructions.',
+  duplicate_review: 'Duplicate review is entirely human-led. The LLM does not identify, merge, or dismiss duplicate records.',
+  title_abstract_screening: 'The LLM can compare a publication\'s title and abstract with the project criteria. Its include, exclude, or uncertain suggestion is hidden until you submit your own decision, so it cannot influence an independent first assessment.',
+  full_text_screening: 'For an included publication with a readable PDF, the LLM can assess each criterion and point to supporting passages and physical PDF pages. This assistance is visible during review, but the eligibility decision remains yours.',
+  extraction_quality: 'The LLM can suggest values for configured extraction fields and show source evidence. You choose whether to apply, edit, replace, or ignore each suggestion. If extraction validation is enabled, it can also flag submitted human values as supported, contradicted, uncertain, or not verifiable without changing them.',
+  completed: 'The LLM does not alter final results or exports. Exports contain reviewer-controlled values, while earlier suggestions and their provenance remain available for traceability.',
+}
+
+const overviewPillars = [
+  {
+    title: 'A guided workflow',
+    description: 'Six connected stages take the project from setup and imported records through screening, extraction, and completion.',
+    icon: <IconArrowRight />,
+  },
+  {
+    title: 'Independent teamwork',
+    description: 'Role-based queues, hidden independent decisions, and explicit conflict resolution keep collaboration organized.',
+    icon: <IconUsers />,
+  },
+  {
+    title: 'Traceable results',
+    description: 'An immutable audit trail supports PRISMA, Excel, and BibTeX outputs you can carry into analysis and reporting.',
+    icon: <IconCheckCircle />,
+  },
+]
+
+function PapertrailOverview() {
   return (
-    <ol className="help-stage-timeline" aria-label="Review stages">
+    <div className="help-overview">
+      <header className="help-overview__hero">
+        <span className="eyebrow">Systematic review workspace</span>
+        <h3>One shared path from search results to review-ready exports</h3>
+        <p>
+          Papertrail keeps assignments, decisions, evidence, and revisions connected so
+          the whole team can follow—and defend—the review process.
+        </p>
+      </header>
+
+      <ul className="help-overview__pillars" aria-label="Papertrail at a glance">
+        {overviewPillars.map((pillar) => (
+          <li key={pillar.title}>
+            <span className="help-overview__pillar-icon" aria-hidden="true">{pillar.icon}</span>
+            <h4>{pillar.title}</h4>
+            <p>{pillar.description}</p>
+          </li>
+        ))}
+      </ul>
+
+      <p className="help-overview__principle">
+        <IconSparkle />
+        <span>
+          <strong>Reviewer judgement stays authoritative.</strong> Optional local LLM
+          assistance can suggest, but it never decides or overwrites human-entered work.
+        </span>
+      </p>
+    </div>
+  )
+}
+
+function StageTimeline({
+  descriptions = stageDescriptions,
+  label = 'Review stages',
+  centerMarkers = false,
+}: {
+  descriptions?: Record<string, string>
+  label?: string
+  centerMarkers?: boolean
+}) {
+  return (
+    <ol
+      className={`help-stage-timeline${centerMarkers ? ' help-stage-timeline--centered' : ''}`}
+      aria-label={label}
+    >
       {STAGES.map((stage, index) => (
         <li
           className="help-stage-timeline__item"
@@ -34,7 +121,7 @@ function StageTimeline() {
           <span className="help-stage-timeline__number" aria-hidden="true">{index + 1}</span>
           <div className="help-stage-timeline__body">
             <h3>{stage.label}</h3>
-            <p>{stageDescriptions[stage.value]}</p>
+            <p>{descriptions[stage.value]}</p>
           </div>
         </li>
       ))}
@@ -155,32 +242,254 @@ function StageList({ role }: { role: 'owner' | 'reviewer' }) {
   )
 }
 
+function OwnerDangerZoneGuide() {
+  return (
+    <aside aria-label="Reset is a fresh start; delete is permanent removal">
+      <CollapsibleSection
+        title="Reset is a fresh start, delete is permanent removal"
+        subtitle="Before using the Danger Zone"
+        icon={<IconTrash />}
+        className="help-owner-danger"
+        defaultExpanded={false}
+        headingLevel={3}
+      >
+        <div className="help-owner-danger__options">
+          <section>
+            <span className="help-owner-danger__icon" aria-hidden="true"><IconRestart /></span>
+            <div>
+              <h4>Reset Project</h4>
+              <p>
+                Returns the project to Draft and removes imported publications plus all duplicate,
+                screening, full-text, extraction, and quality progress. It keeps the project itself,
+                members, research questions, criteria, screening setup, and forms so the review can restart.
+              </p>
+            </div>
+          </section>
+          <section>
+            <span className="help-owner-danger__icon" aria-hidden="true"><IconTrash /></span>
+            <div>
+              <h4>Delete Project</h4>
+              <p>
+                Removes the entire project, including its configuration, membership, audit history,
+                publications, stored PDFs, import files, exports, and progress. Running background jobs
+                must finish before deletion can proceed.
+              </p>
+            </div>
+          </section>
+        </div>
+      </CollapsibleSection>
+    </aside>
+  )
+}
+
+const llmSetupSteps = [
+  {
+    title: 'Choose the capabilities',
+    section: 'LLM Assistance',
+    description: 'Enable title/abstract screening, full-text screening, data extraction, and extraction validation independently. Test the connection, review processing status, and re-run a task from here.',
+  },
+  {
+    title: 'Shape the extraction output',
+    section: 'LLM Extraction Schema',
+    description: 'Choose the extraction fields, output types, evidence requirements, and inference policy. Helper fields can add useful context without entering the official extraction response.',
+  },
+  {
+    title: 'Add project context',
+    section: 'AI Prompts',
+    description: 'Review each task\'s fixed base prompt, then append custom instructions for your project. Instructions save automatically when you leave the field.',
+  },
+]
+
+const goodToKnowItems = [
+  {
+    label: 'Full-text access',
+    title: 'Upload with permission',
+    description: 'Papertrail never downloads or scrapes publisher PDFs. Only add files you are authorized to access and store.',
+    icon: <IconUpload />,
+    tone: 'primary',
+  },
+  {
+    label: 'Human judgement',
+    title: 'You stay in control',
+    description: 'LLM assistance is advisory and project-specific. It can support your review, but it never overrides a reviewer\'s decision.',
+    icon: <IconPerson />,
+    tone: 'success',
+  },
+  {
+    label: 'Work reservations',
+    title: 'Claims expire automatically',
+    description: 'An opened screening item stays reserved to you for up to one day unless you release it, so work cannot remain blocked indefinitely.',
+    icon: <IconClock />,
+    tone: 'warning',
+  },
+  {
+    label: 'Document history',
+    title: 'Earlier PDFs stay traceable',
+    description: 'Replacing a PDF creates a new version. Removing one preserves its history and never changes an existing screening decision.',
+    icon: <IconRestart />,
+    tone: 'primary',
+  },
+  {
+    label: 'Notifications',
+    title: 'Your inbox is optional',
+    description: 'Update or clear your notification email address at any time under Account Settings.',
+    icon: <IconInfo />,
+    tone: 'success',
+  },
+  {
+    label: 'Joining mid-project',
+    title: 'New reviewers share the remaining work',
+    description: 'A new reviewer only receives activities the project owner enables for them. Papertrail then balances unclaimed screening, extraction, and quality work fairly across everyone who is eligible.',
+    icon: <IconUsers />,
+    tone: 'primary',
+  },
+  {
+    label: 'Adding publications',
+    title: 'Import a collection or add one record',
+    description: 'Use Import Records for CSV, TSV, XLSX, RIS, or BibTeX database exports. For a single publication, enter it manually or upload or paste BibTeX to prefill the form; only the first BibTeX entry is used there.',
+    icon: <IconPlus />,
+    tone: 'success',
+  },
+  {
+    label: 'Uploading PDFs',
+    title: 'Attach full text wherever it fits',
+    description: 'Add PDFs or ZIP archives with a record import, attach them to an earlier import batch, bulk-match them across Publications, attach one while adding or editing a publication, or upload directly during full-text screening. Uncertain matches are held for review.',
+    icon: <IconUpload />,
+    tone: 'primary',
+  },
+  {
+    label: 'Charts & Analysis',
+    title: 'See patterns across every review stage',
+    description: 'Review deduplication totals, screening and retrieval outcomes, exclusion reasons, extraction completeness and distributions, and quality scores. Stage summaries help surface trends and gaps as the underlying project data changes.',
+    icon: <IconSparkle />,
+    tone: 'warning',
+  },
+  {
+    label: 'Revisiting decisions',
+    title: 'The latest decision guides what happens next',
+    description: 'Revising a submitted screening decision creates a new version and re-evaluates consensus. A project that has moved on does not rewind: late inclusions receive any missing downstream work, while newly ineligible work stays traceable but drops out of the active workflow.',
+    icon: <IconSwap />,
+    tone: 'warning',
+    featured: true,
+  },
+]
+
+function LlmHelpSection() {
+  return (
+    <CollapsibleSection id="section-help-llm" title="LLM Assistance" icon={<IconSparkle />}>
+      <p>
+        LLM assistance is optional and advisory. It must be enabled for the Papertrail
+        installation and then for the relevant capability in each project. A suggestion
+        never submits a screening decision, overwrites reviewer work, or blocks the normal
+        workflow when processing is unavailable or fails.
+      </p>
+      <aside className="help-llm-background-note" aria-label="LLM background processing">
+        <span className="help-llm-background-note__icon" aria-hidden="true"><IconClock /></span>
+        <div>
+          <h3>Results arrive in the background</h3>
+          <p>
+            LLM assistance is processed by background jobs, so suggestions can take some time
+            to appear. You can continue screening or extracting before the LLM result is ready
+            and review it after processing finishes.
+          </p>
+        </div>
+      </aside>
+      <StageTimeline
+        descriptions={llmStageDescriptions}
+        label="LLM assistance by review stage"
+        centerMarkers
+      />
+
+      <CollapsibleSection
+        title="Configuring LLM assistance and custom prompts"
+        subtitle="For project owners and administrators"
+        icon={<IconSparkle />}
+        className="help-llm-configuration"
+        defaultExpanded={false}
+        headingLevel={3}
+      >
+        <p className="help-llm-configuration__intro">
+          Open <strong>Project Administration</strong> and work through these three areas.
+          Each one controls a different layer of the assistance reviewers see.
+        </p>
+        <ol className="help-llm-setup-steps" aria-label="LLM configuration steps">
+          {llmSetupSteps.map((step, index) => (
+            <li key={step.section}>
+              <span className="help-llm-setup-steps__number" aria-hidden="true">{index + 1}</span>
+              <div>
+                <span className="help-llm-setup-steps__section">{step.section}</span>
+                <h4>{step.title}</h4>
+                <p>{step.description}</p>
+              </div>
+            </li>
+          ))}
+        </ol>
+
+        <section className="help-prompt-guide" aria-labelledby="help-prompt-guide-title">
+          <div className="help-prompt-guide__main">
+            <header className="help-prompt-guide__heading">
+              <span className="help-prompt-guide__icon" aria-hidden="true"><IconLightbulb /></span>
+              <div>
+                <span className="eyebrow">Prompt guidance</span>
+                <h3 id="help-prompt-guide-title">Writing useful custom instructions</h3>
+              </div>
+            </header>
+            <ul className="help-prompt-principles">
+              <li>
+                <strong>Use the project's language</strong>
+                <span>Define domain terms, abbreviations, and concepts the model must distinguish.</span>
+              </li>
+              <li>
+                <strong>Clarify judgement calls</strong>
+                <span>Explain how project criteria should be interpreted when the source is unclear.</span>
+              </li>
+              <li>
+                <strong>Keep the scope focused</strong>
+                <span>Highlight what deserves attention without repeating the entire protocol.</span>
+              </li>
+            </ul>
+            <p className="help-prompt-guide__boundary">
+              Custom instructions supplement the base prompt. They cannot relax its evidence,
+              safety, or output-format rules.
+            </p>
+          </div>
+
+          <aside className="help-llm-practical-notes" aria-label="Practical LLM guidance">
+            <div className="help-llm-practical-note">
+              <span aria-hidden="true"><IconRestart /></span>
+              <div>
+                <h4>Re-run after edits</h4>
+                <p>Prompt changes affect future processing. Re-run a task to refresh existing suggestions.</p>
+              </div>
+            </div>
+            <div className="help-llm-practical-note">
+              <span aria-hidden="true"><IconCheckCircle /></span>
+              <div>
+                <h4>Verify every result</h4>
+                <p>Check suggestions against the publication, especially inferred, ambiguous, or unverified evidence.</p>
+              </div>
+            </div>
+            <div className="help-llm-practical-note">
+              <span aria-hidden="true"><IconInfo /></span>
+              <div>
+                <h4>Text and privacy</h4>
+                <p>Papertrail cannot OCR image-only PDFs. Ollama receives the material needed for each task, so follow your installation's data policy.</p>
+              </div>
+            </div>
+          </aside>
+        </section>
+      </CollapsibleSection>
+    </CollapsibleSection>
+  )
+}
+
 export function HelpPage() {
   return (
     <SectionNavigationLayout items={helpSections} label="On this page">
       <main className="page">
         <h1>Help</h1>
         <CollapsibleSection id="section-help-overview" title="What Papertrail Does" icon={<IconInfo />}>
-          <p>
-            Papertrail is a tool for running a systematic literature review as a
-            team. It takes a project from imported search results through deduplication,
-            multi-reviewer screening, full-text retrieval, and configurable extraction and
-            quality-assessment forms, and produces PRISMA flow outputs, an Excel workbook,
-            and a BibTeX export that you can then analyze for your review.
-          </p>
-          <p>
-            Every project moves through six shared stages: <strong>draft</strong>,{' '}
-            <strong>duplicate review</strong>, <strong>title/abstract screening</strong>,{' '}
-            <strong>full-text retrieval and screening</strong>,{' '}
-            <strong>extraction and quality assessment</strong>, and{' '}
-            <strong>completed</strong>. Papertrail advances a project automatically once the
-            completion rules for its current stage are satisfied.
-          </p>
-          <p>
-            Every screening, extraction, and lifecycle action is written to an immutable audit
-            trail. An optional local LLM can suggest — but never decide — screening and
-            extraction answers. Reviewer-entered data always remains authoritative.
-          </p>
+          <PapertrailOverview />
         </CollapsibleSection>
         <CollapsibleSection id="section-help-stages" title="The Review Stages" icon={<IconArrowRight />}>
           <StageTimeline />
@@ -201,31 +510,43 @@ export function HelpPage() {
             one project. An installation administrator has the same rights on every project.
           </p>
           <StageList role="owner" />
+          <OwnerDangerZoneGuide />
         </CollapsibleSection>
+        <LlmHelpSection />
         <CollapsibleSection id="section-help-good-to-know" title="Good to Know" icon={<IconLightbulb />}>
-          <ul>
-            <li>
-              Papertrail never downloads or scrapes publisher PDFs automatically. Only
-              upload files you are authorized to access and store.
-            </li>
-            <li>
-              LLM assistance is advisory-only and must be enabled per project by an
-              administrator. It never overrides a reviewer’s decision.
-            </li>
-            <li>
-              A screening item you’ve opened stays reserved to you for up to one day unless
-              you release it, so it doesn’t block other reviewers indefinitely.
-            </li>
-            <li>
-              Replacing a PDF creates a new version and keeps the previous file in a collapsible
-              history. Removing one preserves history and never changes an existing screening
-              decision.
-            </li>
-            <li>
-              You can update or clear your notification email address any time under{' '}
-              <strong>Account Settings</strong>.
-            </li>
-          </ul>
+          <div className="help-good-to-know">
+            <header className="help-good-to-know__intro">
+              <span className="help-good-to-know__intro-icon" aria-hidden="true">
+                <IconLightbulb />
+              </span>
+              <div>
+                <span className="eyebrow">Practical details</span>
+                <h3>Small things that keep a review moving</h3>
+                <p>
+                  Keep these safeguards and workflow details in mind as your project moves
+                  from imported records to final results.
+                </p>
+              </div>
+            </header>
+
+            <ul className="help-good-to-know__grid" aria-label="Helpful things to know">
+              {goodToKnowItems.map((item) => (
+                <li
+                  className={`help-good-to-know__card help-good-to-know__card--${item.tone}${item.featured ? ' help-good-to-know__card--featured' : ''}`}
+                  key={item.title}
+                >
+                  <span className="help-good-to-know__card-icon" aria-hidden="true">
+                    {item.icon}
+                  </span>
+                  <div>
+                    <span className="help-good-to-know__label">{item.label}</span>
+                    <h4>{item.title}</h4>
+                    <p>{item.description}</p>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </div>
         </CollapsibleSection>
       </main>
     </SectionNavigationLayout>

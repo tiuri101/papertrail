@@ -73,6 +73,7 @@ class ConflictResponse(ApiModel):
     proposed_value: str | None = Field(serialization_alias="proposedValue")
     source_name: str = Field(serialization_alias="sourceName")
     status: str
+    publication: PublicationResponse
 
 
 class ConflictResolve(ApiModel):

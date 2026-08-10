@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
@@ -17,6 +17,7 @@ interface DecisionPublication {
   title: string
   authors: string | null
   abstract: string | null
+  publicationYear: number | null
   venue: string | null
   doi: string | null
   publisherUrl: string | null
@@ -46,7 +47,9 @@ interface MyDecisionItem {
   workItemId: string
   submittedAt: string | null
   publication: DecisionPublication
-  decision: Decision
+  decision: Decision | null
+  retrievalStatus?: string | null
+  retrievalNote?: string | null
 }
 
 interface MyDecisionsResponse {
@@ -86,14 +89,15 @@ function DecisionEditForm({
   onDone: () => void
   onWorkflowImpact: (impact: WorkflowImpact) => void
 }) {
+  const decision = item.decision!
   const queryClient = useQueryClient()
   const [answers, setAnswers] = useState<Record<string, CriterionAnswer>>(
     () => Object.fromEntries(
-      criteria.map((criterion) => [criterion.id, item.decision.criteriaAnswers[criterion.id] ?? null]),
+      criteria.map((criterion) => [criterion.id, decision.criteriaAnswers[criterion.id] ?? null]),
     ),
   )
-  const [outcome, setOutcome] = useState(item.decision.outcome)
-  const [notes, setNotes] = useState(item.decision.notes ?? '')
+  const [outcome, setOutcome] = useState(decision.outcome)
+  const [notes, setNotes] = useState(decision.notes ?? '')
 
   const save = useMutation({
     mutationFn: () => apiRequest<DecisionRevisionResponse>(
@@ -176,6 +180,30 @@ const outcomeLabels: Record<string, string> = {
   duplicate: 'Duplicate',
 }
 
+const retrievalStatusLabels: Record<string, string> = {
+  not_found: 'Full text not found',
+  inaccessible: 'Full text inaccessible',
+}
+
+const decisionFilterOptions = [
+  { value: '', label: 'All decisions' },
+  { value: 'include', label: 'Include' },
+  { value: 'exclude', label: 'Exclude' },
+  { value: 'uncertain', label: 'Uncertain' },
+  { value: 'duplicate', label: 'Duplicate' },
+  { value: 'not_found', label: 'Full text not found', fullTextOnly: true },
+  { value: 'inaccessible', label: 'Full text inaccessible', fullTextOnly: true },
+]
+
+function itemStatus(item: MyDecisionItem): string {
+  return item.decision?.outcome ?? item.retrievalStatus ?? ''
+}
+
+function itemStatusLabel(item: MyDecisionItem): string {
+  if (item.decision) return outcomeLabels[item.decision.outcome] ?? item.decision.outcome
+  return retrievalStatusLabels[item.retrievalStatus ?? ''] ?? item.retrievalStatus ?? 'Retrieval resolved'
+}
+
 function DecisionCard({
   projectId,
   stage,
@@ -195,30 +223,45 @@ function DecisionCard({
 }) {
   const [editing, setEditing] = useState(false)
   const publication = item.publication
+  const decision = item.decision
 
   return (
-    <li className="card">
-      <h2><HighlightedText text={publication.title} keywords={highlightKeywords} /></h2>
-      <p>{publication.authors ?? 'Unknown authors'}</p>
-      {publication.venue ? <p className="muted">{publication.venue}</p> : null}
-      <p>
-        {publication.abstract
-          ? <HighlightedText text={publication.abstract} keywords={highlightKeywords} />
-          : 'No abstract available.'}
-      </p>
-      <div className="toolbar">
-        {publication.doi ? (
-          <a href={`https://doi.org/${publication.doi}`} target="_blank" rel="noreferrer">
-            Open DOI
-          </a>
-        ) : null}
-        {isSafeHttpUrl(publication.publisherUrl) ? (
-          <a href={publication.publisherUrl} target="_blank" rel="noreferrer">
-            Open publisher page
-          </a>
-        ) : null}
+    <li className="card publication-card decision-card">
+      <div className="publication-card__summary">
+        <div>
+          <h2 className="decision-card__title">
+            <HighlightedText text={publication.title} keywords={highlightKeywords} />
+          </h2>
+          {' — '}{publication.authors ?? 'Unknown authors'}
+          {publication.publicationYear ? ` (${publication.publicationYear})` : ''}
+          {' '}
+          <OutcomeBadge
+            outcome={decision?.outcome ?? 'exclude'}
+            label={itemStatusLabel(item)}
+          />
+          {decision && decision.version > 1 ? <span className="muted"> (revised, v{decision.version})</span> : null}
+          {publication.doi ? (
+            <> <a href={`https://doi.org/${publication.doi}`} target="_blank" rel="noreferrer">DOI</a></>
+          ) : null}
+          {isSafeHttpUrl(publication.publisherUrl) ? (
+            <> <a href={publication.publisherUrl} target="_blank" rel="noreferrer">Publisher link</a></>
+          ) : null}
+        </div>
       </div>
-      {editing ? (
+      <details className="publication-card__abstract">
+        <summary>Decision details</summary>
+        {publication.venue ? <p><strong>Venue:</strong> {publication.venue}</p> : null}
+        <p>
+          <strong>Abstract:</strong>{' '}
+          {publication.abstract
+            ? <HighlightedText text={publication.abstract} keywords={highlightKeywords} />
+            : 'No abstract available.'}
+        </p>
+        {decision?.notes ? <p><strong>Notes:</strong> {decision.notes}</p> : null}
+        {item.retrievalNote ? <p><strong>Notes:</strong> {item.retrievalNote}</p> : null}
+        {item.submittedAt ? <p className="muted">Submitted {new Date(item.submittedAt).toLocaleString()}</p> : null}
+      </details>
+      {editing && decision ? (
         <DecisionEditForm
           projectId={projectId}
           stage={stage}
@@ -228,22 +271,11 @@ function DecisionCard({
           onDone={() => setEditing(false)}
           onWorkflowImpact={onWorkflowImpact}
         />
-      ) : (
-        <>
-          <p>
-            <strong>Decision:</strong>{' '}
-            <OutcomeBadge
-              outcome={item.decision.outcome}
-              label={outcomeLabels[item.decision.outcome] ?? item.decision.outcome}
-            />
-            {item.decision.version > 1 ? <span className="muted"> (revised, v{item.decision.version})</span> : null}
-          </p>
-          {item.decision.notes ? <p><strong>Notes:</strong> {item.decision.notes}</p> : null}
-          <div className="toolbar">
-            <button type="button" onClick={() => setEditing(true)}>Edit Decision</button>
-          </div>
-        </>
-      )}
+      ) : decision ? (
+        <div className="toolbar publication-card__actions">
+          <button type="button" className="button-secondary" onClick={() => setEditing(true)}>Edit Decision</button>
+        </div>
+      ) : null}
     </li>
   )
 }
@@ -252,12 +284,40 @@ export function MyDecisionsPage() {
   const { projectId = '', stage = 'title_abstract' } = useParams()
   const highlightKeywords = useHighlightKeywords(projectId)
   const [workflowImpact, setWorkflowImpact] = useState<WorkflowImpact | null>(null)
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState('')
+  const [sort, setSort] = useState('newest')
   const query = useQuery({
     queryKey: ['my-decisions', projectId, stage],
     queryFn: () => apiRequest<MyDecisionsResponse>(
       `/api/v1/projects/${projectId}/screening/${stage}/my-decisions`,
     ),
   })
+
+  const filteredItems = useMemo(() => {
+    const normalizedSearch = search.trim().toLocaleLowerCase()
+    const items = (query.data?.items ?? []).filter((item) => {
+      const publication = item.publication
+      const searchable = [
+        publication.title,
+        publication.authors,
+        publication.abstract,
+        publication.venue,
+        publication.doi,
+        item.decision?.notes,
+        item.retrievalNote,
+      ].filter(Boolean).join(' ').toLocaleLowerCase()
+      return (!normalizedSearch || searchable.includes(normalizedSearch))
+        && (!statusFilter || itemStatus(item) === statusFilter)
+    })
+    return items.sort((left, right) => {
+      if (sort === 'title_asc') return left.publication.title.localeCompare(right.publication.title)
+      if (sort === 'title_desc') return right.publication.title.localeCompare(left.publication.title)
+      const leftTime = left.submittedAt ? Date.parse(left.submittedAt) : 0
+      const rightTime = right.submittedAt ? Date.parse(right.submittedAt) : 0
+      return sort === 'oldest' ? leftTime - rightTime : rightTime - leftTime
+    })
+  }, [query.data?.items, search, sort, statusFilter])
 
   return (
     <main className="page">
@@ -296,11 +356,50 @@ export function MyDecisionsPage() {
               )}
             </section>
           ) : null}
+          {query.data.items.length > 0 ? (
+            <>
+              <p className="muted">
+                {search || statusFilter
+                  ? `${filteredItems.length} of ${query.data.items.length} decisions match your filters`
+                  : `${query.data.items.length} decision${query.data.items.length === 1 ? '' : 's'}`}
+              </p>
+              <div className="toolbar">
+                <label className="paper-search-field">
+                  Search papers
+                  <input
+                    type="search"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Title, author, DOI, note…"
+                  />
+                </label>
+                <label>
+                  Decision
+                  <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                    {decisionFilterOptions
+                      .filter((option) => !option.fullTextOnly || stage === 'full_text')
+                      .map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                  </select>
+                </label>
+                <label>
+                  Sort by
+                  <select value={sort} onChange={(event) => setSort(event.target.value)}>
+                    <option value="newest">Newest decision</option>
+                    <option value="oldest">Oldest decision</option>
+                    <option value="title_asc">Title A–Z</option>
+                    <option value="title_desc">Title Z–A</option>
+                  </select>
+                </label>
+              </div>
+            </>
+          ) : null}
           {query.data.items.length === 0 ? (
             <p className="muted">You have not submitted any decisions for this stage yet.</p>
+          ) : filteredItems.length === 0 ? (
+            <p className="muted">No decisions match your filters.</p>
           ) : (
-            <ul className="card-list stacked">
-              {query.data.items.map((item) => (
+            <ul className="card-list stacked publication-list">
+              {filteredItems.map((item) => (
                 <DecisionCard
                   key={item.workItemId}
                   projectId={projectId}

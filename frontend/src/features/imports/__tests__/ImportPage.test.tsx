@@ -51,12 +51,28 @@ describe('ImportPage', () => {
     renderWithProviders(<ImportPage />, { route: '/projects/project-1/imports', path: '/projects/:projectId/imports' })
 
     await screen.findByLabelText('Bibliographic export')
+    expect(screen.getByRole('heading', { name: 'Searches and Imports' })).toBeInTheDocument()
+    const importToggle = screen.getByRole('button', { name: 'Import an Export File' })
+    expect(importToggle).toHaveAttribute('aria-expanded', 'false')
+    expect(document.querySelector('#section-import-records')?.nextElementSibling).toHaveAttribute(
+      'id',
+      'section-search-history',
+    )
     expect(screen.getByLabelText('Optional full-text PDFs')).toBeInTheDocument()
     const zipInput = screen.getByLabelText('Optional PDF ZIPs')
     expect(zipInput).toBeInTheDocument()
     expect(zipInput).toHaveAttribute('multiple')
     expect(screen.queryByLabelText('Search')).not.toBeInTheDocument()
     expect(screen.queryByText(/Not documented/)).not.toBeInTheDocument()
+  })
+
+  it('expands the import card by default when no searches have been documented', async () => {
+    mockFetch(() => jsonResponse([]))
+    renderWithProviders(<ImportPage />, { route: '/projects/project-1/imports', path: '/projects/:projectId/imports' })
+
+    const importToggle = await screen.findByRole('button', { name: 'Import an Export File' })
+    expect(importToggle).toHaveAttribute('aria-expanded', 'true')
+    expect(screen.getByText('No searches have been documented for this project yet.')).toBeInTheDocument()
   })
 
   it('documents the search and uploads the file in a single step, with credentials and CSRF protection', async () => {
@@ -210,12 +226,39 @@ describe('ImportPage', () => {
 
   it('lists previously documented searches for reference', async () => {
     mockFetch(() => jsonResponse([
-      { id: 'search-1', sourceName: 'IEEE Xplore', query: 'virtual reality AND urban', searchDate: '2026-07-30', filters: null },
+      {
+        id: 'search-1',
+        sourceName: 'IEEE Xplore',
+        query: 'virtual reality AND urban',
+        searchDate: '2026-07-30',
+        filters: 'Journals and conferences',
+        exportedResultCount: 12,
+        createdAt: '2026-07-30T08:30:00Z',
+        createdBy: { id: 'reviewer-1', displayName: 'Ada Reviewer', username: 'ada' },
+        importBatches: [
+          {
+            id: 'batch-1',
+            originalFilename: 'records.csv',
+            status: 'completed',
+            recordCount: 12,
+            attachedPaperCount: 7,
+            completedAt: '2026-07-30T09:00:00Z',
+          },
+        ],
+      },
     ]))
     renderWithProviders(<ImportPage />, { route: '/projects/project-1/imports', path: '/projects/:projectId/imports' })
 
     expect(await screen.findByText('Previously Documented Searches')).toBeInTheDocument()
-    expect(screen.getByText(/IEEE Xplore/)).toBeInTheDocument()
+    const history = screen.getByRole('region', { name: 'Previously Documented Searches' })
+    expect(await within(history).findByText('IEEE Xplore')).toBeInTheDocument()
+    expect(within(history).getByText('virtual reality AND urban')).toBeInTheDocument()
+    expect(within(history).getByText('Journals and conferences')).toBeInTheDocument()
+    expect(within(history).getByText('Ada Reviewer (@ada)')).toBeInTheDocument()
+    expect(within(history).getByLabelText('12 papers')).toBeInTheDocument()
+    expect(within(history).getByText('1 import · 12 records · 7 imported papers with PDF')).toBeInTheDocument()
+    expect(within(history).getByText('records.csv')).toBeInTheDocument()
+    expect(within(history).getByText('Completed')).toBeInTheDocument()
   })
 
   it('allows bulk-attaching PDFs to a search documented in an earlier session', async () => {
@@ -237,6 +280,7 @@ describe('ImportPage', () => {
                 originalFilename: 'records.csv',
                 status: 'completed',
                 recordCount: 12,
+                attachedPaperCount: 4,
                 completedAt: '2026-07-30T09:00:00Z',
               },
             ],
@@ -256,7 +300,8 @@ describe('ImportPage', () => {
     })
     renderWithProviders(<ImportPage />, { route: '/projects/project-1/imports', path: '/projects/:projectId/imports' })
 
-    expect(await screen.findByText('records.csv · 12 records')).toBeInTheDocument()
+    const importFile = (await screen.findByText('records.csv')).closest('.search-history__import-details') as HTMLElement
+    expect(within(importFile).getByText(/12 records · 4 papers with PDF/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Attach PDFs' }))
 
     const pdf = new File(['pdf-1'], 'paper-1.pdf', { type: 'application/pdf' })

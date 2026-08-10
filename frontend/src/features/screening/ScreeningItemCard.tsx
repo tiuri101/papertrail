@@ -1,5 +1,5 @@
 import { HighlightedText } from '../../components/HighlightedText'
-import { IconCheckCircle } from '../../components/icons'
+import { IconArrowRight, IconCheckCircle } from '../../components/icons'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { CriteriaAnswerFields } from './CriteriaAnswerFields'
 import type { ScreeningQueue } from './useScreeningQueue'
@@ -65,14 +65,28 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
       {decisionError ? (
         <p className="error" role="alert">{decisionError.message}</p>
       ) : null}
-      <button
-        type="button"
-        onClick={() => awaitingConfirmation ? queue.confirmDecision() : submit.mutate()}
-        disabled={decisionPending || !criteriaComplete}
-      >
-        <IconCheckCircle />
-        Submit Decision
-      </button>
+      <div className="toolbar">
+        <button
+          type="button"
+          onClick={() => awaitingConfirmation ? queue.confirmDecision() : submit.mutate()}
+          disabled={decisionPending || !criteriaComplete}
+        >
+          <IconCheckCircle />
+          Submit Decision
+        </button>
+        {!awaitingConfirmation ? (
+          <button
+            type="button"
+            className="button-secondary"
+            onClick={() => queue.skip.mutate()}
+            disabled={queue.skip.isPending || submit.isPending}
+          >
+            <IconArrowRight />
+            Skip for now
+          </button>
+        ) : null}
+      </div>
+      {queue.skip.error ? <p className="error" role="alert">{queue.skip.error.message}</p> : null}
     </article>
   )
 }

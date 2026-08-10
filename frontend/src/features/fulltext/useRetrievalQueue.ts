@@ -42,19 +42,47 @@ export function useRetrievalQueue(projectId: string) {
   const [item, setItem] = useState<Retrieval | null>(null)
   const [loadingNext, setLoadingNext] = useState(true)
   const [nextError, setNextError] = useState<string | null>(null)
+  const skippedRetrievalIds = useRef<Set<string>>(new Set())
+  const deferredClaimIds = useRef<Set<string>>(new Set())
+
+  const nextUrl = () => {
+    const params = new URLSearchParams()
+    skippedRetrievalIds.current.forEach((id) => params.append('excludedRetrievalId', id))
+    const query = params.toString()
+    return `/api/v1/projects/${projectId}/full-text/next${query ? `?${query}` : ''}`
+  }
 
   const next = useMutation({
     mutationFn: () => apiRequest<Retrieval | null>(
-      `/api/v1/projects/${projectId}/full-text/next`,
+      nextUrl(),
       { method: 'POST' },
     ),
     onSuccess: (result) => {
+      if (result === null && skippedRetrievalIds.current.size > 0) {
+        skippedRetrievalIds.current.clear()
+        next.mutate()
+        return
+      }
+      if (result) deferredClaimIds.current.delete(result.id)
       setItem(result)
       setLoadingNext(false)
     },
     onError: (error) => {
       setNextError(error instanceof Error ? error.message : 'Failed to load the next publication')
       setLoadingNext(false)
+    },
+  })
+
+  const skip = useMutation({
+    mutationFn: () => {
+      if (!item) throw new Error('No retrieval is open')
+      return Promise.resolve(item.id)
+    },
+    onSuccess: (retrievalId) => {
+      skippedRetrievalIds.current.add(retrievalId)
+      deferredClaimIds.current.add(retrievalId)
+      setItem(null)
+      fetchNext()
     },
   })
 
@@ -88,14 +116,17 @@ export function useRetrievalQueue(projectId: string) {
   }, [item])
 
   useEffect(() => {
+    const deferredIds = deferredClaimIds.current
     return () => {
       const abandoned = activeItemRef.current
-      if (abandoned) {
+      const abandonedIds = new Set(deferredIds)
+      if (abandoned) abandonedIds.add(abandoned.id)
+      abandonedIds.forEach((retrievalId) => {
         apiRequest(
-          `/api/v1/projects/${projectId}/full-text/${abandoned.id}/release`,
+          `/api/v1/projects/${projectId}/full-text/${retrievalId}/release`,
           { method: 'POST' },
         ).catch(() => {})
-      }
+      })
     }
   }, [projectId])
 
@@ -105,6 +136,7 @@ export function useRetrievalQueue(projectId: string) {
     nextError,
     fetchNext,
     advance,
+    skip,
     progress: progress.data,
   }
 }

@@ -42,6 +42,7 @@ export function UsersPage() {
 
   return (
     <main className="page">
+      <p className="eyebrow">Installation administration</p>
       <h1>Users</h1>
       {showCreateForm ? (
         <section className="card">

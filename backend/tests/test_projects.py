@@ -4,6 +4,7 @@ from app.accounts.models import User
 from app.accounts.service import create_user
 from app.audit.models import AuditEvent
 from app.core.config import get_settings
+from app.extraction.models import ExtractionWorkItem
 from app.imports.models import ImportBatch
 from app.jobs.models import BackgroundJob, JobStatus
 from app.projects.models import (
@@ -16,6 +17,7 @@ from app.projects.models import (
     ScreeningStage,
 )
 from app.publications.models import Publication
+from app.quality.models import QualityWorkItem
 from app.screening.models import ScreeningWorkItem
 from app.screening.service import create_screening_work_items
 
@@ -29,7 +31,7 @@ def login(client, username: str, password: str) -> str:
 
 
 def test_admin_creates_project_and_reviewer_only_sees_memberships(client, db) -> None:
-    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    admin = create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
     reviewer = create_user(db, "reviewer", "Reviewer", "reviewer-password")
     create_user(db, "outsider", "Outsider", "outsider-password")
     db.commit()
@@ -57,11 +59,57 @@ def test_admin_creates_project_and_reviewer_only_sees_memberships(client, db) ->
     )
     assert membership.status_code == 201
 
+    publications = [
+        Publication(project_id=project_id, title=f"Assigned paper {index}")
+        for index in range(3)
+    ]
+    db.add_all(publications)
+    db.flush()
+    db.add_all(
+        [
+            ScreeningWorkItem(
+                project_id=project_id,
+                publication_id=publications[0].id,
+                stage=ScreeningStage.TITLE_ABSTRACT,
+                slot_number=1,
+                assigned_reviewer_id=reviewer.id,
+                random_rank="screening-rank",
+            ),
+            ExtractionWorkItem(
+                project_id=project_id,
+                publication_id=publications[1].id,
+                assigned_reviewer_id=reviewer.id,
+                random_rank="extraction-rank",
+            ),
+            QualityWorkItem(
+                project_id=project_id,
+                publication_id=publications[2].id,
+                assigned_reviewer_id=reviewer.id,
+                random_rank="quality-rank",
+            ),
+        ]
+    )
+    db.commit()
+
+    admin_projects = client.get("/api/v1/projects")
+    assert admin_projects.status_code == 200
+    admin_summary = admin_projects.json()[0]
+    assert admin_summary["myRole"] == "owner"
+    assert admin_summary["owner"] == {
+        "id": admin.id,
+        "displayName": "Administrator",
+    }
+    assert admin_summary["createdAt"]
+    assert admin_summary["openTaskCount"] == 0
+
     client.post("/api/v1/auth/logout", headers={"X-CSRF-Token": csrf})
     login(client, "reviewer", "reviewer-password")
     projects = client.get("/api/v1/projects")
     assert projects.status_code == 200
     assert [project["id"] for project in projects.json()] == [project_id]
+    assert projects.json()[0]["myRole"] == "reviewer"
+    assert projects.json()[0]["owner"]["displayName"] == "Administrator"
+    assert projects.json()[0]["openTaskCount"] == 3
 
     client.cookies.clear()
     login(client, "outsider", "outsider-password")

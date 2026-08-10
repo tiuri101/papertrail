@@ -54,7 +54,7 @@ export function CriteriaAnswerFields({
           {sortedByKind(criteria).map((criterion) => (
             <tr key={criterion.id}>
               <th scope="row">
-                <span className={`criterion-badge criterion-badge--${criterion.kind}`}>{numbers[criterion.id]}</span>: {criterion.text}
+                <span className={`criterion-badge criterion-badge--${criterion.kind}`}>{numbers[criterion.id]}</span> {criterion.text}
               </th>
               <td>
                 <input

@@ -15,11 +15,15 @@ describe('ProjectLifecyclePanel', () => {
     renderWithProviders(<ProjectLifecyclePanel projectId="p1" />)
 
     expect(await screen.findByText('Two duplicate candidates remain.')).toBeInTheDocument()
-    const integritySection = screen.getByRole('heading', { name: 'Workflow Integrity' }).closest('section')
-    const reopenSection = screen.getByRole('heading', { name: 'Reopen Project' }).closest('section')
+    const integrityHeading = screen.getByRole('heading', { name: 'Workflow Integrity' })
+    const reopenHeading = screen.getByRole('heading', { name: 'Reopen Project' })
+    const integritySection = integrityHeading.closest('section')
+    const reopenSection = reopenHeading.closest('section')
     expect(integritySection).toHaveClass('card')
     expect(reopenSection).toHaveClass('card')
     expect(reopenSection).not.toBe(integritySection)
+    expect(within(integrityHeading).getByRole('button', { name: 'About Workflow Integrity' })).toBeInTheDocument()
+    expect(within(reopenHeading).getByRole('button', { name: 'About Reopen Project' })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'Duplicate Review' })).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Move back to'), { target: { value: 'duplicate_review' } })
     const reopenButtons = within(reopenSection as HTMLElement).getAllByRole(

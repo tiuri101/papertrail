@@ -45,9 +45,10 @@ describe('FormFieldsPanel', () => {
     fireEvent.click(screen.getByLabelText('Required'))
     fireEvent.click(screen.getByRole('button', { name: 'Add Field' }))
 
-    const row = (await screen.findByRole('cell', { name: 'Sample size' })).closest('tr')!
-    expect(within(row).getByText('Number')).toBeInTheDocument()
-    expect(within(row).getByText('Required')).toBeInTheDocument()
+    const fieldCard = (await screen.findByText('Sample size', { selector: 'strong' })).closest('details')!
+    expect(fieldCard).toHaveClass('llm-schema-field', 'form-editor-field')
+    expect(within(fieldCard).getByText('Number')).toBeInTheDocument()
+    expect(within(fieldCard).getByText('Required')).toBeInTheDocument()
 
     const fieldCall = fetchMock.mock.calls.find(([input, init]) => String(input) === '/api/v1/forms/form-1/fields' && init?.method === 'POST')
     expect(JSON.parse(String(fieldCall?.[1]?.body))).toEqual({
@@ -86,7 +87,7 @@ describe('FormFieldsPanel', () => {
       <FormFieldsPanel projectId="p1" kind="extraction" title="Data Extraction Form" />,
     )
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Edit' }))
+    fireEvent.click((await screen.findByText('Sample size', { selector: 'strong' })).closest('summary')!)
     fireEvent.change(screen.getByLabelText('Edit type for Sample size'), { target: { value: 'number' } })
     fireEvent.click(screen.getByLabelText('Edit required for Sample size'))
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
@@ -94,10 +95,18 @@ describe('FormFieldsPanel', () => {
     await waitFor(() => {
       const call = fetchMock.mock.calls.find(([reqInput, init]) => String(reqInput) === '/api/v1/forms/form-1/fields/stable-1' && init?.method === 'PATCH')
       expect(call).toBeDefined()
-      expect(JSON.parse(String(call?.[1]?.body))).toEqual({ label: 'Sample size', fieldType: 'number', required: true })
+      expect(JSON.parse(String(call?.[1]?.body))).toEqual({
+        label: 'Sample size',
+        fieldType: 'number',
+        required: true,
+        position: 0,
+        options: [],
+        scoring: {},
+      })
     })
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Remove' }))
+    fireEvent.click((await screen.findByText('Sample size', { selector: 'strong' })).closest('summary')!)
+    fireEvent.click(screen.getByRole('button', { name: 'Remove' }))
     fireEvent.click(await screen.findByRole('button', { name: 'Remove Field' }))
 
     await waitFor(() => {

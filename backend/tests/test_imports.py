@@ -73,7 +73,7 @@ def test_adapters_parse_supported_formats() -> None:
 
 
 def test_documented_searches_are_listed_for_a_project(client, db) -> None:
-    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    admin = create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
     db.commit()
     csrf = login(client)
     project_id = create_project(client, csrf)
@@ -98,6 +98,12 @@ def test_documented_searches_are_listed_for_a_project(client, db) -> None:
     assert len(listed.json()) == 1
     assert listed.json()[0]["sourceName"] == "IEEE Xplore"
     assert listed.json()[0]["query"] == "virtual reality AND urban"
+    assert listed.json()[0]["createdBy"] == {
+        "id": admin.id,
+        "displayName": "Administrator",
+        "username": "admin",
+    }
+    assert listed.json()[0]["createdAt"]
 
 
 def test_documenting_a_search_no_longer_requires_an_exported_result_count(
@@ -193,6 +199,7 @@ def test_pdfs_can_be_bulk_attached_to_a_previously_completed_search_import(
     assert batches[0]["id"] == import_batch_id
     assert batches[0]["status"] == "completed"
     assert batches[0]["originalFilename"] == "records.csv"
+    assert batches[0]["attachedPaperCount"] == 0
 
     attach = client.post(
         f"/api/v1/projects/{project_id}/imports/{import_batch_id}/pdfs",
@@ -201,6 +208,8 @@ def test_pdfs_can_be_bulk_attached_to_a_previously_completed_search_import(
     )
     assert attach.status_code == 200
     assert attach.json()["summary"]["total"] == 1
+    listed_after_attach = client.get(f"/api/v1/projects/{project_id}/searches").json()
+    assert listed_after_attach[0]["importBatches"][0]["attachedPaperCount"] == 1
 
 
 def test_a_regular_project_member_can_document_a_search_and_import_records(

@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { IconArrowRight } from '../../components/icons'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { ScreeningItemCard } from '../screening/ScreeningItemCard'
@@ -63,6 +64,7 @@ export function FullTextPage() {
 
   return (
     <main className="page">
+      <p className="eyebrow">Review workspace</p>
       <h1>Full-Text</h1>
       {retrievalQueue.nextError ? <p className="error" role="alert">{retrievalQueue.nextError}</p> : null}
       {updateRetrieval.error ? <p className="error" role="alert">{updateRetrieval.error.message}</p> : null}
@@ -88,6 +90,9 @@ export function FullTextPage() {
           retrieval={retrievalQueue.item}
           saving={updateRetrieval.isPending}
           onSubmit={(status, note) => handleSubmit(retrievalQueue.item!, status, note)}
+          onSkip={() => retrievalQueue.skip.mutate()}
+          skipping={retrievalQueue.skip.isPending}
+          skipError={retrievalQueue.skip.error?.message ?? null}
         />
       ) : (
         <p className="muted">No full-text work is currently available for you.</p>
@@ -96,11 +101,14 @@ export function FullTextPage() {
   )
 }
 
-function RetrievalCard({ projectId, retrieval, saving, onSubmit }: {
+function RetrievalCard({ projectId, retrieval, saving, onSubmit, onSkip, skipping, skipError }: {
   projectId: string
   retrieval: Retrieval
   saving: boolean
   onSubmit: (status: string, note: string | null) => void
+  onSkip: () => void
+  skipping: boolean
+  skipError: string | null
 }) {
   const [status, setStatus] = useState(retrieval.status)
   const [note, setNote] = useState(retrieval.note ?? '')
@@ -155,13 +163,25 @@ function RetrievalCard({ projectId, retrieval, saving, onSubmit }: {
           Save the available status to open full-text screening and its LLM evidence panel.
         </p>
       ) : null}
-      <button
-        type="button"
-        onClick={handleSubmit}
-        disabled={saving}
-      >
-        {isAvailable ? 'Save and start screening' : 'Submit'}
-      </button>
+      {skipError ? <p className="error" role="alert">{skipError}</p> : null}
+      <div className="toolbar">
+        <button
+          type="button"
+          onClick={handleSubmit}
+          disabled={saving || skipping}
+        >
+          {isAvailable ? 'Save and start screening' : 'Submit'}
+        </button>
+        <button
+          type="button"
+          className="button-secondary"
+          onClick={onSkip}
+          disabled={saving || skipping}
+        >
+          <IconArrowRight />
+          Skip for now
+        </button>
+      </div>
     </article>
   )
 }

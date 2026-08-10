@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from datetime import datetime
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.projects.models import (
@@ -30,6 +33,20 @@ class ProjectSummary(ApiModel):
     description: str | None
     review_type: ReviewType = Field(serialization_alias="reviewType")
     stage: ProjectStage
+
+
+class ProjectOwnerSummary(ApiModel):
+    id: str
+    display_name: str = Field(serialization_alias="displayName")
+
+
+class ProjectListItem(ProjectSummary):
+    created_at: datetime = Field(serialization_alias="createdAt")
+    owner: ProjectOwnerSummary | None
+    my_role: Literal["owner", "administrator", "reviewer"] = Field(
+        serialization_alias="myRole"
+    )
+    open_task_count: int = Field(serialization_alias="openTaskCount", ge=0)
 
 
 class MembershipCreate(ApiModel):

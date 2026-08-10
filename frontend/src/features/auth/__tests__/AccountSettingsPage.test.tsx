@@ -53,6 +53,19 @@ describe('AccountSettingsPage', () => {
     expect(screen.getByRole('button', { name: 'Change Password' })).toBeDisabled()
   })
 
+  it('requires the new password to differ from the current password', () => {
+    renderWithSession()
+
+    fireEvent.change(screen.getByLabelText('Current password'), { target: { value: 'same-password' } })
+    fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'same-password' } })
+    fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: 'same-password' } })
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'New password must be different from your current password.',
+    )
+    expect(screen.getByRole('button', { name: 'Change Password' })).toBeDisabled()
+  })
+
   it('submits a password change with the current and new password', async () => {
     const fetchMock = mockFetch(async (input, init) => {
       if (String(input).endsWith('/auth/me') && init?.method === 'PATCH') {

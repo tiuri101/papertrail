@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, status
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.accounts.dependencies import get_current_user, require_csrf
@@ -43,6 +43,8 @@ from app.projects.schemas import (
     ProjectCreate,
     ProjectDetail,
     ProjectDetailsUpdate,
+    ProjectListItem,
+    ProjectOwnerSummary,
     ProjectReopen,
     ProjectSummary,
     PromptFlowSettings,
@@ -61,6 +63,7 @@ from app.projects.service import (
     is_project_manager,
     list_projects_for_user,
     next_position,
+    open_task_counts_for_user,
     parse_highlight_keywords,
     remove_membership,
     require_project_access,
@@ -71,11 +74,63 @@ from app.projects.service import (
 router = APIRouter(prefix="/projects", tags=["projects"])
 
 
-@router.get("", response_model=list[ProjectSummary])
+@router.get("", response_model=list[ProjectListItem])
 def list_projects(
     user: User = Depends(get_current_user), db: Session = Depends(get_db)
-) -> list[Project]:
-    return list_projects_for_user(db, user)
+) -> list[ProjectListItem]:
+    projects = list_projects_for_user(db, user)
+    if not projects:
+        return []
+
+    project_ids = [project.id for project in projects]
+    open_task_counts = open_task_counts_for_user(db, project_ids, user.id)
+    relevant_memberships = db.execute(
+        select(ProjectMembership, User)
+        .join(User, User.id == ProjectMembership.user_id)
+        .where(
+            ProjectMembership.project_id.in_(project_ids),
+            or_(
+                ProjectMembership.is_owner.is_(True),
+                ProjectMembership.user_id == user.id,
+            ),
+        )
+    ).all()
+
+    owners: dict[str, ProjectOwnerSummary] = {}
+    current_memberships: dict[str, ProjectMembership] = {}
+    for membership, member in relevant_memberships:
+        if membership.is_owner:
+            owners[membership.project_id] = ProjectOwnerSummary(
+                id=member.id,
+                display_name=member.display_name,
+            )
+        if membership.user_id == user.id:
+            current_memberships[membership.project_id] = membership
+
+    results: list[ProjectListItem] = []
+    for project in projects:
+        membership = current_memberships.get(project.id)
+        role: Literal["owner", "administrator", "reviewer"]
+        if membership and membership.is_owner:
+            role = "owner"
+        elif user.is_admin:
+            role = "administrator"
+        else:
+            role = "reviewer"
+        results.append(
+            ProjectListItem(
+                id=project.id,
+                name=project.name,
+                description=project.description,
+                review_type=project.review_type,
+                stage=project.stage,
+                created_at=project.created_at,
+                owner=owners.get(project.id),
+                my_role=role,
+                open_task_count=open_task_counts.get(project.id, 0),
+            )
+        )
+    return results
 
 
 @router.post("", response_model=ProjectSummary, status_code=status.HTTP_201_CREATED)
