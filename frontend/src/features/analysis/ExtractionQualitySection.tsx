@@ -18,9 +18,9 @@ function NumericSummary({ stats }: { stats: NumericStats }) {
   )
 }
 
-function FieldCard({ field }: { field: FieldStats }) {
+function FieldBreakdown({ field }: { field: FieldStats }) {
   return (
-    <section className="card">
+    <>
       <h3>{field.label}</h3>
       <p className="muted">{field.source === 'quality' ? 'Quality assessment' : 'Extraction'}</p>
       <CompletionBar answered={field.answeredCount} total={field.totalCount} />
@@ -42,7 +42,7 @@ function FieldCard({ field }: { field: FieldStats }) {
           />
         </>
       ) : null}
-    </section>
+    </>
   )
 }
 
@@ -51,36 +51,36 @@ export function ExtractionQualitySection({ projectId }: { projectId: string }) {
   const stats = query.data?.stats
 
   return (
-    <section id="section-analysis-extraction-quality">
-      <div className="card">
-        <h2>Extraction &amp; Quality</h2>
-        {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
-        {stats ? (
+    <section id="section-analysis-extraction-quality" className="card">
+      <h2>Extraction &amp; Quality</h2>
+      {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
+      {stats ? (
+        <>
           <p className="muted">{stats.totalPublications} included publications.</p>
-        ) : null}
-        {query.data ? (
-          <StageNarrativePanel
-            projectId={projectId}
-            stage="extraction_quality"
-            narrative={query.data.narrative}
-            isStale={query.data.isStale}
-          />
-        ) : null}
-      </div>
-      {stats?.qualityTotalScore ? (
-        <section className="card">
-          <h3>Overall quality score</h3>
-          <NumericSummary stats={stats.qualityTotalScore} />
-          <FieldBarChart
-            orientation="vertical"
-            data={stats.qualityTotalScore.histogram.map((bin) => ({
-              label: formatRange(bin),
-              count: bin.count,
-            }))}
-          />
-        </section>
+          {stats.qualityTotalScore ? (
+            <>
+              <h3>Overall quality score</h3>
+              <NumericSummary stats={stats.qualityTotalScore} />
+              <FieldBarChart
+                orientation="vertical"
+                data={stats.qualityTotalScore.histogram.map((bin) => ({
+                  label: formatRange(bin),
+                  count: bin.count,
+                }))}
+              />
+            </>
+          ) : null}
+          {stats.fields.map((field) => <FieldBreakdown field={field} key={field.id} />)}
+        </>
       ) : null}
-      {stats?.fields.map((field) => <FieldCard field={field} key={field.id} />)}
+      {query.data ? (
+        <StageNarrativePanel
+          projectId={projectId}
+          stage="extraction_quality"
+          narrative={query.data.narrative}
+          isStale={query.data.isStale}
+        />
+      ) : null}
     </section>
   )
 }

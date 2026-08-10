@@ -291,3 +291,110 @@ def test_next_quality_endpoint_returns_the_publication_and_active_fields(
     )
     assert empty.status_code == 200
     assert empty.json() is None
+
+
+def test_progress_endpoint_reports_assigned_and_completed_counts(client, db) -> None:
+    project, _, design, reporting, reviewer, _ = setup_quality(db)
+    initialize_quality(db, project)
+    db.commit()
+    csrf = login(client, "reviewer", "reviewer-password")
+
+    before = client.get(
+        f"/api/v1/projects/{project.id}/quality/progress",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert before.status_code == 200
+    assert before.json() == {"assigned": 1, "completed": 0}
+
+    item = claim_next_quality(db, project.id, reviewer.id)
+    submit_quality(
+        db, item, reviewer.id, {design.stable_key: "strong", reporting.stable_key: 4}
+    )
+    db.commit()
+
+    after = client.get(
+        f"/api/v1/projects/{project.id}/quality/progress",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert after.status_code == 200
+    assert after.json() == {"assigned": 1, "completed": 1}
+
+
+def test_mine_endpoint_lists_only_the_callers_completed_assessments(client, db) -> None:
+    project, _, design, reporting, reviewer, _ = setup_quality(db)
+    other_reviewer = create_user(db, "other", "Other", "other-password")
+    db.add(
+        ProjectMembership(
+            project_id=project.id, user_id=other_reviewer.id, can_assess_quality=True
+        )
+    )
+    initialize_quality(db, project)
+    db.commit()
+    item = claim_next_quality(db, project.id, reviewer.id)
+    submit_quality(
+        db, item, reviewer.id, {design.stable_key: "strong", reporting.stable_key: 4}
+    )
+    db.commit()
+
+    csrf = login(client, "reviewer", "reviewer-password")
+    mine = client.get(
+        f"/api/v1/projects/{project.id}/quality/mine", headers={"X-CSRF-Token": csrf}
+    )
+    assert mine.status_code == 200
+    body = mine.json()
+    assert len(body) == 1
+    assert body[0]["id"] == item.id
+    assert body[0]["version"] == 1
+
+    other_csrf = login(client, "other", "other-password")
+    other_mine = client.get(
+        f"/api/v1/projects/{project.id}/quality/mine",
+        headers={"X-CSRF-Token": other_csrf},
+    )
+    assert other_mine.status_code == 200
+    assert other_mine.json() == []
+
+
+def test_completed_quality_assessment_can_be_revisited_and_resubmitted(
+    client, db
+) -> None:
+    project, _, design, reporting, reviewer, _ = setup_quality(db)
+    other_reviewer = create_user(db, "other", "Other", "other-password")
+    db.add(
+        ProjectMembership(
+            project_id=project.id, user_id=other_reviewer.id, can_assess_quality=True
+        )
+    )
+    initialize_quality(db, project)
+    db.commit()
+    item = claim_next_quality(db, project.id, reviewer.id)
+    submit_quality(
+        db, item, reviewer.id, {design.stable_key: "weak", reporting.stable_key: 1}
+    )
+    db.commit()
+
+    csrf = login(client, "reviewer", "reviewer-password")
+    fetched = client.get(
+        f"/api/v1/projects/{project.id}/quality/{item.id}",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert fetched.status_code == 200
+    assert fetched.json()["currentResponse"]["answers"] == {
+        design.stable_key: "weak",
+        reporting.stable_key: 1,
+    }
+
+    corrected = client.post(
+        f"/api/v1/projects/{project.id}/quality/{item.id}",
+        json={"answers": {design.stable_key: "strong", reporting.stable_key: 5}},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert corrected.status_code == 200
+    assert corrected.json()["version"] == 2
+
+    other_csrf = login(client, "other", "other-password")
+    forbidden = client.get(
+        f"/api/v1/projects/{project.id}/quality/{item.id}",
+        headers={"X-CSRF-Token": other_csrf},
+    )
+    assert forbidden.status_code == 403

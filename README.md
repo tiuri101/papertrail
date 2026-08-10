@@ -7,7 +7,7 @@ Papertrail imports bibliographic exports and optional full-text PDFs, preserves 
 <p>
   <img alt="Python" src="https://img.shields.io/badge/Python-FastAPI-009688?logo=fastapi&logoColor=white">
   <img alt="React" src="https://img.shields.io/badge/React-TypeScript-61DAFB?logo=react&logoColor=0b1120">
-  <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-2-4169E1?logo=postgresql&logoColor=white">
+  <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white">
   <img alt="Docker" src="https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED?logo=docker&logoColor=white">
   <img alt="Self-hosted" src="https://img.shields.io/badge/Hosting-self--hosted-6f42c1">
 </p>

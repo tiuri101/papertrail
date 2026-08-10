@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -40,3 +41,11 @@ class ExtractionItemResponse(ApiModel):
     current_response: ExtractionResponseModel | None = Field(
         default=None, serialization_alias="currentResponse"
     )
+
+
+class CompletedExtractionSummary(ApiModel):
+    id: str
+    publication_id: str = Field(serialization_alias="publicationId")
+    publication: PublicationItem
+    completed_at: datetime | None = Field(serialization_alias="completedAt")
+    version: int

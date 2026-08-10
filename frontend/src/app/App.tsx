@@ -29,6 +29,7 @@ import { ResetPasswordPage } from '../features/auth/ResetPasswordPage'
 import { ConflictResolutionPage } from '../features/conflicts/ConflictResolutionPage'
 import { DuplicateReviewPage } from '../features/duplicates/DuplicateReviewPage'
 import { ExtractionPage } from '../features/extraction/ExtractionPage'
+import { MyExtractionsPage } from '../features/extraction/MyExtractionsPage'
 import { ValidationReviewPage } from '../features/extraction/ValidationReviewPage'
 import { FormBuilderPage } from '../features/forms/FormBuilderPage'
 import { FullTextPage } from '../features/fulltext/FullTextPage'
@@ -41,6 +42,7 @@ import { ProjectSetupWizard } from '../features/projects/ProjectSetupWizard'
 import { ProjectsPage } from '../features/projects/ProjectsPage'
 import { AddPublicationPage } from '../features/publications/AddPublicationPage'
 import { PublicationsPage } from '../features/publications/PublicationsPage'
+import { MyQualityPage } from '../features/quality/MyQualityPage'
 import { QualityPage } from '../features/quality/QualityPage'
 import { ReportingPage } from '../features/reporting/ReportingPage'
 import { FinalResultsPage } from '../features/results/FinalResultsPage'
@@ -165,8 +167,11 @@ export function App() {
             <Route path="/projects/:projectId/forms" element={<FormBuilderPage />} />
             <Route path="/projects/:projectId/extraction" element={<ExtractionPage />} />
             <Route path="/projects/:projectId/extraction/review/:itemId" element={<ExtractionPage />} />
+            <Route path="/projects/:projectId/extraction/mine" element={<MyExtractionsPage />} />
             <Route path="/projects/:projectId/extraction/validation" element={<ValidationReviewPage />} />
             <Route path="/projects/:projectId/quality" element={<QualityPage />} />
+            <Route path="/projects/:projectId/quality/review/:itemId" element={<QualityPage />} />
+            <Route path="/projects/:projectId/quality/mine" element={<MyQualityPage />} />
             <Route path="/projects/:projectId/results" element={<FinalResultsPage />} />
             <Route path="/projects/:projectId/analysis" element={<AnalysisPage />} />
             <Route path="/projects/:projectId/reporting" element={<ReportingPage />} />

@@ -4,15 +4,20 @@ import { Link, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { ConfirmButton } from '../../components/ConfirmButton'
+import { HighlightedText } from '../../components/HighlightedText'
 import { OutcomeBadge } from '../../components/OutcomeBadge'
+import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
+import { ScreeningLlmPanel } from '../llm/LlmTaskComponents'
 import { CriteriaAnswerFields } from './CriteriaAnswerFields'
 import type { CriterionAnswer, ScreeningCriterion } from './useScreeningQueue'
 
 interface DecisionPublication {
+  id: string
   title: string
   authors: string | null
   abstract: string | null
+  venue: string | null
   doi: string | null
   publisherUrl: string | null
 }
@@ -100,6 +105,14 @@ function DecisionEditForm({
         notes={notes}
         setNotes={setNotes}
       />
+      <ScreeningLlmPanel
+        projectId={projectId}
+        publicationId={item.publication.id}
+        itemId={item.workItemId}
+        stage={stage as 'title_abstract' | 'full_text'}
+        humanDecision={outcome}
+        criteriaAnswers={answers}
+      />
       {!criteriaComplete ? (
         <p className="muted">Answer every criterion before saving.</p>
       ) : null}
@@ -139,24 +152,40 @@ function DecisionCard({
   item,
   criteria,
   stageCompleted,
+  highlightKeywords,
 }: {
   projectId: string
   stage: string
   item: MyDecisionItem
   criteria: ScreeningCriterion[]
   stageCompleted: boolean
+  highlightKeywords: string[]
 }) {
   const [editing, setEditing] = useState(false)
   const publication = item.publication
-  const link = publication.doi
-    ? `https://doi.org/${publication.doi}`
-    : isSafeHttpUrl(publication.publisherUrl) ? publication.publisherUrl : null
 
   return (
     <li className="card">
-      <h2>{publication.title}</h2>
-      <p className="muted">{publication.authors ?? 'Unknown authors'}</p>
-      {link ? <p><a href={link} target="_blank" rel="noreferrer">View publication</a></p> : null}
+      <h2><HighlightedText text={publication.title} keywords={highlightKeywords} /></h2>
+      <p>{publication.authors ?? 'Unknown authors'}</p>
+      {publication.venue ? <p className="muted">{publication.venue}</p> : null}
+      <p>
+        {publication.abstract
+          ? <HighlightedText text={publication.abstract} keywords={highlightKeywords} />
+          : 'No abstract available.'}
+      </p>
+      <div className="toolbar">
+        {publication.doi ? (
+          <a href={`https://doi.org/${publication.doi}`} target="_blank" rel="noreferrer">
+            Open DOI
+          </a>
+        ) : null}
+        {isSafeHttpUrl(publication.publisherUrl) ? (
+          <a href={publication.publisherUrl} target="_blank" rel="noreferrer">
+            Open publisher page
+          </a>
+        ) : null}
+      </div>
       {editing ? (
         <DecisionEditForm
           projectId={projectId}
@@ -188,6 +217,7 @@ function DecisionCard({
 
 export function MyDecisionsPage() {
   const { projectId = '', stage = 'title_abstract' } = useParams()
+  const highlightKeywords = useHighlightKeywords(projectId)
   const query = useQuery({
     queryKey: ['my-decisions', projectId, stage],
     queryFn: () => apiRequest<MyDecisionsResponse>(
@@ -221,6 +251,7 @@ export function MyDecisionsPage() {
                   item={item}
                   criteria={query.data!.criteria}
                   stageCompleted={query.data!.stageCompleted}
+                  highlightKeywords={highlightKeywords}
                 />
               ))}
             </ul>

@@ -42,6 +42,18 @@ describe('ExtractionPage', () => {
     expect(fetchMock.mock.calls.filter(([input, init]) => String(input).endsWith('/next') && init?.method === 'POST')).toHaveLength(1)
   })
 
+  it('shows how many assigned papers have been extracted', async () => {
+    mockFetch(async (input) => {
+      const path = String(input)
+      if (path.endsWith('/next')) return jsonResponse(workItem)
+      if (path.endsWith('/extraction/progress')) return jsonResponse({ assigned: 5, completed: 2 })
+      return jsonResponse({})
+    })
+    renderWithProviders(<ExtractionPage />, { route: '/projects/p1/extraction', path: '/projects/:projectId/extraction' })
+
+    expect(await screen.findByText('2 of 5 assigned papers extracted')).toBeInTheDocument()
+  })
+
   it('renders a dynamic form field per active field and pre-fills the draft', async () => {
     mockFetch(async (input) => String(input).endsWith('/next')
       ? jsonResponse({ ...workItem, draft: { finding: 'Draft note' } })
@@ -95,12 +107,13 @@ describe('ExtractionPage', () => {
     expect(screen.queryByRole('button', { name: 'Continue to next paper' })).not.toBeInTheDocument()
   })
 
-  it('reports that no extraction work is currently available', async () => {
+  it('reports that the reviewer has completed all assigned extraction work, with a way back to the project', async () => {
     mockFetch(async (input) => String(input).endsWith('/next') ? jsonResponse(null) : jsonResponse({}))
     renderWithProviders(<ExtractionPage />, { route: '/projects/p1/extraction', path: '/projects/:projectId/extraction' })
 
-    expect(await screen.findByText('No extraction work is currently available.')).toBeInTheDocument()
+    expect(await screen.findByText('You have completed all of your assigned extraction work.')).toBeInTheDocument()
     expect(screen.queryByText('Loading the next extraction…')).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Back to project' })).toBeInTheDocument()
   })
 
   it('reports a load error', async () => {
@@ -267,6 +280,48 @@ describe('ExtractionPage', () => {
       'href',
       '/projects/p1/extraction/validation',
     )
+  })
+
+  it('shows no LLM placeholder when data extraction assistance is disabled', async () => {
+    mockFetch(async (input) => String(input).endsWith('/next')
+      ? jsonResponse(workItem)
+      : jsonResponse({ state: 'disabled' }))
+    renderWithProviders(<ExtractionPage />, { route: '/projects/p1/extraction', path: '/projects/:projectId/extraction' })
+
+    await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
+    await waitFor(() => {
+      expect(screen.queryByText('Checking for LLM suggestions…')).not.toBeInTheDocument()
+    })
+    expect(screen.queryByText(/LLM assistance/)).not.toBeInTheDocument()
+  })
+
+  it('shows no LLM validation placeholder when validation is disabled', async () => {
+    mockFetch(async (input) => {
+      const path = String(input)
+      if (path.endsWith('/extraction/extraction-1')) {
+        return jsonResponse({
+          ...workItem,
+          status: 'completed',
+          draft: { finding: 'Human finding' },
+          currentResponse: {
+            id: 'response-1', answers: { finding: 'Human finding' },
+            version: 1, formVersionId: 'v1',
+          },
+        })
+      }
+      if (path.endsWith('/llm-validation')) return jsonResponse({ state: 'disabled', responseId: 'response-1' })
+      return jsonResponse({})
+    })
+    renderWithProviders(<ExtractionPage />, {
+      route: '/projects/p1/extraction/review/extraction-1',
+      path: '/projects/:projectId/extraction/review/:itemId',
+    })
+
+    expect(await screen.findByLabelText('Main finding *')).toHaveValue('Human finding')
+    await waitFor(() => {
+      expect(screen.queryByText('LLM extraction validation')).not.toBeInTheDocument()
+    })
+    expect(screen.queryByRole('link', { name: 'Back to validation review' })).not.toBeInTheDocument()
   })
 
   it('keeps manual extraction usable when LLM processing fails', async () => {
