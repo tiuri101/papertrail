@@ -90,13 +90,26 @@ export function useScreeningQueue(projectId: string, stage: string) {
     item: ScreeningWorkItem
     decision: SubmittedScreeningDecision
   } | null>(null)
+  const skippedItemIds = useRef<Set<string>>(new Set())
+
+  const nextUrl = () => {
+    const params = new URLSearchParams()
+    skippedItemIds.current.forEach((id) => params.append('excludedItemId', id))
+    const query = params.toString()
+    return `/api/v1/projects/${projectId}/screening/${stage}/next${query ? `?${query}` : ''}`
+  }
 
   const next = useMutation({
     mutationFn: () => apiRequest<ScreeningWorkItem | null>(
-      `/api/v1/projects/${projectId}/screening/${stage}/next`,
+      nextUrl(),
       { method: 'POST' },
     ),
     onSuccess: (result) => {
+      if (result === null && skippedItemIds.current.size > 0) {
+        skippedItemIds.current.clear()
+        next.mutate()
+        return
+      }
       setItem(result)
       setSubmitted(null)
       setQueueEmpty(result === null)
@@ -105,6 +118,25 @@ export function useScreeningQueue(projectId: string, stage: string) {
     onError: (error) => {
       setNextError(error instanceof Error ? error.message : 'Failed to load the next publication')
       setLoadingNext(false)
+    },
+  })
+
+  const skip = useMutation({
+    mutationFn: async () => {
+      if (!item) throw new Error('No screening item is open')
+      await apiRequest(
+        `/api/v1/projects/${projectId}/screening/work-items/${item.id}/release`,
+        { method: 'POST' },
+      )
+      return item.id
+    },
+    onSuccess: (itemId) => {
+      skippedItemIds.current.add(itemId)
+      setItem(null)
+      setAnswers({})
+      setOutcome('include')
+      setNotes('')
+      fetchNext()
     },
   })
 
@@ -290,6 +322,7 @@ export function useScreeningQueue(projectId: string, stage: string) {
     nextError,
     fetchNext,
     submit,
+    skip,
     criteriaComplete,
     progress: progress.data,
     submitted,

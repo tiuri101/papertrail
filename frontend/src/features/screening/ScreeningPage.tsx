@@ -12,6 +12,7 @@ export function ScreeningPage() {
 
   return (
     <main className="page">
+      <p className="eyebrow">Review workspace</p>
       <h1>
         {stage === 'full_text'
           ? 'Full-Text Screening'

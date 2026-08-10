@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import enum
 from datetime import date, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import (
     BigInteger,
@@ -18,6 +18,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from app.db.types import JSONType
+
+if TYPE_CHECKING:
+    from app.accounts.models import User
 
 
 class ImportStatus(enum.StrEnum):
@@ -53,6 +56,7 @@ class SearchSource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     created_by_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False)
 
+    created_by: Mapped[User] = relationship()
     import_batches: Mapped[list[ImportBatch]] = relationship(
         back_populates="search_source", order_by="ImportBatch.created_at"
     )

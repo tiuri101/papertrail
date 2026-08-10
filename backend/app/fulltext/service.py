@@ -85,7 +85,10 @@ def initialize_full_text_stage(db: Session, project: Project) -> int:
 
 
 def claim_next_retrieval(
-    db: Session, project_id: str, user_id: str
+    db: Session,
+    project_id: str,
+    user_id: str,
+    excluded_retrieval_ids: set[str] | None = None,
 ) -> FullTextRetrieval | None:
     """Claim the next paper needing full-text retrieval for this reviewer.
 
@@ -106,6 +109,8 @@ def claim_next_retrieval(
             FullTextRetrieval.claimed_by_id == user_id,
         ),
     ]
+    if excluded_retrieval_ids:
+        filters.append(FullTextRetrieval.id.not_in(excluded_retrieval_ids))
     priority = case(
         (FullTextRetrieval.status == RetrievalStatus.NOT_YET_SOUGHT, 0), else_=1
     )

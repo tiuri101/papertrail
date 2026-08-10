@@ -3,8 +3,10 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { DateField } from '../../components/DateField'
-import { IconUpload } from '../../components/icons'
+import { IconClock, IconPerson, IconUpload } from '../../components/icons'
+import { useRegisterSectionItems } from '../../components/sectionNavigation'
 import { InfoTooltip } from '../../components/Tooltip'
 import { getCsrfToken } from '../auth/session'
 import { BackgroundJob, findJob, hasActiveJob, isJobActive } from '../jobs/jobStatus'
@@ -17,6 +19,7 @@ interface SearchImportBatch {
   originalFilename: string
   status: string
   recordCount: number
+  attachedPaperCount?: number
   completedAt: string | null
 }
 
@@ -26,13 +29,47 @@ interface SearchSource {
   query: string
   searchDate: string
   filters: string | null
+  exportedResultCount?: number
+  createdAt?: string
+  createdBy?: {
+    id: string
+    displayName: string
+    username: string
+  }
   importBatches?: SearchImportBatch[]
 }
 
 interface ImportResult { jobId: string; importBatchId: string }
 
+const importSections = [
+  { id: 'section-import-records', label: 'Import an Export File' },
+  { id: 'section-search-history', label: 'Previously Documented Searches' },
+]
+
+function formatSearchDate(value: string): string {
+  const [year, month, day] = value.split('-').map(Number)
+  return new Date(year, month - 1, day).toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+function formatDocumentedAt(value: string): string {
+  return new Date(value).toLocaleDateString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+function formatImportStatus(value: string): string {
+  return value.replaceAll('_', ' ').replace(/^./, (letter) => letter.toUpperCase())
+}
+
 export function ImportPage() {
   const { projectId = '' } = useParams()
+  useRegisterSectionItems(importSections)
   const queryClient = useQueryClient()
   const [file, setFile] = useState<File | null>(null)
   const [pdfFiles, setPdfFiles] = useState<File[]>([])
@@ -45,6 +82,7 @@ export function ImportPage() {
   const [pendingBatchId, setPendingBatchId] = useState<string | null>(null)
   const [showPdfReview, setShowPdfReview] = useState(false)
   const [attachBatchId, setAttachBatchId] = useState<string | null>(null)
+  const [hadSearchHistoryOnLoad, setHadSearchHistoryOnLoad] = useState<boolean | null>(null)
 
   const searches = useQuery({
     queryKey: ['searches', projectId],
@@ -59,6 +97,12 @@ export function ImportPage() {
     refetchInterval: (query) => (hasActiveJob(query.state.data) ? 2000 : false),
   })
   const pendingJob = pendingJobId ? findJob(jobs.data, pendingJobId) : undefined
+
+  useEffect(() => {
+    if (!searches.isLoading && hadSearchHistoryOnLoad === null) {
+      setHadSearchHistoryOnLoad(Boolean(searches.data?.length))
+    }
+  }, [hadSearchHistoryOnLoad, searches.data, searches.isLoading])
 
   useEffect(() => {
     if (pendingJob && !isJobActive(pendingJob.status)) {
@@ -113,10 +157,19 @@ export function ImportPage() {
 
   return (
     <main className="page">
-      <h1>Import Records</h1>
+      <h1>Searches and Imports</h1>
 
-      <section className="card">
-        <h2>Import an Export File</h2>
+      {hadSearchHistoryOnLoad === null ? (
+        <section id="section-import-records" className="card">
+          <h2>Import an Export File</h2>
+          <p className="muted">Loading documented searches…</p>
+        </section>
+      ) : (
+        <CollapsibleSection
+          id="section-import-records"
+          title="Import an Export File"
+          defaultExpanded={!hadSearchHistoryOnLoad}
+        >
         <p className="muted">Record the database and search string used alongside the file, so it can be traced back for this import and reported in your PRISMA flow.</p>
         {submit.error ? <p className="error" role="alert">{submit.error.message}</p> : null}
         <form onSubmit={(event) => { event.preventDefault(); submit.mutate() }}>
@@ -206,43 +259,149 @@ export function ImportPage() {
             </p>
           )
         ) : null}
+        </CollapsibleSection>
+      )}
+
+      <section
+        id="section-search-history"
+        className="card search-history"
+        aria-labelledby="search-history-title"
+      >
+        <header className="search-history__heading">
+          <span className="eyebrow">Search history</span>
+          <h2 id="search-history-title">Previously Documented Searches</h2>
+          {searches.data?.length ? (
+            <p>
+              {searches.data.length} documented search{searches.data.length === 1 ? '' : 'es'} with
+              their strategy, provenance, and imported records.
+            </p>
+          ) : (
+            <p>No searches have been documented for this project yet.</p>
+          )}
+        </header>
+
         {searches.data?.length ? (
-          <>
-            <h3>Previously Documented Searches</h3>
-            <ul>
-              {searches.data.map((search) => (
-                <li key={search.id}>
-                  <strong>{search.sourceName}</strong>: {search.query} — {search.searchDate}
-                  {(search.importBatches ?? [])
-                    .filter((batch) => batch.status === 'completed')
-                    .map((batch) => (
-                      <div className="toolbar" key={batch.id}>
-                        <span className="muted">
-                          {batch.originalFilename} · {batch.recordCount} records
+          <ol className="search-history__list">
+              {searches.data.map((search) => {
+                const batches = search.importBatches ?? []
+                const importedRecords = batches.reduce(
+                  (total, batch) => total + batch.recordCount,
+                  0,
+                )
+                const attachedPapers = batches.reduce(
+                  (total, batch) => total + (batch.attachedPaperCount ?? 0),
+                  0,
+                )
+                const paperCount = importedRecords || search.exportedResultCount || 0
+
+                return (
+                  <li className="search-history__card" key={search.id}>
+                    <header className="search-history__card-header">
+                      <div className="search-history__database">
+                        <span className="search-history__database-icon" aria-hidden="true">
+                          {search.sourceName.slice(0, 1).toUpperCase()}
                         </span>
-                        <button
-                          type="button"
-                          onClick={() => setAttachBatchId(
-                            attachBatchId === batch.id ? null : batch.id,
-                          )}
-                        >
-                          {attachBatchId === batch.id ? 'Cancel' : 'Attach PDFs'}
-                        </button>
+                        <div>
+                          <span className="eyebrow">Database</span>
+                          <h4>{search.sourceName}</h4>
+                        </div>
                       </div>
-                    ))}
-                  {attachBatchId
-                  && search.importBatches?.some((batch) => batch.id === attachBatchId) ? (
-                    <AttachPdfsPanel
-                      projectId={projectId}
-                      importBatchId={attachBatchId}
-                      onClose={() => setAttachBatchId(null)}
-                    />
-                    ) : null}
-                </li>
-              ))}
-            </ul>
-          </>
-        ) : null}
+                      <div className="search-history__paper-count" aria-label={`${paperCount} papers`}>
+                        <strong>{paperCount}</strong>
+                        <span>{paperCount === 1 ? 'paper' : 'papers'}</span>
+                      </div>
+                    </header>
+
+                    <dl className="search-history__metadata">
+                      <div>
+                        <dt><IconClock />Search date</dt>
+                        <dd><time dateTime={search.searchDate}>{formatSearchDate(search.searchDate)}</time></dd>
+                      </div>
+                      <div>
+                        <dt><IconPerson />Added by</dt>
+                        <dd>
+                          {search.createdBy
+                            ? `${search.createdBy.displayName} (@${search.createdBy.username})`
+                            : 'Contributor unavailable'}
+                        </dd>
+                      </div>
+                      <div>
+                        <dt><IconUpload />Import overview</dt>
+                        <dd>
+                          {batches.length} import{batches.length === 1 ? '' : 's'} · {importedRecords} record{importedRecords === 1 ? '' : 's'} · {attachedPapers} imported paper{attachedPapers === 1 ? '' : 's'} with PDF
+                        </dd>
+                      </div>
+                      {search.createdAt ? (
+                        <div>
+                          <dt>Documented</dt>
+                          <dd><time dateTime={search.createdAt}>{formatDocumentedAt(search.createdAt)}</time></dd>
+                        </div>
+                      ) : null}
+                    </dl>
+
+                    <div className="search-history__strategy">
+                      <div>
+                        <span>Search string</span>
+                        <p>{search.query}</p>
+                      </div>
+                      <div>
+                        <span>Filters applied</span>
+                        <p>{search.filters?.trim() || 'No filters documented'}</p>
+                      </div>
+                    </div>
+
+                    {batches.length ? (
+                      <div className="search-history__imports">
+                        <h5>Import files</h5>
+                        <ul>
+                          {batches.map((batch) => (
+                            <li key={batch.id}>
+                              <div className="search-history__import-details">
+                                <strong>{batch.originalFilename}</strong>
+                                <span className="muted">
+                                  {batch.recordCount} records · {batch.attachedPaperCount ?? 0} paper{batch.attachedPaperCount === 1 ? '' : 's'} with PDF
+                                  {batch.completedAt
+                                    ? ` · completed ${formatDocumentedAt(batch.completedAt)}`
+                                    : ''}
+                                </span>
+                              </div>
+                              <span className={`search-history__status search-history__status--${batch.status}`}>
+                                {formatImportStatus(batch.status)}
+                              </span>
+                              {batch.status === 'completed' ? (
+                                <button
+                                  type="button"
+                                  className="button-secondary"
+                                  onClick={() => setAttachBatchId(
+                                    attachBatchId === batch.id ? null : batch.id,
+                                  )}
+                                >
+                                  {attachBatchId === batch.id ? 'Cancel' : 'Attach PDFs'}
+                                </button>
+                              ) : null}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    ) : (
+                      <p className="search-history__no-imports">No import file is associated with this search yet.</p>
+                    )}
+
+                    {attachBatchId
+                    && batches.some((batch) => batch.id === attachBatchId) ? (
+                      <AttachPdfsPanel
+                        projectId={projectId}
+                        importBatchId={attachBatchId}
+                        onClose={() => setAttachBatchId(null)}
+                      />
+                      ) : null}
+                  </li>
+                )
+              })}
+          </ol>
+        ) : (
+          <p className="search-history__empty">Your documented search strategies and import summaries will appear here.</p>
+        )}
       </section>
       {showPdfReview && pendingBatchId ? (
         <PdfMatchReview projectId={projectId} importBatchId={pendingBatchId} />

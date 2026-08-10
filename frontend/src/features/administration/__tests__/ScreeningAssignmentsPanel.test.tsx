@@ -1,5 +1,5 @@
-import { act, fireEvent, screen, waitFor, within } from '@testing-library/react'
-import { describe, expect, it, vi } from 'vitest'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
+import { describe, expect, it } from 'vitest'
 
 import { ScreeningAssignmentsPanel } from '../ScreeningAssignmentsPanel'
 import { jsonResponse, mockFetch } from '../../../test/http'
@@ -202,28 +202,21 @@ describe('ScreeningAssignmentsPanel', () => {
   })
 
   it('filters by search text after a short debounce', async () => {
-    vi.useFakeTimers()
-    try {
-      const fetchMock = mockFetch((input) => {
-        const url = String(input)
-        if (url.endsWith('/users')) return jsonResponse(users)
-        if (url.includes('/assignments')) return jsonResponse(page(assignments))
-        return jsonResponse(projectDetail)
-      })
-      renderWithProviders(<ScreeningAssignmentsPanel projectId="p1" />)
-      await vi.waitFor(() => screen.findByText('Immersive Analytics Study'))
+    const fetchMock = mockFetch((input) => {
+      const url = String(input)
+      if (url.endsWith('/users')) return jsonResponse(users)
+      if (url.includes('/assignments')) return jsonResponse(page(assignments))
+      return jsonResponse(projectDetail)
+    })
+    renderWithProviders(<ScreeningAssignmentsPanel projectId="p1" />)
+    await screen.findByText('Immersive Analytics Study')
 
-      fireEvent.change(screen.getByLabelText('Search'), { target: { value: 'Immersive' } })
-      expect(fetchMock.mock.calls.some(([input]) => String(input).includes('search=Immersive'))).toBe(false)
+    fireEvent.change(screen.getByLabelText('Search'), { target: { value: 'Immersive' } })
+    expect(fetchMock.mock.calls.some(([input]) => String(input).includes('search=Immersive'))).toBe(false)
 
-      await act(() => vi.advanceTimersByTimeAsync(300))
-
-      await vi.waitFor(() => {
-        expect(fetchMock.mock.calls.some(([input]) => String(input).includes('search=Immersive'))).toBe(true)
-      })
-    } finally {
-      vi.useRealTimers()
-    }
+    await waitFor(() => {
+      expect(fetchMock.mock.calls.some(([input]) => String(input).includes('search=Immersive'))).toBe(true)
+    })
   })
 
   it('filters by status and by reviewer', async () => {

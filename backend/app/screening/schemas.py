@@ -73,7 +73,13 @@ class MyDecisionItem(ApiModel):
     work_item_id: str = Field(serialization_alias="workItemId")
     submitted_at: str | None = Field(serialization_alias="submittedAt")
     publication: PublicationItem
-    decision: DecisionResponse
+    decision: DecisionResponse | None = None
+    retrieval_status: str | None = Field(
+        default=None, serialization_alias="retrievalStatus"
+    )
+    retrieval_note: str | None = Field(
+        default=None, serialization_alias="retrievalNote"
+    )
 
 
 class MyDecisionsResponse(ApiModel):

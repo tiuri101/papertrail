@@ -1,6 +1,6 @@
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
@@ -50,10 +50,13 @@ def list_retrievals(
 )
 def next_retrieval(
     project_id: str,
+    excluded_retrieval_ids: list[str] = Query(default=[], alias="excludedRetrievalId"),
     reviewer: User = Depends(require_full_text_reviewer_csrf),
     db: Session = Depends(get_db),
 ) -> FullTextRetrieval | None:
-    retrieval = claim_next_retrieval(db, project_id, reviewer.id)
+    retrieval = claim_next_retrieval(
+        db, project_id, reviewer.id, set(excluded_retrieval_ids)
+    )
     db.commit()
     return retrieval
 

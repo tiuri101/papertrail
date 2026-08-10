@@ -22,12 +22,14 @@ from app.forms.schemas import (
     SaveAsTemplateRequest,
 )
 from app.forms.service import (
+    active_version,
     add_field,
     archive_field,
     copy_template_to_project,
     create_form,
     delete_field,
     delete_form,
+    find_field,
     rename_field,
     replace_field,
     save_form_as_template,
@@ -230,10 +232,29 @@ def update_form_field(
     if form is None:
         raise NotFoundError("Form not found")
     require_manager_for(db, admin, form.project_id)
+    current_field = find_field(db, active_version(db, form), stable_key)
+    before = {
+        "label": current_field.label,
+        "fieldType": current_field.field_type.value,
+        "required": current_field.required,
+        "position": current_field.position,
+        "options": current_field.options,
+        "scoring": current_field.scoring,
+        "isArchived": current_field.is_archived,
+    }
     if payload.archive:
         field = archive_field(db, form, stable_key)
         action = "form_field.archived"
-    elif payload.field_type is not None or payload.required is not None:
+    elif any(
+        value is not None
+        for value in (
+            payload.field_type,
+            payload.required,
+            payload.position,
+            payload.options,
+            payload.scoring,
+        )
+    ):
         field = update_field(
             db,
             form,
@@ -241,6 +262,9 @@ def update_form_field(
             label=payload.label,
             field_type=payload.field_type,
             required=payload.required,
+            position=payload.position,
+            options=payload.options,
+            scoring=payload.scoring,
         )
         action = "form_field.updated"
     elif payload.label is not None:
@@ -248,6 +272,20 @@ def update_form_field(
         action = "form_field.renamed"
     else:
         raise DomainError("No form field update was supplied")
+    after = {
+        "label": field.label,
+        "fieldType": field.field_type.value,
+        "required": field.required,
+        "position": field.position,
+        "options": field.options,
+        "scoring": field.scoring,
+        "isArchived": field.is_archived,
+    }
+    changes = {
+        key: {"from": before[key], "to": value}
+        for key, value in after.items()
+        if before[key] != value
+    }
     record_audit(
         db,
         action=action,
@@ -255,7 +293,8 @@ def update_form_field(
         entity_id=field.id,
         project_id=form.project_id,
         actor_id=admin.id,
-        summary=f"Updated field in {form.name}",
+        summary=f"Updated field '{field.label}' in {form.name}",
+        metadata={"stableKey": stable_key, "changes": changes},
     )
     db.commit()
     return field
@@ -333,6 +372,15 @@ def replace_form_field(
     if form is None:
         raise NotFoundError("Form not found")
     require_manager_for(db, admin, form.project_id)
+    current_field = find_field(db, active_version(db, form), stable_key)
+    before = {
+        "label": current_field.label,
+        "fieldType": current_field.field_type.value,
+        "required": current_field.required,
+        "position": current_field.position,
+        "options": current_field.options,
+        "scoring": current_field.scoring,
+    }
     field = replace_field(
         db,
         form,
@@ -340,6 +388,7 @@ def replace_form_field(
         payload.field_type,
         label=payload.label,
         required=payload.required,
+        position=payload.position,
         options=payload.options,
         scoring=payload.scoring,
     )
@@ -351,7 +400,22 @@ def replace_form_field(
         project_id=form.project_id,
         actor_id=admin.id,
         summary=f"Replaced field in {form.name}",
-        metadata={"replacedStableKey": stable_key},
+        metadata={
+            "replacedStableKey": stable_key,
+            "replacementStableKey": field.stable_key,
+            "changes": {
+                key: {"from": before[key], "to": value}
+                for key, value in {
+                    "label": field.label,
+                    "fieldType": field.field_type.value,
+                    "required": field.required,
+                    "position": field.position,
+                    "options": field.options,
+                    "scoring": field.scoring,
+                }.items()
+                if before[key] != value
+            },
+        },
     )
     db.commit()
     return field

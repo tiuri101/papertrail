@@ -48,9 +48,11 @@ export function AccountSettingsPage() {
   })
 
   const passwordsMismatch = newPassword.length > 0 && newPassword !== confirmPassword
+  const passwordUnchanged = currentPassword.length > 0 && newPassword === currentPassword
 
   return (
     <main className="page">
+      <p className="eyebrow">Personal settings</p>
       <h1>Account Settings</h1>
       <section className="card">
         <h2>Profile</h2>
@@ -114,6 +116,11 @@ export function AccountSettingsPage() {
               required
             />
           </label>
+          {passwordUnchanged ? (
+            <p className="error" role="alert">
+              New password must be different from your current password.
+            </p>
+          ) : null}
           {passwordsMismatch ? <p className="error" role="alert">New passwords do not match.</p> : null}
           {updatePassword.error ? <p className="error" role="alert">{updatePassword.error.message}</p> : null}
           {updatePassword.isSuccess ? <p>Password updated.</p> : null}
@@ -123,6 +130,7 @@ export function AccountSettingsPage() {
               updatePassword.isPending
               || !currentPassword
               || newPassword.length < 8
+              || passwordUnchanged
               || passwordsMismatch
             }
           >

@@ -1,6 +1,7 @@
 from sqlalchemy import select
 
 from app.accounts.service import create_user
+from app.audit.models import AuditEvent
 from app.forms.models import FieldType, FormField, FormKind, FormVersion, ReviewForm
 from app.forms.service import (
     add_field,
@@ -176,6 +177,46 @@ def test_update_field_changes_type_and_required_in_place(db) -> None:
         )
     )
     assert len(current_fields) == 1
+
+
+def test_update_field_changes_options_scoring_and_position(db) -> None:
+    form = create_form(db, "Quality", FormKind.QUALITY, is_template=True)
+    first = add_field(db, form, "Notes", "long_text")
+    second = add_field(
+        db,
+        form,
+        "Study design",
+        "single_select",
+        options=["Experimental", "Observational"],
+    )
+    third = add_field(db, form, "Score", "rating", options=["1", "5"])
+    db.commit()
+
+    updated = update_field(
+        db,
+        form,
+        second.stable_key,
+        options=["Experimental", "Quasi-experimental"],
+        scoring={"values": {"Experimental": 2, "Quasi-experimental": 1}},
+        position=0,
+    )
+    db.commit()
+
+    current_fields = list(
+        db.scalars(
+            select(FormField)
+            .where(FormField.form_version_id == form.active_version_id)
+            .order_by(FormField.position)
+        )
+    )
+    assert [field.stable_key for field in current_fields] == [
+        second.stable_key,
+        first.stable_key,
+        third.stable_key,
+    ]
+    assert [field.position for field in current_fields] == [0, 1, 2]
+    assert updated.options == ["Experimental", "Quasi-experimental"]
+    assert updated.scoring == {"values": {"Experimental": 2, "Quasi-experimental": 1}}
 
 
 def test_update_field_type_is_blocked_once_responses_exist(db) -> None:
@@ -388,6 +429,147 @@ def test_project_form_creation_rejects_a_second_form_of_the_same_kind(
         headers={"X-CSRF-Token": csrf},
     )
     assert other_kind.status_code == 201
+
+
+def test_field_updates_and_archiving_record_auditable_changes(client, db) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    db.commit()
+    csrf = login(client, "admin", "secret-password")
+    project_id = client.post(
+        "/api/v1/projects",
+        json={"name": "Review", "reviewType": "systematic_review"},
+        headers={"X-CSRF-Token": csrf},
+    ).json()["id"]
+    form_id = client.post(
+        f"/api/v1/projects/{project_id}/forms",
+        json={"name": "Extraction", "kind": "extraction"},
+        headers={"X-CSRF-Token": csrf},
+    ).json()["id"]
+    stable_key = client.post(
+        f"/api/v1/forms/{form_id}/fields",
+        json={
+            "label": "Main finding",
+            "fieldType": "short_text",
+            "required": False,
+        },
+        headers={"X-CSRF-Token": csrf},
+    ).json()["stableKey"]
+
+    updated = client.patch(
+        f"/api/v1/forms/{form_id}/fields/{stable_key}",
+        json={
+            "label": "Primary outcome",
+            "required": True,
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert updated.status_code == 200
+
+    replacement = client.post(
+        f"/api/v1/forms/{form_id}/fields/{stable_key}/replace",
+        json={
+            "label": "Primary outcome",
+            "fieldType": "number",
+            "required": True,
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert replacement.status_code == 200
+    replacement_key = replacement.json()["stableKey"]
+
+    archived = client.patch(
+        f"/api/v1/forms/{form_id}/fields/{replacement_key}",
+        json={"archive": True},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert archived.status_code == 200
+
+    events = list(
+        db.scalars(
+            select(AuditEvent)
+            .where(
+                AuditEvent.project_id == project_id,
+                AuditEvent.action.in_(
+                    [
+                        "form_field.updated",
+                        "form_field.replaced",
+                        "form_field.archived",
+                    ]
+                ),
+            )
+            .order_by(AuditEvent.created_at, AuditEvent.id)
+        )
+    )
+    assert [event.action for event in events] == [
+        "form_field.updated",
+        "form_field.replaced",
+        "form_field.archived",
+    ]
+    assert events[0].event_metadata == {
+        "stableKey": stable_key,
+        "changes": {
+            "label": {"from": "Main finding", "to": "Primary outcome"},
+            "required": {"from": False, "to": True},
+        },
+    }
+    assert events[1].event_metadata == {
+        "replacedStableKey": stable_key,
+        "replacementStableKey": replacement_key,
+        "changes": {
+            "fieldType": {"from": "short_text", "to": "number"},
+        },
+    }
+    assert events[2].event_metadata == {
+        "stableKey": replacement_key,
+        "changes": {"isArchived": {"from": False, "to": True}},
+    }
+
+
+def test_field_update_api_saves_options_scoring_and_order(client, db) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    db.commit()
+    csrf = login(client, "admin", "secret-password")
+    project_id = client.post(
+        "/api/v1/projects",
+        json={"name": "Review", "reviewType": "systematic_review"},
+        headers={"X-CSRF-Token": csrf},
+    ).json()["id"]
+    form_id = client.post(
+        f"/api/v1/projects/{project_id}/forms",
+        json={"name": "Extraction", "kind": "extraction"},
+        headers={"X-CSRF-Token": csrf},
+    ).json()["id"]
+    first_key = client.post(
+        f"/api/v1/forms/{form_id}/fields",
+        json={
+            "label": "Study design",
+            "fieldType": "multiple_select",
+            "options": ["Experimental", "Observational"],
+        },
+        headers={"X-CSRF-Token": csrf},
+    ).json()["stableKey"]
+    second_key = client.post(
+        f"/api/v1/forms/{form_id}/fields",
+        json={"label": "Notes", "fieldType": "long_text"},
+        headers={"X-CSRF-Token": csrf},
+    ).json()["stableKey"]
+
+    updated = client.patch(
+        f"/api/v1/forms/{form_id}/fields/{first_key}",
+        json={
+            "position": 1,
+            "options": ["Experimental", "Quasi-experimental"],
+            "scoring": {"weight": 2},
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    assert updated.status_code == 200
+    assert updated.json()["options"] == ["Experimental", "Quasi-experimental"]
+    assert updated.json()["scoring"] == {"weight": 2}
+    listed = client.get(f"/api/v1/forms/{form_id}/fields")
+    assert [field["stableKey"] for field in listed.json()] == [second_key, first_key]
+    assert [field["position"] for field in listed.json()] == [0, 1]
 
 
 def test_deleting_a_form_allows_recreating_one_of_the_same_kind(client, db) -> None:

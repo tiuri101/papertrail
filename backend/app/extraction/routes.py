@@ -1,6 +1,6 @@
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -139,14 +139,36 @@ def get_extraction_for_review(
 )
 def next_extraction(
     project_id: str,
+    excluded_item_ids: list[str] = Query(default=[], alias="excludedItemId"),
     session: UserSession = Depends(require_csrf),
     db: Session = Depends(get_db),
 ) -> dict[str, Any] | None:
     require_project_access(db, project_id, session.user)
     reassign_work_items_from_ineligible_reviewers(db, project_id)
-    item = claim_next_extraction(db, project_id, session.user.id)
+    item = claim_next_extraction(
+        db, project_id, session.user.id, set(excluded_item_ids)
+    )
     db.commit()
     return extraction_item_payload(db, item) if item else None
+
+
+@router.post("/projects/{project_id}/extraction/{item_id}/release")
+def release_extraction(
+    project_id: str,
+    item_id: str,
+    session: UserSession = Depends(require_csrf),
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    item = db.get(ExtractionWorkItem, item_id)
+    if item is None or item.project_id != project_id:
+        raise NotFoundError("Extraction work item not found")
+    if item.assigned_reviewer_id != session.user.id:
+        raise ForbiddenError("Extraction is assigned to another reviewer")
+    if item.status != ExtractionStatus.COMPLETED:
+        item.status = ExtractionStatus.AVAILABLE
+        item.reserved_until = None
+    db.commit()
+    return {"status": "released"}
 
 
 @router.put("/projects/{project_id}/extraction/{item_id}/draft")

@@ -50,9 +50,92 @@ describe('MyDecisionsPage', () => {
     })
 
     expect(await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })).toBeInTheDocument()
-    expect(screen.getByText(/Include/)).toBeInTheDocument()
+    expect(screen.getByText('Include', { selector: '.status-badge' })).toBeInTheDocument()
     expect(screen.getByText('Looks relevant', { exact: false })).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+  })
+
+  it('lists full-text retrieval decisions when a report was not accessible', async () => {
+    renderMyDecisions(async (input) => {
+      if (String(input).endsWith('/my-decisions')) {
+        return jsonResponse({
+          stageCompleted: false,
+          criteria,
+          items: [{
+            ...baseItem,
+            workItemId: 'retrieval-1',
+            decision: null,
+            retrievalStatus: 'inaccessible',
+            retrievalNote: 'Paywall could not be bypassed',
+          }],
+        })
+      }
+      return jsonResponse({})
+    }, 'full_text')
+
+    expect(
+      await screen.findByText('Full text inaccessible', { selector: '.status-badge' }),
+    ).toBeInTheDocument()
+    expect(screen.getByText(/Paywall could not be bypassed/)).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Edit Decision' })).not.toBeInTheDocument()
+  })
+
+  it('searches, filters, and sorts full-text decisions', async () => {
+    const excludedItem = {
+      ...baseItem,
+      workItemId: 'work-2',
+      submittedAt: '2026-03-01T00:00:00Z',
+      publication: { ...baseItem.publication, id: 'publication-2', title: 'Alpha Study' },
+      decision: { ...baseItem.decision, id: 'decision-2', outcome: 'exclude' },
+    }
+    const inaccessibleItem = {
+      ...baseItem,
+      workItemId: 'retrieval-1',
+      submittedAt: '2026-02-01T00:00:00Z',
+      publication: {
+        ...baseItem.publication,
+        id: 'publication-3',
+        title: 'Zebra Report',
+        authors: 'Z. Reviewer',
+      },
+      decision: null,
+      retrievalStatus: 'inaccessible',
+      retrievalNote: 'No institutional access',
+    }
+    renderMyDecisions(async (input) => {
+      if (String(input).endsWith('/my-decisions')) {
+        return jsonResponse({
+          stageCompleted: false,
+          criteria,
+          items: [baseItem, inaccessibleItem, excludedItem],
+        })
+      }
+      return jsonResponse({})
+    }, 'full_text')
+
+    await screen.findByRole('heading', { name: 'Alpha Study' })
+    expect(screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)).toEqual([
+      'Alpha Study',
+      'Zebra Report',
+      'Immersive Urban Analytics',
+    ])
+
+    fireEvent.change(screen.getByLabelText('Sort by'), { target: { value: 'title_asc' } })
+    expect(screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)).toEqual([
+      'Alpha Study',
+      'Immersive Urban Analytics',
+      'Zebra Report',
+    ])
+
+    fireEvent.change(screen.getByLabelText('Decision'), { target: { value: 'inaccessible' } })
+    expect(screen.getByRole('heading', { name: 'Zebra Report' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Alpha Study' })).not.toBeInTheDocument()
+    expect(screen.getByText('1 of 3 decisions match your filters')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Decision'), { target: { value: '' } })
+    fireEvent.change(screen.getByLabelText('Search papers'), { target: { value: 'Z. Reviewer' } })
+    expect(screen.getByRole('heading', { name: 'Zebra Report' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Immersive Urban Analytics' })).not.toBeInTheDocument()
   })
 
   it('shows a warning banner once the stage has been completed', async () => {

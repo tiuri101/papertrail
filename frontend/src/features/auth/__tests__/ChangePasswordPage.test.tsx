@@ -13,6 +13,7 @@ function renderChangePassword(session: LoginResponse) {
     <Routes>
       <Route path="/change-password" element={<ChangePasswordPage />} />
       <Route path="/" element={<p>Home destination</p>} />
+      <Route path="/help" element={<p>Help destination</p>} />
     </Routes>,
     { route: '/change-password' },
   ).queryClient
@@ -21,7 +22,7 @@ function renderChangePassword(session: LoginResponse) {
 }
 
 describe('ChangePasswordPage', () => {
-  it('submits the new password and navigates home on success', async () => {
+  it('submits the new password and offers Help before entering the application', async () => {
     const session: LoginResponse = {
       user: {
         id: 'u1',
@@ -42,13 +43,67 @@ describe('ChangePasswordPage', () => {
     fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: 'chosen-password' } })
     fireEvent.click(screen.getByRole('button', { name: 'Set Password' }))
 
-    expect(await screen.findByText('Home destination')).toBeInTheDocument()
+    const welcomeDialog = await screen.findByRole('alertdialog', { name: 'New to Papertrail?' })
+    expect(welcomeDialog).toHaveTextContent('Take a look at the Help section')
+    expect(screen.getByRole('button', { name: 'Explore Help' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Continue to Papertrail' })).toBeInTheDocument()
     expect(fetchMock).toHaveBeenCalledWith('/api/v1/auth/me', expect.objectContaining({ method: 'PATCH' }))
     expect(JSON.parse(String(fetchMock.mock.calls[0][1]?.body))).toEqual({
       currentPassword: 'temporary-password',
       newPassword: 'chosen-password',
     })
     expect(queryClient.getQueryData<LoginResponse>(sessionQueryOptions.queryKey)?.user.mustChangePassword).toBe(false)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Explore Help' }))
+    expect(await screen.findByText('Help destination')).toBeInTheDocument()
+  })
+
+  it('allows the user to proceed directly to the application from the welcome dialog', async () => {
+    const session: LoginResponse = {
+      user: {
+        id: 'u1',
+        username: 'newbie',
+        displayName: 'Newbie',
+        isAdmin: false,
+        isActive: true,
+        mustChangePassword: true,
+      },
+      csrfToken: 'csrf-session',
+    }
+    mockFetch(() => jsonResponse({ ...session.user, mustChangePassword: false }))
+    renderChangePassword(session)
+
+    fireEvent.change(screen.getByLabelText('Current password'), { target: { value: 'temporary-password' } })
+    fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'chosen-password' } })
+    fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: 'chosen-password' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Set Password' }))
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Continue to Papertrail' }))
+    expect(await screen.findByText('Home destination')).toBeInTheDocument()
+  })
+
+  it('requires the new password to differ from the temporary password', () => {
+    const session: LoginResponse = {
+      user: {
+        id: 'u1',
+        username: 'newbie',
+        displayName: 'Newbie',
+        isAdmin: false,
+        isActive: true,
+        mustChangePassword: true,
+      },
+      csrfToken: 'csrf-session',
+    }
+    renderChangePassword(session)
+
+    fireEvent.change(screen.getByLabelText('Current password'), { target: { value: 'temporary-password' } })
+    fireEvent.change(screen.getByLabelText('New password'), { target: { value: 'temporary-password' } })
+    fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: 'temporary-password' } })
+
+    expect(screen.getByRole('alert')).toHaveTextContent(
+      'New password must be different from your current password.',
+    )
+    expect(screen.getByRole('button', { name: 'Set Password' })).toBeDisabled()
   })
 
   it('shows a mismatch error and disables submission', () => {
