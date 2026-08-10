@@ -13,7 +13,7 @@ from app.projects.dependencies import (
     require_project_manager,
     require_project_manager_csrf,
 )
-from app.projects.models import ProjectMembership
+from app.projects.models import ProjectMembership, TaskAllocationMode
 from app.projects.service import get_project, is_project_manager, require_project_access
 from app.publications.models import Publication
 from app.quality.models import (
@@ -82,11 +82,17 @@ def get_quality_config(
         select(QualityConfig).where(QualityConfig.project_id == project_id)
     )
     if config is None:
-        return {"enabled": False, "mode": "both", "aggregation": "sum"}
+        return {
+            "enabled": False,
+            "mode": "both",
+            "aggregation": "sum",
+            "allocation_mode": TaskAllocationMode.CLAIM,
+        }
     return {
         "enabled": config.enabled,
         "mode": config.mode,
         "aggregation": config.aggregation,
+        "allocation_mode": config.allocation_mode,
     }
 
 
@@ -105,6 +111,7 @@ def configure_quality(
     config.enabled = payload.enabled
     config.mode = payload.mode
     config.aggregation = payload.aggregation
+    config.allocation_mode = payload.allocation_mode
     db.flush()
     record_audit(
         db,
@@ -120,6 +127,7 @@ def configure_quality(
         "enabled": config.enabled,
         "mode": config.mode,
         "aggregation": config.aggregation,
+        "allocation_mode": config.allocation_mode,
     }
 
 

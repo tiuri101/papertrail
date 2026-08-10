@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ApiModel(BaseModel):
@@ -22,6 +22,32 @@ class LlmSettingsUpdate(ApiModel):
     extraction_validation_enabled: bool | None = Field(
         default=None, alias="extractionValidationEnabled"
     )
+
+
+class LlmInstallationSettingsUpdate(ApiModel):
+    enabled: bool
+    endpoint: str
+    model: str
+    context_length: int = Field(alias="contextLength", ge=4096)
+
+    @field_validator("endpoint")
+    @classmethod
+    def validate_endpoint(cls, value: str) -> str:
+        from urllib.parse import urlsplit
+
+        normalized = value.strip().rstrip("/")
+        parsed = urlsplit(normalized)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("Endpoint must be a valid HTTP(S) server URL")
+        return normalized
+
+    @field_validator("model")
+    @classmethod
+    def validate_model(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Model is required")
+        return normalized
 
 
 class LlmFieldUpdate(ApiModel):
@@ -137,7 +163,7 @@ class ValidationReviewPublication(ApiModel):
 class ValidationReviewItem(ApiModel):
     work_item_id: str = Field(alias="workItemId")
     publication_id: str = Field(alias="publicationId")
-    assigned_reviewer_id: str = Field(alias="assignedReviewerId")
+    assigned_reviewer_id: str | None = Field(alias="assignedReviewerId")
     response_id: str | None = Field(default=None, alias="responseId")
     full_text_available: bool = Field(alias="fullTextAvailable")
     state: str

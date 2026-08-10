@@ -2,6 +2,8 @@ import { useQuery } from '@tanstack/react-query'
 
 import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
+import { InfoBox } from '../../components/InfoBox'
+import { IconChart } from '../../components/icons'
 
 interface ReviewerCount {
   reviewerId: string
@@ -26,10 +28,10 @@ export function ReviewerProgressPanel({ projectId }: { projectId: string }) {
   })
 
   return (
-    <CollapsibleSection id="section-reviewer-progress" title="Reviewer Progress">
-      <p className="muted">
-        How many papers each reviewer has been assigned per stage, and how many they've completed.
-      </p>
+    <CollapsibleSection id="section-reviewer-progress" title="Reviewer Progress" icon={<IconChart />}>
+      <InfoBox icon={<IconChart />}>
+        <p>How many papers each reviewer has been assigned per stage, and how many they've completed.</p>
+      </InfoBox>
       {progress.error ? <p className="error" role="alert">{progress.error.message}</p> : null}
       {progress.isLoading ? <p>Loading…</p> : null}
       {progress.data?.map((stage) => (
@@ -38,7 +40,7 @@ export function ReviewerProgressPanel({ projectId }: { projectId: string }) {
           {stage.reviewers.length === 0 ? (
             <p className="muted">No reviewers have been assigned work for this stage yet.</p>
           ) : (
-            <table>
+            <table className="table-compact table-narrow">
               <thead>
                 <tr>
                   <th scope="col">Reviewer</th>

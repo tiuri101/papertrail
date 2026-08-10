@@ -107,6 +107,20 @@ class ProjectLlmSettings(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
 
 
+class LlmInstallationSettings(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """Administrator-managed overrides for installation-wide LLM defaults."""
+
+    __tablename__ = "llm_installation_settings"
+
+    enabled: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    endpoint: Mapped[str | None] = mapped_column(String(2000))
+    model: Mapped[str | None] = mapped_column(String(250))
+    context_length: Mapped[int] = mapped_column(Integer, nullable=False)
+    updated_by_user_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+
+
 class LlmSchemaVersion(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "llm_schema_versions"
     __table_args__ = (

@@ -1,36 +1,45 @@
+import zipfile
 from datetime import date
 from io import BytesIO
+from pathlib import Path
 from xml.etree import ElementTree
 
 import pytest
 from openpyxl import load_workbook
 from sqlalchemy import select
 
+from app.accounts.models import User
 from app.accounts.service import create_user
 from app.conflicts.service import record_final_decision
+from app.core.config import get_settings
 from app.deduplication.models import PublicationMerge
-from app.extraction.models import ExtractionWorkItem
+from app.extraction.models import ExtractionConfig, ExtractionWorkItem
 from app.extraction.service import initialize_extraction, submit_extraction
 from app.forms.models import FormKind
 from app.forms.service import add_field, create_form
-from app.fulltext.models import FullTextRetrieval, RetrievalStatus
+from app.fulltext.models import FullTextRetrieval, PublicationDocument, RetrievalStatus
 from app.imports.models import ImportBatch, ImportedRecord, ImportStatus, SearchSource
+from app.jobs.models import BackgroundJob
 from app.projects.models import (
     Project,
     ProjectMembership,
     ReviewType,
     ScreeningStage,
+    TaskAllocationMode,
 )
 from app.publications.models import Publication
 from app.publications.service import normalize_imported_records
 from app.quality.models import QualityConfig, QualityWorkItem
 from app.quality.service import initialize_quality, submit_quality
+from app.reporting.jobs import generate_export_job
+from app.reporting.models import ExportArtifact
 from app.reporting.service import (
     build_bibtex,
     build_excel,
     build_final_results,
     build_prisma_svg,
     build_prisma_tables,
+    build_publication_bundle,
     calculate_prisma_counts,
 )
 
@@ -281,6 +290,110 @@ def test_bibtex_unrecognized_scope_is_rejected_rather_than_returning_everything(
         build_bibtex(db, project.id, scope="not_a_real_scope")
 
 
+def test_bibtex_selected_scope_filters_by_publication_ids(db) -> None:
+    project, included = setup_report(db)
+    excluded = db.scalar(select(Publication).where(Publication.title == "Excluded"))
+    assert excluded is not None
+
+    bibtex = build_bibtex(
+        db, project.id, scope="selected", publication_ids=[included.id]
+    )
+
+    assert included.title in bibtex
+    assert "Excluded" not in bibtex
+
+
+def test_bibtex_selected_scope_requires_publication_ids(db) -> None:
+    project, _included = setup_report(db)
+    with pytest.raises(ValueError):
+        build_bibtex(db, project.id, scope="selected", publication_ids=[])
+
+
+def _attach_pdf(db, project, publication, sha_prefix: str) -> Path:
+    admin = db.scalar(select(User).where(User.username == "admin"))
+    settings = get_settings()
+    storage_key = f"projects/{project.id}/publications/{publication.id}/document.pdf"
+    path = settings.pdf_storage_path / storage_key
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(b"%PDF-1.4 fake pdf content")
+    db.add(
+        PublicationDocument(
+            project_id=project.id,
+            publication_id=publication.id,
+            original_filename="document.pdf",
+            storage_key=storage_key,
+            mime_type="application/pdf",
+            file_size=path.stat().st_size,
+            sha256=sha_prefix * 64,
+            uploaded_by_user_id=admin.id,
+        )
+    )
+    return path
+
+
+def test_publication_bundle_includes_pdfs_and_lists_missing_ones(
+    db, tmp_path: Path
+) -> None:
+    project, included = setup_report(db)
+    unavailable = db.scalar(
+        select(Publication).where(Publication.title == "Unavailable")
+    )
+    assert unavailable is not None
+
+    settings = get_settings()
+    original_pdf_path = settings.pdf_storage_path
+    settings.pdf_storage_path = tmp_path
+    try:
+        _attach_pdf(db, project, included, "a")
+        db.commit()
+
+        data = build_publication_bundle(db, project.id, [included.id, unavailable.id])
+    finally:
+        settings.pdf_storage_path = original_pdf_path
+
+    with zipfile.ZipFile(BytesIO(data)) as archive:
+        names = archive.namelist()
+        assert "metadata.bib" in names
+        assert "MISSING_PDFS.txt" in names
+        pdf_names = [name for name in names if name.endswith(".pdf")]
+        assert len(pdf_names) == 1
+        assert included.title in archive.read("metadata.bib").decode()
+        assert unavailable.title in archive.read("MISSING_PDFS.txt").decode()
+
+
+def test_export_job_generates_a_pdf_bundle_artifact(db, tmp_path: Path) -> None:
+    project, included = setup_report(db)
+    admin = db.scalar(select(User).where(User.username == "admin"))
+
+    settings = get_settings()
+    original_export_dir = settings.export_dir
+    original_pdf_path = settings.pdf_storage_path
+    settings.export_dir = tmp_path / "exports"
+    settings.pdf_storage_path = tmp_path / "pdfs"
+    try:
+        _attach_pdf(db, project, included, "b")
+        job = BackgroundJob(
+            project_id=project.id,
+            job_type="generate_export",
+            payload={"export_type": "pdf_bundle", "publication_ids": [included.id]},
+            created_by_id=admin.id,
+        )
+        db.add(job)
+        db.commit()
+
+        result = generate_export_job(db, job)
+        db.commit()
+    finally:
+        settings.export_dir = original_export_dir
+        settings.pdf_storage_path = original_pdf_path
+
+    artifact = db.query(ExportArtifact).filter_by(job_id=job.id).one()
+    assert result["artifactId"] == artifact.id
+    assert artifact.filename.endswith(".zip")
+    with zipfile.ZipFile(artifact.stored_path) as archive:
+        assert "metadata.bib" in archive.namelist()
+
+
 def test_prisma_tables_export_is_a_standalone_workbook(db) -> None:
     project, _included = setup_report(db)
 
@@ -313,11 +426,17 @@ def setup_final_results(db, quality_enabled=True):
         db, extraction_form, "Main finding", "long_text", required=True
     )
     db.add(
+        ExtractionConfig(
+            project_id=project.id, allocation_mode=TaskAllocationMode.PRE_ASSIGNED
+        )
+    )
+    db.add(
         QualityConfig(
             project_id=project.id,
             enabled=quality_enabled,
             mode="both",
             aggregation="sum",
+            allocation_mode=TaskAllocationMode.PRE_ASSIGNED,
         )
     )
     quality_field = None

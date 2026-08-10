@@ -31,6 +31,7 @@ from app.imports.pdf_import import (
     batch_publications,
     pdf_summary,
     process_pdf_matches,
+    project_pdf_summary,
     resolve_pdf_match,
     stage_bulk_uploads,
 )
@@ -249,6 +250,76 @@ async def upload_import_pdfs(
     return {"importBatchId": batch.id, "summary": summary}
 
 
+def _serialize_pdf_item(item: ImportPdfItem) -> dict[str, object]:
+    return {
+        "id": item.id,
+        "originalFilename": item.original_filename,
+        "fileSize": item.file_size,
+        "sha256": item.sha256,
+        "detectedDoi": item.detected_doi,
+        "detectedTitle": item.detected_title,
+        "detectedAuthors": item.detected_authors,
+        "detectedYear": item.detected_year,
+        "status": item.status.value,
+        "candidates": item.candidate_matches,
+        "matchedPublicationId": item.matched_publication_id,
+        "attachedDocumentId": item.attached_document_id,
+        "errorMessage": item.error_message,
+        "importBatchId": item.import_batch_id,
+    }
+
+
+def _serialize_pdf_publication(
+    publication: Any, *, in_import_batch: bool
+) -> dict[str, object]:
+    return {
+        "id": publication.id,
+        "title": publication.title,
+        "authors": publication.authors,
+        "publicationYear": publication.publication_year,
+        "doi": publication.doi,
+        "hasPdf": publication.active_document is not None,
+        "inImportBatch": in_import_batch,
+    }
+
+
+def _resolve_pdf_item(
+    db: Session,
+    project_id: str,
+    payload: PdfMatchResolve,
+    admin: User,
+    *,
+    import_batch_id: str | None = None,
+) -> ImportPdfItem:
+    item = db.get(ImportPdfItem, payload.item_id)
+    if (
+        item is None
+        or item.project_id != project_id
+        or (import_batch_id is not None and item.import_batch_id != import_batch_id)
+    ):
+        raise NotFoundError("PDF import item not found")
+    publication = None
+    if payload.publication_id:
+        from app.publications.models import Publication
+
+        publication = db.get(Publication, payload.publication_id)
+        if (
+            publication is None
+            or publication.project_id != project_id
+            or not publication.is_active
+        ):
+            raise NotFoundError("Publication not found")
+    resolve_pdf_match(
+        db,
+        item,
+        publication=publication,
+        action=payload.action,
+        user_id=admin.id,
+    )
+    db.commit()
+    return item
+
+
 @router.get("/projects/{project_id}/imports/{import_batch_id}/pdf-matches")
 def list_pdf_matches(
     project_id: str,
@@ -286,34 +357,53 @@ def list_pdf_matches(
     return {
         "importBatchId": batch.id,
         "summary": pdf_summary(db, batch.id),
-        "items": [
-            {
-                "id": item.id,
-                "originalFilename": item.original_filename,
-                "fileSize": item.file_size,
-                "sha256": item.sha256,
-                "detectedDoi": item.detected_doi,
-                "detectedTitle": item.detected_title,
-                "detectedAuthors": item.detected_authors,
-                "detectedYear": item.detected_year,
-                "status": item.status.value,
-                "candidates": item.candidate_matches,
-                "matchedPublicationId": item.matched_publication_id,
-                "attachedDocumentId": item.attached_document_id,
-                "errorMessage": item.error_message,
-            }
-            for item in items
-        ],
+        "items": [_serialize_pdf_item(item) for item in items],
         "publications": [
-            {
-                "id": publication.id,
-                "title": publication.title,
-                "authors": publication.authors,
-                "publicationYear": publication.publication_year,
-                "doi": publication.doi,
-                "hasPdf": publication.active_document is not None,
-                "inImportBatch": publication.id in batch_publication_ids,
-            }
+            _serialize_pdf_publication(
+                publication, in_import_batch=publication.id in batch_publication_ids
+            )
+            for publication in publications
+        ],
+    }
+
+
+@router.get("/projects/{project_id}/pdf-matches")
+def list_project_pdf_matches(
+    project_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, object]:
+    """All PDF match items for a project, across every import batch.
+
+    Lets reviewers resolve ambiguous/unmatched/conflicting PDFs at any time,
+    not only right after the import that staged them.
+    """
+    require_project_access(db, project_id, user)
+    items = list(
+        db.scalars(
+            select(ImportPdfItem)
+            .where(ImportPdfItem.project_id == project_id)
+            .order_by(ImportPdfItem.created_at, ImportPdfItem.id)
+        )
+    )
+    from app.publications.models import Publication
+
+    publications = list(
+        db.scalars(
+            select(Publication)
+            .options(selectinload(Publication.documents))
+            .where(
+                Publication.project_id == project_id,
+                Publication.is_active.is_(True),
+            )
+            .order_by(Publication.title)
+        )
+    )
+    return {
+        "summary": project_pdf_summary(db, project_id),
+        "items": [_serialize_pdf_item(item) for item in items],
+        "publications": [
+            _serialize_pdf_publication(publication, in_import_batch=True)
             for publication in publications
         ],
     }
@@ -327,32 +417,20 @@ def resolve_import_pdf_match(
     admin: User = Depends(require_project_member_csrf),
     db: Session = Depends(get_db),
 ) -> dict[str, str | None]:
-    item = db.get(ImportPdfItem, payload.item_id)
-    if (
-        item is None
-        or item.project_id != project_id
-        or item.import_batch_id != import_batch_id
-    ):
-        raise NotFoundError("PDF import item not found")
-    publication = None
-    if payload.publication_id:
-        from app.publications.models import Publication
-
-        publication = db.get(Publication, payload.publication_id)
-        if (
-            publication is None
-            or publication.project_id != project_id
-            or not publication.is_active
-        ):
-            raise NotFoundError("Publication not found")
-    resolve_pdf_match(
-        db,
-        item,
-        publication=publication,
-        action=payload.action,
-        user_id=admin.id,
+    item = _resolve_pdf_item(
+        db, project_id, payload, admin, import_batch_id=import_batch_id
     )
-    db.commit()
+    return {"status": item.status.value, "documentId": item.attached_document_id}
+
+
+@router.post("/projects/{project_id}/pdf-matches/resolve")
+def resolve_project_pdf_match(
+    project_id: str,
+    payload: PdfMatchResolve,
+    admin: User = Depends(require_project_member_csrf),
+    db: Session = Depends(get_db),
+) -> dict[str, str | None]:
+    item = _resolve_pdf_item(db, project_id, payload, admin)
     return {"status": item.status.value, "documentId": item.attached_document_id}
 
 

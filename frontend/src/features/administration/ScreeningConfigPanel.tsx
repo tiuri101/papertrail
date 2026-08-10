@@ -1,12 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useId, useState } from 'react'
+import { Fragment, useEffect, useId, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
-import { IconCheckCircle } from '../../components/icons'
+import { InfoBox } from '../../components/InfoBox'
+import { IconCheckCircle, IconSettings } from '../../components/icons'
 import { InfoTooltip } from '../../components/Tooltip'
 
-type AllocationMode = 'independent' | 'divided'
+type AllocationMode = 'independent' | 'divided' | 'claim'
 type ResolutionMethod =
   | 'discussion_consensus'
   | 'admin_consensus'
@@ -42,7 +43,8 @@ const STAGES: Array<{ value: ScreeningConfig['stage']; label: string }> = [
 
 const ALLOCATION_MODE_LABELS: Record<AllocationMode, string> = {
   independent: 'Independent (every reviewer sees every publication)',
-  divided: 'Divided (publications are split across reviewers)',
+  divided: 'Divided (publications are pre-assigned to reviewers)',
+  claim: 'Claim (reviewers pick up publications themselves)',
 }
 
 const RESOLUTION_METHOD_LABELS: Record<ResolutionMethod, string> = {
@@ -117,7 +119,7 @@ function StageConfigForm({
         <div className="field">
           <span className="field-label-row">
             <label htmlFor={`${fieldId}-allocation`}>Allocation</label>
-            <InfoTooltip text="Independent: every reviewer screens every publication, and any disagreement becomes a conflict to resolve. Divided: publications are split up so each one is seen by only the required number of reviewers, which reduces workload but means fewer people double-check each decision." />
+            <InfoTooltip text="Independent: every reviewer screens every publication, and any disagreement becomes a conflict to resolve. Divided: publications are pre-assigned round-robin so each one is seen by only the required number of reviewers, which reduces workload but means fewer people double-check each decision. Claim: publications are left unassigned and reviewers pick them up themselves as they work, rather than being pre-assigned." />
           </span>
           <select
             id={`${fieldId}-allocation`}
@@ -199,11 +201,11 @@ export function ScreeningConfigPanel({
   useEffect(() => onDirtyChange?.(anyStageDirty), [anyStageDirty, onDirtyChange])
 
   if (project.isLoading) {
-    return <CollapsibleSection id="section-screening-configuration" title="Screening Configuration"><p>Loading…</p></CollapsibleSection>
+    return <CollapsibleSection id="section-screening-configuration" title="Screening Configuration" icon={<IconSettings />}><p>Loading…</p></CollapsibleSection>
   }
   if (project.isError || !project.data) {
     return (
-      <CollapsibleSection id="section-screening-configuration" title="Screening Configuration">
+      <CollapsibleSection id="section-screening-configuration" title="Screening Configuration" icon={<IconSettings />}>
         <p className="error" role="alert">Screening configuration could not be loaded.</p>
       </CollapsibleSection>
     )
@@ -212,27 +214,31 @@ export function ScreeningConfigPanel({
   const configsByStage = new Map(project.data.screeningConfigs.map((config) => [config.stage, config]))
 
   return (
-    <CollapsibleSection id="section-screening-configuration" title="Screening Configuration">
-      <p className="muted">
-        Set how many reviewers must independently screen each publication. Once every required
-        reviewer has decided, publications where they didn&apos;t reach the same decision are
-        marked as a conflict for resolution, unless automatic majority voting is selected.
-      </p>
-      {STAGES.map(({ value, label }) => {
+    <CollapsibleSection id="section-screening-configuration" title="Screening Configuration" icon={<IconSettings />}>
+      <InfoBox icon={<IconSettings />}>
+        <p>
+          Set how many reviewers must independently screen each publication. Once every required
+          reviewer has decided, publications where they didn&apos;t reach the same decision are
+          marked as a conflict for resolution, unless automatic majority voting is selected.
+        </p>
+      </InfoBox>
+      {STAGES.map(({ value, label }, index) => {
         const config = configsByStage.get(value)
         if (!config) return null
         return (
-          <StageConfigForm
-            key={value}
-            config={config}
-            label={label}
-            pending={save.isPending && save.variables?.stage === value}
-            error={save.error && save.variables?.stage === value ? save.error : null}
-            onSave={(draft) => save.mutate({ stage: value, draft })}
-            onDirtyChange={(stageDirty) => setDirtyStages((current) => (
-              current[value] === stageDirty ? current : { ...current, [value]: stageDirty }
-            ))}
-          />
+          <Fragment key={value}>
+            {index > 0 ? <hr className="section-divider" /> : null}
+            <StageConfigForm
+              config={config}
+              label={label}
+              pending={save.isPending && save.variables?.stage === value}
+              error={save.error && save.variables?.stage === value ? save.error : null}
+              onSave={(draft) => save.mutate({ stage: value, draft })}
+              onDirtyChange={(stageDirty) => setDirtyStages((current) => (
+                current[value] === stageDirty ? current : { ...current, [value]: stageDirty }
+              ))}
+            />
+          </Fragment>
         )
       })}
     </CollapsibleSection>

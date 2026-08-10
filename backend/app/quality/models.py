@@ -17,6 +17,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 from app.db.types import JSONType
+from app.projects.models import TaskAllocationMode
 
 
 class QualityStatus(enum.StrEnum):
@@ -35,6 +36,9 @@ class QualityConfig(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     mode: Mapped[str] = mapped_column(String(30), default="both", nullable=False)
     aggregation: Mapped[str] = mapped_column(String(30), default="sum", nullable=False)
+    allocation_mode: Mapped[TaskAllocationMode] = mapped_column(
+        default=TaskAllocationMode.CLAIM, nullable=False
+    )
 
 
 class QualityWorkItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -49,8 +53,8 @@ class QualityWorkItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     publication_id: Mapped[str] = mapped_column(
         ForeignKey("publications.id", ondelete="CASCADE"), index=True
     )
-    assigned_reviewer_id: Mapped[str] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    assigned_reviewer_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), index=True
     )
     reserved_until: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), index=True

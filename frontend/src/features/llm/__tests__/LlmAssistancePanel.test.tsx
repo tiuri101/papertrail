@@ -19,7 +19,7 @@ const settings = {
 }
 
 describe('LlmAssistancePanel', () => {
-  it('shows backend-only connection configuration and tests availability', async () => {
+  it('hides the endpoint from non-administrators and tests availability', async () => {
     mockFetch(async (input) => {
       const path = String(input)
       if (path.endsWith('/llm/settings')) return jsonResponse(settings)
@@ -30,14 +30,14 @@ describe('LlmAssistancePanel', () => {
     })
     renderWithProviders(<LlmAssistancePanel projectId="p1" />)
 
-    expect(await screen.findByText('http://ollama.example:11434')).toBeInTheDocument()
-    expect(screen.getByText('LLM capabilities')).toHaveClass('subsection-heading')
-    const schemaSection = screen.getByRole('region', { name: 'LLM Extraction Schema' })
-    expect(schemaSection).toHaveClass('llm-schema-section')
+    expect(await screen.findByText('qwen3:8b')).toBeInTheDocument()
+    expect(screen.queryByText('http://ollama.example:11434')).not.toBeInTheDocument()
+    expect(screen.getByText('Stages')).toHaveClass('subsection-heading')
+    const schemaSection = screen.getByRole('heading', { name: 'LLM Extraction Schema' }).closest('section')
     expect(schemaSection).toContainElement(
       screen.getByRole('button', { name: 'Create LLM schema from extraction form' }),
     )
-    expect(schemaSection).not.toContainElement(screen.getByRole('heading', { name: 'Processing status' }))
+    expect(schemaSection).not.toContainElement(screen.getByRole('heading', { name: 'Processing Status' }))
     expect(screen.queryByText(/api key/i)).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: /Enable LLM data extraction/i })).not.toBeInTheDocument()
     for (const name of [
@@ -115,6 +115,49 @@ describe('LlmAssistancePanel', () => {
         .filter(([, init]) => init?.method === 'PATCH')
         .map(([, init]) => JSON.parse(String(init?.body)))
       expect(patches).toContainEqual({ enabled: true })
+    })
+  })
+
+  it('lets an administrator edit the installation configuration', async () => {
+    const fetchMock = mockFetch(async (input, init) => {
+      const path = String(input)
+      if (path.endsWith('/auth/session')) {
+        return jsonResponse({ user: { id: 'admin', isAdmin: true }, csrfToken: 'csrf' })
+      }
+      if (path.endsWith('/llm/installation-settings') && init?.method === 'PATCH') {
+        return jsonResponse({
+          ...settings,
+          ...JSON.parse(String(init.body)),
+          installationEnabled: true,
+          canManageInstallation: true,
+        })
+      }
+      if (path.endsWith('/llm/settings')) {
+        return jsonResponse({ ...settings, canManageInstallation: true })
+      }
+      if (path.endsWith('/llm/schema')) return jsonResponse({ schema: null, extractionFields: [] })
+      if (path.includes('/llm/runs')) return jsonResponse({ total: 0, counts: {}, statistics: {}, overview: { eligible: 0, missingPdf: 0, outdatedSchema: 0 }, runs: [] })
+      return jsonResponse({})
+    })
+    renderWithProviders(<LlmAssistancePanel projectId="p1" />)
+
+    fireEvent.change(await screen.findByLabelText('Endpoint'), {
+      target: { value: 'https://ollama.internal:11434' },
+    })
+    fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'gemma3:12b' } })
+    fireEvent.change(screen.getByLabelText('Context length'), { target: { value: '16384' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save Installation Settings' }))
+
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find(([input, init]) => (
+        String(input).endsWith('/llm/installation-settings') && init?.method === 'PATCH'
+      ))
+      expect(JSON.parse(String(call?.[1]?.body))).toEqual({
+        enabled: true,
+        endpoint: 'https://ollama.internal:11434',
+        model: 'gemma3:12b',
+        contextLength: 16384,
+      })
     })
   })
 

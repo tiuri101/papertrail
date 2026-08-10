@@ -17,6 +17,7 @@ from app.projects.models import (
 )
 from app.projects.service import add_membership, get_project
 from app.publications.models import Publication
+from app.screening.models import ScreeningWorkItem, WorkItemStatus
 
 
 def login(client) -> str:
@@ -191,6 +192,78 @@ def test_full_text_checklist_requires_extraction_form_before_extraction(db) -> N
     stage = next(s for s in checklist["stages"] if s["stage"] == ProjectStage.FULL_TEXT)
     items = {item["key"]: item["done"] for item in stage["items"]}
     assert items["extraction_form"] is True
+
+
+def test_title_abstract_checklist_shows_reviewer_specific_and_overall_open_counts(
+    db,
+) -> None:
+    reviewer_a = create_user(db, "reviewer-a", "Reviewer A", "secret-password")
+    reviewer_b = create_user(db, "reviewer-b", "Reviewer B", "secret-password")
+    project = Project(
+        name="Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.TITLE_ABSTRACT,
+    )
+    db.add(project)
+    db.flush()
+    pub_a = Publication(project_id=project.id, title="Study A")
+    pub_b = Publication(project_id=project.id, title="Study B")
+    pub_c = Publication(project_id=project.id, title="Study C")
+    db.add_all([pub_a, pub_b, pub_c])
+    db.flush()
+    db.add_all(
+        [
+            ScreeningWorkItem(
+                project_id=project.id,
+                publication_id=pub_a.id,
+                stage="title_abstract",
+                slot_number=0,
+                assigned_reviewer_id=reviewer_a.id,
+                random_rank="a",
+                status=WorkItemStatus.AVAILABLE,
+            ),
+            ScreeningWorkItem(
+                project_id=project.id,
+                publication_id=pub_b.id,
+                stage="title_abstract",
+                slot_number=0,
+                assigned_reviewer_id=reviewer_a.id,
+                random_rank="b",
+                status=WorkItemStatus.SUBMITTED,
+            ),
+            ScreeningWorkItem(
+                project_id=project.id,
+                publication_id=pub_c.id,
+                stage="title_abstract",
+                slot_number=0,
+                assigned_reviewer_id=reviewer_b.id,
+                random_rank="c",
+                status=WorkItemStatus.AVAILABLE,
+            ),
+        ]
+    )
+    db.commit()
+
+    project = get_project(db, project.id)
+
+    checklist_a = project_checklist(db, project, user_id=reviewer_a.id)
+    stage_a = next(
+        s for s in checklist_a["stages"] if s["stage"] == ProjectStage.TITLE_ABSTRACT
+    )
+    detail_a = next(
+        item for item in stage_a["items"] if item["key"] == "title_abstract_decisions"
+    )["detail"]
+    assert detail_a == "1 awaiting your decision (3 open in total)"
+
+    checklist_b = project_checklist(db, project, user_id=reviewer_b.id)
+    stage_b = next(
+        s for s in checklist_b["stages"] if s["stage"] == ProjectStage.TITLE_ABSTRACT
+    )
+    detail_b = next(
+        item for item in stage_b["items"] if item["key"] == "title_abstract_decisions"
+    )["detail"]
+    assert detail_b == "1 awaiting your decision (3 open in total)"
 
 
 def test_checklist_endpoint_is_reachable_over_http(client, db) -> None:

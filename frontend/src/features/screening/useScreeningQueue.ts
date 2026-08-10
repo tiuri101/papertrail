@@ -2,10 +2,18 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import {
+  lastScreeningKey,
+  loadLastCompletedItem,
+  saveLastCompletedItem,
+  type LastCompletedItem,
+} from '../../lib/lastCompletedItem'
 
 export interface ScreeningProgress {
   assigned: number
   completed: number
+  remaining: number
+  claimMode: boolean
 }
 
 export interface ScreeningCriterion {
@@ -43,6 +51,21 @@ interface SubmittedScreeningDecision {
 }
 
 export type CriterionAnswer = boolean | null
+
+export interface PreviousScreeningDecision {
+  id: string
+  outcome: string
+  criteriaAnswers: Record<string, boolean>
+  notes: string | null
+  version: number
+}
+
+export interface PreviousScreeningItem {
+  id: string
+  publication: ScreeningWorkItem['publication']
+  criteria: ScreeningCriterion[]
+  decision: PreviousScreeningDecision | null
+}
 
 function defaultAnswerForKind(kind: string): boolean {
   return kind === 'inclusion'
@@ -91,6 +114,10 @@ export function useScreeningQueue(projectId: string, stage: string) {
     decision: SubmittedScreeningDecision
   } | null>(null)
   const skippedItemIds = useRef<Set<string>>(new Set())
+  const [lastCompletedItem, setLastCompletedItem] = useState<LastCompletedItem | null>(
+    () => (projectId ? loadLastCompletedItem(lastScreeningKey(projectId, stage)) : null),
+  )
+  const [previousItem, setPreviousItem] = useState<PreviousScreeningItem | null>(null)
 
   const nextUrl = () => {
     const params = new URLSearchParams()
@@ -147,6 +174,12 @@ export function useScreeningQueue(projectId: string, stage: string) {
   }
 
   const continueAfterDecision = () => {
+    const finishedItem = submitted?.item ?? item
+    if (finishedItem) {
+      const completed = { id: finishedItem.id, title: finishedItem.publication.title }
+      setLastCompletedItem(completed)
+      saveLastCompletedItem(lastScreeningKey(projectId, stage), completed)
+    }
     setItem(null)
     setSubmitted(null)
     setAnswers({})
@@ -231,6 +264,32 @@ export function useScreeningQueue(projectId: string, stage: string) {
     }
     reviseDecision.mutate(current, { onSuccess: continueAfterDecision })
   }
+
+  const goBack = useMutation({
+    mutationFn: () => {
+      if (!lastCompletedItem) throw new Error('No previous paper to go back to')
+      return apiRequest<PreviousScreeningItem>(
+        `/api/v1/projects/${projectId}/screening/work-items/${lastCompletedItem.id}`,
+      )
+    },
+    onSuccess: (result) => setPreviousItem(result),
+  })
+
+  const closePrevious = () => setPreviousItem(null)
+
+  const savePreviousDecision = useMutation({
+    mutationFn: (revision: SubmittedScreeningDecision) => {
+      if (!previousItem) throw new Error('No previous paper is open')
+      return apiRequest<PreviousScreeningDecision>(
+        `/api/v1/projects/${projectId}/screening/work-items/${previousItem.id}/decision`,
+        { method: 'POST', body: JSON.stringify(revision) },
+      )
+    },
+    onSuccess: (decision) => {
+      setPreviousItem((current) => (current ? { ...current, decision } : null))
+      queryClient.invalidateQueries({ queryKey: progressQueryKey })
+    },
+  })
 
   const autoFetchKey = useRef<string | null>(null)
   useEffect(() => {
@@ -328,6 +387,11 @@ export function useScreeningQueue(projectId: string, stage: string) {
     submitted,
     reviseDecision,
     confirmDecision,
+    lastCompletedItem,
+    previousItem,
+    goBack,
+    closePrevious,
+    savePreviousDecision,
   }
 }
 

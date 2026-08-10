@@ -6,6 +6,7 @@ import { apiRequest } from '../../api/client'
 import { IconRestart } from '../../components/icons'
 import { InfoTooltip } from '../../components/Tooltip'
 import { useCanManageProject } from '../../hooks/useCanManageProject'
+import { AdministrationEyebrow } from '../projects/StageEyebrow'
 import { BackgroundJob, hasActiveJob } from './jobStatus'
 
 const STATUS_FILTER_OPTIONS = [
@@ -246,7 +247,12 @@ export function JobsPage() {
 
   return (
     <main className="page">
+      <AdministrationEyebrow />
       <h1>Jobs</h1>
+      <p className="muted">
+        Background tasks for this project, such as imports, duplicate detection, and LLM-assisted
+        extraction.
+      </p>
       {jobs.error ? <p className="error" role="alert">{jobs.error.message}</p> : null}
       {restartOne.error ? <p className="error" role="alert">{restartOne.error.message}</p> : null}
       {restartMany.error ? <p className="error" role="alert">{restartMany.error.message}</p> : null}

@@ -162,6 +162,10 @@ def _serialize_project_detail(
     from app.llm.schema_service import project_settings
 
     llm_settings = project_settings(db, project.id)
+    can_manage = is_project_manager(db, project.id, user)
+    own_membership = next(
+        (m for m in project.memberships if m.user_id == user.id), None
+    )
     return ProjectDetail(
         id=project.id,
         name=project.name,
@@ -182,10 +186,18 @@ def _serialize_project_detail(
         screening_configs=[
             ScreeningConfigResponse.model_validate(c) for c in project.screening_configs
         ],
-        can_manage=is_project_manager(db, project.id, user),
+        can_manage=can_manage,
+        can_manage_publications=True,
         extraction_validation_enabled=bool(
             llm_settings and llm_settings.extraction_validation_enabled
         ),
+        can_title_abstract_screen=can_manage
+        or bool(own_membership and own_membership.can_title_abstract_screen),
+        can_full_text_screen=can_manage
+        or bool(own_membership and own_membership.can_full_text_screen),
+        can_extract=can_manage or bool(own_membership and own_membership.can_extract),
+        can_assess_quality=can_manage
+        or bool(own_membership and own_membership.can_assess_quality),
     )
 
 
@@ -231,7 +243,7 @@ def project_checklist_endpoint(
     from app.projects.checklist import project_checklist
 
     project = require_project_access(db, project_id, user)
-    return project_checklist(db, project)
+    return project_checklist(db, project, user_id=user.id)
 
 
 def _reconcile_work_assignments(db: Session, project_id: str) -> None:
@@ -292,6 +304,7 @@ def add_project_member(
         can_extract=payload.can_extract,
         can_assess_quality=payload.can_assess_quality,
         can_adjudicate=payload.can_adjudicate,
+        workload_weight=payload.workload_weight,
     )
     record_audit(
         db,
@@ -331,6 +344,7 @@ def update_project_member(
         can_extract=payload.can_extract,
         can_assess_quality=payload.can_assess_quality,
         can_adjudicate=payload.can_adjudicate,
+        workload_weight=payload.workload_weight,
     )
     _reconcile_work_assignments(db, project_id)
     record_audit(

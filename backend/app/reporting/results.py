@@ -107,7 +107,11 @@ def build_final_results(db: Session, project_id: str) -> dict[str, Any]:
             extraction_payload = {
                 "status": extraction_item.status,
                 "completedAt": extraction_item.completed_at,
-                "reviewerName": user_names.get(extraction_item.assigned_reviewer_id),
+                "reviewerName": (
+                    user_names.get(extraction_item.assigned_reviewer_id)
+                    if extraction_item.assigned_reviewer_id
+                    else None
+                ),
                 "answers": response.answers if response else {},
             }
 
@@ -119,7 +123,11 @@ def build_final_results(db: Session, project_id: str) -> dict[str, Any]:
                 quality_payload = {
                     "status": quality_item.status,
                     "completedAt": quality_item.completed_at,
-                    "reviewerName": user_names.get(quality_item.assigned_reviewer_id),
+                    "reviewerName": (
+                        user_names.get(quality_item.assigned_reviewer_id)
+                        if quality_item.assigned_reviewer_id
+                        else None
+                    ),
                     "totalScore": (
                         quality_response.total_score if quality_response else None
                     ),

@@ -254,7 +254,7 @@ describe('ImportPage', () => {
     expect(await within(history).findByText('IEEE Xplore')).toBeInTheDocument()
     expect(within(history).getByText('virtual reality AND urban')).toBeInTheDocument()
     expect(within(history).getByText('Journals and conferences')).toBeInTheDocument()
-    expect(within(history).getByText('Ada Reviewer (@ada)')).toBeInTheDocument()
+    expect(within(history).getByText('Ada Reviewer (ada)')).toBeInTheDocument()
     expect(within(history).getByLabelText('12 papers')).toBeInTheDocument()
     expect(within(history).getByText('1 import · 12 records · 7 imported papers with PDF')).toBeInTheDocument()
     expect(within(history).getByText('records.csv')).toBeInTheDocument()

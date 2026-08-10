@@ -11,12 +11,12 @@ from sqlalchemy.orm import Session
 
 from app.api.errors import DomainError
 from app.audit.service import record_audit
-from app.core.config import get_settings
 from app.extraction.models import ExtractionResponse
 from app.forms.models import FormField
 from app.jobs.errors import TransientJobError
 from app.jobs.models import BackgroundJob
 from app.llm.evidence import verify_evidence
+from app.llm.installation_settings import effective_llm_settings
 from app.llm.models import (
     CriterionAssessment,
     DocumentPageText,
@@ -182,7 +182,7 @@ def _store_criteria(
     result: ScreeningTaskResult,
     pages: dict[int, str] | None,
 ) -> None:
-    config = get_settings()
+    config = effective_llm_settings(db)
     db.execute(
         delete(LlmCriterionSuggestion).where(LlmCriterionSuggestion.run_id == run.id)
     )
@@ -222,7 +222,7 @@ def _run_title_abstract(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
         project.title_abstract_prompt_instructions if project else None
     )
     criteria = active_criteria(db, run.project_id)
-    config = get_settings()
+    config = effective_llm_settings(db)
     schema = screening_output_schema(
         [item.id for item in criteria],
         max_evidence=0,
@@ -272,7 +272,7 @@ def _run_full_text(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
     custom_instructions = project.full_text_prompt_instructions if project else None
     page_rows = _pages(db, extraction.id)
     criteria = active_criteria(db, run.project_id)
-    config = get_settings()
+    config = effective_llm_settings(db)
     criterion_ids = [item.id for item in criteria]
     schema = screening_output_schema(
         criterion_ids,
@@ -378,7 +378,7 @@ def _run_validation(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
     fields = _validation_fields(db, response)
     field_keys = [str(item["fieldKey"]) for item in fields]
     pages = _pages(db, extraction.id)
-    config = get_settings()
+    config = effective_llm_settings(db)
     schema = validation_output_schema(
         field_keys,
         max_evidence=config.llm_max_evidence_items,

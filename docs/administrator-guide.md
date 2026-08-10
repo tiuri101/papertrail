@@ -5,7 +5,7 @@ The installation administrator creates all local user accounts and has full acce
 ## Project ownership
 
 - **Administrator** — one or more installation-wide accounts. Can create and disable any user account, and manages every project as if they owned it.
-- **Project owner** — whoever created the project. Can manage members and their screening eligibility, screening configuration, highlighted keywords, project details, publication metadata and enrichment, metadata-conflict resolution, screening-conflict resolution, project-specific forms, the audit log, and lifecycle actions (mark ready for duplicate review, reopen, move back, reset, delete, reverse a merge) — for that project only.
+- **Project owner** — whoever created the project. Can manage members, their screening eligibility, and their workload weight; screening, extraction, and quality-assessment allocation configuration; highlighted keywords, project details, publication metadata and enrichment, metadata-conflict resolution, screening-conflict resolution, project-specific forms, the audit log, and lifecycle actions (mark ready for duplicate review, reopen, move back, reset, delete, reverse a merge) — for that project only.
 - **Reviewer / project member** — anyone added to a project. Can perform the screening, extraction, and quality-assessment activities they're eligible for; edit the project's research questions and inclusion/exclusion criteria; document searches and upload import files; resolve duplicate candidates (not a duplicate, or merge); and generate and download exports. Members only see the projects they belong to, and only the actions within a project they're actually permitted to perform.
 
 An administrator is not automatically a reviewer on a project — reviewer eligibility (screening, extraction, quality assessment, adjudication) is still granted per member, independently of ownership.
@@ -14,7 +14,7 @@ An administrator is not automatically a reviewer on a project — reviewer eligi
 
 1. Create reviewer accounts (administrator only).
 2. Create a project — any user can do this and becomes its owner — and add eligible reviewers.
-3. Define research questions and criteria (owner, administrator, or any project member); configure screening settings, including the number of reviewers required per stage and how disagreements and uncertain decisions are resolved (owner or administrator).
+3. Define research questions and criteria (owner, administrator, or any project member); configure screening settings, including the number of reviewers required per stage, how publications are allocated to reviewers, and how disagreements and uncertain decisions are resolved (owner or administrator).
 4. Document each database search and import its export file (any project member).
 5. Review metadata and run enrichment where required (owner or administrator).
 6. Resolve all duplicate candidates (any project member marks each as not a duplicate or merges it; the owner or administrator marks the project ready to enter duplicate review and can reverse a merge).
@@ -31,6 +31,16 @@ Only the administrator creates and disables user accounts. An email address is o
 ## Email notifications
 
 Email is opt-in at installation level through SMTP configuration. The initial notification set covers account creation, notifying active administrators when a project is created, being added to or removed from a project (permission-only edits deliberately do not send mail), and a project-owner summary when all currently scheduled LLM jobs for one task stage reach a terminal state. Failed LLM jobs are counted separately in that summary. Each event has a durable, deduplicated notification record and is delivered by the normal worker with retries; SMTP downtime does not roll back the originating account, project, membership, or LLM operation.
+
+## Reviewer allocation
+
+Each stage that assigns publications to individual reviewers (title/abstract screening, full-text screening, data extraction, quality assessment) has its own allocation setting, configured from Project Members and each stage's settings in Project Administration or the Setup Wizard:
+
+- **Claim** (default for every stage) — publications are left unassigned; a reviewer's queue hands them the next available one as they work, rather than pre-committing publications to specific people.
+- **Divided** / **Pre-assigned** — publications are split across eligible reviewers up front, round-robin, weighted by each reviewer's **workload weight** (set per reviewer in Project Members; a reviewer with weight 2 receives roughly twice as many publications as one with weight 1, default 1 for everyone).
+- **Independent** (title/abstract and full-text screening only) — every eligible reviewer sees every publication, rather than the work being split up at all.
+
+Workload weight only affects stages using Divided/Pre-assigned allocation; it has no effect on a stage using Claim or Independent allocation, since nothing is being pre-divided in those modes.
 
 ## Lifecycle changes
 

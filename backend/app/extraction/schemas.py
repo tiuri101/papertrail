@@ -4,6 +4,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.forms.schemas import FieldResponse
+from app.projects.models import TaskAllocationMode
 from app.screening.schemas import PublicationItem
 
 
@@ -11,11 +12,24 @@ class ApiModel(BaseModel):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
+class ExtractionConfigUpdate(ApiModel):
+    allocation_mode: TaskAllocationMode = Field(alias="allocationMode")
+
+
+class ExtractionConfigResponse(ApiModel):
+    allocation_mode: TaskAllocationMode = Field(serialization_alias="allocationMode")
+
+
 class ExtractionSubmit(ApiModel):
     answers: dict[str, Any]
     suggestion_actions: dict[
         str, Literal["accepted", "modified", "ignored", "manual"]
     ] = Field(default_factory=dict, alias="suggestionActions")
+
+
+class ExtractionOverride(ApiModel):
+    answers: dict[str, Any]
+    reason: str = Field(min_length=1, max_length=2000)
 
 
 class ExtractionDraftUpdate(ApiModel):
@@ -33,7 +47,7 @@ class ExtractionItemResponse(ApiModel):
     id: str
     publication_id: str = Field(serialization_alias="publicationId")
     full_text_available: bool = Field(serialization_alias="fullTextAvailable")
-    assigned_reviewer_id: str = Field(serialization_alias="assignedReviewerId")
+    assigned_reviewer_id: str | None = Field(serialization_alias="assignedReviewerId")
     status: str
     draft: dict[str, Any]
     publication: PublicationItem

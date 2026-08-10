@@ -134,11 +134,58 @@ export function IconInfo() {
   )
 }
 
+export function IconAlertTriangle() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" fillRule="evenodd">
+      <path d="M12 3.2a1.9 1.9 0 0 1 1.66.98l8 14A1.9 1.9 0 0 1 20 21H4a1.9 1.9 0 0 1-1.66-2.82l8-14A1.9 1.9 0 0 1 12 3.2ZM13 9h-2v6h2V9Zm0 8h-2v2h2v-2Z" />
+    </svg>
+  )
+}
+
 export function IconLightbulb() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M12 2a7 7 0 0 0-4 12.7c.6.45 1 1.2 1 2v.3h6v-.3c0-.8.4-1.55 1-2A7 7 0 0 0 12 2Z" opacity="0.75" />
       <path d="M9.5 19h5v1.3a1.5 1.5 0 0 1-1.5 1.5h-2a1.5 1.5 0 0 1-1.5-1.5V19Z" />
+    </svg>
+  )
+}
+
+export function IconChart() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M4 20V10h4v10H4Z" opacity="0.6" />
+      <path d="M10 20V4h4v16h-4Z" />
+      <path d="M16 20v-7h4v7h-4Z" opacity="0.6" />
+    </svg>
+  )
+}
+
+export function IconSettings() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3 6h9v2H3V6Zm12 0h6v2h-6V6Z" />
+      <circle cx="16" cy="7" r="2.6" />
+      <path d="M3 16h6v2H3v-2Zm9 0h9v2h-9v-2Z" />
+      <circle cx="9" cy="17" r="2.6" />
+    </svg>
+  )
+}
+
+export function IconHighlighter() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M14.7 2.9a1.5 1.5 0 0 1 2.1 0l2.3 2.3a1.5 1.5 0 0 1 0 2.1l-7.6 7.6-4.4 1.1 1.1-4.4 7.6-7.6Z" opacity="0.85" />
+      <path d="M4 19h9v2H4v-2Z" />
+    </svg>
+  )
+}
+
+export function IconFile() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M6 2a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6H6Z" opacity="0.5" />
+      <path d="M13 2.5V8a1 1 0 0 0 1 1h5.5L13 2.5Z" />
     </svg>
   )
 }
