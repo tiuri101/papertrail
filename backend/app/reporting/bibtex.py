@@ -40,7 +40,7 @@ def citation_key(publication: Publication, used: set[str]) -> str:
     return key
 
 
-SCOPES = {"included", "excluded", "duplicates", "all_screened", "custom"}
+SCOPES = {"included", "excluded", "duplicates", "all_screened", "custom", "selected"}
 
 
 def publications_for_scope(
@@ -48,11 +48,16 @@ def publications_for_scope(
     project_id: str,
     scope: str,
     status_filter: dict[str, Any] | None = None,
+    publication_ids: list[str] | None = None,
 ) -> list[Publication]:
     if scope not in SCOPES:
         raise ValueError(f"Unsupported BibTeX export scope: {scope}")
     query = select(Publication).where(Publication.project_id == project_id)
-    if scope == "included":
+    if scope == "selected":
+        if not publication_ids:
+            raise ValueError("A 'selected' scope requires at least one publication ID")
+        query = query.where(Publication.id.in_(publication_ids))
+    elif scope == "included":
         ids = select(FinalDecision.publication_id).where(
             FinalDecision.project_id == project_id,
             FinalDecision.stage == ScreeningStage.FULL_TEXT,
@@ -93,30 +98,53 @@ def publications_for_scope(
     return list(db.scalars(query.order_by(Publication.title)))
 
 
+def _bibtex_entry(publication: Publication, key: str) -> str:
+    fields = {
+        "title": publication.title,
+        "author": publication.authors,
+        "year": publication.publication_year,
+        "journal": publication.venue,
+        "doi": publication.doi,
+        "url": publication.publisher_url,
+    }
+    lines = [f"@article{{{key},"]
+    lines.extend(
+        f"  {name} = {{{bibtex_escape(str(value))}}},"
+        for name, value in fields.items()
+        if value not in (None, "")
+    )
+    lines.append("}")
+    return "\n".join(lines)
+
+
+def build_bibtex_for_publications(
+    publications: list[Publication],
+) -> tuple[str, dict[str, str]]:
+    """Build combined BibTeX text plus a publication_id -> citation_key map.
+
+    The returned keys are reused for export filenames (e.g. a bundled PDF's
+    filename) so a .bib entry and its matching PDF can be identified by name.
+    """
+    used: set[str] = set()
+    keys: dict[str, str] = {}
+    entries: list[str] = []
+    for publication in publications:
+        key = citation_key(publication, used)
+        keys[publication.id] = key
+        entries.append(_bibtex_entry(publication, key))
+    text = "\n\n".join(entries) + ("\n" if entries else "")
+    return text, keys
+
+
 def build_bibtex(
     db: Session,
     project_id: str,
     scope: str = "included",
     status_filter: dict[str, Any] | None = None,
+    publication_ids: list[str] | None = None,
 ) -> str:
-    entries: list[str] = []
-    used: set[str] = set()
-    for publication in publications_for_scope(db, project_id, scope, status_filter):
-        key = citation_key(publication, used)
-        fields = {
-            "title": publication.title,
-            "author": publication.authors,
-            "year": publication.publication_year,
-            "journal": publication.venue,
-            "doi": publication.doi,
-            "url": publication.publisher_url,
-        }
-        lines = [f"@article{{{key},"]
-        lines.extend(
-            f"  {name} = {{{bibtex_escape(str(value))}}},"
-            for name, value in fields.items()
-            if value not in (None, "")
-        )
-        lines.append("}")
-        entries.append("\n".join(lines))
-    return "\n\n".join(entries) + ("\n" if entries else "")
+    publications = publications_for_scope(
+        db, project_id, scope, status_filter, publication_ids
+    )
+    text, _ = build_bibtex_for_publications(publications)
+    return text

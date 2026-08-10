@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useMemo, useState } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
@@ -8,18 +8,24 @@ import { ConfirmButton } from '../../components/ConfirmButton'
 import { HighlightedText } from '../../components/HighlightedText'
 import {
   IconCheckCircle,
+  IconClock,
+  IconDownload,
   IconPlus,
   IconSparkle,
   IconTrash,
   IconUpload,
+  IconXCircle,
 } from '../../components/icons'
 import { OutcomeBadge } from '../../components/OutcomeBadge'
 import { InfoTooltip } from '../../components/Tooltip'
 import { FullTextDocumentPanel } from '../fulltext/FullTextDocumentPanel'
-import { useCanManageProject } from '../../hooks/useCanManageProject'
+import { AdministrationEyebrow } from '../projects/StageEyebrow'
+import { useCanManageProject, useCanManagePublications } from '../../hooks/useCanManageProject'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
+import { BackgroundJob, findJob, hasActiveJob, isJobActive } from '../jobs/jobStatus'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { BulkPdfUploadPanel } from './BulkPdfUploadPanel'
+import { PublicationReviewDetails } from './PublicationReviewDetails'
 import { PublicationFieldInputs } from './publicationFields'
 import { PublicationDraft, toPayload } from './publicationFieldsData'
 
@@ -43,8 +49,9 @@ interface Publication {
   issn: string | null
   pubmedId: string | null
   arxivId: string | null
-  fullText: { available: boolean }
+  fullText: { available: boolean; retrievalStatus?: string | null }
   screeningStatus?: ScreeningStatus
+  extractionStatus?: string | null
 }
 
 const SCREENING_OUTCOME_LABELS: Record<string, string> = {
@@ -71,6 +78,19 @@ const PDF_STATUS_FILTER_OPTIONS = [
 function screeningLabel(outcome: string | null | undefined): string {
   if (!outcome) return 'Pending'
   return SCREENING_OUTCOME_LABELS[outcome] ?? outcome
+}
+
+// Full-text screening is skipped entirely when retrieval definitively fails
+// (see backend/app/screening/routes.py), so those publications never get a
+// screening decision and would otherwise be mislabeled "Pending" forever.
+const FULL_TEXT_RETRIEVAL_FAILURE_LABELS: Record<string, string> = {
+  not_found: 'Not found',
+  inaccessible: 'Inaccessible',
+}
+
+function fullTextRetrievalFailureLabel(retrievalStatus: string | null | undefined): string | null {
+  if (!retrievalStatus) return null
+  return FULL_TEXT_RETRIEVAL_FAILURE_LABELS[retrievalStatus] ?? null
 }
 
 function matchesScreeningFilter(outcome: string | null | undefined, filter: string): boolean {
@@ -150,6 +170,19 @@ interface MetadataConflict {
   publication?: Publication
 }
 
+function extractionLabel(status: string): string {
+  if (status === 'completed') return 'Completed'
+  if (status === 'reserved') return 'In progress'
+  if (status === 'available') return 'Pending'
+  return status.replaceAll('_', ' ')
+}
+
+function extractionBadgeClass(status: string): string {
+  if (status === 'completed') return 'status-badge--success'
+  if (status === 'reserved') return 'status-badge--warning'
+  return 'status-badge--pending'
+}
+
 const PUBLICATION_METADATA_FIELDS: Array<{ label: string; value: (publication: Publication) => string | number | null }> = [
   { label: 'Title', value: (publication) => publication.title },
   { label: 'Authors', value: (publication) => publication.authors },
@@ -173,6 +206,7 @@ function PublicationRow({
   onToggleSelected,
   highlightKeywords,
   canManage,
+  canOverride,
 }: {
   publication: Publication
   projectId: string
@@ -180,6 +214,7 @@ function PublicationRow({
   onToggleSelected: () => void
   highlightKeywords: string[]
   canManage: boolean
+  canOverride: boolean
 }) {
   const queryClient = useQueryClient()
   const [editing, setEditing] = useState(false)
@@ -234,20 +269,6 @@ function PublicationRow({
           {publication.fullText?.available ? (
             <span className="status-badge status-badge--success"><IconCheckCircle /> PDF</span>
           ) : null}
-          {' '}
-          <OutcomeBadge
-            outcome={publication.screeningStatus?.titleAbstract}
-            label={`Title/Abstract: ${screeningLabel(publication.screeningStatus?.titleAbstract)}`}
-          />
-          {publication.screeningStatus?.fullText || publication.screeningStatus?.titleAbstract === 'include' ? (
-            <>
-              {' '}
-              <OutcomeBadge
-                outcome={publication.screeningStatus?.fullText}
-                label={`Full text: ${screeningLabel(publication.screeningStatus?.fullText)}`}
-              />
-            </>
-          ) : null}
           {publication.doi ? (
             <> <a href={`https://doi.org/${publication.doi}`} target="_blank" rel="noopener noreferrer">DOI</a></>
           ) : null}
@@ -256,6 +277,38 @@ function PublicationRow({
           ) : null}
         </div>
       </div>
+      <div className="publication-card__workflow" aria-label="Review decisions">
+        <OutcomeBadge
+          outcome={publication.screeningStatus?.titleAbstract}
+          label={`Title/Abstract: ${screeningLabel(publication.screeningStatus?.titleAbstract)}`}
+        />
+        {publication.screeningStatus?.fullText ? (
+          <OutcomeBadge
+            outcome={publication.screeningStatus.fullText}
+            label={`Full text: ${screeningLabel(publication.screeningStatus.fullText)}`}
+          />
+        ) : publication.screeningStatus?.titleAbstract === 'include' ? (
+          fullTextRetrievalFailureLabel(publication.fullText?.retrievalStatus) ? (
+            <span className="status-badge status-badge--danger">
+              <IconXCircle />
+              Full text: {fullTextRetrievalFailureLabel(publication.fullText?.retrievalStatus)}
+            </span>
+          ) : (
+            <OutcomeBadge outcome={null} label="Full text: Pending" />
+          )
+        ) : null}
+        {publication.extractionStatus ? (
+          <span className={`status-badge ${extractionBadgeClass(publication.extractionStatus)}`}>
+            {publication.extractionStatus === 'completed' ? <IconCheckCircle /> : <IconClock />}
+            Data extraction: {extractionLabel(publication.extractionStatus)}
+          </span>
+        ) : null}
+      </div>
+      <PublicationReviewDetails
+        projectId={projectId}
+        publicationId={publication.id}
+        canManage={canOverride}
+      />
       <details className="publication-card__abstract">
         <summary>Abstract</summary>
         <p>{publication.abstract?.trim() || 'No abstract available.'}</p>
@@ -269,6 +322,20 @@ function PublicationRow({
           <button type="button" className="button-secondary" onClick={() => setShowFullText((current) => !current)}>
             {showFullText ? 'Hide PDF' : publication.fullText?.available ? 'Manage PDF' : 'Attach PDF'}
           </button>
+          <a
+            className="button-secondary"
+            href={`/api/v1/projects/${projectId}/publications/${publication.id}/export/bib`}
+          >
+            Export BibTeX
+          </a>
+          {publication.fullText?.available ? (
+            <a
+              className="button-secondary"
+              href={`/api/v1/projects/${projectId}/publications/${publication.id}/export/pdf`}
+            >
+              Export PDF
+            </a>
+          ) : null}
           <ConfirmButton
             label="Delete"
             variant="danger"
@@ -386,9 +453,11 @@ export function PublicationsPage() {
   const { projectId = '' } = useParams()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const canManage = useCanManageProject(projectId)
+  const canManage = useCanManagePublications(projectId)
+  const canOverride = useCanManageProject(projectId)
   const highlightKeywords = useHighlightKeywords(projectId)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [pendingExportJobId, setPendingExportJobId] = useState<string | null>(null)
   const [titleAbstractFilter, setTitleAbstractFilter] = useState('')
   const [fullTextFilter, setFullTextFilter] = useState('')
   const [pdfStatusFilter, setPdfStatusFilter] = useState('')
@@ -453,6 +522,34 @@ export function PublicationsPage() {
     },
   })
 
+  const bulkExport = useMutation({
+    mutationFn: (publicationIds: string[]) => apiRequest<{ jobId: string }>(
+      `/api/v1/projects/${projectId}/exports`,
+      {
+        method: 'POST',
+        body: JSON.stringify({ exportType: 'pdf_bundle', publicationIds }),
+      },
+    ),
+    onSuccess: (result) => {
+      if (result?.jobId) setPendingExportJobId(result.jobId)
+    },
+  })
+
+  const exportJobs = useQuery({
+    queryKey: ['jobs', projectId],
+    queryFn: () => apiRequest<BackgroundJob[]>(`/api/v1/projects/${projectId}/jobs`),
+    enabled: Boolean(projectId) && Boolean(pendingExportJobId),
+    refetchInterval: (query) => (hasActiveJob(query.state.data) ? 2000 : false),
+  })
+  const pendingExportJob = pendingExportJobId ? findJob(exportJobs.data, pendingExportJobId) : undefined
+  const exportArtifactId = pendingExportJob?.result?.artifactId
+
+  useEffect(() => {
+    if (pendingExportJob && !isJobActive(pendingExportJob.status)) {
+      queryClient.invalidateQueries({ queryKey: ['exports', projectId] })
+    }
+  }, [pendingExportJob, projectId, queryClient])
+
   const toggleSelected = (id: string) => setSelectedIds((current) => {
     const next = new Set(current)
     if (next.has(id)) next.delete(id)
@@ -478,7 +575,11 @@ export function PublicationsPage() {
 
   return (
     <main className="page">
+      <AdministrationEyebrow />
       <h1>Publications</h1>
+      <p className="muted">
+        Want to import a database export? Go to <Link to={`/projects/${projectId}/imports`}>Searches and Imports</Link>.
+      </p>
       {query.data && (search || titleAbstractFilter || fullTextFilter || pdfStatusFilter) ? (
         <p className="muted">
           {filteredPublications.length} of {query.data.length} publication{query.data.length === 1 ? '' : 's'} match your filters
@@ -594,6 +695,15 @@ export function PublicationsPage() {
           {selectedIds.size > 0 ? (
             <>
               <span className="muted">{selectedIds.size} selected</span>
+              <button
+                type="button"
+                className="button-secondary"
+                disabled={bulkExport.isPending || (pendingExportJob ? isJobActive(pendingExportJob.status) : false)}
+                onClick={() => bulkExport.mutate(Array.from(selectedIds))}
+              >
+                <IconDownload />
+                Export Selected ({selectedIds.size})
+              </button>
               <ConfirmButton
                 label={`Delete Selected (${selectedIds.size})`}
                 variant="danger"
@@ -607,6 +717,23 @@ export function PublicationsPage() {
         </div>
       ) : null}
       {bulkDelete.error ? <p className="error" role="alert">{bulkDelete.error.message}</p> : null}
+      {bulkExport.error ? <p className="error" role="alert">{bulkExport.error.message}</p> : null}
+      {pendingExportJob && isJobActive(pendingExportJob.status) ? (
+        <p className="muted" role="status">Preparing export bundle (metadata.bib + PDFs)…</p>
+      ) : null}
+      {pendingExportJob && pendingExportJob.status === 'failed' ? (
+        <p className="error" role="alert">
+          Export failed{pendingExportJob.errorMessage ? `: ${pendingExportJob.errorMessage}` : ''}
+        </p>
+      ) : null}
+      {pendingExportJob && pendingExportJob.status === 'completed' && typeof exportArtifactId === 'string' ? (
+        <p>
+          Export ready:{' '}
+          <a href={`/api/v1/projects/${projectId}/exports/${exportArtifactId}/download`}>
+            Download bundle
+          </a>
+        </p>
+      ) : null}
       <ul className="card-list stacked publication-list">
         {filteredPublications.map((publication) => (
           <PublicationRow
@@ -617,6 +744,7 @@ export function PublicationsPage() {
             onToggleSelected={() => toggleSelected(publication.id)}
             highlightKeywords={highlightKeywords}
             canManage={canManage}
+            canOverride={canOverride}
           />
         ))}
       </ul>

@@ -1,6 +1,8 @@
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
+import { StageEyebrow } from '../projects/StageEyebrow'
+import { PreviousItemCard } from './PreviousItemCard'
 import { ScreeningItemCard } from './ScreeningItemCard'
 import { useScreeningQueue } from './useScreeningQueue'
 
@@ -12,17 +14,45 @@ export function ScreeningPage() {
 
   return (
     <main className="page">
-      <p className="eyebrow">Review workspace</p>
+      <StageEyebrow
+        stage={stage === 'full_text' ? 'full_text_screening' : 'title_abstract_screening'}
+      />
       <h1>
         {stage === 'full_text'
           ? 'Full-Text Screening'
           : 'Title and Abstract Screening'}
       </h1>
       {queue.progress ? (
-        <p className="muted">{queue.progress.completed} of {queue.progress.assigned} assigned papers screened</p>
+        <p className="muted">
+          {queue.progress.claimMode
+            ? `${queue.progress.remaining} papers remaining`
+            : `${queue.progress.completed} of ${queue.progress.assigned} assigned papers screened`}
+        </p>
       ) : null}
       <p><Link to={`/projects/${projectId}/screening/${stage}/my-decisions`}>Review or change my past decisions</Link></p>
-      {!queue.item ? (
+      {!queue.previousItem && queue.lastCompletedItem ? (
+        <div className="toolbar">
+          <button
+            type="button"
+            className="button-secondary"
+            onClick={() => queue.goBack.mutate()}
+            disabled={queue.goBack.isPending}
+          >
+            ← Go back to “{queue.lastCompletedItem.title}”
+          </button>
+        </div>
+      ) : null}
+      {queue.goBack.error ? <p className="error" role="alert">{queue.goBack.error.message}</p> : null}
+      {queue.previousItem ? (
+        <PreviousItemCard
+          projectId={projectId}
+          stage={stage}
+          previousItem={queue.previousItem}
+          highlightKeywords={highlightKeywords}
+          onClose={queue.closePrevious}
+          save={queue.savePreviousDecision}
+        />
+      ) : !queue.item ? (
         <>
           {queue.loadingNext ? <p>Loading the next publication…</p> : null}
           {!queue.loadingNext && queue.queueEmpty ? (

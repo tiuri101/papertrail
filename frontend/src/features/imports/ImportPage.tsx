@@ -10,6 +10,7 @@ import { useRegisterSectionItems } from '../../components/sectionNavigation'
 import { InfoTooltip } from '../../components/Tooltip'
 import { getCsrfToken } from '../auth/session'
 import { BackgroundJob, findJob, hasActiveJob, isJobActive } from '../jobs/jobStatus'
+import { StageEyebrow } from '../projects/StageEyebrow'
 import { AttachPdfsPanel } from './AttachPdfsPanel'
 import { FileDropZone } from './FileDropZone'
 import { PdfMatchReview, type PdfSummary } from './PdfMatchReview'
@@ -79,8 +80,6 @@ export function ImportPage() {
   const [searchDate, setSearchDate] = useState('')
   const [filters, setFilters] = useState('')
   const [pendingJobId, setPendingJobId] = useState<string | null>(null)
-  const [pendingBatchId, setPendingBatchId] = useState<string | null>(null)
-  const [showPdfReview, setShowPdfReview] = useState(false)
   const [attachBatchId, setAttachBatchId] = useState<string | null>(null)
   const [hadSearchHistoryOnLoad, setHadSearchHistoryOnLoad] = useState<boolean | null>(null)
 
@@ -98,6 +97,21 @@ export function ImportPage() {
   })
   const pendingJob = pendingJobId ? findJob(jobs.data, pendingJobId) : undefined
 
+  const pdfMatchesQueryKey = ['pdf-matches', projectId, 'project-wide']
+  const projectPdfMatches = useQuery({
+    queryKey: pdfMatchesQueryKey,
+    queryFn: () => apiRequest<{ summary: PdfSummary }>(`/api/v1/projects/${projectId}/pdf-matches`),
+    enabled: Boolean(projectId),
+  })
+  const projectPdfSummary = projectPdfMatches.data?.summary
+  const projectNeedsPdfReview = Boolean(
+    projectPdfSummary && (
+      (projectPdfSummary.ambiguous ?? 0)
+      + (projectPdfSummary.unmatched ?? 0)
+      + (projectPdfSummary.conflict_existing_pdf ?? 0)
+    ) > 0,
+  )
+
   useEffect(() => {
     if (!searches.isLoading && hadSearchHistoryOnLoad === null) {
       setHadSearchHistoryOnLoad(Boolean(searches.data?.length))
@@ -107,7 +121,9 @@ export function ImportPage() {
   useEffect(() => {
     if (pendingJob && !isJobActive(pendingJob.status)) {
       queryClient.invalidateQueries({ queryKey: ['publications', projectId] })
+      queryClient.invalidateQueries({ queryKey: pdfMatchesQueryKey })
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingJob, projectId, queryClient])
 
   const submit = useMutation({
@@ -150,14 +166,18 @@ export function ImportPage() {
       setPdfFiles([])
       setPdfArchives([])
       setPendingJobId(result.jobId)
-      setPendingBatchId(result.importBatchId)
       queryClient.invalidateQueries({ queryKey: ['searches', projectId] })
     },
   })
 
   return (
     <main className="page">
+      <StageEyebrow stage="draft" />
       <h1>Searches and Imports</h1>
+      <p className="muted">
+        Import publication records from a database export, or review the searches already
+        documented for this project.
+      </p>
 
       {hadSearchHistoryOnLoad === null ? (
         <section id="section-import-records" className="card">
@@ -244,7 +264,12 @@ export function ImportPage() {
                     </h3>
                     <p>{pdfSummary.total} files processed · {pdfSummary.matched ?? 0} matched · {needsReview} need review · {pdfSummary.duplicate ?? 0} duplicate · {pdfSummary.invalid ?? 0} invalid</p>
                     {needsReview ? (
-                      <button type="button" onClick={() => setShowPdfReview(true)}>
+                      <button
+                        type="button"
+                        onClick={() => document
+                          .getElementById('section-pdf-review')
+                          ?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                      >
                         Review PDF matches
                       </button>
                     ) : null}
@@ -264,21 +289,17 @@ export function ImportPage() {
 
       <section
         id="section-search-history"
-        className="card search-history"
+        className="card"
         aria-labelledby="search-history-title"
       >
-        <header className="search-history__heading">
-          <span className="eyebrow">Search history</span>
-          <h2 id="search-history-title">Previously Documented Searches</h2>
-          {searches.data?.length ? (
-            <p>
-              {searches.data.length} documented search{searches.data.length === 1 ? '' : 'es'} with
-              their strategy, provenance, and imported records.
-            </p>
-          ) : (
-            <p>No searches have been documented for this project yet.</p>
-          )}
-        </header>
+        <h2 id="search-history-title">Previously Documented Searches</h2>
+        {searches.data?.length ? (
+          <p className="muted">
+            {searches.data.length} documented search{searches.data.length === 1 ? '' : 'es'}
+          </p>
+        ) : (
+          <p className="muted">No searches have been documented for this project yet.</p>
+        )}
 
         {searches.data?.length ? (
           <ol className="search-history__list">
@@ -321,7 +342,7 @@ export function ImportPage() {
                         <dt><IconPerson />Added by</dt>
                         <dd>
                           {search.createdBy
-                            ? `${search.createdBy.displayName} (@${search.createdBy.username})`
+                            ? `${search.createdBy.displayName} (${search.createdBy.username})`
                             : 'Contributor unavailable'}
                         </dd>
                       </div>
@@ -403,8 +424,8 @@ export function ImportPage() {
           <p className="search-history__empty">Your documented search strategies and import summaries will appear here.</p>
         )}
       </section>
-      {showPdfReview && pendingBatchId ? (
-        <PdfMatchReview projectId={projectId} importBatchId={pendingBatchId} />
+      {projectNeedsPdfReview ? (
+        <PdfMatchReview projectId={projectId} />
       ) : null}
     </main>
   )

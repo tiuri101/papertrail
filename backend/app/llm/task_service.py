@@ -11,7 +11,6 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.conflicts.models import FinalDecision
-from app.core.config import get_settings
 from app.extraction.models import (
     ExtractionResponse,
     ExtractionStatus,
@@ -21,6 +20,7 @@ from app.fulltext.documents import active_document
 from app.fulltext.models import PublicationDocument
 from app.jobs.models import BackgroundJob, JobStatus
 from app.jobs.service import enqueue_job
+from app.llm.installation_settings import effective_llm_settings
 from app.llm.models import (
     DocumentTextExtraction,
     LlmExtractionRun,
@@ -77,13 +77,13 @@ def _criteria_input(criteria: list[Criterion]) -> list[dict[str, Any]]:
     ]
 
 
-def _model() -> str | None:
-    config = get_settings()
+def _model(db: Session) -> str | None:
+    config = effective_llm_settings(db)
     return config.ollama_model if config.llm_enabled else None
 
 
 def feature_enabled(db: Session, project_id: str, task_type: LlmTaskType) -> bool:
-    if _model() is None:
+    if _model(db) is None:
         return False
     settings = project_settings(db, project_id)
     if settings is None:
@@ -99,7 +99,7 @@ def feature_enabled(db: Session, project_id: str, task_type: LlmTaskType) -> boo
 def _title_input(db: Session, publication: Publication) -> dict[str, Any]:
     return {
         "prompt": TITLE_ABSTRACT_PROMPT_VERSION,
-        "model": _model(),
+        "model": _model(db),
         "publication": {
             "title": publication.title,
             "abstract": publication.abstract,
@@ -125,7 +125,7 @@ def full_text_fingerprint(
     return fingerprint(
         {
             "prompt": FULL_TEXT_PROMPT_VERSION,
-            "model": _model(),
+            "model": _model(db),
             "publication": publication.id,
             "document": document.id,
             "sha256": document.sha256,
@@ -137,12 +137,15 @@ def full_text_fingerprint(
 
 
 def data_extraction_fingerprint(
-    document: PublicationDocument, extraction: DocumentTextExtraction, schema_id: str
+    db: Session,
+    document: PublicationDocument,
+    extraction: DocumentTextExtraction,
+    schema_id: str,
 ) -> str:
     return fingerprint(
         {
             "prompt": PROMPT_TEMPLATE_VERSION,
-            "model": _model(),
+            "model": _model(db),
             "document": document.id,
             "sha256": document.sha256,
             "textExtraction": extraction.id,
@@ -152,6 +155,7 @@ def data_extraction_fingerprint(
 
 
 def validation_fingerprint(
+    db: Session,
     document: PublicationDocument,
     extraction: DocumentTextExtraction,
     response: ExtractionResponse,
@@ -159,7 +163,7 @@ def validation_fingerprint(
     return fingerprint(
         {
             "prompt": EXTRACTION_VALIDATION_PROMPT_VERSION,
-            "model": _model(),
+            "model": _model(db),
             "document": document.id,
             "sha256": document.sha256,
             "textExtraction": extraction.id,
@@ -228,7 +232,7 @@ def _create_run(
             if job is not None and bulk_id and not job.payload.get("bulk_id"):
                 job.payload = {**job.payload, "bulk_id": bulk_id}
         return existing
-    model = _model()
+    model = _model(db)
     if model is None:
         raise RuntimeError("LLM support is not configured")
     run = LlmExtractionRun(
@@ -245,7 +249,7 @@ def _create_run(
         model_configuration={
             "temperature": 0,
             "think": False,
-            "contextLength": get_settings().llm_context_length,
+            "contextLength": effective_llm_settings(db).llm_context_length,
         },
         prompt_template_version=prompt_version,
         status=ProcessingStatus.PENDING,
@@ -535,7 +539,7 @@ def queue_extraction_validation(
         db, publication.project_id, LlmTaskType.EXTRACTION_VALIDATION
     ):
         return None
-    if allow_disabled_manual and _model() is None:
+    if allow_disabled_manual and _model(db) is None:
         return None
     response = response or _current_response(db, publication_id)
     document = active_document(db, publication_id)
@@ -558,7 +562,7 @@ def queue_extraction_validation(
         db,
         publication=publication,
         task_type=LlmTaskType.EXTRACTION_VALIDATION,
-        input_fingerprint=validation_fingerprint(document, extraction, response),
+        input_fingerprint=validation_fingerprint(db, document, extraction, response),
         prompt_version=EXTRACTION_VALIDATION_PROMPT_VERSION,
         created_by_id=created_by_id,
         priority=priority,
@@ -583,7 +587,7 @@ def queue_document_processing(
         return None
     settings = project_settings(db, publication.project_id)
     if (
-        _model() is None
+        _model(db) is None
         or settings is None
         or not (
             settings.enabled
@@ -868,12 +872,14 @@ def current_task_fingerprint(db: Session, run: LlmExtractionRun) -> str | None:
     if run.task_type == LlmTaskType.DATA_EXTRACTION:
         schema = current_schema(db, publication.project_id)
         return (
-            data_extraction_fingerprint(document, extraction, schema.id)
+            data_extraction_fingerprint(db, document, extraction, schema.id)
             if schema
             else None
         )
     response = _current_response(db, publication.id)
-    return validation_fingerprint(document, extraction, response) if response else None
+    return (
+        validation_fingerprint(db, document, extraction, response) if response else None
+    )
 
 
 def run_is_stale(db: Session, run: LlmExtractionRun) -> bool:

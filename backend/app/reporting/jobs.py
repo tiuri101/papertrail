@@ -14,6 +14,7 @@ from app.reporting.service import (
     build_excel,
     build_prisma_svg,
     build_prisma_tables,
+    build_publication_bundle,
     calculate_prisma_counts,
 )
 
@@ -44,6 +45,7 @@ def generate_export_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
     export_type = job.payload["export_type"]
     scope = job.payload.get("scope", "included")
     status_filter = job.payload.get("status_filter")
+    publication_ids = job.payload.get("publication_ids")
     if export_type == "xlsx":
         data = build_excel(db, project.id)
         extension = "xlsx"
@@ -51,13 +53,18 @@ def generate_export_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
         data = build_prisma_tables(db, project.id)
         extension = "xlsx"
     elif export_type == "bibtex":
-        data = build_bibtex(db, project.id, scope, status_filter).encode()
+        data = build_bibtex(
+            db, project.id, scope, status_filter, publication_ids
+        ).encode()
         extension = "bib"
     elif export_type == "prisma_svg":
         data = build_prisma_svg(
             project.name, calculate_prisma_counts(db, project.id)
         ).encode()
         extension = "svg"
+    elif export_type == "pdf_bundle":
+        data = build_publication_bundle(db, project.id, publication_ids or [])
+        extension = "zip"
     else:
         raise ValueError("Unsupported export type")
     directory = get_settings().export_dir / project.id

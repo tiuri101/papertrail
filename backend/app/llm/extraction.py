@@ -8,11 +8,11 @@ from sqlalchemy import delete, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.errors import DomainError
-from app.core.config import get_settings
 from app.fulltext.models import PublicationDocument
 from app.jobs.errors import TransientJobError
 from app.jobs.models import BackgroundJob
 from app.llm.evidence import verify_evidence
+from app.llm.installation_settings import effective_llm_settings
 from app.llm.models import (
     DocumentPageText,
     DocumentTextExtraction,
@@ -170,7 +170,7 @@ def run_llm_extraction_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
             .order_by(DocumentPageText.page_number)
         )
     )
-    config = get_settings()
+    config = effective_llm_settings(db)
     schema = output_schema(
         fields, config.llm_max_evidence_items, config.llm_max_evidence_quote_chars
     )

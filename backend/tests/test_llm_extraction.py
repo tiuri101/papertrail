@@ -764,6 +764,70 @@ def test_llm_admin_settings_schema_and_connection_api(client, db, monkeypatch) -
     assert tested.json()["modelAvailable"] is True
 
 
+def test_administrator_can_override_installation_llm_settings(client, db) -> None:
+    admin, reviewer, project, _, _, _, _, _ = setup_llm_project(db)
+    reviewer_membership = db.scalar(
+        select(ProjectMembership).where(
+            ProjectMembership.project_id == project.id,
+            ProjectMembership.user_id == reviewer.id,
+        )
+    )
+    assert reviewer_membership is not None
+    reviewer_membership.is_owner = True
+    db.commit()
+    admin_csrf = client.post(
+        "/api/v1/auth/login",
+        json={"username": admin.username, "password": "secret-password"},
+    ).json()["csrfToken"]
+
+    updated = client.patch(
+        "/api/v1/llm/installation-settings",
+        json={
+            "enabled": True,
+            "endpoint": "https://ollama.internal.example:11434/",
+            "model": "gemma3:12b",
+            "contextLength": 16384,
+        },
+        headers={"X-CSRF-Token": admin_csrf},
+    )
+    assert updated.status_code == 200
+    assert updated.json() == {
+        "installationEnabled": True,
+        "provider": "Ollama",
+        "endpoint": "https://ollama.internal.example:11434",
+        "model": "gemma3:12b",
+        "contextLength": 16384,
+        "canManageInstallation": True,
+    }
+
+    admin_view = client.get(f"/api/v1/projects/{project.id}/llm/settings")
+    assert admin_view.json()["endpoint"] == "https://ollama.internal.example:11434"
+    assert admin_view.json()["model"] == "gemma3:12b"
+
+    client.post("/api/v1/auth/logout", headers={"X-CSRF-Token": admin_csrf})
+    owner_csrf = client.post(
+        "/api/v1/auth/login",
+        json={"username": reviewer.username, "password": "reviewer-password"},
+    ).json()["csrfToken"]
+    owner_view = client.get(f"/api/v1/projects/{project.id}/llm/settings")
+    assert owner_view.status_code == 200
+    assert owner_view.json()["canManageInstallation"] is False
+    assert "endpoint" not in owner_view.json()
+    assert owner_view.json()["model"] == "gemma3:12b"
+
+    forbidden = client.patch(
+        "/api/v1/llm/installation-settings",
+        json={
+            "enabled": False,
+            "endpoint": "https://other.example",
+            "model": "other-model",
+            "contextLength": 8192,
+        },
+        headers={"X-CSRF-Token": owner_csrf},
+    )
+    assert forbidden.status_code == 403
+
+
 def test_suggestions_are_visible_only_to_assigned_reviewer(
     client, db, monkeypatch
 ) -> None:

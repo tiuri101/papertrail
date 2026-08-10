@@ -392,15 +392,28 @@ def resolve_pdf_match(
     db.flush()
 
 
+def _summarize_statuses(statuses: list[PdfMatchStatus]) -> dict[str, int]:
+    summary = {"total": len(statuses)}
+    for state in PdfMatchStatus:
+        summary[state.value] = sum(status == state for status in statuses)
+    return summary
+
+
 def pdf_summary(db: Session, batch_id: str) -> dict[str, int]:
-    items = list(
+    statuses = list(
         db.scalars(
             select(ImportPdfItem.status).where(
                 ImportPdfItem.import_batch_id == batch_id
             )
         )
     )
-    summary = {"total": len(items)}
-    for state in PdfMatchStatus:
-        summary[state.value] = sum(status == state for status in items)
-    return summary
+    return _summarize_statuses(statuses)
+
+
+def project_pdf_summary(db: Session, project_id: str) -> dict[str, int]:
+    statuses = list(
+        db.scalars(
+            select(ImportPdfItem.status).where(ImportPdfItem.project_id == project_id)
+        )
+    )
+    return _summarize_statuses(statuses)

@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
+import { IconCheckCircle, IconFolder } from '../../components/icons'
+import { InfoBox } from '../../components/InfoBox'
 
 interface ProjectDetails {
   id: string
@@ -41,41 +43,48 @@ export function ProjectDetailsPanel({ projectId }: { projectId: string }) {
     },
   })
 
-  const saveIfChanged = () => {
-    if (!project.data) return
-    if (name.trim().length === 0) return
-    if (name === project.data.name && description === (project.data.description ?? '')) return
-    save.mutate({ name, description })
-  }
-
   return (
-    <CollapsibleSection id="section-project-details" title="Project Details">
-      <p className="muted">Changes save automatically when you leave a field.</p>
+    <CollapsibleSection id="section-project-details" title="Project Details" icon={<IconFolder />}>
+      <InfoBox icon={<IconFolder />}>
+        <p>
+          The name and description shown across the app wherever this project is listed. Changes
+          here take effect immediately for every member.
+        </p>
+      </InfoBox>
       {project.error ? <p className="error" role="alert">{project.error.message}</p> : null}
-      <label>
-        Name
-        <input
-          type="text"
-          value={name}
-          onChange={(event) => setName(event.target.value)}
-          onBlur={saveIfChanged}
-          required
-          maxLength={250}
-        />
-      </label>
-      <label>
-        Description
-        <textarea
-          value={description}
-          onChange={(event) => setDescription(event.target.value)}
-          onBlur={saveIfChanged}
-          rows={3}
-        />
-      </label>
-      {save.error ? <p className="error" role="alert">{save.error.message}</p> : null}
-      <p className="muted" aria-live="polite">
-        {save.isPending ? 'Saving…' : save.isSuccess ? 'Saved.' : ' '}
-      </p>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault()
+          save.mutate({ name, description })
+        }}
+      >
+        <label>
+          Name
+          <input
+            type="text"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            required
+            maxLength={250}
+          />
+        </label>
+        <label>
+          Description
+          <textarea
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            rows={3}
+          />
+        </label>
+        {save.error ? <p className="error" role="alert">{save.error.message}</p> : null}
+        <button type="submit" disabled={save.isPending}>
+          <IconCheckCircle />
+          {save.isPending ? 'Saving…' : 'Save Project Details'}
+        </button>
+        <p className="muted" aria-live="polite">
+          {save.isSuccess ? 'Saved.' : ' '}
+        </p>
+      </form>
     </CollapsibleSection>
   )
 }

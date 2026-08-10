@@ -1,10 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { CSSProperties } from 'react'
-import { useEffect, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
-import { IconCheckCircle, IconTrash } from '../../components/icons'
+import { InfoBox } from '../../components/InfoBox'
+import { IconCheckCircle, IconChart, IconSettings, IconSparkle, IconTrash } from '../../components/icons'
+import { useSession } from '../auth/sessionQuery'
 import { STAGES } from '../projects/StageProgress'
 
 const stageColors = Object.fromEntries(STAGES.map((stage) => [stage.value, stage.color]))
@@ -20,9 +22,10 @@ interface LlmSettings {
   extractionValidationEnabled: boolean
   installationEnabled: boolean
   provider: string
-  endpoint: string | null
+  endpoint?: string | null
   model: string | null
   contextLength: number
+  canManageInstallation: boolean
   currentSchemaVersionId: string | null
 }
 
@@ -77,16 +80,25 @@ const FIELD_TYPES = [
   'multiple_select', 'date', 'url', 'rating',
 ]
 
-export function LlmAssistancePanel({
-  projectId,
-  showProcessingStatus = true,
-  onDirtyChange,
-}: {
+export interface LlmAssistancePanelHandle {
+  finishSetup: () => Promise<void>
+}
+
+interface LlmAssistancePanelProps {
   projectId: string
   showProcessingStatus?: boolean
   onDirtyChange?: (dirty: boolean) => void
-}) {
+  setupMode?: boolean
+}
+
+export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssistancePanelProps>(function LlmAssistancePanel({
+  projectId,
+  showProcessingStatus = true,
+  onDirtyChange,
+  setupMode = false,
+}, ref) {
   const queryClient = useQueryClient()
+  const session = useSession()
   const settings = useQuery({
     queryKey: ['llm-settings', projectId],
     queryFn: () => apiRequest<LlmSettings>(`/api/v1/projects/${projectId}/llm/settings`),
@@ -102,8 +114,20 @@ export function LlmAssistancePanel({
   })
   const [fields, setFields] = useState<LlmSchemaField[]>([])
   const [connection, setConnection] = useState<{ message: string; ok: boolean } | null>(null)
+  const [installationEnabled, setInstallationEnabled] = useState(false)
+  const [installationEndpoint, setInstallationEndpoint] = useState('')
+  const [installationModel, setInstallationModel] = useState('')
+  const [installationContextLength, setInstallationContextLength] = useState('32768')
 
   useEffect(() => setFields(schema.data?.schema?.fields ?? []), [schema.data?.schema])
+
+  useEffect(() => {
+    if (!settings.data) return
+    setInstallationEnabled(settings.data.installationEnabled)
+    setInstallationEndpoint(settings.data.endpoint ?? '')
+    setInstallationModel(settings.data.model ?? '')
+    setInstallationContextLength(String(settings.data.contextLength))
+  }, [settings.data])
 
   useEffect(() => {
     const saved = schema.data?.schema?.fields ?? []
@@ -121,6 +145,18 @@ export function LlmAssistancePanel({
       `/api/v1/projects/${projectId}/llm/settings`,
       { method: 'PATCH', body: JSON.stringify(patch) },
     ),
+    onSuccess: refresh,
+  })
+  const saveInstallation = useMutation({
+    mutationFn: () => apiRequest<LlmSettings>('/api/v1/llm/installation-settings', {
+      method: 'PATCH',
+      body: JSON.stringify({
+        enabled: installationEnabled,
+        endpoint: installationEndpoint,
+        model: installationModel,
+        contextLength: Number(installationContextLength),
+      }),
+    }),
     onSuccess: refresh,
   })
   const test = useMutation({
@@ -164,6 +200,28 @@ export function LlmAssistancePanel({
     },
     onSuccess: refresh,
   })
+  const finishSetup = useMutation({
+    mutationFn: async () => {
+      const currentSchema = schema.data?.schema
+      if (!currentSchema) return
+
+      const savedFields = currentSchema.fields
+      let schemaToPublish = currentSchema
+      if (JSON.stringify(fields) !== JSON.stringify(savedFields)) {
+        schemaToPublish = await apiRequest<LlmSchema>(
+          `/api/v1/projects/${projectId}/llm/schema/${currentSchema.id}`,
+          { method: 'PUT', body: JSON.stringify({ fields }) },
+        )
+      }
+      if (schemaToPublish.status === 'draft') {
+        await apiRequest<LlmSchema>(
+          `/api/v1/projects/${projectId}/llm/schema/${schemaToPublish.id}/publish`,
+          { method: 'POST' },
+        )
+      }
+    },
+    onSuccess: refresh,
+  })
   const reanalyze = useMutation({
     mutationFn: (taskType: 'title_abstract_screening' | 'full_text_screening' | 'data_extraction' | 'extraction_validation') => apiRequest(
       `/api/v1/projects/${projectId}/llm/runs/reanalyze`,
@@ -188,23 +246,87 @@ export function LlmAssistancePanel({
     position: current.length,
   }])
 
-  const error = toggle.error ?? initialize.error ?? save.error
-    ?? publish.error ?? reanalyze.error
+  useImperativeHandle(ref, () => ({
+    finishSetup: () => finishSetup.mutateAsync(),
+  }), [finishSetup])
+
+  const installationError = saveInstallation.error
+  const capabilitiesError = toggle.error
+  const schemaError = initialize.error ?? save.error ?? publish.error ?? finishSetup.error
+  const processingError = reanalyze.error
   const currentSchema = schema.data?.schema
   return (
-    <CollapsibleSection id="section-llm-assistance" title="LLM Assistance">
-      <p className="muted">
-        Suggestions come from the configured external Ollama service. Reviewers remain responsible
-        for every submitted extraction value.
-      </p>
-      {settings.data ? (
+    <>
+    <CollapsibleSection id="section-llm-installation" title="LLM Installation" icon={<IconSettings />}>
+      <InfoBox icon={<IconSettings />}>
+        <p>
+          The Ollama connection Papertrail uses for LLM suggestions, shared across every project
+          on this installation.
+        </p>
+      </InfoBox>
+      {settings.data && !settings.data.canManageInstallation ? (
         <dl className="detail-list">
           <dt>Installation enabled</dt><dd>{settings.data.installationEnabled ? 'Yes' : 'No'}</dd>
           <dt>Provider</dt><dd>{settings.data.provider}</dd>
-          <dt>Endpoint</dt><dd>{settings.data.endpoint ?? 'Not configured'}</dd>
           <dt>Model</dt><dd>{settings.data.model ?? 'Not configured'}</dd>
           <dt>Context length</dt><dd>{settings.data.contextLength.toLocaleString()}</dd>
         </dl>
+      ) : null}
+      {settings.data?.canManageInstallation && session.data?.user?.isAdmin ? (
+        <form
+          className="llm-installation-settings"
+          onSubmit={(event) => { event.preventDefault(); saveInstallation.mutate() }}
+        >
+          <div className="llm-installation-settings__heading">
+            <div>
+              <h3>Installation configuration</h3>
+            </div>
+            <label className="toggle-label">
+              <input
+                type="checkbox"
+                checked={installationEnabled}
+                onChange={(event) => setInstallationEnabled(event.target.checked)}
+              />
+              LLM enabled
+            </label>
+          </div>
+          <div className="llm-installation-settings__grid">
+            <label>
+              Endpoint
+              <input
+                type="url"
+                value={installationEndpoint}
+                onChange={(event) => setInstallationEndpoint(event.target.value)}
+                placeholder="http://ollama:11434"
+                required
+              />
+            </label>
+            <label>
+              Model
+              <input
+                value={installationModel}
+                onChange={(event) => setInstallationModel(event.target.value)}
+                placeholder="gemma3:12b"
+                required
+              />
+            </label>
+            <label>
+              Context length
+              <input
+                type="number"
+                min="4096"
+                step="1024"
+                value={installationContextLength}
+                onChange={(event) => setInstallationContextLength(event.target.value)}
+                required
+              />
+            </label>
+          </div>
+          <button type="submit" disabled={saveInstallation.isPending}>
+            <IconCheckCircle />
+            {saveInstallation.isPending ? 'Saving…' : 'Save Installation Settings'}
+          </button>
+        </form>
       ) : null}
       <div className="toolbar">
         <button type="button" onClick={() => test.mutate()} disabled={test.isPending}>
@@ -216,9 +338,22 @@ export function LlmAssistancePanel({
           {connection.message}
         </p>
       ) : null}
+      {installationError ? <p className="error" role="alert">{installationError.message}</p> : null}
+    </CollapsibleSection>
+
+    <CollapsibleSection id="section-llm-capabilities" title="LLM Capabilities" icon={<IconCheckCircle />}>
+      <InfoBox icon={<IconCheckCircle />}>
+        <p>
+          Turn LLM suggestions on or off for each stage independently — nothing runs until it's
+          enabled here.
+          {setupMode
+            ? ' LLM assistance is optional — enable it now, or leave it off and come back to it later from Project Administration.'
+            : null}
+        </p>
+      </InfoBox>
       {settings.data ? (
         <fieldset>
-          <legend className="subsection-heading">LLM capabilities</legend>
+          <legend className="subsection-heading">Stages</legend>
           <label>
             <input
               type="checkbox"
@@ -257,9 +392,17 @@ export function LlmAssistancePanel({
           </label>
         </fieldset>
       ) : null}
+      {capabilitiesError ? <p className="error" role="alert">{capabilitiesError.message}</p> : null}
+    </CollapsibleSection>
 
-      <section className="llm-schema-section" aria-labelledby="llm-extraction-schema-heading">
-        <h3 id="llm-extraction-schema-heading">LLM Extraction Schema</h3>
+    <CollapsibleSection id="section-llm-extraction-schema" title="LLM Extraction Schema" icon={<IconSparkle />}>
+      <InfoBox icon={<IconSparkle />}>
+        <p>
+          Define the fields the LLM extracts alongside reviewers&apos; own answers. Map a field to
+          an extraction question, or leave it as an LLM-only helper. Reviewers remain responsible
+          for every submitted value — suggestions are never applied automatically.
+        </p>
+      </InfoBox>
         {!currentSchema ? (
           <button type="button" onClick={() => initialize.mutate()} disabled={initialize.isPending}>
             Create LLM schema from extraction form
@@ -356,40 +499,97 @@ export function LlmAssistancePanel({
           </div>
           <div className="toolbar">
             <button type="button" className="button-secondary" onClick={addHelper}>Add helper field</button>
-            <button type="button" onClick={() => save.mutate()} disabled={save.isPending}>Save draft</button>
+            {!setupMode ? (
+              <button type="button" onClick={() => save.mutate()} disabled={save.isPending}>Save draft</button>
+            ) : null}
           </div>
-          <div className="toolbar">
-            <button
-              type="button"
-              className="button-success"
-              onClick={() => publish.mutate()}
-              disabled={publish.isPending || currentSchema.status !== 'draft'}
-            >
-              <IconCheckCircle />
-              Publish version
-            </button>
-          </div>
+          {!setupMode ? (
+            <div className="toolbar">
+              <button
+                type="button"
+                className="button-success"
+                onClick={() => publish.mutate()}
+                disabled={publish.isPending || currentSchema.status !== 'draft'}
+              >
+                <IconCheckCircle />
+                Publish version
+              </button>
+            </div>
+          ) : null}
           </>
         )}
-      </section>
-      {error ? <p className="error" role="alert">{error.message}</p> : null}
+      {schemaError ? <p className="error" role="alert">{schemaError.message}</p> : null}
+    </CollapsibleSection>
 
-      {showProcessingStatus ? (
-        <>
-          <h3>Processing status</h3>
+    {showProcessingStatus ? (
+      <CollapsibleSection id="section-llm-processing-status" title="Processing Status" icon={<IconChart />}>
+        <InfoBox icon={<IconChart />}>
+          <p>
+            Live counts of publications processed by the LLM for this project. Re-run a stage
+            after changing its schema or settings so results reflect the latest configuration.
+          </p>
+        </InfoBox>
           {overview.data ? (
             <>
-              <dl className="detail-list">
-                <dt>Eligible for processing</dt><dd>{overview.data.overview.eligible}</dd>
-                <dt>Missing PDF</dt><dd>{overview.data.overview.missingPdf}</dd>
-                <dt>Outdated schema</dt><dd>{overview.data.overview.outdatedSchema}</dd>
-                <dt>Ready</dt><dd>{overview.data.counts.completed ?? 0}</dd>
-                <dt>Processing</dt><dd>{overview.data.counts.processing ?? 0}</dd>
-                <dt>Queued</dt><dd>{overview.data.counts.pending ?? 0}</dd>
-                <dt>Failed</dt><dd>{overview.data.counts.failed ?? 0}</dd>
-                <dt>Average prompt tokens</dt><dd>{Math.round(overview.data.statistics.averagePromptTokens ?? 0)}</dd>
-                <dt>Average generated tokens</dt><dd>{Math.round(overview.data.statistics.averageGeneratedTokens ?? 0)}</dd>
-              </dl>
+              <div className="llm-processing-status">
+                <table className="table-compact table-narrow llm-processing-status__table">
+                  <thead>
+                    <tr>
+                      <th scope="col">Metric</th>
+                      <th scope="col">Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr><th scope="row">Eligible for processing</th><td>{overview.data.overview.eligible}</td></tr>
+                    <tr><th scope="row">Missing PDF</th><td>{overview.data.overview.missingPdf}</td></tr>
+                    <tr><th scope="row">Outdated schema</th><td>{overview.data.overview.outdatedSchema}</td></tr>
+                    <tr><th scope="row">Ready</th><td>{overview.data.counts.completed ?? 0}</td></tr>
+                    <tr><th scope="row">Processing</th><td>{overview.data.counts.processing ?? 0}</td></tr>
+                    <tr><th scope="row">Queued</th><td>{overview.data.counts.pending ?? 0}</td></tr>
+                    <tr><th scope="row">Failed</th><td>{overview.data.counts.failed ?? 0}</td></tr>
+                    <tr><th scope="row">Average prompt tokens</th><td>{Math.round(overview.data.statistics.averagePromptTokens ?? 0)}</td></tr>
+                    <tr><th scope="row">Average generated tokens</th><td>{Math.round(overview.data.statistics.averageGeneratedTokens ?? 0)}</td></tr>
+                  </tbody>
+                </table>
+                <div className="llm-rerun-actions">
+                  <button
+                    type="button"
+                    className="llm-stage-button"
+                    style={stageButtonStyle('title_abstract_screening')}
+                    onClick={() => reanalyze.mutate('title_abstract_screening')}
+                    disabled={reanalyze.isPending || !settings.data?.titleAbstractScreeningEnabled}
+                  >
+                    Re-Run LLM Title/Abstract Screening
+                  </button>
+                  <button
+                    type="button"
+                    className="llm-stage-button"
+                    style={stageButtonStyle('full_text_screening')}
+                    onClick={() => reanalyze.mutate('full_text_screening')}
+                    disabled={reanalyze.isPending || !settings.data?.fullTextScreeningEnabled}
+                  >
+                    Re-Run LLM Full-Text Screening
+                  </button>
+                  <button
+                    type="button"
+                    className="llm-stage-button"
+                    style={stageButtonStyle('extraction_quality')}
+                    onClick={() => reanalyze.mutate('data_extraction')}
+                    disabled={reanalyze.isPending || !settings.data?.enabled}
+                  >
+                    Re-Run LLM Data Extraction
+                  </button>
+                  <button
+                    type="button"
+                    className="llm-stage-button"
+                    style={stageButtonStyle('extraction_quality')}
+                    onClick={() => reanalyze.mutate('extraction_validation')}
+                    disabled={reanalyze.isPending || !settings.data?.extractionValidationEnabled}
+                  >
+                    Re-Run LLM Human Extraction Validation
+                  </button>
+                </div>
+              </div>
               {overview.data.runs.some((run) => run.outdated) ? <p>Some results use an older schema version.</p> : null}
               {overview.data.runs.some((run) => run.status === 'failed') ? (
                 <details>
@@ -401,48 +601,11 @@ export function LlmAssistancePanel({
                   </ul>
                 </details>
               ) : null}
-              <div className="llm-rerun-actions">
-                <button
-                  type="button"
-                  className="llm-stage-button"
-                  style={stageButtonStyle('title_abstract_screening')}
-                  onClick={() => reanalyze.mutate('title_abstract_screening')}
-                  disabled={reanalyze.isPending || !settings.data?.titleAbstractScreeningEnabled}
-                >
-                  Re-Run LLM Title/Abstract Screening
-                </button>
-                <button
-                  type="button"
-                  className="llm-stage-button"
-                  style={stageButtonStyle('full_text_screening')}
-                  onClick={() => reanalyze.mutate('full_text_screening')}
-                  disabled={reanalyze.isPending || !settings.data?.fullTextScreeningEnabled}
-                >
-                  Re-Run LLM Full-Text Screening
-                </button>
-                <button
-                  type="button"
-                  className="llm-stage-button"
-                  style={stageButtonStyle('extraction_quality')}
-                  onClick={() => reanalyze.mutate('data_extraction')}
-                  disabled={reanalyze.isPending || !settings.data?.enabled}
-                >
-                  Re-Run LLM Data Extraction
-                </button>
-                <button
-                  type="button"
-                  className="llm-stage-button"
-                  style={stageButtonStyle('extraction_quality')}
-                  onClick={() => reanalyze.mutate('extraction_validation')}
-                  disabled={reanalyze.isPending || !settings.data?.extractionValidationEnabled}
-                >
-                  Re-Run LLM Human Extraction Validation
-                </button>
-              </div>
             </>
           ) : <p>Loading processing status…</p>}
-        </>
-      ) : null}
-    </CollapsibleSection>
+          {processingError ? <p className="error" role="alert">{processingError.message}</p> : null}
+      </CollapsibleSection>
+    ) : null}
+    </>
   )
-}
+})

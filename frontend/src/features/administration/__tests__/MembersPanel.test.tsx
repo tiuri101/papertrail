@@ -16,6 +16,7 @@ const projectDetail = {
       canExtract: false,
       canAssessQuality: false,
       canAdjudicate: false,
+      workloadWeight: 1,
     },
   ],
 }
@@ -78,6 +79,7 @@ describe('MembersPanel', () => {
           canExtract: false,
           canAssessQuality: false,
           canAdjudicate: false,
+          workloadWeight: 1,
         })
       }
       if (String(input).endsWith('/users')) return jsonResponse(users)
@@ -99,6 +101,7 @@ describe('MembersPanel', () => {
         canExtract: false,
         canAssessQuality: false,
         canAdjudicate: false,
+        workloadWeight: 1,
       })
     })
   })
@@ -133,6 +136,7 @@ describe('MembersPanel', () => {
             canExtract: false,
             canAssessQuality: false,
             canAdjudicate: false,
+            workloadWeight: 1,
           },
           201,
         )
@@ -157,6 +161,7 @@ describe('MembersPanel', () => {
         canExtract: false,
         canAssessQuality: false,
         canAdjudicate: false,
+        workloadWeight: 1,
       })
     })
   })

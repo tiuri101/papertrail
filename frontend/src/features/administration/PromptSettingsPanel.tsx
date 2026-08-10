@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
+import { InfoBox } from '../../components/InfoBox'
+import { IconLightbulb } from '../../components/icons'
 
 interface PromptFlow {
   key: string
@@ -65,14 +67,16 @@ export function PromptSettingsPanel({ projectId }: { projectId: string }) {
   }
 
   return (
-    <CollapsibleSection id="section-prompt-settings" title="AI Prompts">
-      <p className="muted">
-        Papertrail sends a fixed base prompt to the LLM for each AI-assisted task, shown
-        below for reference. Add project-specific instructions -- domain context,
-        terminology, or emphasis -- to append to it. Custom instructions are guidance
-        only: they cannot relax the base prompt&apos;s output-format or evidence rules.
-        Changes save automatically when you leave a field.
-      </p>
+    <CollapsibleSection id="section-prompt-settings" title="AI Prompts" icon={<IconLightbulb />}>
+      <InfoBox icon={<IconLightbulb />}>
+        <p>
+          Papertrail sends a fixed base prompt to the LLM for each AI-assisted task, shown
+          below for reference. Add project-specific instructions -- domain context,
+          terminology, or emphasis -- to append to it. Custom instructions are guidance
+          only: they cannot relax the base prompt&apos;s output-format or evidence rules.
+          Changes save automatically when you leave a field.
+        </p>
+      </InfoBox>
       {settings.error ? <p className="error" role="alert">{settings.error.message}</p> : null}
       {settings.data?.flows.map((flow) => (
         <div className="prompt-flow" key={flow.key}>

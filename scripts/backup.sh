@@ -24,6 +24,12 @@ docker run --rm \
   -v "$(cd "$destination" && pwd)":/backup \
   alpine:3.22 tar -C /data -czf /backup/files.tar.gz .
 
+echo "Backing up stored PDFs..."
+docker run --rm \
+  -v papertrail_pdf_data:/pdf-data:ro \
+  -v "$(cd "$destination" && pwd)":/backup \
+  alpine:3.22 tar -C /pdf-data -czf /backup/pdfs.tar.gz .
+
 cp .env "$destination/environment.example" 2>/dev/null || true
-sha256sum "$destination/database.dump" "$destination/files.tar.gz" > "$destination/SHA256SUMS.txt"
+sha256sum "$destination/database.dump" "$destination/files.tar.gz" "$destination/pdfs.tar.gz" > "$destination/SHA256SUMS.txt"
 echo "Backup written to $destination"

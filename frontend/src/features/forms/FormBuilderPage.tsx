@@ -7,6 +7,8 @@ import { ConfirmButton } from '../../components/ConfirmButton'
 import { IconCheckCircle, IconPlus, IconTrash } from '../../components/icons'
 import { useRegisterSectionItems } from '../../components/sectionNavigation'
 import { useProjectManageState } from '../../hooks/useCanManageProject'
+import { useSession } from '../auth/sessionQuery'
+import { StageEyebrow } from '../projects/StageEyebrow'
 import { DynamicForm } from './DynamicForm'
 import {
   buildScoring,
@@ -21,6 +23,7 @@ import {
 const formBuilderSections = [
   { id: 'section-create-form', label: 'Create Project Form' },
   { id: 'section-edit-form', label: 'Edit a Form' },
+  { id: 'section-manage-templates', label: 'Manage Templates' },
 ]
 
 interface ReviewForm {
@@ -47,12 +50,15 @@ export function FormBuilderPage() {
   const { projectId = '' } = useParams()
   const queryClient = useQueryClient()
   const { canManage, isLoading: canManageLoading } = useProjectManageState(projectId)
+  const session = useSession()
+  const isAdmin = session.data?.user?.isAdmin ?? false
   useRegisterSectionItems(formBuilderSections)
   const [name, setName] = useState('Extraction form')
   const [kind, setKind] = useState('extraction')
   const [templateId, setTemplateId] = useState('')
   const [templateName, setTemplateName] = useState('')
   const [selectedForm, setSelectedForm] = useState('')
+  const [selectedFormName, setSelectedFormName] = useState('')
   const [fieldLabel, setFieldLabel] = useState('')
   const [fieldType, setFieldType] = useState('long_text')
   const [required, setRequired] = useState(false)
@@ -100,8 +106,17 @@ export function FormBuilderPage() {
   useEffect(() => {
     setFieldOrder(fields.data?.map((field) => field.stableKey) ?? [])
   }, [fields.data])
-  const templatesForKind = templates.data?.filter((template) => template.kind === kind) ?? []
+  const templateCatalog = templates.data?.filter((template) => template.isTemplate) ?? []
+  const templatesForKind = templateCatalog.filter((template) => template.kind === kind)
   const existingFormOfKind = forms.data?.find((form) => !form.isTemplate && form.kind === kind)
+  const selectedFormDefinition = [...(forms.data ?? []), ...templateCatalog]
+    .find((form) => form.id === selectedForm)
+  const isTemplateSelected = selectedFormDefinition?.isTemplate ?? false
+  const selectedFormReadOnly = isTemplateSelected && !isAdmin
+
+  useEffect(() => {
+    setSelectedFormName(selectedFormDefinition?.name ?? '')
+  }, [selectedFormDefinition?.name])
 
   const createForm = useMutation({
     mutationFn: () => apiRequest<ReviewForm>(
@@ -125,9 +140,20 @@ export function FormBuilderPage() {
     onSuccess: (_data, formId) => {
       if (selectedForm === formId) setSelectedForm('')
       queryClient.invalidateQueries({ queryKey: ['forms', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['form-templates'] })
     },
   })
-  const selectedFormKind = forms.data?.find((form) => form.id === selectedForm)?.kind
+  const renameForm = useMutation({
+    mutationFn: () => apiRequest<ReviewForm>(`/api/v1/forms/${selectedForm}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ name: selectedFormName }),
+    }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['forms', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['form-templates'] })
+    },
+  })
+  const selectedFormKind = selectedFormDefinition?.kind
   const isQualityForm = selectedFormKind === 'quality'
   const showOptions = selectFieldTypes.has(fieldType)
   const showRatingScale = fieldType === 'rating'
@@ -259,7 +285,7 @@ export function FormBuilderPage() {
   })
 
   const mutationError = createForm.error ?? addField.error ?? updateField.error
-    ?? deleteField.error ?? saveAsTemplate.error ?? deleteForm.error
+    ?? deleteField.error ?? saveAsTemplate.error ?? deleteForm.error ?? renameForm.error
   const activeFields = orderedFields.filter((field) => !field.isArchived)
 
   if (canManageLoading) {
@@ -278,8 +304,12 @@ export function FormBuilderPage() {
 
   return (
     <main className="page">
-      <p className="eyebrow">Project settings</p>
+      <StageEyebrow stage="draft" />
       <h1>Forms and Templates</h1>
+      <p className="muted">
+        Build and manage this project's extraction and quality assessment forms, and save
+        reusable field templates.
+      </p>
       {forms.error ? <p className="error" role="alert">{forms.error.message}</p> : null}
       {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
       <section id="section-create-form" className="card">
@@ -302,7 +332,7 @@ export function FormBuilderPage() {
         {existingFormOfKind ? (
           <div className="form-editor-existing-form">
             <p>
-              This project already has a {kind === 'quality' ? 'quality assessment' : kind} form:{' '}
+              This project already has {kind === 'quality' ? 'a quality assessment' : 'an extraction'} form:{' '}
               <strong>{existingFormOfKind.name}</strong>.
             </p>
             <div className="toolbar form-editor-existing-form__actions">
@@ -341,23 +371,63 @@ export function FormBuilderPage() {
         )}
       </section>
       <section id="section-edit-form" className="card">
-        <h2>Edit a Form</h2>
+        <h2>Inspect or Edit a Form</h2>
         <label>
           Form to edit
           <select
             value={selectedForm}
             onChange={(event) => setSelectedForm(event.target.value)}
           >
-            <option value="">Select a form</option>
-            {forms.data?.map((form) => (
-              <option key={form.id} value={form.id}>
-                {form.name} ({form.kind})
-              </option>
-            ))}
+            <option value="">Select a form or template</option>
+            <optgroup label="Project forms">
+              {forms.data?.map((form) => (
+                <option key={form.id} value={form.id}>
+                  {form.name} ({form.kind})
+                </option>
+              ))}
+            </optgroup>
+            <optgroup label="Reusable templates">
+              {templateCatalog.map((template) => (
+                <option key={template.id} value={template.id}>
+                  {template.name} ({template.kind})
+                </option>
+              ))}
+            </optgroup>
           </select>
         </label>
         {selectedForm ? (
           <>
+            <div className="form-editor-selection-heading">
+              <div>
+                <span className="form-editor-selection-type">
+                  {isTemplateSelected ? 'Reusable template' : 'Project form'}
+                </span>
+                {selectedFormReadOnly ? <h3>{selectedFormDefinition?.name}</h3> : null}
+              </div>
+              {!selectedFormReadOnly ? (
+                <form
+                  className="form-editor-rename"
+                  onSubmit={(event) => { event.preventDefault(); renameForm.mutate() }}
+                >
+                  <label>
+                    Name
+                    <input
+                      value={selectedFormName}
+                      onChange={(event) => setSelectedFormName(event.target.value)}
+                      required
+                    />
+                  </label>
+                  <button type="submit" className="button-secondary" disabled={renameForm.isPending}>
+                    Save Name
+                  </button>
+                </form>
+              ) : null}
+            </div>
+            {selectedFormReadOnly ? (
+              <p className="muted">Templates are read-only unless you are an installation administrator.</p>
+            ) : null}
+            {!selectedFormReadOnly ? (
+            <>
             <h3>Add Field</h3>
             <form onSubmit={(event) => { event.preventDefault(); addField.mutate() }}>
               <label>
@@ -457,6 +527,8 @@ export function FormBuilderPage() {
               ) : null}
               <button type="submit" disabled={addField.isPending}><IconPlus />Add Field</button>
             </form>
+            </>
+            ) : null}
             <h3>Fields</h3>
             {fields.error ? <p className="error" role="alert">{fields.error.message}</p> : null}
             {fields.data?.length === 0 ? <p className="muted">No fields added yet.</p> : (
@@ -474,6 +546,7 @@ export function FormBuilderPage() {
                       className="llm-schema-field__summary"
                       onClick={(event) => {
                         if (field.isArchived) return
+                        if (selectedFormReadOnly) return
                         event.preventDefault()
                         if (editingKey !== field.stableKey) beginEditingField(field)
                       }}
@@ -698,6 +771,8 @@ export function FormBuilderPage() {
                 })}
               </div>
             )}
+            {!isTemplateSelected ? (
+            <>
             <h3>Save as Reusable Template</h3>
             <p className="muted">Saves the current fields as a new template. Later edits to this project form won't affect the template, or vice versa.</p>
             <form onSubmit={(event) => { event.preventDefault(); saveAsTemplate.mutate() }}>
@@ -712,6 +787,8 @@ export function FormBuilderPage() {
               {saveAsTemplate.isSuccess ? <p>Template saved.</p> : null}
               <button type="submit" disabled={saveAsTemplate.isPending}><IconCheckCircle />Save as Template</button>
             </form>
+            </>
+            ) : null}
             {activeFields.length ? (
               <>
                 <h3>Preview</h3>
@@ -732,6 +809,57 @@ export function FormBuilderPage() {
             ) : null}
           </>
         ) : null}
+      </section>
+      <section id="section-manage-templates" className="card form-template-manager">
+        <div className="form-template-manager__heading">
+          <div>
+            <h2>Manage Templates</h2>
+          </div>
+          <span className="status-badge">
+            {templateCatalog.length} template{templateCatalog.length === 1 ? '' : 's'}
+          </span>
+        </div>
+        {templates.error ? <p className="error" role="alert">{templates.error.message}</p> : null}
+        {templates.isLoading ? <p className="muted">Loading templates…</p> : null}
+        {templateCatalog.length === 0 ? (
+          <div className="empty-state form-template-manager__empty">
+            <h3>No reusable templates yet</h3>
+            <p>Open a project form above and save it as a template to build your catalog.</p>
+          </div>
+        ) : (
+          <ul className="form-template-grid" aria-label="Form templates">
+            {templateCatalog.map((template) => (
+              <li className="form-template-card" key={template.id}>
+                <div>
+                  <span className="form-template-card__kind">
+                    {template.kind === 'quality' ? 'Quality assessment' : 'Extraction'}
+                  </span>
+                  <h3>{template.name}</h3>
+                </div>
+                <div className="toolbar form-template-card__actions">
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    onClick={() => setSelectedForm(template.id)}
+                  >
+                    {isAdmin ? 'Inspect & Edit' : 'Inspect'}
+                  </button>
+                  {isAdmin ? (
+                    <ConfirmButton
+                      label="Remove"
+                      confirmLabel="Remove Template"
+                      warning={`Remove the "${template.name}" template? Existing project forms created from it won't be affected.`}
+                      onConfirm={() => deleteForm.mutate(template.id)}
+                      disabled={deleteForm.isPending}
+                      variant="danger"
+                      icon={<IconTrash />}
+                    />
+                  ) : null}
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
       </section>
     </main>
   )

@@ -3,10 +3,11 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
-import { ConfirmButton } from '../../components/ConfirmButton'
-import { IconDownload, IconTrash } from '../../components/icons'
-import { useCanManageProject } from '../../hooks/useCanManageProject'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { IconDownload, IconInfo, IconTrash } from '../../components/icons'
+import { useCanManagePublications } from '../../hooks/useCanManageProject'
 import { BackgroundJob, findJob, hasActiveJob, isJobActive } from '../jobs/jobStatus'
+import { StageEyebrow } from '../projects/StageEyebrow'
 
 interface ExportArtifact {
   id: string
@@ -15,11 +16,50 @@ interface ExportArtifact {
   createdAt: string
 }
 
+const exportOptions = [
+  {
+    type: 'xlsx',
+    title: 'Excel Workbook',
+    description: 'A complete, analysis-ready workbook with review decisions and extracted data.',
+    buttonLabel: 'Generate Excel Workbook',
+  },
+  {
+    type: 'prisma_svg',
+    title: 'PRISMA Flow Diagram',
+    description: 'A publication-ready SVG of the current PRISMA 2020 flow diagram.',
+    buttonLabel: 'Generate PRISMA SVG',
+  },
+  {
+    type: 'prisma_tables',
+    title: 'PRISMA Supporting Tables',
+    description: 'The structured counts behind the diagram for reporting and verification.',
+    buttonLabel: 'Generate PRISMA Supporting Tables',
+  },
+  {
+    type: 'bibtex',
+    title: 'BibTeX Library',
+    description: 'Citation records for every publication included in the final review.',
+    buttonLabel: 'Generate BibTeX',
+  },
+] as const
+
+function humanizeKey(value: string) {
+  return value
+    .replace(/([a-z])([A-Z])/g, '$1 $2')
+    .replaceAll('_', ' ')
+    .replace(/^./, (character) => character.toUpperCase())
+}
+
+function formatArtifactType(value: string) {
+  return humanizeKey(value).replace('Prisma', 'PRISMA').replace('Xlsx', 'Excel').replace('Pdf', 'PDF')
+}
+
 export function ReportingPage() {
   const { projectId = '' } = useParams()
   const queryClient = useQueryClient()
-  const canManage = useCanManageProject(projectId)
+  const canManage = useCanManagePublications(projectId)
   const [pendingJobId, setPendingJobId] = useState<string | null>(null)
+  const [exportToDelete, setExportToDelete] = useState<ExportArtifact | null>(null)
   const prisma = useQuery({
     queryKey: ['prisma', projectId],
     queryFn: () => apiRequest<Record<string, unknown>>(
@@ -65,91 +105,161 @@ export function ReportingPage() {
       `/api/v1/projects/${projectId}/exports/${artifactId}`,
       { method: 'DELETE' },
     ),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['exports', projectId] }),
+    onSuccess: () => {
+      setExportToDelete(null)
+      queryClient.invalidateQueries({ queryKey: ['exports', projectId] })
+    },
   })
 
   const queryError = prisma.error ?? exportsQuery.error ?? deleteExport.error
+  const prismaCounts = Object.entries(prisma.data ?? {}).filter(
+    ([, value]) => typeof value === 'number',
+  ) as Array<[string, number]>
+  const artifacts = exportsQuery.data ?? []
 
   return (
     <main className="page">
-      <p className="eyebrow">Review outputs</p>
+      <StageEyebrow stage="completed" />
       <h1>Reporting and Exports</h1>
+      <p className="muted">
+        Generate PRISMA diagrams, data exports, and citation files for this review.
+      </p>
       {queryError ? <p className="error" role="alert">{queryError.message}</p> : null}
       {createExport.error ? <p className="error" role="alert">{createExport.error.message}</p> : null}
-      {pendingJob && isJobActive(pendingJob.status) ? <p className="muted">Generating export…</p> : null}
+      {pendingJob && isJobActive(pendingJob.status) ? (
+        <p className="reporting-job-notice" role="status">Generating export…</p>
+      ) : null}
       {pendingJob && pendingJob.status === 'failed' ? (
         <p className="error" role="alert">
           Export failed{pendingJob.errorMessage ? `: ${pendingJob.errorMessage}` : ''}
         </p>
       ) : null}
-      <section className="card">
-        <h2>PRISMA 2020 Flow Diagram</h2>
-        <img
-          src={`/api/v1/projects/${projectId}/prisma/svg`}
-          alt="PRISMA 2020 flow diagram showing record counts through identification, screening, and inclusion"
-          style={{ maxWidth: '100%', height: 'auto' }}
-        />
-      </section>
-      <section className="card">
-        <h2>PRISMA 2020 Counts</h2>
-        <pre>{JSON.stringify(prisma.data, null, 2)}</pre>
-      </section>
-      <div className="toolbar">
-        <button
-          type="button"
-          onClick={() => createExport.mutate('prisma_svg')}
-          disabled={createExport.isPending}
-        >
-          <IconDownload />
-          Generate PRISMA SVG
-        </button>
-        <button
-          type="button"
-          onClick={() => createExport.mutate('xlsx')}
-          disabled={createExport.isPending}
-        >
-          <IconDownload />
-          Generate Excel Workbook
-        </button>
-        <button
-          type="button"
-          onClick={() => createExport.mutate('prisma_tables')}
-          disabled={createExport.isPending}
-        >
-          <IconDownload />
-          Generate PRISMA Supporting Tables
-        </button>
-        <button
-          type="button"
-          onClick={() => createExport.mutate('bibtex')}
-          disabled={createExport.isPending}
-        >
-          <IconDownload />
-          Generate BibTeX
-        </button>
+
+      <div className="reporting-overview-grid">
+        <figure className="reporting-prisma-card">
+          <figcaption>
+            <span className="reporting-card-icon" aria-hidden="true"><IconInfo /></span>
+            <div>
+              <span className="eyebrow">Study selection</span>
+              <h2>PRISMA Flow</h2>
+            </div>
+          </figcaption>
+          <div className="reporting-prisma-card__canvas">
+            <img
+              src={`/api/v1/projects/${projectId}/prisma/svg`}
+              alt="PRISMA flow diagram showing record counts through identification, screening, and inclusion"
+            />
+          </div>
+        </figure>
+
+        <section className="reporting-counts-card" aria-labelledby="prisma-counts-heading">
+          <div>
+            <span className="eyebrow">At a glance</span>
+            <h2 id="prisma-counts-heading">PRISMA Counts</h2>
+            <p className="muted">A quick view of the current reporting totals.</p>
+          </div>
+          {prisma.isLoading ? <p>Loading counts…</p> : null}
+          {prismaCounts.length ? (
+            <dl className="reporting-counts">
+              {prismaCounts.slice(0, 8).map(([key, value]) => (
+                <div key={key}>
+                  <dt>{humanizeKey(key)}</dt>
+                  <dd>{value.toLocaleString()}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : !prisma.isLoading ? <p className="muted">No count data is available yet.</p> : null}
+          <details className="reporting-raw-counts">
+            <summary>View raw reporting data</summary>
+            <pre>{JSON.stringify(prisma.data, null, 2)}</pre>
+          </details>
+        </section>
       </div>
-      <h2>Available Exports</h2>
-      <ul>
-        {exportsQuery.data?.map((artifact) => (
-          <li key={artifact.id}>
-            <a href={`/api/v1/projects/${projectId}/exports/${artifact.id}/download`}>
-              {artifact.filename}
-            </a>
-            {' — '}{artifact.type}{' '}
-            {canManage ? (
-              <ConfirmButton
-                label="Delete"
-                confirmLabel="Delete Export"
-                warning={`Delete ${artifact.filename}? This cannot be undone.`}
-                variant="danger"
-                disabled={deleteExport.isPending}
-                onConfirm={() => deleteExport.mutate(artifact.id)}
-                icon={<IconTrash />}
-              />
-            ) : null}
-          </li>
-        ))}
-      </ul>
+
+      <section className="reporting-export-section" aria-labelledby="create-export-heading">
+        <header>
+          <div>
+            <span className="eyebrow">Choose a format</span>
+            <h2 id="create-export-heading">Create a New Export</h2>
+          </div>
+          <p>Exports use the latest completed review data at the time they are generated.</p>
+        </header>
+        <div className="reporting-export-grid">
+          {exportOptions.map((option) => (
+            <article className="reporting-export-option" key={option.type}>
+              <span className="reporting-export-option__icon" aria-hidden="true">
+                <IconDownload />
+              </span>
+              <h3>{option.title}</h3>
+              <p>{option.description}</p>
+              <button
+                type="button"
+                onClick={() => createExport.mutate(option.type)}
+                disabled={createExport.isPending}
+              >
+                <IconDownload />
+                {option.buttonLabel}
+              </button>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="reporting-library" aria-labelledby="available-exports-heading">
+        <header>
+          <div>
+            <span className="eyebrow">Download library</span>
+            <h2 id="available-exports-heading">Available Exports</h2>
+          </div>
+          <span className="status-badge">{artifacts.length} ready</span>
+        </header>
+        {exportsQuery.isLoading ? <p>Loading exports…</p> : null}
+        {!exportsQuery.isLoading && artifacts.length === 0 ? (
+          <div className="empty-state reporting-library__empty">
+            <span className="reporting-card-icon" aria-hidden="true"><IconDownload /></span>
+            <h3>Your generated files will appear here</h3>
+            <p>Choose an export format above to create the first one.</p>
+          </div>
+        ) : (
+          <ul className="reporting-export-list">
+            {artifacts.map((artifact) => (
+              <li key={artifact.id}>
+                <span className="reporting-export-list__icon" aria-hidden="true"><IconDownload /></span>
+                <div className="reporting-export-list__details">
+                  <a href={`/api/v1/projects/${projectId}/exports/${artifact.id}/download`}>
+                    {artifact.filename}
+                  </a>
+                  <span>
+                    {formatArtifactType(artifact.type)} ·{' '}
+                    {new Date(artifact.createdAt).toLocaleString()}
+                  </span>
+                </div>
+                {canManage ? (
+                  <button
+                    type="button"
+                    className="button-danger"
+                    disabled={deleteExport.isPending}
+                    onClick={() => setExportToDelete(artifact)}
+                  >
+                    <IconTrash />
+                    Delete
+                  </button>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+      {exportToDelete ? (
+        <ConfirmDialog
+          title="Delete export?"
+          message={<>Delete <strong>{exportToDelete.filename}</strong>? This cannot be undone.</>}
+          confirmLabel="Delete Export"
+          variant="danger"
+          onConfirm={() => deleteExport.mutate(exportToDelete.id)}
+          onCancel={() => setExportToDelete(null)}
+        />
+      ) : null}
     </main>
   )
 }

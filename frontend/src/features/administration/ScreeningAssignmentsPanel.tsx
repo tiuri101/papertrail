@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
+import { InfoBox } from '../../components/InfoBox'
 import { IconSwap } from '../../components/icons'
 import type { User } from '../auth/types'
 
@@ -291,9 +292,12 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
     <CollapsibleSection
       id="section-screening-assignments"
       title="Screening Assignments"
+      icon={<IconSwap />}
       defaultExpanded={false}
     >
-      <p className="muted">Move a publication to a different reviewer who has been added to this project.</p>
+      <InfoBox icon={<IconSwap />}>
+        <p>Move a publication to a different reviewer who has been added to this project.</p>
+      </InfoBox>
       <div className="toolbar">
         <label>
           Stage
@@ -386,7 +390,7 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
       ) : null}
       {assignments.data && assignments.data.items.length > 0 ? (
         <>
-          <table>
+          <table className="table-compact">
             <thead>
               <tr>
                 <th scope="col">Select</th>

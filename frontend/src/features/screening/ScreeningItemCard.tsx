@@ -68,11 +68,12 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
       <div className="toolbar">
         <button
           type="button"
+          className={awaitingConfirmation ? 'button-success' : undefined}
           onClick={() => awaitingConfirmation ? queue.confirmDecision() : submit.mutate()}
           disabled={decisionPending || !criteriaComplete}
         >
           <IconCheckCircle />
-          Submit Decision
+          {awaitingConfirmation ? 'Confirm Decision' : 'Submit Decision'}
         </button>
         {!awaitingConfirmation ? (
           <button

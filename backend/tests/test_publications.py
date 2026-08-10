@@ -6,11 +6,16 @@ from pypdf import PdfWriter
 from sqlalchemy import select
 
 from app.accounts.service import create_user
+from app.audit.models import AuditEvent
 from app.conflicts.service import record_final_decision
 from app.core.config import get_settings
+from app.extraction.models import ExtractionStatus, ExtractionWorkItem
+from app.fulltext.models import FullTextRetrieval, RetrievalStatus
 from app.imports.models import ImportBatch, ImportedRecord, ImportStatus, SearchSource
 from app.projects.models import (
     AllocationMode,
+    Criterion,
+    CriterionKind,
     Project,
     ProjectMembership,
     ProjectStage,
@@ -20,7 +25,12 @@ from app.projects.models import (
 )
 from app.publications.models import MetadataConflict, Publication, PublicationSource
 from app.publications.service import apply_enrichment, normalize_imported_records
-from app.screening.models import ScreeningWorkItem
+from app.screening.models import (
+    ScreeningDecision,
+    ScreeningOutcome,
+    ScreeningWorkItem,
+    WorkItemStatus,
+)
 
 
 def login(client) -> str:
@@ -127,6 +137,88 @@ def test_bulk_delete_removes_only_the_selected_publications(client, db) -> None:
     assert [publication["id"] for publication in listing] == [kept["id"]]
 
 
+def test_regular_project_member_can_manage_publications_like_an_owner(
+    client, db
+) -> None:
+    owner = create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    reviewer = create_user(db, "reviewer", "Reviewer A", "reviewer-password")
+    project = Project(
+        name="Review", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed"
+    )
+    db.add(project)
+    db.flush()
+    db.add(ProjectMembership(project_id=project.id, user_id=owner.id, is_owner=True))
+    db.add(ProjectMembership(project_id=project.id, user_id=reviewer.id))
+    publication_one = Publication(
+        project_id=project.id, title="Paper one", doi="10.1000/one"
+    )
+    publication_two = Publication(
+        project_id=project.id, title="Paper two", doi="10.1000/two"
+    )
+    conflict = MetadataConflict(
+        publication=publication_one,
+        field_name="venue",
+        current_value=None,
+        proposed_value="Journal of Examples",
+        source_name="crossref",
+        status="open",
+    )
+    db.add_all([publication_one, publication_two, conflict])
+    db.commit()
+
+    csrf = client.post(
+        "/api/v1/auth/login",
+        json={"username": "reviewer", "password": "reviewer-password"},
+    ).json()["csrfToken"]
+
+    updated = client.patch(
+        f"/api/v1/projects/{project.id}/publications/{publication_one.id}",
+        json={"title": "Paper one, revised"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["title"] == "Paper one, revised"
+
+    conflicts = client.get(
+        f"/api/v1/projects/{project.id}/metadata-conflicts",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert conflicts.status_code == 200
+    resolved = client.post(
+        f"/api/v1/projects/{project.id}/metadata-conflicts/{conflict.id}/resolve",
+        json={"acceptProposed": True},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert resolved.status_code == 200
+
+    enriched = client.post(
+        f"/api/v1/projects/{project.id}/publications/{publication_one.id}/enrich",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert enriched.status_code == 202
+
+    bulk_enriched = client.post(
+        f"/api/v1/projects/{project.id}/publications/enrich",
+        json={"missingOnly": True},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert bulk_enriched.status_code == 202
+
+    deleted = client.delete(
+        f"/api/v1/projects/{project.id}/publications/{publication_two.id}",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert deleted.status_code == 204
+
+    bulk_deleted = client.post(
+        f"/api/v1/projects/{project.id}/publications/delete",
+        json={"publicationIds": [publication_one.id]},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert bulk_deleted.status_code == 200
+    assert bulk_deleted.json() == {"deletedCount": 1}
+
+
 def test_pdfs_can_be_bulk_uploaded_and_auto_matched_without_selecting_publications(
     client, db
 ) -> None:
@@ -173,6 +265,114 @@ def test_pdfs_can_be_bulk_uploaded_and_auto_matched_without_selecting_publicatio
         f"/api/v1/projects/{project.id}/publications/{unmatched_target['id']}"
     ).json()
     assert untouched["fullText"]["available"] is False
+
+
+def test_full_text_exposes_the_retrieval_status_when_a_document_could_not_be_retrieved(
+    client, db
+) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    project = Project(
+        name="Review", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed"
+    )
+    db.add(project)
+    db.commit()
+    csrf = login(client)
+
+    publication = client.post(
+        f"/api/v1/projects/{project.id}/publications",
+        json={"title": "Unreachable Paper"},
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+
+    db.add(
+        FullTextRetrieval(
+            project_id=project.id,
+            publication_id=publication["id"],
+            status=RetrievalStatus.NOT_FOUND,
+        )
+    )
+    db.commit()
+
+    detail = client.get(
+        f"/api/v1/projects/{project.id}/publications/{publication['id']}"
+    ).json()
+    assert detail["fullText"] == {
+        "available": False,
+        "document": None,
+        "retrievalStatus": "not_found",
+    }
+
+    listing = client.get(f"/api/v1/projects/{project.id}/publications").json()
+    assert listing[0]["fullText"]["retrievalStatus"] == "not_found"
+
+
+def test_export_bib_returns_a_single_citation_named_by_its_key(client, db) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    project = Project(
+        name="Review", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed"
+    )
+    db.add(project)
+    db.commit()
+    csrf = login(client)
+
+    publication = client.post(
+        f"/api/v1/projects/{project.id}/publications",
+        json={
+            "title": "Deep Learning for Urban Planning",
+            "authors": "Doe, Jane",
+            "publicationYear": 2024,
+        },
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+
+    response = client.get(
+        f"/api/v1/projects/{project.id}/publications/{publication['id']}/export/bib"
+    )
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("application/x-bibtex")
+    assert 'filename="doe2024deep.bib"' in response.headers["content-disposition"]
+    assert "@article{doe2024deep," in response.text
+    assert "Deep Learning for Urban Planning" in response.text
+
+
+def test_export_pdf_requires_an_attached_pdf_and_names_it_by_citation_key(
+    client, db
+) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    project = Project(
+        name="Review", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed"
+    )
+    db.add(project)
+    db.commit()
+    csrf = login(client)
+
+    publication = client.post(
+        f"/api/v1/projects/{project.id}/publications",
+        json={
+            "title": "Deep Learning for Urban Planning",
+            "authors": "Doe, Jane",
+            "publicationYear": 2024,
+        },
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+
+    missing = client.get(
+        f"/api/v1/projects/{project.id}/publications/{publication['id']}/export/pdf"
+    )
+    assert missing.status_code == 404
+
+    client.post(
+        f"/api/v1/projects/{project.id}/publications/{publication['id']}/full-text",
+        files={"file": ("paper.pdf", pdf_bytes("Deep Learning"), "application/pdf")},
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    response = client.get(
+        f"/api/v1/projects/{project.id}/publications/{publication['id']}/export/pdf"
+    )
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    assert 'filename="doe2024deep.pdf"' in response.headers["content-disposition"]
 
 
 def test_a_regular_project_member_can_add_a_publication_manually(client, db) -> None:
@@ -435,7 +635,7 @@ def test_publication_import_after_title_abstract_started_gets_screened(db) -> No
 
 
 def test_publication_response_includes_screening_status_per_stage(client, db) -> None:
-    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    admin = create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
     project = Project(
         name="Review", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed"
     )
@@ -444,8 +644,51 @@ def test_publication_response_includes_screening_status_per_stage(client, db) ->
     publication = Publication(project_id=project.id, title="Reviewed paper")
     unreviewed = Publication(project_id=project.id, title="Untouched paper")
     db.add_all([publication, unreviewed])
+    db.flush()
+    criterion = Criterion(
+        project_id=project.id,
+        kind=CriterionKind.INCLUSION,
+        text="Relevant population",
+        position=0,
+    )
+    screening_config = ScreeningConfig(
+        project_id=project.id,
+        stage=ScreeningStage.TITLE_ABSTRACT,
+        required_reviewers=1,
+    )
+    screening_item = ScreeningWorkItem(
+        project_id=project.id,
+        publication_id=publication.id,
+        stage=ScreeningStage.TITLE_ABSTRACT,
+        slot_number=1,
+        assigned_reviewer_id=admin.id,
+        random_rank="screening-rank",
+        status=WorkItemStatus.SUBMITTED,
+    )
+    db.add_all([criterion, screening_config, screening_item])
+    db.flush()
+    db.add(
+        ScreeningDecision(
+            work_item_id=screening_item.id,
+            reviewer_id=admin.id,
+            outcome=ScreeningOutcome.INCLUDE,
+            criteria_answers={criterion.id: True},
+            notes="Matches the target population",
+            version=1,
+            is_current=True,
+        )
+    )
+    db.add(
+        ExtractionWorkItem(
+            project_id=project.id,
+            publication_id=publication.id,
+            assigned_reviewer_id=admin.id,
+            random_rank="rank",
+            status=ExtractionStatus.COMPLETED,
+        )
+    )
     db.commit()
-    login(client)
+    csrf = login(client)
 
     record_final_decision(
         db,
@@ -463,18 +706,118 @@ def test_publication_response_includes_screening_status_per_stage(client, db) ->
 
     listing = client.get(f"/api/v1/projects/{project.id}/publications")
     assert listing.status_code == 200
-    by_title = {item["title"]: item["screeningStatus"] for item in listing.json()}
-    assert by_title["Reviewed paper"] == {
+    by_title = {item["title"]: item for item in listing.json()}
+    assert by_title["Reviewed paper"]["screeningStatus"] == {
         "titleAbstract": "include",
         "fullText": "exclude",
     }
-    assert by_title["Untouched paper"] == {"titleAbstract": None, "fullText": None}
+    assert by_title["Reviewed paper"]["extractionStatus"] == "completed"
+    assert by_title["Untouched paper"]["screeningStatus"] == {
+        "titleAbstract": None,
+        "fullText": None,
+    }
+    assert by_title["Untouched paper"]["extractionStatus"] is None
 
     detail = client.get(f"/api/v1/projects/{project.id}/publications/{publication.id}")
     assert detail.json()["screeningStatus"] == {
         "titleAbstract": "include",
         "fullText": "exclude",
     }
+    assert detail.json()["extractionStatus"] == "completed"
+
+    review_details = client.get(
+        f"/api/v1/projects/{project.id}/publications/{publication.id}/review-details"
+    )
+    assert review_details.status_code == 200
+    assert review_details.json()["screening"]["titleAbstract"]["finalDecision"] == {
+        "outcome": "include",
+        "resolutionMethod": "agreement",
+        "note": None,
+        "resolvedBy": None,
+    }
+    assert review_details.json()["screening"]["titleAbstract"]["criteria"] == [
+        {
+            "id": criterion.id,
+            "kind": "inclusion",
+            "text": "Relevant population",
+        }
+    ]
+    assert review_details.json()["screening"]["titleAbstract"]["reviewerDecisions"] == [
+        {
+            "workItemId": screening_item.id,
+            "reviewerName": "Administrator",
+            "outcome": "include",
+            "criteriaAnswers": {criterion.id: True},
+            "notes": "Matches the target population",
+            "version": 1,
+        }
+    ]
+
+    response_override = client.post(
+        f"/api/v1/projects/{project.id}/screening/work-items/{screening_item.id}/override",
+        json={
+            "outcome": "include",
+            "criteriaAnswers": {criterion.id: False},
+            "notes": "Owner-corrected criterion response",
+            "reason": "The criterion was applied incorrectly",
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response_override.status_code == 200
+    assert response_override.json()["criteriaAnswers"] == {criterion.id: False}
+    assert response_override.json()["version"] == 2
+    response_audit = db.scalar(
+        select(AuditEvent).where(
+            AuditEvent.project_id == project.id,
+            AuditEvent.action == "screening.criteria_answers_overridden",
+        )
+    )
+    assert response_audit is not None
+    assert response_audit.event_metadata["reason"] == (
+        "The criterion was applied incorrectly"
+    )
+    assert response_audit.event_metadata["changedCriteria"] == [
+        {
+            "criterionId": criterion.id,
+            "criterionKind": "inclusion",
+            "criterionText": "Relevant population",
+            "previousAnswer": True,
+            "answer": False,
+        }
+    ]
+
+    missing_reason = client.post(
+        f"/api/v1/projects/{project.id}/screening/title_abstract/publications/{publication.id}/final",
+        json={
+            "outcome": "exclude",
+            "resolutionMethod": "owner_override",
+            "note": None,
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert missing_reason.status_code == 400
+
+    override = client.post(
+        f"/api/v1/projects/{project.id}/screening/title_abstract/publications/{publication.id}/final",
+        json={
+            "outcome": "exclude",
+            "resolutionMethod": "owner_override",
+            "note": "Incorrectly included during screening",
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert override.status_code == 200
+    assert override.json()["outcome"] == "exclude"
+    audit = db.scalar(
+        select(AuditEvent).where(
+            AuditEvent.project_id == project.id,
+            AuditEvent.action == "screening.decision_overridden",
+        )
+    )
+    assert audit is not None
+    assert audit.event_metadata["previousOutcome"] == "include"
+    assert audit.event_metadata["outcome"] == "exclude"
+    assert audit.event_metadata["reason"] == "Incorrectly included during screening"
 
 
 def test_publication_creation_blocked_once_full_text_has_started(client, db) -> None:

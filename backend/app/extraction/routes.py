@@ -10,31 +10,41 @@ from app.api.errors import ForbiddenError, NotFoundError
 from app.audit.service import record_audit
 from app.db.session import get_db
 from app.extraction.models import (
+    ExtractionConfig,
     ExtractionResponse,
     ExtractionStatus,
     ExtractionWorkItem,
 )
 from app.extraction.schemas import (
     CompletedExtractionSummary,
+    ExtractionConfigResponse,
+    ExtractionConfigUpdate,
     ExtractionDraftUpdate,
     ExtractionItemResponse,
+    ExtractionOverride,
     ExtractionResponseModel,
     ExtractionSubmit,
 )
 from app.extraction.service import (
     active_fields,
     claim_next_extraction,
+    get_extraction_config,
     list_completed_for_reviewer,
     my_progress,
+    override_extraction,
     project_form,
     reassign_work_items_from_ineligible_reviewers,
     save_draft,
     submit_extraction,
 )
 from app.fulltext.documents import active_document
-from app.projects.dependencies import require_project_manager_csrf
-from app.projects.models import ProjectMembership
+from app.projects.dependencies import (
+    require_project_manager,
+    require_project_manager_csrf,
+)
+from app.projects.models import ProjectMembership, TaskAllocationMode
 from app.projects.service import (
+    get_project,
     is_project_manager,
     require_project_access,
 )
@@ -42,6 +52,54 @@ from app.publications.models import Publication
 from app.screening.schemas import MyProgressResponse
 
 router = APIRouter(tags=["extraction"])
+
+
+@router.get(
+    "/projects/{project_id}/extraction-config",
+    response_model=ExtractionConfigResponse,
+)
+def get_extraction_config_endpoint(
+    project_id: str,
+    _: User = Depends(require_project_manager),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    get_project(db, project_id)
+    config = get_extraction_config(db, project_id)
+    return {
+        "allocation_mode": (
+            config.allocation_mode if config else TaskAllocationMode.CLAIM
+        )
+    }
+
+
+@router.put(
+    "/projects/{project_id}/extraction-config",
+    response_model=ExtractionConfigResponse,
+)
+def set_extraction_config(
+    project_id: str,
+    payload: ExtractionConfigUpdate,
+    admin: User = Depends(require_project_manager_csrf),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    get_project(db, project_id)
+    config = get_extraction_config(db, project_id)
+    if config is None:
+        config = ExtractionConfig(project_id=project_id)
+        db.add(config)
+    config.allocation_mode = payload.allocation_mode
+    db.flush()
+    record_audit(
+        db,
+        action="extraction.config_updated",
+        entity_type="extraction_config",
+        entity_id=config.id,
+        project_id=project_id,
+        actor_id=admin.id,
+        summary="Updated data extraction allocation configuration",
+    )
+    db.commit()
+    return {"allocation_mode": config.allocation_mode}
 
 
 def extraction_item_payload(
@@ -250,3 +308,44 @@ def reopen_extraction(
     )
     db.commit()
     return {"status": "reopened"}
+
+
+@router.post(
+    "/projects/{project_id}/extraction/{item_id}/override",
+    response_model=ExtractionResponseModel,
+)
+def override_completed_extraction(
+    project_id: str,
+    item_id: str,
+    payload: ExtractionOverride,
+    manager: User = Depends(require_project_manager_csrf),
+    db: Session = Depends(get_db),
+) -> ExtractionResponse:
+    item = db.get(ExtractionWorkItem, item_id)
+    if item is None or item.project_id != project_id:
+        raise NotFoundError("Extraction work item not found")
+    response, previous = override_extraction(db, item, manager.id, payload.answers)
+    changed_fields = sorted(
+        key
+        for key in set(previous.answers) | set(response.answers)
+        if previous.answers.get(key) != response.answers.get(key)
+    )
+    publication = db.get(Publication, item.publication_id)
+    publication_label = publication.title if publication else item.publication_id
+    record_audit(
+        db,
+        action="extraction.overridden",
+        entity_type="extraction_response",
+        entity_id=response.id,
+        project_id=project_id,
+        actor_id=manager.id,
+        summary=f'Overrode data extraction for "{publication_label}"',
+        metadata={
+            "reason": payload.reason,
+            "previousVersion": previous.version,
+            "newVersion": response.version,
+            "changedFields": changed_fields,
+        },
+    )
+    db.commit()
+    return response

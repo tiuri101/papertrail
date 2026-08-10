@@ -10,12 +10,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.conflicts.models import FinalDecision
-from app.core.config import get_settings
 from app.extraction.models import ExtractionResponse, ExtractionWorkItem
 from app.fulltext.documents import active_document
 from app.fulltext.models import PublicationDocument
 from app.jobs.models import BackgroundJob, JobStatus
 from app.jobs.service import enqueue_job
+from app.llm.installation_settings import effective_llm_settings
 from app.llm.models import (
     DocumentTextExtraction,
     ExtractionSuggestionReview,
@@ -78,7 +78,7 @@ def full_text_excluded(db: Session, publication_id: str) -> bool:
 
 
 def project_llm_is_enabled(db: Session, project_id: str) -> bool:
-    config = get_settings()
+    config = effective_llm_settings(db)
     settings = project_settings(db, project_id)
     schema = current_schema(db, project_id)
     return bool(
@@ -147,12 +147,12 @@ def queue_llm_run_after_text(
     ):
         return None
     schema = current_schema(db, document.project_id)
-    config = get_settings()
+    config = effective_llm_settings(db)
     if schema is None or not config.ollama_model:
         return None
     from app.llm.task_service import data_extraction_fingerprint
 
-    input_fingerprint = data_extraction_fingerprint(document, extraction, schema.id)
+    input_fingerprint = data_extraction_fingerprint(db, document, extraction, schema.id)
     active = db.scalar(
         select(LlmExtractionRun).where(
             LlmExtractionRun.document_id == document.id,

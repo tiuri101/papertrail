@@ -46,8 +46,17 @@ describe('ProjectChecklistPanel', () => {
     const rqCheckbox = screen.getByRole('checkbox', { name: /Add at least one research question/ })
     expect(rqCheckbox).toBeChecked()
     expect(rqCheckbox).toBeDisabled()
+    expect(rqCheckbox.closest('li')).toHaveClass('checklist-item--complete')
     const criteriaCheckbox = screen.getByRole('checkbox', { name: /Add inclusion and exclusion criteria/ })
     expect(criteriaCheckbox).not.toBeChecked()
+    expect(criteriaCheckbox.closest('li')).toHaveClass('checklist-item--open')
+    expect(screen.getAllByText('Completed')).toHaveLength(1)
+    expect(screen.getAllByText('Open')).toHaveLength(2)
+    expect(screen.getByRole('link', { name: 'Edit inclusion/exclusion criteria' }))
+      .toHaveAttribute('href', '/projects/p1/research-agenda')
+    expect(screen.getByRole('link', { name: 'Import publications' }))
+      .toHaveAttribute('href', '/projects/p1/imports')
+    expect(screen.queryByRole('link', { name: 'Add research questions' })).not.toBeInTheDocument()
 
     expect(screen.queryByText('Resolve Duplicates')).not.toBeInTheDocument()
     expect(screen.queryByText(/Detect duplicate publications/)).not.toBeInTheDocument()
@@ -71,6 +80,17 @@ describe('ProjectChecklistPanel', () => {
 
     await screen.findByText("What's Next: Set Up the Project")
     expect(screen.queryByRole('button', { name: 'Move Project to Duplicate Review' })).not.toBeInTheDocument()
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Waiting for the project owner to move this project to Duplicate Review.',
+    )
+  })
+
+  it('does not show the owner waiting message while a regular reviewer still has open setup tasks', async () => {
+    mockFetch(() => jsonResponse(draftChecklist))
+    renderWithProviders(<ProjectChecklistPanel projectId="p1" canManage={false} />)
+
+    await screen.findByText("What's Next: Set Up the Project")
+    expect(screen.queryByText(/Waiting for the project owner/)).not.toBeInTheDocument()
   })
 
   it('explains that an auto-advancing stage needs no manual action', async () => {
@@ -88,6 +108,10 @@ describe('ProjectChecklistPanel', () => {
     expect(screen.getByText(/automatically/)).toBeInTheDocument()
     expect(screen.queryByRole('button')).not.toBeInTheDocument()
     expect(screen.queryByText('Set Up the Project')).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Open duplicate detection' }))
+      .toHaveAttribute('href', '/projects/p1/duplicates')
+    expect(screen.getByRole('link', { name: 'Review duplicate candidates' }))
+      .toHaveAttribute('href', '/projects/p1/duplicates')
   })
 
   it('marks the project ready and refreshes the checklist', async () => {

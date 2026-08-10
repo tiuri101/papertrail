@@ -58,6 +58,7 @@ class MembershipCreate(ApiModel):
     can_extract: bool = Field(default=False, alias="canExtract")
     can_assess_quality: bool = Field(default=False, alias="canAssessQuality")
     can_adjudicate: bool = Field(default=False, alias="canAdjudicate")
+    workload_weight: float = Field(default=1.0, alias="workloadWeight", gt=0, le=100)
 
 
 class MembershipUpdate(ApiModel):
@@ -68,6 +69,7 @@ class MembershipUpdate(ApiModel):
     can_extract: bool = Field(default=False, alias="canExtract")
     can_assess_quality: bool = Field(default=False, alias="canAssessQuality")
     can_adjudicate: bool = Field(default=False, alias="canAdjudicate")
+    workload_weight: float = Field(default=1.0, alias="workloadWeight", gt=0, le=100)
 
 
 class MembershipResponse(ApiModel):
@@ -81,6 +83,7 @@ class MembershipResponse(ApiModel):
     can_extract: bool = Field(serialization_alias="canExtract")
     can_assess_quality: bool = Field(serialization_alias="canAssessQuality")
     can_adjudicate: bool = Field(serialization_alias="canAdjudicate")
+    workload_weight: float = Field(serialization_alias="workloadWeight")
 
 
 class OrderedTextCreate(ApiModel):
@@ -144,9 +147,18 @@ class ProjectDetail(ProjectSummary):
         serialization_alias="screeningConfigs"
     )
     can_manage: bool = Field(serialization_alias="canManage")
+    can_manage_publications: bool = Field(
+        default=True, serialization_alias="canManagePublications"
+    )
     extraction_validation_enabled: bool = Field(
         default=False, serialization_alias="extractionValidationEnabled"
     )
+    can_title_abstract_screen: bool = Field(
+        serialization_alias="canTitleAbstractScreen"
+    )
+    can_full_text_screen: bool = Field(serialization_alias="canFullTextScreen")
+    can_extract: bool = Field(serialization_alias="canExtract")
+    can_assess_quality: bool = Field(serialization_alias="canAssessQuality")
 
 
 class PromptFlowSettings(ApiModel):

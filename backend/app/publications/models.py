@@ -11,7 +11,8 @@ from app.db.types import JSONType
 
 if TYPE_CHECKING:
     from app.conflicts.models import FinalDecision
-    from app.fulltext.models import PublicationDocument
+    from app.extraction.models import ExtractionWorkItem
+    from app.fulltext.models import FullTextRetrieval, PublicationDocument
     from app.imports.models import ImportedRecord
 
 
@@ -58,6 +59,12 @@ class Publication(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         back_populates="publication", cascade="all, delete-orphan"
     )
     final_decisions: Mapped[list[FinalDecision]] = relationship(viewonly=True)
+    extraction_work_item: Mapped[ExtractionWorkItem | None] = relationship(
+        viewonly=True, uselist=False
+    )
+    full_text_retrieval: Mapped[FullTextRetrieval | None] = relationship(
+        viewonly=True, uselist=False
+    )
 
     @property
     def active_document(self) -> PublicationDocument | None:
@@ -68,7 +75,12 @@ class Publication(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     @property
     def full_text(self) -> dict[str, object]:
         document = self.active_document
-        return {"available": document is not None, "document": document}
+        retrieval = self.full_text_retrieval
+        return {
+            "available": document is not None,
+            "document": document,
+            "retrieval_status": str(retrieval.status) if retrieval else None,
+        }
 
     @property
     def screening_status(self) -> dict[str, str | None]:
@@ -83,6 +95,14 @@ class Publication(UUIDPrimaryKeyMixin, TimestampMixin, Base):
             if key in status and status[key] is None:
                 status[key] = str(decision.outcome)
         return status
+
+    @property
+    def extraction_status(self) -> str | None:
+        return (
+            str(self.extraction_work_item.status)
+            if self.extraction_work_item is not None
+            else None
+        )
 
     @property
     def search_sources(self) -> list[dict[str, Any]]:

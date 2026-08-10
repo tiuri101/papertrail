@@ -13,10 +13,7 @@ from app.api.errors import NotFoundError
 from app.audit.service import record_audit
 from app.db.session import get_db
 from app.jobs.service import enqueue_job
-from app.projects.dependencies import (
-    require_project_manager_csrf,
-    require_project_member_csrf,
-)
+from app.projects.dependencies import require_project_member_csrf
 from app.projects.service import require_project_access
 from app.reporting.models import ExportArtifact
 from app.reporting.service import (
@@ -32,6 +29,7 @@ class ExportRequest(BaseModel):
     exportType: str
     scope: str = "included"
     statusFilter: dict[str, Any] | None = None
+    publicationIds: list[str] | None = None
 
 
 @router.get("/projects/{project_id}/prisma")
@@ -83,6 +81,7 @@ def create_export(
             "export_type": payload.exportType,
             "scope": payload.scope,
             "status_filter": payload.statusFilter,
+            "publication_ids": payload.publicationIds,
         },
         project_id=project_id,
         created_by_id=admin.id,
@@ -147,7 +146,7 @@ def download_export(
 def delete_export(
     project_id: str,
     artifact_id: str,
-    admin: User = Depends(require_project_manager_csrf),
+    admin: User = Depends(require_project_member_csrf),
     db: Session = Depends(get_db),
 ) -> None:
     require_project_access(db, project_id, admin)

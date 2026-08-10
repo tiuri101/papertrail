@@ -626,3 +626,31 @@ def test_non_admin_project_owner_can_browse_but_not_manage_templates(
         headers={"X-CSRF-Token": csrf},
     )
     assert forbidden.status_code == 403
+
+
+def test_administrator_can_inspect_rename_and_remove_a_template(client, db) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    template = create_form(
+        db, "General extraction", FormKind.EXTRACTION, is_template=True
+    )
+    add_field(db, template, "Main finding", "long_text", required=True)
+    db.commit()
+    csrf = login(client, "admin", "secret-password")
+
+    fields = client.get(f"/api/v1/forms/{template.id}/fields")
+    assert fields.status_code == 200
+    assert fields.json()[0]["label"] == "Main finding"
+
+    renamed = client.patch(
+        f"/api/v1/forms/{template.id}",
+        json={"name": "Evidence extraction"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert renamed.status_code == 200
+    assert renamed.json()["name"] == "Evidence extraction"
+
+    removed = client.delete(
+        f"/api/v1/forms/{template.id}", headers={"X-CSRF-Token": csrf}
+    )
+    assert removed.status_code == 204
+    assert client.get("/api/v1/form-templates").json() == []

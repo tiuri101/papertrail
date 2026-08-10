@@ -3,31 +3,12 @@ import { useState } from 'react'
 import { api } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { ConfirmButton } from '../../components/ConfirmButton'
-import { IconRestart } from '../../components/icons'
-import { InfoTooltip } from '../../components/Tooltip'
-
-const stages = [
-  'draft',
-  'duplicate_review',
-  'title_abstract_screening',
-  'full_text_screening',
-  'extraction_quality',
-]
-
-const stageOrder = [...stages, 'completed']
-
-const activeStages = stages.filter((stage) => stage !== 'draft')
-
-function humanizeStage(stage: string): string {
-  return stage
-    .split('_')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-    .join(' ')
-}
+import { InfoBox } from '../../components/InfoBox'
+import { IconCheckCircle, IconRestart } from '../../components/icons'
+import { activeStages, humanizeStage, stageOrder, stages } from './lifecycleStages'
 
 export function ProjectLifecyclePanel({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient()
-  const [targetStage, setTargetStage] = useState(stages[2])
   const [moveBackTarget, setMoveBackTarget] = useState(stages[1])
   const project = useQuery({
     queryKey: ['project', projectId],
@@ -38,14 +19,6 @@ export function ProjectLifecyclePanel({ projectId }: { projectId: string }) {
     queryFn: () => api<{ issues: Array<{ code: string; message: string }> }>(
       `/projects/${projectId}/integrity`,
     ),
-  })
-  const reopen = useMutation({
-    mutationFn: () =>
-      api(`/projects/${projectId}/reopen`, {
-        method: 'POST',
-        body: JSON.stringify({ targetStage }),
-      }),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['project', projectId] }),
   })
   const moveBack = useMutation({
     mutationFn: () =>
@@ -64,10 +37,6 @@ export function ProjectLifecyclePanel({ projectId }: { projectId: string }) {
   const isActiveStage = currentStage
     ? currentStage !== 'draft' && currentStage !== 'completed'
     : false
-  const isCompleted = currentStage === 'completed'
-  const reopenOptions = stages.filter(
-    (stage) => stageOrder.indexOf(stage) < currentIndex,
-  )
   const moveBackOptions = activeStages.filter(
     (stage) => stageOrder.indexOf(stage) < currentIndex,
   )
@@ -77,17 +46,16 @@ export function ProjectLifecyclePanel({ projectId }: { projectId: string }) {
       <CollapsibleSection
         id="section-workflow-integrity"
         title="Workflow Integrity"
-        headingAccessory={(
-          <InfoTooltip
-            label="About Workflow Integrity"
-            text="These checks run automatically whenever this page loads. They don't block your work — they just flag things worth a second look."
-          />
-        )}
+        icon={<IconCheckCircle />}
       >
-        <p className="muted">
-          Automated checks for inconsistencies across a project's stages, such as decisions or
-          data left over from a stage the project has already moved past.
-        </p>
+        <InfoBox icon={<IconCheckCircle />}>
+          <p>
+            Automated checks for inconsistencies across a project's stages, such as decisions or
+            data left over from a stage the project has already moved past. These checks run
+            automatically whenever this page loads and don&apos;t block your work — they just
+            flag things worth a second look.
+          </p>
+        </InfoBox>
         {integrity.data?.issues.length ? (
           <ul>
             {integrity.data.issues.map((issue) => (
@@ -96,46 +64,14 @@ export function ProjectLifecyclePanel({ projectId }: { projectId: string }) {
           </ul>
         ) : <p>No consistency issues detected.</p>}
       </CollapsibleSection>
-      {isCompleted && reopenOptions.length ? (
-        <CollapsibleSection
-          id="section-reopen-project"
-          title="Reopen Project"
-          headingAccessory={(
-            <InfoTooltip
-              label="About Reopen Project"
-              text="Only shown once a project has reached Completed. If the project is still active, use Move Project Back instead."
-            />
-          )}
-        >
-          <p>
-            Move a completed project back to an earlier stage to resume work. Screening, extraction, and quality-assessment data already recorded is kept, not deleted.
-          </p>
-          {reopen.error ? <p className="error" role="alert">{reopen.error.message}</p> : null}
-          <label>
-            Move back to
-            <select
-              value={targetStage}
-              onChange={(event) => setTargetStage(event.target.value)}
-            >
-              {reopenOptions.map((stage) => <option key={stage} value={stage}>{humanizeStage(stage)}</option>)}
-            </select>
-          </label>
-          <ConfirmButton
-            label="Reopen Project"
-            confirmLabel="Reopen"
-            warning="This reopens the project at the selected stage. Downstream data (screening decisions, extraction, quality assessment) is kept, not deleted, but will no longer count toward the active stage until the project advances again."
-            onConfirm={() => reopen.mutate()}
-            disabled={reopen.isPending}
-            icon={<IconRestart />}
-          />
-        </CollapsibleSection>
-      ) : null}
       {isActiveStage && moveBackOptions.length ? (
-        <CollapsibleSection id="section-move-project-back" title="Move Project Back">
-          <p>
-            Move an in-progress project back to an earlier stage without deleting any screening, extraction, or quality-assessment data already recorded. That data is kept for traceability but excluded from active workflow counts until the project reaches that stage again.
-            <InfoTooltip text="Only shown while a project is still active (not yet completed). Once a project reaches Completed, use Reopen Project instead." />
-          </p>
+        <CollapsibleSection id="section-move-project-back" title="Move Project Back" icon={<IconRestart />}>
+          <InfoBox icon={<IconRestart />}>
+            <p>
+              Move an in-progress project back to an earlier stage without deleting any screening, extraction, or quality-assessment data already recorded. That data is kept for traceability but excluded from active workflow counts until the project reaches that stage again. Only shown
+              while a project is still active — once a project reaches Completed, use Reopen at an Earlier Stage instead.
+            </p>
+          </InfoBox>
           {moveBack.error ? <p className="error" role="alert">{moveBack.error.message}</p> : null}
           <label>
             Move back to

@@ -189,8 +189,8 @@ describe('ScreeningPage', () => {
       criteriaAnswers: { 'criterion-1': true, 'criterion-2': false },
       notes: 'Outside the review scope.',
     })
-    expect(screen.getByRole('button', { name: 'Submit Decision' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Submit Decision' }))
+    expect(screen.getByRole('button', { name: 'Confirm Decision' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm Decision' }))
     await waitFor(() => {
       const nextCalls = fetchMock.mock.calls.filter(
         ([input]) => String(input).endsWith('/next'),
@@ -254,8 +254,8 @@ describe('ScreeningPage', () => {
 
     expect(await screen.findByText(/LLM suggestion:/)).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Immersive Urban Analytics' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Submit Decision' })).toBeInTheDocument()
-    fireEvent.click(screen.getByRole('button', { name: 'Submit Decision' }))
+    expect(screen.getByRole('button', { name: 'Confirm Decision' })).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm Decision' }))
 
     await waitFor(() => {
       const nextCalls = fetchMock.mock.calls.filter(([input, init]) => String(input).endsWith('/next') && init?.method === 'POST')
@@ -300,7 +300,7 @@ describe('ScreeningPage', () => {
 
     expect(await screen.findByText(/LLM suggestion:/)).toBeInTheDocument()
     fireEvent.change(screen.getByLabelText('Decision'), { target: { value: 'exclude' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Submit Decision' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm Decision' }))
 
     await waitFor(() => expect(decisionPosts).toBe(2))
     const decisionCalls = fetchMock.mock.calls.filter(
@@ -343,6 +343,20 @@ describe('ScreeningPage', () => {
     await waitFor(() => {
       expect(screen.getByText('3 of 5 assigned papers screened')).toBeInTheDocument()
     })
+  })
+
+  it('shows papers remaining instead of assigned counts in claim mode', async () => {
+    renderScreening(async (input) => {
+      const path = String(input)
+      if (path.endsWith('/next')) return jsonResponse(workItem)
+      if (path.endsWith('/progress')) {
+        return jsonResponse({ assigned: 1, completed: 0, remaining: 7, claimMode: true })
+      }
+      return jsonResponse({})
+    })
+
+    expect(await screen.findByText('7 papers remaining')).toBeInTheDocument()
+    expect(screen.queryByText(/assigned papers screened/)).not.toBeInTheDocument()
   })
 
   it('releases the reserved work item when leaving the page without deciding', async () => {

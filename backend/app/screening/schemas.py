@@ -52,6 +52,10 @@ class DecisionSubmit(ApiModel):
     notes: str | None = None
 
 
+class DecisionOverride(DecisionSubmit):
+    reason: str = Field(min_length=1, max_length=2000)
+
+
 class DecisionResponse(ApiModel):
     id: str
     reviewer_id: str = Field(serialization_alias="reviewerId")
@@ -59,6 +63,10 @@ class DecisionResponse(ApiModel):
     criteria_answers: dict[str, bool] = Field(serialization_alias="criteriaAnswers")
     notes: str | None
     version: int
+
+
+class WorkItemDetailResponse(WorkItemResponse):
+    decision: DecisionResponse | None = None
 
 
 class DecisionSubmitResponse(DecisionResponse):
@@ -91,6 +99,8 @@ class MyDecisionsResponse(ApiModel):
 class MyProgressResponse(ApiModel):
     assigned: int
     completed: int
+    remaining: int
+    claim_mode: bool = Field(serialization_alias="claimMode")
 
 
 class AssignmentItem(ApiModel):

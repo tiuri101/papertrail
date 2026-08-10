@@ -29,6 +29,27 @@ const candidate = {
 }
 
 describe('DuplicateReviewPage', () => {
+  it('lets a project owner queue duplicate detection again', async () => {
+    const fetchMock = mockFetch(async (input, init) => {
+      const path = String(input)
+      if (path.endsWith('/projects/p1')) {
+        return jsonResponse({ id: 'p1', canManage: true, stage: 'duplicate_review' })
+      }
+      if (path.endsWith('/duplicates/detect') && init?.method === 'POST') {
+        return jsonResponse({ jobId: 'job-1', status: 'queued' }, 202)
+      }
+      return jsonResponse([])
+    })
+    renderWithProviders(<DuplicateReviewPage />, { route: '/projects/p1/duplicates', path: '/projects/:projectId/duplicates' })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Re-run Duplicate Detection' }))
+
+    expect(await screen.findByText('Duplicate detection queued.')).toBeInTheDocument()
+    expect(fetchMock.mock.calls.some(([input, init]) => (
+      String(input).endsWith('/duplicates/detect') && init?.method === 'POST'
+    ))).toBe(true)
+  })
+
   it('shows publication metadata and resolves a candidate as distinct', async () => {
     let resolved = false
     const fetchMock = mockFetch(async (input, init) => {
@@ -78,6 +99,7 @@ describe('DuplicateReviewPage', () => {
     renderWithProviders(<DuplicateReviewPage />, { route: '/projects/p1/duplicates', path: '/projects/:projectId/duplicates' })
 
     expect(await screen.findByText('A Study of Urban VR')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Re-run Duplicate Detection' })).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Not a Duplicate' }))
 
     await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(true))

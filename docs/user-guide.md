@@ -14,9 +14,11 @@ Any project member can resolve a suggested duplicate as not a duplicate, or merg
 
 ## Screening
 
-Open the active screening queue, inspect the publication metadata, complete every inclusion and exclusion criterion, and select include, exclude, uncertain, or duplicate. Notes are optional for every decision. Draft work is autosaved, and a reserved item remains assigned for up to one day unless released.
+Open the active screening queue, inspect the publication metadata, complete every inclusion and exclusion criterion, and select include, exclude, uncertain, or duplicate. Notes are optional for every decision. Draft work is autosaved, and a reserved item remains assigned for up to one hour unless released.
 
 In independent screening, other reviewers' answers remain hidden until all required decisions have been submitted. A submitted decision can be revised; any existing consensus is then invalidated and must be resolved again.
+
+How publications reach your queue depends on the stage's allocation setting, configured by the project owner or an administrator: with **Claim** (the default), publications aren't assigned in advance — the queue hands you the next unclaimed one as you work. With **Divided**, publications are pre-assigned round-robin across eligible reviewers, weighted by each reviewer's configured workload weight.
 
 ## Full text
 
@@ -40,7 +42,7 @@ If the installation administrator enables email and records your address, Papert
 
 ## Extraction and quality assessment
 
-Each included publication has one assigned extractor and, when enabled, one quality assessor. Complete all required fields before submission. Submitted work can be revised, or reopened by the project owner or an administrator.
+Each included publication has one extractor and, when enabled, one quality assessor. As with screening, the project owner or an administrator chooses how publications reach reviewers for each of these stages: **Claim** (the default) lets reviewers pick up the next unclaimed publication themselves, while **Pre-assigned** divides publications round-robin across eligible reviewers ahead of time, weighted by workload weight. Complete all required fields before submission. Submitted work can be revised, or reopened by the project owner or an administrator.
 
 ## Final results
 

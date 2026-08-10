@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { Route, Routes } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 
@@ -16,6 +16,12 @@ function renderPanel() {
   )
 }
 
+function clickCardAction(name: string) {
+  const button = screen.getAllByRole('button', { name })
+    .find((candidate) => !candidate.hasAttribute('aria-expanded'))!
+  fireEvent.click(button)
+}
+
 describe('DangerZonePanel', () => {
   it('resets the project only after confirming the warning', async () => {
     const fetchMock = mockFetch((_input, init) => {
@@ -24,11 +30,11 @@ describe('DangerZonePanel', () => {
     })
     renderPanel()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Reset Project' }))
-    expect(screen.getByRole('alert')).toHaveTextContent(/deletes every imported publication/)
+    clickCardAction('Reset Project')
+    expect(screen.getByRole('alert')).toHaveTextContent('Are you sure you want to continue? This cannot be undone.')
     expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
 
-    fireEvent.click(screen.getByRole('button', { name: 'Reset Project' }))
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Reset Project' }))
     await waitFor(() => {
       const call = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')
       expect(String(call?.[0])).toBe('/api/v1/projects/p1/reset')
@@ -42,11 +48,10 @@ describe('DangerZonePanel', () => {
     })
     renderPanel()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Delete Project' }))
-    expect(screen.getByRole('alert')).toHaveTextContent(/permanently deletes the entire project/)
-    expect(screen.getByRole('alert')).toHaveTextContent(/stored PDFs, import files, generated exports/)
+    clickCardAction('Delete Project')
+    expect(screen.getByRole('alert')).toHaveTextContent('Are you sure you want to continue? This cannot be undone.')
 
-    fireEvent.click(screen.getByRole('button', { name: 'Permanently Delete' }))
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Permanently Delete' }))
     await waitFor(() => {
       const call = fetchMock.mock.calls.find(([, init]) => init?.method === 'DELETE')
       expect(String(call?.[0])).toBe('/api/v1/projects/p1')

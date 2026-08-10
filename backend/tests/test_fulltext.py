@@ -23,6 +23,7 @@ from app.fulltext.service import (
     transition_if_full_text_complete,
 )
 from app.projects.models import (
+    AllocationMode,
     Project,
     ProjectMembership,
     ProjectStage,
@@ -53,7 +54,10 @@ def setup_fulltext(db, *, with_extraction_form: bool = True):
     )
     db.add(
         ScreeningConfig(
-            project_id=project.id, stage=ScreeningStage.FULL_TEXT, required_reviewers=1
+            project_id=project.id,
+            stage=ScreeningStage.FULL_TEXT,
+            required_reviewers=1,
+            allocation_mode=AllocationMode.DIVIDED,
         )
     )
     included = Publication(

@@ -3,7 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from app.accounts.models import User
-from app.api.errors import DomainError, NotFoundError
+from app.api.errors import ConflictError, DomainError, NotFoundError
 from app.audit.service import record_audit
 from app.db.session import get_db
 from app.deduplication.models import DuplicateCandidate, PublicationMerge
@@ -14,6 +14,7 @@ from app.deduplication.service import (
     reverse_merge,
     transition_if_duplicate_review_complete,
 )
+from app.jobs.models import BackgroundJob, JobStatus
 from app.jobs.service import enqueue_job
 from app.projects.dependencies import (
     require_project_manager_csrf,
@@ -85,6 +86,47 @@ def list_candidates(
             .order_by(DuplicateCandidate.confidence.desc())
         )
     )
+
+
+@router.post(
+    "/projects/{project_id}/duplicates/detect",
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def rerun_duplicate_detection(
+    project_id: str,
+    manager: User = Depends(require_project_manager_csrf),
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    project = get_project(db, project_id)
+    if project.stage != ProjectStage.DUPLICATE_REVIEW:
+        raise DomainError("Duplicate detection can only run during duplicate review")
+    active_job = db.scalar(
+        select(BackgroundJob.id).where(
+            BackgroundJob.project_id == project_id,
+            BackgroundJob.job_type == "detect_duplicates",
+            BackgroundJob.status.in_([JobStatus.QUEUED, JobStatus.RUNNING]),
+        )
+    )
+    if active_job is not None:
+        raise ConflictError("Duplicate detection is already queued or running")
+    job = enqueue_job(
+        db,
+        "detect_duplicates",
+        {"project_id": project_id},
+        project_id=project_id,
+        created_by_id=manager.id,
+    )
+    record_audit(
+        db,
+        action="duplicate.detection_requeued",
+        entity_type="background_job",
+        entity_id=job.id,
+        project_id=project_id,
+        actor_id=manager.id,
+        summary="Re-ran duplicate publication detection",
+    )
+    db.commit()
+    return {"jobId": job.id, "status": job.status.value}
 
 
 @router.post(
