@@ -4,6 +4,7 @@ import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { IconRestart } from '../../components/icons'
+import { InfoTooltip } from '../../components/Tooltip'
 import { useCanManageProject } from '../../hooks/useCanManageProject'
 import { BackgroundJob, hasActiveJob } from './jobStatus'
 
@@ -27,6 +28,11 @@ const COLUMNS: Array<{ key: SortKey; label: string }> = [
   { key: 'createdAt', label: 'Queued' },
   { key: 'completedAt', label: 'Completed' },
 ]
+
+const COLUMN_HELP: Partial<Record<SortKey, string>> = {
+  jobType: 'The kind of automated task that ran, such as importing files, checking for duplicates, or extracting data. Background jobs run on their own without anyone triggering them by hand.',
+  status: 'Queued: waiting for a worker to pick it up. Running: in progress. Completed: finished successfully. Failed: hit an error — use Restart to try again. Cancelled: stopped before it finished.',
+}
 
 function sortValue(job: BackgroundJob, key: SortKey): string | number | null {
   if (key === 'progress') {
@@ -296,6 +302,9 @@ export function JobsPage() {
                       <button type="button" className="link-button" onClick={() => toggleSort(column.key)}>
                         {column.label}{active ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
                       </button>
+                      {COLUMN_HELP[column.key] ? (
+                        <InfoTooltip text={COLUMN_HELP[column.key]!} label={`About ${column.label}`} placement="bottom" />
+                      ) : null}
                     </th>
                   )
                 })}

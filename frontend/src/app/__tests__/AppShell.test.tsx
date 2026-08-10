@@ -34,6 +34,11 @@ describe('AppShell', () => {
     expect(screen.queryByRole('link', { name: 'Users' })).not.toBeInTheDocument()
   })
 
+  it('exposes Help to every signed-in user', () => {
+    renderShell(reviewerSession)
+    expect(screen.getByRole('link', { name: 'Help' })).toHaveAttribute('href', '/help')
+  })
+
   it('shows user administration to the administrator', () => {
     renderShell({
       ...reviewerSession,
@@ -75,6 +80,7 @@ describe('AppShell', () => {
     const drawer = screen.getByRole('dialog', { name: 'Main menu' })
     expect(within(drawer).getByRole('link', { name: 'Users' })).toHaveAttribute('href', '/users')
     expect(within(drawer).getByRole('link', { name: 'Account' })).toHaveAttribute('href', '/account')
+    expect(within(drawer).getByRole('link', { name: 'Help' })).toHaveAttribute('href', '/help')
   })
 
   it('hides Users from the mobile menu for reviewers', () => {

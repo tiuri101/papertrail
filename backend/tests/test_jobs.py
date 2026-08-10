@@ -7,7 +7,7 @@ from app.jobs.service import enqueue_job
 from app.jobs.worker import HANDLERS, execute_next_job
 from app.llm.models import LlmExtractionRun, LlmTaskType, ProcessingStatus
 from app.llm.service import LLM_JOB_TYPE_BY_TASK
-from app.projects.models import Project, ProjectStage, ReviewType
+from app.projects.models import Project, ProjectMembership, ProjectStage, ReviewType
 from app.publications.models import Publication
 
 
@@ -76,6 +76,78 @@ def test_failed_job_diagnostic_traceback_can_be_retrieved(
     assert "RuntimeError: Diagnostic failure" in body["errorDetails"]
 
 
+def test_job_error_details_are_hidden_from_a_non_manager_project_member(
+    client, session_factory, monkeypatch
+) -> None:
+    with session_factory() as db:
+        create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+        member = create_user(db, "member", "Member", "member-password")
+        project = Project(
+            name="Review", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed"
+        )
+        db.add(project)
+        db.flush()
+        db.add(ProjectMembership(project_id=project.id, user_id=member.id))
+        job = enqueue_job(
+            db,
+            "generate_export",
+            {"export_type": "xlsx", "scope": "included"},
+            project_id=project.id,
+            created_by_id=member.id,
+            max_attempts=1,
+        )
+        job_id = job.id
+        db.commit()
+
+    def fail_job(db, job):
+        raise RuntimeError("Diagnostic failure")
+
+    monkeypatch.setitem(HANDLERS, "generate_export", fail_job)
+    assert execute_next_job(session_factory, "test-worker") is True
+
+    client.post(
+        "/api/v1/auth/login", json={"username": "member", "password": "member-password"}
+    )
+    response = client.get(f"/api/v1/jobs/{job_id}/error")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["errorType"] == "RuntimeError"
+    assert body["errorMessage"] == "Diagnostic failure"
+    assert body["errorDetails"] is None
+
+
+def test_job_error_endpoint_requires_admin_for_a_project_less_job(
+    client, session_factory, monkeypatch
+) -> None:
+    with session_factory() as db:
+        create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+        create_user(db, "member", "Member", "member-password")
+        job = enqueue_job(
+            db,
+            "generate_export",
+            {"export_type": "xlsx", "scope": "included"},
+            project_id=None,
+            created_by_id=None,
+            max_attempts=1,
+        )
+        job_id = job.id
+        db.commit()
+
+    def fail_job(db, job):
+        raise RuntimeError("Diagnostic failure")
+
+    monkeypatch.setitem(HANDLERS, "generate_export", fail_job)
+    assert execute_next_job(session_factory, "test-worker") is True
+
+    client.post(
+        "/api/v1/auth/login", json={"username": "member", "password": "member-password"}
+    )
+    response = client.get(f"/api/v1/jobs/{job_id}/error")
+
+    assert response.status_code == 403
+
+
 def test_a_failed_job_can_be_manually_restarted(
     client, db, session_factory, monkeypatch
 ) -> None:
@@ -129,6 +201,92 @@ def test_a_failed_job_can_be_manually_restarted(
         headers={"X-CSRF-Token": csrf},
     )
     assert already_queued.status_code == 400
+
+
+def test_jobs_summary_groups_counts_by_stage_and_excludes_cancelled(
+    client, db, session_factory
+) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    project = Project(
+        name="Review", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed"
+    )
+    db.add(project)
+    db.commit()
+    login(client)
+
+    def add_job(job_type: str, status: JobStatus) -> None:
+        job = enqueue_job(db, job_type, {}, project_id=project.id, created_by_id=None)
+        job.status = status
+        db.add(job)
+
+    add_job("generate_export", JobStatus.COMPLETED)
+    add_job("generate_export", JobStatus.COMPLETED)
+    add_job("generate_export", JobStatus.QUEUED)
+    add_job("detect_duplicates", JobStatus.COMPLETED)
+    add_job("detect_duplicates", JobStatus.CANCELLED)
+    db.commit()
+
+    response = client.get(f"/api/v1/projects/{project.id}/jobs/summary")
+    assert response.status_code == 200
+    body = response.json()
+
+    by_stage = {item["stage"]: item for item in body}
+    assert by_stage["Reporting and export"] == {
+        "stage": "Reporting and export",
+        "completed": 2,
+        "total": 3,
+        "active": True,
+    }
+    assert by_stage["Duplicate review"] == {
+        "stage": "Duplicate review",
+        "completed": 1,
+        "total": 1,
+        "active": False,
+    }
+    # Cancelled jobs are excluded entirely rather than counted as incomplete.
+    assert by_stage["Duplicate review"]["total"] == 1
+
+    # Stages appear in a stable pipeline order, not creation order.
+    stages = [item["stage"] for item in body]
+    assert stages.index("Duplicate review") < stages.index("Reporting and export")
+
+
+def test_jobs_summary_excludes_jobs_from_other_projects(client, db) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    project = Project(
+        name="Review", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed"
+    )
+    other_project = Project(
+        name="Other review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed2",
+    )
+    db.add_all([project, other_project])
+    db.commit()
+    login(client)
+
+    own_job = enqueue_job(
+        db, "detect_duplicates", {}, project_id=project.id, created_by_id=None
+    )
+    own_job.status = JobStatus.COMPLETED
+    other_job = enqueue_job(
+        db, "detect_duplicates", {}, project_id=other_project.id, created_by_id=None
+    )
+    other_job.status = JobStatus.QUEUED
+    system_job = enqueue_job(
+        db, "detect_duplicates", {}, project_id=None, created_by_id=None
+    )
+    system_job.status = JobStatus.QUEUED
+    db.add_all([own_job, other_job, system_job])
+    db.commit()
+
+    response = client.get(f"/api/v1/projects/{project.id}/jobs/summary")
+    assert response.status_code == 200
+    body = response.json()
+
+    assert body == [
+        {"stage": "Duplicate review", "completed": 1, "total": 1, "active": False}
+    ]
 
 
 def test_bulk_restart_only_restarts_failed_jobs(

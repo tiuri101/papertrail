@@ -51,7 +51,10 @@ describe('DuplicateReviewPage', () => {
     expect(doiLinks).toHaveLength(2)
     expect(doiLinks[0]).toHaveAttribute('href', 'https://doi.org/10.1000/same')
     expect(doiLinks[0]).toHaveAttribute('target', '_blank')
-    expect(screen.getByText('Exact DOI, Similar title & authors, Shared ISSN — 98% match — unresolved')).toBeInTheDocument()
+    expect(screen.getByText('98% match')).toBeInTheDocument()
+    const summary = screen.getByText('98% match').closest('p')!
+    expect(summary).toHaveTextContent('Exact DOI, Similar title & authors, Shared ISSN')
+    expect(summary).toHaveTextContent('unresolved')
     const candidateList = screen.getByText('A Study of Urban VR').closest('ul')
     expect(candidateList).toHaveClass('card-list', 'stacked')
     expect(screen.getByText('A Study of Urban VR').closest('.duplicate-publications')).toBe(

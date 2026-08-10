@@ -29,6 +29,7 @@ describe('ProjectPage', () => {
         return jsonResponse({ stage: 'title_abstract_screening', unresolvedDuplicates: 0 })
       }
       if (url.endsWith('/integrity')) return jsonResponse({ issues: [] })
+      if (url.endsWith('/jobs/summary')) return jsonResponse([])
       return jsonResponse({
         id: 'p1',
         name: 'Immersive analytics review',
@@ -96,6 +97,7 @@ describe('ProjectPage', () => {
       if (url.endsWith('/dashboard')) {
         return jsonResponse({ stage: 'extraction_quality' })
       }
+      if (url.endsWith('/jobs/summary')) return jsonResponse([])
       return jsonResponse({
         id: 'p1',
         name: 'Review',
@@ -117,6 +119,7 @@ describe('ProjectPage', () => {
       if (url.endsWith('/integrity')) return jsonResponse({ issues: [] })
       if (url.endsWith('/checklist')) return jsonResponse({ stage: 'draft', stages: [] })
       if (url.endsWith('/dashboard')) return jsonResponse({ stage: 'draft' })
+      if (url.endsWith('/jobs/summary')) return jsonResponse([])
       return jsonResponse({
         id: 'p1',
         name: 'Valid Review',
@@ -137,6 +140,33 @@ describe('ProjectPage', () => {
     expect(screen.queryByText(/consistency issues detected/i)).not.toBeInTheDocument()
   })
 
+  it('shows a per-stage background job completion summary in the Actions section', async () => {
+    mockFetch((input) => {
+      const url = String(input)
+      if (url.endsWith('/checklist')) return jsonResponse({ stage: 'extraction_quality', stages: [] })
+      if (url.endsWith('/dashboard')) return jsonResponse({ stage: 'extraction_quality' })
+      if (url.endsWith('/integrity')) return jsonResponse({ issues: [] })
+      if (url.endsWith('/jobs/summary')) {
+        return jsonResponse([
+          { stage: 'Duplicate review', completed: 1, total: 1, active: false },
+          { stage: 'Data extraction', completed: 2, total: 3, active: true },
+        ])
+      }
+      return jsonResponse({
+        id: 'p1', name: 'Review', stage: 'extraction_quality', canManage: true,
+        extractionValidationEnabled: false,
+      })
+    })
+    renderWithProviders(<ProjectPage />, { route: '/projects/p1', path: '/projects/:projectId' })
+
+    const dedupHeading = await screen.findByRole('heading', { name: /Deduplication/ })
+    expect(dedupHeading).toHaveTextContent('All background jobs completed')
+    const extractionHeading = screen.getByRole('heading', { name: /Extraction & Quality/ })
+    expect(extractionHeading).toHaveTextContent('2/3 background jobs completed')
+    const screeningHeading = screen.getByRole('heading', { name: /Title\/Abstract Screening/ })
+    expect(screeningHeading).not.toHaveTextContent('background jobs')
+  })
+
   it('shows the validation review action only when extraction validation is enabled', async () => {
     mockFetch((input) => {
       const url = String(input)
@@ -151,6 +181,7 @@ describe('ProjectPage', () => {
       }
       if (url.endsWith('/dashboard')) return jsonResponse({ stage: 'extraction_quality' })
       if (url.endsWith('/integrity')) return jsonResponse({ issues: [] })
+      if (url.endsWith('/jobs/summary')) return jsonResponse([])
       return jsonResponse({
         id: 'p1', name: 'Review', stage: 'extraction_quality', canManage: true,
         extractionValidationEnabled: true,

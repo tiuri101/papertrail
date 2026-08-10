@@ -19,6 +19,7 @@ const workItem = {
     { id: 'criterion-2', kind: 'exclusion', text: 'Is an editorial' },
   ],
   draft: {},
+  llmAssistanceEnabled: true,
 }
 
 function renderScreening(handler: Parameters<typeof mockFetch>[0], stage = 'title_abstract') {
@@ -387,6 +388,30 @@ describe('ScreeningPage', () => {
     await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
     expect(await screen.findByText(/LLM suggestion:/)).toBeInTheDocument()
 
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Decision' }))
+
+    await waitFor(() => {
+      const nextCalls = fetchMock.mock.calls.filter(([input, init]) => String(input).endsWith('/next') && init?.method === 'POST')
+      expect(nextCalls).toHaveLength(2)
+    })
+    expect(decisionPosts).toBe(1)
+  })
+
+  it('advances to the next title/abstract item after a single Submit click when LLM assistance is off', async () => {
+    let decisionPosts = 0
+    const fetchMock = renderScreening(async (input, init) => {
+      const path = String(input)
+      if (path.endsWith('/next') && init?.method === 'POST') {
+        return jsonResponse({ ...workItem, llmAssistanceEnabled: false })
+      }
+      if (path.endsWith('/decision') && init?.method === 'POST') {
+        decisionPosts += 1
+        return jsonResponse({ id: 'decision-1' }, 201)
+      }
+      return jsonResponse({})
+    })
+
+    await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
     fireEvent.click(screen.getByRole('button', { name: 'Submit Decision' }))
 
     await waitFor(() => {

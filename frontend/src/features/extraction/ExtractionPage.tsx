@@ -278,15 +278,6 @@ export function ExtractionPage() {
                 >
                   {isAnswered(current) ? 'Reset to LLM suggestion' : 'Apply suggestion'}
                 </button>
-                <button
-                  type="button"
-                  className="button-secondary"
-                  onClick={() => setSuggestionActions((actions) => ({
-                    ...actions, [field.stableKey]: 'ignored',
-                  }))}
-                >
-                  Ignore suggestion
-                </button>
               </div>
             </>
           )}

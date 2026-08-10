@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { IconCheckCircle } from '../../components/icons'
+import { Tooltip } from '../../components/Tooltip'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { DynamicForm, type DynamicFormField } from '../forms/DynamicForm'
 
@@ -144,7 +145,12 @@ export function QualityPage() {
         <p className="muted">{progress.data.completed} of {progress.data.assigned} assigned papers assessed</p>
       ) : null}
       {lastScore !== null ? (
-        <p>Submitted — total score: {lastScore}</p>
+        <p>
+          Submitted —{' '}
+          <Tooltip text="The sum of the points assigned to each answer on this quality-assessment checklist, as configured by your project administrator. There's no universal maximum — check the checklist design for how it's scored.">
+            <span>total score: {lastScore}</span>
+          </Tooltip>
+        </p>
       ) : null}
       {!item ? (
         <>

@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { InfoTooltip } from '../../components/Tooltip'
 import { useProjectManageState } from '../../hooks/useCanManageProject'
 
 interface AuditEvent {
@@ -26,6 +27,11 @@ const COLUMNS: Array<{ key: SortKey; label: string }> = [
   { key: 'entityType', label: 'Entity' },
   { key: 'summary', label: 'Summary' },
 ]
+
+const COLUMN_HELP: Partial<Record<SortKey, string>> = {
+  action: 'The internal event code recorded for this change, in the form "area.event" (for example, project.created). The Summary column explains it in plain language.',
+  entityType: 'The kind of record the action was performed on, such as a project, publication, or user. The ID in parentheses, if shown, identifies the specific record.',
+}
 
 function sortValue(event: AuditEvent, key: SortKey): string | number {
   if (key === 'createdAt') return Date.parse(event.createdAt)
@@ -172,6 +178,9 @@ export function AuditLogPage() {
                       <button type="button" className="link-button" onClick={() => toggleSort(column.key)}>
                         {column.label}{active ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
                       </button>
+                      {COLUMN_HELP[column.key] ? (
+                        <InfoTooltip text={COLUMN_HELP[column.key]!} label={`About ${column.label}`} placement="bottom" />
+                      ) : null}
                     </th>
                   )
                 })}
