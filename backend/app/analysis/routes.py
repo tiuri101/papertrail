@@ -18,6 +18,7 @@ from app.analysis.service import (
 from app.api.errors import DomainError, NotFoundError
 from app.db.session import get_db
 from app.jobs.service import enqueue_job
+from app.llm.installation_settings import effective_llm_settings
 from app.llm.schema_service import project_settings
 from app.projects.dependencies import require_project_member_csrf
 from app.projects.service import require_project_access
@@ -26,6 +27,8 @@ router = APIRouter(tags=["analysis"])
 
 
 def _narrative_enabled(db: Session, project_id: str) -> bool:
+    if not effective_llm_settings(db).llm_enabled:
+        return False
     settings = project_settings(db, project_id)
     return settings.analysis_narrative_enabled if settings is not None else True
 
