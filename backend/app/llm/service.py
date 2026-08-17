@@ -298,6 +298,38 @@ def cancel_task_type_jobs(db: Session, project_id: str, task_type: LlmTaskType) 
     return len(runs)
 
 
+def cancel_all_llm_jobs(db: Session) -> int:
+    """Stop every in-flight LLM suggestion when support is disabled installation-wide.
+
+    Unscoped version of ``cancel_task_type_jobs``: every project and task
+    type is affected, since the installation toggle overrides all of them.
+    Queued runs (and their still-queued background jobs) are cancelled
+    outright. A run already ``PROCESSING`` is owned by a worker thread mid
+    Ollama call; it's marked ``CANCELLED`` here so ``was_cancelled`` makes
+    the worker discard the result instead of persisting it.
+    """
+    runs = list(
+        db.scalars(
+            select(LlmExtractionRun).where(
+                LlmExtractionRun.status.in_(
+                    [ProcessingStatus.PENDING, ProcessingStatus.PROCESSING]
+                )
+            )
+        )
+    )
+    for run in runs:
+        was_pending = run.status == ProcessingStatus.PENDING
+        run.status = ProcessingStatus.CANCELLED
+        run.completed_at = utcnow()
+        if was_pending and run.background_job_id:
+            job = db.get(BackgroundJob, run.background_job_id)
+            if job and job.status == JobStatus.QUEUED:
+                job.status = JobStatus.CANCELLED
+                job.completed_at = utcnow()
+    db.flush()
+    return len(runs)
+
+
 def latest_current_run(
     db: Session, project_id: str, publication_id: str
 ) -> LlmExtractionRun | None:
