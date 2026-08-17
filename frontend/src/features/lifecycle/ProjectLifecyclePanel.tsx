@@ -64,10 +64,14 @@ export function ProjectLifecyclePanel({ projectId }: { projectId: string }) {
       </CollapsibleSection>
       {isActiveStage && moveBackOptions.length ? (
         <CollapsibleSection id="section-move-project-back" title="Move Project Back" icon={<IconRestart />}>
-          <InfoBox icon={<IconRestart />}>
+          <InfoBox icon={<IconRestart />} tone="warning">
             <p>
-              Move an in-progress project back to an earlier stage without deleting any screening, extraction, or quality-assessment data already recorded. That data is kept for traceability but excluded from active workflow counts until the project reaches that stage again. Only shown
-              while a project is still active — once a project reaches Completed, use Reopen at an Earlier Stage instead.
+              Move an in-progress project back to an earlier stage. Screening decisions, duplicate
+              merges, extraction responses, and quality-assessment data recorded in the target
+              stage and every stage after it are permanently deleted, and the target stage is then
+              regenerated fresh. Data from stages before the target, and project configuration
+              (criteria, forms, members), are left untouched. Only shown while a project is still
+              active — once a project reaches Completed, use Reopen at an Earlier Stage instead.
             </p>
           </InfoBox>
           {moveBack.error ? <p className="error" role="alert">{moveBack.error.message}</p> : null}
@@ -83,9 +87,10 @@ export function ProjectLifecyclePanel({ projectId }: { projectId: string }) {
           <ConfirmButton
             label="Move Project Back"
             confirmLabel="Move Back"
-            warning="This moves the project to an earlier stage. Downstream data (screening decisions, extraction, quality assessment) is kept, not deleted, but will no longer count toward the active stage until the project advances again."
+            warning="This permanently deletes screening decisions, extraction responses, and quality-assessment data recorded in the target stage and any stage after it. This cannot be undone."
             onConfirm={() => moveBack.mutate()}
             disabled={moveBack.isPending}
+            variant="danger"
           />
         </CollapsibleSection>
       ) : null}
