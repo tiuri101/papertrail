@@ -42,38 +42,48 @@ def title_abstract_included_ids(db: Session, project_id: str) -> list[str]:
     )
 
 
+def ensure_full_text_retrieval(
+    db: Session, project: Project, publication_id: str
+) -> FullTextRetrieval | None:
+    """Create the FullTextRetrieval row for a title/abstract-included
+    publication if one doesn't already exist. Returns the newly created row,
+    or None if it already existed (idempotent, so callers can invoke this
+    both from the batch stage transition and immediately on inclusion)."""
+    existing = db.scalar(
+        select(FullTextRetrieval.id).where(
+            FullTextRetrieval.publication_id == publication_id
+        )
+    )
+    if existing:
+        return None
+    has_pdf = db.scalar(
+        select(PublicationDocument.id).where(
+            PublicationDocument.publication_id == publication_id,
+            PublicationDocument.is_active.is_(True),
+        )
+    )
+    retrieval = FullTextRetrieval(
+        project_id=project.id,
+        publication_id=publication_id,
+        status=(
+            RetrievalStatus.AVAILABLE if has_pdf else RetrievalStatus.NOT_YET_SOUGHT
+        ),
+    )
+    db.add(retrieval)
+    db.flush()
+    return retrieval
+
+
 def initialize_full_text_stage(db: Session, project: Project) -> int:
     created = 0
     available_publication_ids: list[str] = []
     for publication_id in title_abstract_included_ids(db, project.id):
-        existing = db.scalar(
-            select(FullTextRetrieval.id).where(
-                FullTextRetrieval.publication_id == publication_id
-            )
-        )
-        if existing:
+        retrieval = ensure_full_text_retrieval(db, project, publication_id)
+        if retrieval is None:
             continue
-        has_pdf = db.scalar(
-            select(PublicationDocument.id).where(
-                PublicationDocument.publication_id == publication_id,
-                PublicationDocument.is_active.is_(True),
-            )
-        )
-        db.add(
-            FullTextRetrieval(
-                project_id=project.id,
-                publication_id=publication_id,
-                status=(
-                    RetrievalStatus.AVAILABLE
-                    if has_pdf
-                    else RetrievalStatus.NOT_YET_SOUGHT
-                ),
-            )
-        )
-        if has_pdf:
+        if retrieval.status == RetrievalStatus.AVAILABLE:
             available_publication_ids.append(publication_id)
         created += 1
-    db.flush()
     if available_publication_ids:
         create_screening_work_items(
             db,
@@ -286,6 +296,30 @@ def full_text_work_completed(db: Session, project: Project) -> bool:
             if final is None:
                 return False
     return True
+
+
+def full_text_screening_remaining(db: Session, project_id: str) -> int:
+    """Count publications with an available PDF but no final full-text
+    decision yet -- work still outstanding regardless of whether the project
+    as a whole has already moved past the full-text stage."""
+    decided_ids = set(
+        db.scalars(
+            select(FinalDecision.publication_id).where(
+                FinalDecision.project_id == project_id,
+                FinalDecision.stage == ScreeningStage.FULL_TEXT,
+                FinalDecision.is_valid.is_(True),
+            )
+        )
+    )
+    available_ids = set(
+        db.scalars(
+            select(FullTextRetrieval.publication_id).where(
+                FullTextRetrieval.project_id == project_id,
+                FullTextRetrieval.status == RetrievalStatus.AVAILABLE,
+            )
+        )
+    )
+    return len(available_ids - decided_ids)
 
 
 def transition_if_full_text_complete(db: Session, project: Project) -> bool:

@@ -122,6 +122,7 @@ export function ImportPage() {
     if (pendingJob && !isJobActive(pendingJob.status)) {
       queryClient.invalidateQueries({ queryKey: ['publications', projectId] })
       queryClient.invalidateQueries({ queryKey: pdfMatchesQueryKey })
+      queryClient.invalidateQueries({ queryKey: ['searches', projectId] })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingJob, projectId, queryClient])

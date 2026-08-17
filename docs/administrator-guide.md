@@ -19,7 +19,7 @@ An administrator is not automatically a reviewer on a project — reviewer eligi
 5. Review metadata and run enrichment where required (owner or administrator).
 6. Resolve all duplicate candidates (any project member marks each as not a duplicate or merges it; the owner or administrator marks the project ready to enter duplicate review and can reverse a merge).
 7. Complete title/abstract screening and resolve disagreements.
-8. Track manual full-text retrieval and complete full-text screening.
+8. Track full-text retrieval (manual, or browser-assisted via a paired Chrome extension) and complete full-text screening.
 9. Configure extraction and quality-assessment forms.
 10. Complete extraction and quality assessment.
 11. Review integrity warnings and generate PRISMA, XLSX, and BibTeX exports.
@@ -27,6 +27,12 @@ An administrator is not automatically a reviewer on a project — reviewer eligi
 ## Accounts
 
 Only the administrator creates and disables user accounts. An email address is optional; when email support is enabled, creating an account with an address queues a welcome message containing the username and login link, but never the temporary password. Users may maintain their own address in Account Settings. Disable accounts rather than deleting them when historical decisions must remain attributable. Password resets replace the password while retaining the account identity.
+
+Deactivating a user or resetting their password (by an administrator, or the user's own emailed reset link) also revokes any browser helpers (paired Chrome extensions) they hold, in addition to their sessions -- a browser helper's bearer token authenticates independently of the password, so it must not remain usable once the account is disabled or considered compromised.
+
+## Browser-assisted PDF retrieval
+
+Reviewers can optionally pair a Chrome extension ("Browser Helper") from their own Account Settings so it retrieves publisher PDFs through their own computer's network access and sign-in state, then uploads them through the normal PDF pipeline -- see the [Reviewer guide](user-guide.md#browser-assisted-pdf-retrieval). The Papertrail server itself never scrapes publisher content or receives publisher credentials/cookies through this feature; it only issues short-lived retrieval jobs and validates whatever PDF the extension uploads, exactly as it would a manual upload. A user can revoke their own browser helpers at any time from Account Settings, which immediately prevents further use of that credential.
 
 ## Email notifications
 

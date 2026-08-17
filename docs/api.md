@@ -16,6 +16,26 @@ Full-text document endpoints are publication-scoped:
 
 PDF content is streamed only after project authorization with `application/pdf` and inline content disposition. Publication list/detail responses include a compact `fullText` availability object, avoiding one request per list item.
 
+## Browser-assisted PDF retrieval
+
+Session-authenticated endpoints (cookie + CSRF, same as the rest of the API):
+
+- `POST/GET /browser-agents`, `POST /browser-agents/pairing-secrets`, `DELETE /browser-agents/{agentId}` -- pair, list, and revoke this account's browser helpers.
+- `POST /projects/{projectId}/pdf-retrieval-batches`, `GET .../pdf-retrieval-batches[/{batchId}]`, `GET .../pdf-retrieval-batches/missing-count`, `POST .../{batchId}/cancel`, `POST .../{batchId}/retry-failed` -- start and monitor a "retrieve missing PDFs" run for a project (requires full-text reviewer access).
+
+Unauthenticated: `POST /browser-agents/pair` consumes a one-time pairing secret and returns the agent's bearer token exactly once.
+
+Agent-authenticated endpoints (a paired extension's own opaque bearer token in `Authorization: Bearer <token>` -- this token is never accepted by, and never substitutes for, the session-cookie endpoints above):
+
+- `GET /browser-agent/me`
+- `GET /browser-agent/retrieval-jobs/pending-count`
+- `POST /browser-agent/retrieval-jobs/claim`
+- `POST /browser-agent/retrieval-jobs/{jobId}/state`
+- `POST /browser-agent/retrieval-jobs/{jobId}/upload`
+- `POST /browser-agent/retrieval-jobs/{jobId}/retry`
+
+The claim response exposes only what the extension needs to retrieve one publication (id, title, DOI, publisher URL, and the byte limit/lease expiry) -- no reviewer notes, screening answers, or extraction data. The upload endpoint derives the target publication from the claimed job server-side; the extension cannot upload to an arbitrary publication ID. `pending-count` is a cheap, read-only count (no claiming, no per-project access re-check) the extension polls in the background every few minutes to show a badge; it never triggers retrieval by itself.
+
 ## LLM assistance
 
 Project-manager endpoints under `/projects/{projectId}/llm` expose installation/project settings, connection testing, capability toggles, editable/versioned extraction-schema management, and paginated task diagnostics. `/projects/{projectId}/publications/{publicationId}/llm/run` queues extraction suggestions for a manager or assigned extractor.

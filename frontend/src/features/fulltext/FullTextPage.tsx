@@ -1,14 +1,16 @@
 import { useMutation } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
-import { IconArrowRight } from '../../components/icons'
+import { InfoBox } from '../../components/InfoBox'
+import { IconAlertTriangle, IconArrowRight } from '../../components/icons'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { StageEyebrow } from '../projects/StageEyebrow'
 import { ScreeningItemCard } from '../screening/ScreeningItemCard'
 import { useScreeningQueue } from '../screening/useScreeningQueue'
+import { useBrowserPdfRetrieval } from './useBrowserPdfRetrieval'
 import type { Retrieval } from './useRetrievalQueue'
 import { useRetrievalQueue } from './useRetrievalQueue'
 import { FullTextDocumentPanel } from './FullTextDocumentPanel'
@@ -32,6 +34,19 @@ export function FullTextPage() {
   const highlightKeywords = useHighlightKeywords(projectId)
   const queue = useScreeningQueue(projectId, 'full_text')
   const retrievalQueue = useRetrievalQueue(projectId)
+  const browserRetrieval = useBrowserPdfRetrieval(projectId)
+
+  // A publication currently shown as a manual retrieval card can become
+  // available via the browser extension while the reviewer has it open --
+  // drop the now-stale card rather than risk submitting an outdated status.
+  const openPublicationId = retrievalQueue.item?.publication.id
+  const succeededElsewhere = browserRetrieval.latestBatch?.succeededPublicationIds
+  useEffect(() => {
+    if (openPublicationId && succeededElsewhere?.includes(openPublicationId)) {
+      retrievalQueue.advance()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openPublicationId, succeededElsewhere])
 
   const updateRetrieval = useMutation({
     mutationFn: ({ id, status, note }: {
@@ -67,6 +82,17 @@ export function FullTextPage() {
     <main className="page">
       <StageEyebrow stage="full_text_screening" />
       <h1>Full-Text</h1>
+      {browserRetrieval.missingCount ? (
+        <InfoBox icon={<IconAlertTriangle />} tone="warning" alert>
+          <h3>
+            {browserRetrieval.missingCount} publication{browserRetrieval.missingCount === 1 ? '' : 's'} missing a PDF
+          </h3>
+          <p>
+            Retrieve missing PDFs automatically with a paired browser helper, or upload them manually,
+            from the <Link to={`/projects/${projectId}/publications`}>Publications</Link> page.
+          </p>
+        </InfoBox>
+      ) : null}
       {retrievalQueue.nextError ? <p className="error" role="alert">{retrievalQueue.nextError}</p> : null}
       {updateRetrieval.error ? <p className="error" role="alert">{updateRetrieval.error.message}</p> : null}
       {queue.nextError ? <p className="error" role="alert">{queue.nextError}</p> : null}

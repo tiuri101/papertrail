@@ -71,7 +71,7 @@ export function HighlightKeywordsPanel({ projectId }: { projectId: string }) {
   return (
     <CollapsibleSection id="section-highlighted-keywords" title="Highlighted Keywords" icon={<IconHighlighter />}>
       <InfoBox icon={<IconHighlighter />}>
-        <p>Keywords entered here are highlighted wherever reviewers see publication titles and abstracts. The preview shows the color reviewers will see. Changes save automatically.</p>
+        <p>Keywords entered here are highlighted in publication titles and abstracts.</p>
       </InfoBox>
       {keywords.error ? <p className="error" role="alert">{keywords.error.message}</p> : null}
       {keywords.isPending ? <p className="muted">Loading keywords…</p> : null}

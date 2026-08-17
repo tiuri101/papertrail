@@ -114,20 +114,19 @@ def setup_report(db):
         None,
         None,
     )
-    db.add(
-        FullTextRetrieval(
-            project_id=project.id,
-            publication_id=included.id,
-            status=RetrievalStatus.AVAILABLE,
+    # record_final_decision already created these rows immediately on
+    # inclusion (see conflicts.service._queue_retrieval_on_inclusion); just
+    # set the statuses this report fixture needs.
+    included_retrieval = db.scalar(
+        select(FullTextRetrieval).where(FullTextRetrieval.publication_id == included.id)
+    )
+    included_retrieval.status = RetrievalStatus.AVAILABLE
+    unavailable_retrieval = db.scalar(
+        select(FullTextRetrieval).where(
+            FullTextRetrieval.publication_id == unavailable.id
         )
     )
-    db.add(
-        FullTextRetrieval(
-            project_id=project.id,
-            publication_id=unavailable.id,
-            status=RetrievalStatus.NOT_FOUND,
-        )
-    )
+    unavailable_retrieval.status = RetrievalStatus.NOT_FOUND
     record_final_decision(
         db, included.id, ScreeningStage.FULL_TEXT, "include", "agreement", None, None
     )

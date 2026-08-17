@@ -143,7 +143,7 @@ function MemberRow({
       <td>{label}</td>
       <td>
         {activeRoles.length > 0 ? activeRoles.join(', ') : 'No roles assigned'}
-        <span className="muted"> — weight {membership.workloadWeight}×</span>
+        <span className="muted">. Weight: {membership.workloadWeight}.</span>
       </td>
       <td>
         <div className="toolbar">
@@ -243,7 +243,7 @@ export function MembersPanel({
           Add the reviewers who will work on this project and choose which stages each one can
           take part in. Reviewers only see the stages they&apos;re given a role for. Workload
           weight controls how publications are split when a stage pre-assigns work rather than
-          letting reviewers claim it themselves — a reviewer with weight 2 gets roughly twice as
+          letting reviewers claim it themselves: A reviewer with weight 2 gets roughly twice as
           many publications as one with weight 1.
         </p>
       </InfoBox>

@@ -20,6 +20,7 @@ interface LlmSettings {
   titleAbstractScreeningEnabled: boolean
   fullTextScreeningEnabled: boolean
   extractionValidationEnabled: boolean
+  analysisNarrativeEnabled: boolean
   installationEnabled: boolean
   provider: string
   endpoint?: string | null
@@ -141,7 +142,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
   }
   const toggle = useMutation({
     mutationFn: (patch: Partial<Pick<LlmSettings,
-      'enabled' | 'titleAbstractScreeningEnabled' | 'fullTextScreeningEnabled' | 'extractionValidationEnabled'>>) => apiRequest(
+      'enabled' | 'titleAbstractScreeningEnabled' | 'fullTextScreeningEnabled' | 'extractionValidationEnabled' | 'analysisNarrativeEnabled'>>) => apiRequest(
       `/api/v1/projects/${projectId}/llm/settings`,
       { method: 'PATCH', body: JSON.stringify(patch) },
     ),
@@ -344,11 +345,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
     <CollapsibleSection id="section-llm-capabilities" title="LLM Capabilities" icon={<IconCheckCircle />}>
       <InfoBox icon={<IconCheckCircle />}>
         <p>
-          Turn LLM suggestions on or off for each stage independently — nothing runs until it's
-          enabled here.
-          {setupMode
-            ? ' LLM assistance is optional — enable it now, or leave it off and come back to it later from Project Administration.'
-            : null}
+          Turn LLM suggestions on or off for different tasks across the different reviewing stages independently.
         </p>
       </InfoBox>
       {settings.data ? (
@@ -390,6 +387,15 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
             />
             Validate completed human extractions automatically
           </label>
+          <label>
+            <input
+              type="checkbox"
+              checked={settings.data.analysisNarrativeEnabled}
+              disabled={!settings.data.installationEnabled || toggle.isPending}
+              onChange={(event) => toggle.mutate({ analysisNarrativeEnabled: event.target.checked })}
+            />
+            LLM-generated result analysis
+          </label>
         </fieldset>
       ) : null}
       {capabilitiesError ? <p className="error" role="alert">{capabilitiesError.message}</p> : null}
@@ -399,8 +405,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
       <InfoBox icon={<IconSparkle />}>
         <p>
           Define the fields the LLM extracts alongside reviewers&apos; own answers. Map a field to
-          an extraction question, or leave it as an LLM-only helper. Reviewers remain responsible
-          for every submitted value — suggestions are never applied automatically.
+          an extraction question, or leave it as an LLM-only helper. Suggestions are never applied automatically.
         </p>
       </InfoBox>
         {!currentSchema ? (

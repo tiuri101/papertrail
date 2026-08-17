@@ -14,6 +14,7 @@ const duplicateReviewResponse = {
   },
   narrative: null,
   isStale: true,
+  narrativeEnabled: true,
 }
 
 const titleAbstractResponse = {
@@ -28,6 +29,7 @@ const titleAbstractResponse = {
   },
   narrative: { summary: 'Screening summary text.', generatedAt: '2026-08-10T00:00:00Z' },
   isStale: false,
+  narrativeEnabled: true,
 }
 
 const fullTextResponse = {
@@ -45,6 +47,7 @@ const fullTextResponse = {
   },
   narrative: null,
   isStale: true,
+  narrativeEnabled: true,
 }
 
 const extractionResponse = {
@@ -66,6 +69,7 @@ const extractionResponse = {
   },
   narrative: null,
   isStale: true,
+  narrativeEnabled: true,
 }
 
 function baseFetchHandler(input: RequestInfo | URL) {
@@ -160,6 +164,31 @@ describe('AnalysisPage', () => {
     fireEvent.click(await withinFullText.findByRole('button', { name: 'Generate summary' }))
 
     await waitFor(() => expect(regenerated).toBe(true))
+  })
+
+  it('hides the interpretation panel entirely when narratives are disabled for the project', async () => {
+    mockFetch((input) => {
+      const path = String(input)
+      if (path.endsWith('/analysis/full_text_screening')) {
+        return jsonResponse({ ...fullTextResponse, narrativeEnabled: false })
+      }
+      return baseFetchHandler(input)
+    })
+
+    renderWithProviders(<AnalysisPage />, {
+      route: '/projects/p1/analysis',
+      path: '/projects/:projectId/analysis',
+    })
+
+    const fullTextSection = (
+      await screen.findByRole('heading', { name: 'Full-Text Screening' })
+    ).closest('section') as HTMLElement
+    const withinFullText = within(fullTextSection)
+    await waitFor(() => expect(withinFullText.getByRole('heading', { name: 'Outcomes' })).toBeInTheDocument())
+
+    expect(withinFullText.queryByRole('heading', { name: 'Interpretation' })).not.toBeInTheDocument()
+    expect(withinFullText.queryByText('No summary generated yet.')).not.toBeInTheDocument()
+    expect(withinFullText.queryByRole('button', { name: 'Generate summary' })).not.toBeInTheDocument()
   })
 
   it('shows extraction and quality field breakdowns', async () => {

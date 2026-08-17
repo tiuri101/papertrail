@@ -6,7 +6,6 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.errors import DomainError
 from app.imports.models import ImportBatch, ImportedRecord
 from app.projects.models import Project, ProjectStage
 from app.publications.models import MetadataConflict, Publication, PublicationSource
@@ -24,27 +23,27 @@ def sync_new_publications_with_stage(
     advances. But `create_screening_work_items` for title/abstract only runs once,
     when duplicate review completes, so a publication added afterwards would
     otherwise sit invisible to reviewers with no screening work item at all.
-    Publications added once full-text retrieval has started aren't supported: those
-    later stages depend on a title/abstract decision a brand-new publication
-    doesn't have yet.
+
+    A publication added once the project has moved past title/abstract screening
+    -- including a completed project -- starts at title/abstract screening just
+    like any other, and its own decisions carry it through full-text and
+    extraction/quality via the late-inclusion backfill in
+    app.conflicts.service.record_final_decision, without disturbing publications
+    already past those stages or rewinding the project's own stage.
     """
     if not publication_ids:
         return
-    if project.stage == ProjectStage.TITLE_ABSTRACT:
+    if project.stage in (
+        ProjectStage.TITLE_ABSTRACT,
+        ProjectStage.FULL_TEXT,
+        ProjectStage.EXTRACTION,
+        ProjectStage.COMPLETED,
+    ):
         from app.projects.models import ScreeningStage
         from app.screening.service import create_screening_work_items
 
         create_screening_work_items(
             db, project, ScreeningStage.TITLE_ABSTRACT, publication_ids=publication_ids
-        )
-    elif project.stage in (
-        ProjectStage.FULL_TEXT,
-        ProjectStage.EXTRACTION,
-        ProjectStage.COMPLETED,
-    ):
-        raise DomainError(
-            "Publications can't be added once full-text retrieval has started. "
-            "Move the project back to an earlier stage first."
         )
 
 

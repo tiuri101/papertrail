@@ -1,9 +1,11 @@
 import { useState } from 'react'
 
 import { HighlightedText } from '../../components/HighlightedText'
+import { formatHotkey, loadScreeningHotkeys } from '../../lib/screeningHotkeys'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { ScreeningLlmPanel } from '../llm/LlmTaskComponents'
 import { CriteriaAnswerFields } from './CriteriaAnswerFields'
+import { useScreeningDecisionHotkeys } from './useScreeningDecisionHotkeys'
 import type { CriterionAnswer, PreviousScreeningItem, ScreeningQueue } from './useScreeningQueue'
 
 export function PreviousItemCard({
@@ -33,6 +35,16 @@ export function PreviousItemCard({
   const criteriaComplete = previousItem.criteria.every(
     (criterion) => answers[criterion.id] !== null && answers[criterion.id] !== undefined,
   )
+
+  useScreeningDecisionHotkeys({
+    enabled: Boolean(decision),
+    setOutcome,
+    onSubmit: () => {
+      if (save.isPending || !criteriaComplete) return
+      save.mutate({ outcome, criteriaAnswers: answers, notes: notes || null })
+    },
+  })
+  const submitHotkey = formatHotkey(loadScreeningHotkeys().submit)
 
   return (
     <article className="card">
@@ -85,6 +97,7 @@ export function PreviousItemCard({
               disabled={save.isPending || !criteriaComplete}
             >
               Save Changes
+              {submitHotkey ? <kbd className="submit-button__hotkey" aria-hidden="true">{submitHotkey}</kbd> : null}
             </button>
             <button type="button" className="button-secondary" onClick={onClose} disabled={save.isPending}>
               Continue to current paper

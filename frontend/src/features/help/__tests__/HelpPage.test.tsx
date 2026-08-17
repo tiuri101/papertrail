@@ -46,7 +46,7 @@ describe('HelpPage', () => {
     renderWithProviders(<HelpPage />)
 
     const ownerTimeline = screen.getByRole('list', { name: 'Project owner responsibilities by stage' })
-    const dangerGuide = screen.getByRole('complementary', { name: 'Reset is a fresh start; delete is permanent removal' })
+    const dangerGuide = screen.getByRole('complementary', { name: 'Reset is a fresh start, delete is permanent removal' })
     const dangerToggle = screen.getByRole('button', { name: 'Reset is a fresh start, delete is permanent removal' })
     expect(ownerTimeline.compareDocumentPosition(dangerGuide) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(dangerToggle).toHaveTextContent('Before using the Danger Zone')
@@ -92,22 +92,48 @@ describe('HelpPage', () => {
     )
   })
 
-  it('places the LLM section directly before Good to Know', () => {
+  it('places the Browser Extension section between LLM Assistance and Good to Know', () => {
     renderWithProviders(<HelpPage />)
 
     const llmSection = document.querySelector('#section-help-llm')
-    expect(llmSection?.nextElementSibling).toHaveAttribute('id', 'section-help-good-to-know')
+    const extensionSection = document.querySelector('#section-help-extension')
+    expect(llmSection?.nextElementSibling).toHaveAttribute('id', 'section-help-extension')
+    expect(extensionSection?.nextElementSibling).toHaveAttribute('id', 'section-help-good-to-know')
+  })
+
+  it('describes the browser extension: what it does, how it works, and requirements', () => {
+    renderWithProviders(<HelpPage />)
+
+    expect(screen.getByRole('button', { name: 'Browser Extension' })).toBeInTheDocument()
+
+    const backgroundNote = screen.getByRole('complementary', { name: 'Browser extension background processing' })
+    expect(backgroundNote).toHaveTextContent('Runs quietly in the background')
+    expect(backgroundNote).toHaveTextContent('same staged-upload validation as a manually attached PDF')
+
+    const setupSteps = screen.getByRole('list', { name: 'Browser extension setup steps' })
+    expect(setupSteps.children).toHaveLength(3)
+    expect(setupSteps).toHaveTextContent('Pair the extension')
+    expect(setupSteps).toHaveTextContent('valid for 10 minutes and usable once')
+    expect(setupSteps).toHaveTextContent('Retrieve missing PDFs')
+
+    const practicalNotes = screen.getByRole('complementary', { name: 'Practical browser extension guidance' })
+    expect(practicalNotes).toHaveTextContent('Chrome 116 or later')
+    expect(practicalNotes).toHaveTextContent('never receives your publisher credentials or cookies')
+    expect(practicalNotes).toHaveTextContent('Publications needing attention')
   })
 
   it('presents practical guidance as a scannable set of cards', () => {
     renderWithProviders(<HelpPage />)
 
     const guidance = screen.getByRole('list', { name: 'Helpful things to know' })
-    expect(guidance.querySelectorAll('.help-good-to-know__card')).toHaveLength(10)
+    expect(guidance.querySelectorAll('.help-good-to-know__card')).toHaveLength(12)
     expect(screen.getByRole('heading', { name: 'Small things that keep a review moving' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Upload with permission' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'You stay in control' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Claims expire automatically' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Faster with a keyboard' })).toBeInTheDocument()
+    expect(guidance).toHaveTextContent('Include, Exclude, Uncertain, Duplicate and Submit each have a keyboard shortcut')
+    expect(guidance).toHaveTextContent('Account Settings → Screening Hotkeys')
     expect(screen.getByRole('heading', { name: 'The latest decision guides what happens next' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Import a collection or add one record' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Attach full text wherever it fits' })).toBeInTheDocument()
@@ -115,8 +141,7 @@ describe('HelpPage', () => {
     expect(guidance).toHaveTextContent('CSV, TSV, XLSX, RIS, or BibTeX')
     expect(guidance).toHaveTextContent('bulk-match them across Publications')
     expect(guidance).toHaveTextContent('extraction completeness and distributions')
-    expect(guidance).toHaveTextContent('A project that has moved on does not rewind')
-    expect(guidance).toHaveTextContent('late inclusions receive any missing downstream work')
+    expect(guidance).toHaveTextContent('Late inclusions receive any missing downstream work')
   })
 
   it('numbers all six review stages in order with their colors', () => {

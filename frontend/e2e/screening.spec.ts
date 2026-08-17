@@ -125,7 +125,7 @@ test(
           })
           .check()
 
-      await expect(page.getByLabel('Decision')).toHaveValue('exclude')
+      await expect(page.getByRole('radio', { name: 'Exclude' })).toBeChecked()
       await expect(submit).toBeEnabled()
 
       await page

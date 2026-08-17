@@ -44,7 +44,7 @@ export function FullTextSection({ projectId }: { projectId: string }) {
           ) : null}
         </>
       ) : null}
-      {query.data ? (
+      {query.data?.narrativeEnabled ? (
         <StageNarrativePanel
           projectId={projectId}
           stage="full_text_screening"

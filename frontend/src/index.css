@@ -1607,15 +1607,6 @@ form .toolbar,
   content: '';
 }
 
-.help-good-to-know__card--featured {
-  grid-column: 1 / -1;
-  align-items: center;
-  background:
-    radial-gradient(circle at 96% 0, color-mix(in srgb, var(--tip-accent) 14%, transparent), transparent 18rem),
-    color-mix(in srgb, var(--tip-accent) 5%, var(--color-surface));
-  padding: var(--space-5);
-}
-
 .help-good-to-know__card--success {
   --tip-accent: var(--color-success);
 }
@@ -1684,10 +1675,6 @@ form .toolbar,
   .help-good-to-know__card {
     grid-column: span 1;
   }
-
-  .help-good-to-know__card:last-child {
-    grid-column: 1 / -1;
-  }
 }
 
 @media (max-width: 560px) {
@@ -1718,8 +1705,7 @@ form .toolbar,
     grid-template-columns: 1fr;
   }
 
-  .help-good-to-know__card,
-  .help-good-to-know__card:last-child {
+  .help-good-to-know__card {
     grid-column: 1;
     padding: var(--space-4);
   }
@@ -2713,6 +2699,219 @@ tbody th {
   color: var(--color-danger);
 }
 
+.criterion-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  min-height: 32px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-raised);
+  color: var(--color-text-secondary);
+  box-shadow: none;
+}
+
+.criterion-toggle:hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-hover);
+  box-shadow: none;
+  transform: none;
+}
+
+.criterion-toggle svg {
+  width: 16px;
+  height: 16px;
+  fill: currentColor;
+}
+
+.criterion-toggle--fulfilled[aria-checked='true'] {
+  border-color: transparent;
+  background: var(--color-success);
+  color: var(--color-primary-contrast);
+}
+
+.criterion-toggle--not-fulfilled[aria-checked='true'] {
+  border-color: transparent;
+  background: var(--color-danger);
+  color: var(--color-primary-contrast);
+}
+
+.criteria-table__hint {
+  margin-top: calc(-1 * var(--space-2));
+}
+
+.decision-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin: var(--space-4) 0;
+}
+
+.decision-field__label {
+  font-weight: 680;
+}
+
+.decision-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.decision-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 40px;
+  padding: 9px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-raised);
+  color: var(--color-text-secondary);
+  font: inherit;
+  font-weight: 680;
+  box-shadow: none;
+}
+
+.decision-button:not(.decision-button--selected):hover:not(:disabled) {
+  border-color: var(--color-border-strong);
+  background: var(--color-surface-hover);
+  color: var(--color-text);
+  box-shadow: none;
+  transform: none;
+}
+
+.decision-button svg {
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.decision-button--include.decision-button--selected {
+  border-color: transparent;
+  background: var(--color-success);
+  color: var(--color-primary-contrast);
+}
+
+.decision-button--exclude.decision-button--selected {
+  border-color: transparent;
+  background: var(--color-danger);
+  color: var(--color-primary-contrast);
+}
+
+.decision-button--uncertain.decision-button--selected {
+  border-color: transparent;
+  background: var(--color-warning);
+  color: var(--color-primary-contrast);
+}
+
+/* Repeats each selected background at :hover with matching specificity
+   (class + two pseudo-classes) so it beats the global `button:hover`
+   rule, which would otherwise repaint a hovered-but-selected button with
+   the generic primary hover fill instead of its decision color. */
+.decision-button--include.decision-button--selected:hover:not(:disabled) {
+  background: var(--color-success);
+  filter: brightness(1.08);
+  box-shadow: none;
+  transform: none;
+}
+
+.decision-button--exclude.decision-button--selected:hover:not(:disabled) {
+  background: var(--color-danger);
+  filter: brightness(1.08);
+  box-shadow: none;
+  transform: none;
+}
+
+.decision-button--uncertain.decision-button--selected:hover:not(:disabled) {
+  background: var(--color-warning);
+  filter: brightness(1.08);
+  box-shadow: none;
+  transform: none;
+}
+
+.decision-button--duplicate.decision-button--selected {
+  border-color: transparent;
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
+}
+
+.decision-button--duplicate.decision-button--selected:hover:not(:disabled) {
+  background: var(--color-primary);
+  filter: brightness(1.08);
+  box-shadow: none;
+  transform: none;
+}
+
+.decision-button__hotkey {
+  margin-left: 2px;
+}
+
+kbd {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: 5px;
+  background: var(--color-surface);
+  color: inherit;
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+  opacity: 0.85;
+}
+
+.decision-button--selected kbd,
+.submit-button__hotkey {
+  border-color: rgba(255, 255, 255, 0.5);
+  background: rgba(255, 255, 255, 0.16);
+  color: inherit;
+}
+
+.hotkey-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: 320px;
+}
+
+.hotkey-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+
+.hotkey-row__label {
+  font-weight: 600;
+}
+
+.hotkey-capture {
+  min-width: 96px;
+  min-height: 36px;
+  padding: 6px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface-raised);
+  color: var(--color-text-secondary);
+  font: inherit;
+  box-shadow: none;
+}
+
+.hotkey-capture--active {
+  border-color: var(--color-primary);
+  color: var(--color-text);
+}
+
+.hotkey-capture--conflict {
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
 .status-badge {
   display: inline-flex;
   align-items: center;
@@ -2730,6 +2929,11 @@ tbody th {
   height: 14px;
   flex: 0 0 auto;
   fill: currentColor;
+}
+
+.status-badge--info {
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
 }
 
 .status-badge--success {

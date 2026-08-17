@@ -3,6 +3,8 @@ import { useState } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { IconCheckCircle } from '../../components/icons'
+import { ScreeningHotkeysSection } from '../screening/ScreeningHotkeysSection'
+import { BrowserHelpersSection } from './BrowserHelpersSection'
 import type { LoginResponse, User } from './types'
 import { sessionQueryOptions } from './sessionQuery'
 
@@ -140,6 +142,8 @@ export function AccountSettingsPage() {
           </button>
         </form>
       </section>
+      <ScreeningHotkeysSection />
+      <BrowserHelpersSection />
     </main>
   )
 }

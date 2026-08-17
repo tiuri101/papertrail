@@ -48,6 +48,7 @@ from app.notifications.service import (
     queue_account_created_email,
     queue_password_reset_email,
 )
+from app.pdf_acquisition.service import revoke_all_agents_for_user
 
 router = APIRouter()
 auth_router = APIRouter(prefix="/auth", tags=["authentication"])
@@ -147,6 +148,10 @@ def reset_password(
     for other_session in user.sessions:
         if other_session.revoked_at is None:
             revoke_session(other_session)
+    # A password reset means the account may have been compromised; a paired
+    # browser helper authenticates independently of the password, so it must
+    # not be left usable.
+    revoke_all_agents_for_user(db, user, actor_id=user.id)
     record_audit(
         db,
         action="user.password_reset",
@@ -171,6 +176,7 @@ def me(user: User = Depends(get_current_user)) -> User:
 @auth_router.patch("/me", response_model=UserResponse)
 def update_me(
     payload: SelfUpdate,
+    request: Request,
     session: UserSession = Depends(require_csrf),
     db: Session = Depends(get_db),
 ) -> User:
@@ -183,10 +189,16 @@ def update_me(
         set_user_email(db, user, payload.email)
         changed_fields.append("email")
     if payload.new_password is not None:
+        client_address = request.client.host if request.client else "unknown"
+        throttle_identity = f"currentpw:{user.id}"
+        ensure_login_allowed(db, throttle_identity, client_address)
         if not payload.current_password:
             raise DomainError("Current password is required to set a new password")
         if not verify_password(user, payload.current_password):
+            record_login_failure(db, throttle_identity, client_address)
+            db.commit()
             raise DomainError("Current password is incorrect")
+        clear_login_failures(db, throttle_identity, client_address)
         if payload.new_password == payload.current_password:
             raise DomainError(
                 "New password must be different from your current password"
@@ -296,6 +308,7 @@ def update_user(
             for session in user.sessions:
                 if session.revoked_at is None:
                     revoke_session(session)
+            revoke_all_agents_for_user(db, user, actor_id=admin.id)
     if payload.password is not None:
         user.password_hash = password_hasher.hash(payload.password)
         user.must_change_password = True
@@ -303,6 +316,7 @@ def update_user(
         for session in user.sessions:
             if session.revoked_at is None:
                 revoke_session(session)
+        revoke_all_agents_for_user(db, user, actor_id=admin.id)
     if changed_fields:
         record_audit(
             db,

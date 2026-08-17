@@ -1,14 +1,23 @@
 from io import BytesIO
 
 from openpyxl import load_workbook
+from sqlalchemy import select
 
 from app.accounts.service import create_user
 from app.audit.models import AuditEvent
 from app.audit.service import project_dashboard, record_audit, reviewer_progress
 from app.conflicts.service import record_final_decision
 from app.extraction.models import ExtractionStatus, ExtractionWorkItem
-from app.projects.models import Project, ProjectMembership, ReviewType, ScreeningStage
+from app.fulltext.models import FullTextRetrieval, RetrievalStatus
+from app.projects.models import (
+    Project,
+    ProjectMembership,
+    ProjectStage,
+    ReviewType,
+    ScreeningStage,
+)
 from app.publications.models import Publication
+from app.publications.service import sync_new_publications_with_stage
 from app.quality.models import QualityStatus, QualityWorkItem
 from app.reporting.service import build_excel
 from app.screening.models import ScreeningWorkItem, WorkItemStatus
@@ -82,6 +91,60 @@ def test_dashboard_and_excel_include_audit_information(db) -> None:
     audit_sheet = workbook["Audit history"]
     assert audit_sheet.max_row == 2
     assert audit_sheet.cell(row=2, column=3).value == "project.created"
+
+
+def test_dashboard_reports_screening_remaining_for_publications_added_late(
+    db,
+) -> None:
+    """A publication added after the project moved past title/abstract (or
+    full-text) screening should surface as attention-worthy on the dashboard,
+    even though the project's own stage has already advanced past that point."""
+    project = Project(
+        name="Late additions",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.EXTRACTION,
+    )
+    db.add(project)
+    db.flush()
+
+    dashboard = project_dashboard(db, project.id)
+    assert dashboard["titleAbstractScreeningRemaining"] == 0
+    assert dashboard["fullTextScreeningRemaining"] == 0
+
+    pending_title_abstract = Publication(
+        project_id=project.id, title="Needs screening"
+    )
+    db.add(pending_title_abstract)
+    db.flush()
+    sync_new_publications_with_stage(db, project, [pending_title_abstract.id])
+
+    pending_full_text = Publication(
+        project_id=project.id, title="Needs full-text decision"
+    )
+    db.add(pending_full_text)
+    db.flush()
+    record_final_decision(
+        db,
+        pending_full_text.id,
+        ScreeningStage.TITLE_ABSTRACT,
+        "include",
+        "agreement",
+        None,
+        None,
+    )
+    retrieval = db.scalar(
+        select(FullTextRetrieval).where(
+            FullTextRetrieval.publication_id == pending_full_text.id
+        )
+    )
+    assert retrieval is not None
+    retrieval.status = RetrievalStatus.AVAILABLE
+    db.commit()
+
+    dashboard = project_dashboard(db, project.id)
+    assert dashboard["titleAbstractScreeningRemaining"] == 1
+    assert dashboard["fullTextScreeningRemaining"] == 1
 
 
 def test_reviewer_progress_reports_assigned_and_completed_counts_per_stage(

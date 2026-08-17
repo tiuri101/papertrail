@@ -24,9 +24,23 @@ How publications reach your queue depends on the stage's allocation setting, con
 
 Papertrail provides DOI and publisher links and stores PDFs supplied by authorized project users. During full-text work, upload a missing PDF directly from the screening page. An attached PDF can be viewed in the browser, replaced, or logically removed. Replacement creates a new stable document version and retains the previous file in the collapsible history; removal preserves history and does not change any screening decision. PDFs imported before screening become available when the publication reaches the full-text stage.
 
-Only project members can view PDF metadata or content. Full-text reviewers, project owners, and administrators can upload, replace, and remove PDFs. Papertrail does not automatically download or scrape publisher content; only upload files you are authorized to access and store.
+Only project members can view PDF metadata or content. Full-text reviewers, project owners, and administrators can upload, replace, and remove PDFs. The Papertrail server does not scrape publisher content itself; only upload files you are authorized to access and store, or use the optional browser-assisted retrieval described below.
 
 When a newly retrieved document is marked available, save that retrieval status first. Papertrail then opens the normal full-text screening item so page-aware LLM assistance can be prepared and shown without combining retrieval and eligibility into one premature decision.
+
+### Browser-assisted PDF retrieval
+
+If your institution provides IP-based publisher access, a VPN, or you're already signed in to a publisher in Chrome, you can pair the optional **Papertrail Browser Helper** Chrome extension so it retrieves PDFs through your own computer's network connection and browser sign-in state, then uploads them through this same PDF pipeline. Papertrail never receives your institutional credentials, publisher passwords, or browser cookies through this feature -- only the resulting PDF.
+
+**Pairing:** In Papertrail, go to Account Settings → Browser Helpers → **Pair new browser helper**. Copy the one-time pairing secret shown (it is displayed once and expires after about 10 minutes). Click the Papertrail Browser Helper icon in Chrome's toolbar and **Set up** -- this opens a small setup window near the toolbar button. Enter your Papertrail server URL, the pairing secret, and a device name, then **Pair**. Chrome will prompt you to allow the extension access to your Papertrail server's address -- allow it; this only grants access to your own Papertrail server, not to any publisher site.
+
+**Running a retrieval batch:** On a project's Full-Text page, if a browser helper is paired you'll see how many publications are missing full text and a **Retrieve missing PDFs** button. Clicking it queues persistent retrieval jobs in Papertrail -- open the Papertrail Browser Helper extension and start the retrieval session to process them; it keeps working even if you close the Papertrail tab. As PDFs are retrieved, they automatically become available and enter the normal full-text screening queue, exactly as a manual upload would; no screening or inclusion decision is made automatically.
+
+The extension checks in the background every few minutes for jobs waiting to be processed and shows the count as a badge on its toolbar icon -- so you don't need to keep the retrieval window open just to notice that a batch was queued. This check only reports a count; you still open the extension and click **Start** to actually retrieve anything.
+
+**When retrieval can't complete automatically:** publications that need institutional sign-in, weren't found, or otherwise failed remain visible with a short reason. Signing in to the publisher in Chrome and retrying (from either the extension or the project's PDF retrieval panel) often resolves an authentication requirement. A publication that can't be retrieved automatically simply stays in the normal manual retrieval workflow -- upload it yourself, search elsewhere, use interlibrary loan, or mark it not found/inaccessible as usual. An automated attempt failing never marks a paper as unobtainable on your behalf.
+
+You can revoke a browser helper at any time from Account Settings, which immediately prevents it from claiming or completing further retrieval jobs.
 
 ## LLM assistance
 

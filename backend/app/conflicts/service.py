@@ -68,16 +68,26 @@ def _initialize_downstream_work_for_late_inclusion(
     publication: Publication,
     stage: ScreeningStage,
 ) -> None:
-    """Backfill work when an earlier screening decision changes to include.
+    """Backfill work for a decision that resolves after the project has
+    already moved past that screening stage.
 
     Normal stage transitions initialize the next stage as a batch.  Once a
-    project has already moved past a screening stage, however, a revised final
-    decision must not depend on another project-wide transition before the newly
-    eligible publication becomes visible to downstream reviewers.
+    project has already moved past a screening stage, however -- because an
+    earlier decision was revised, or because this publication was only added
+    to the project after that stage completed -- a newly resolved decision
+    must not depend on another project-wide transition before the eligible
+    publication becomes visible to downstream reviewers.  If the project had
+    already been marked completed, that no longer holds: real work is now
+    outstanding for it, so step it back to the stage matching that work.
+    evaluate_project_completion only re-checks completeness for a project
+    still at ProjectStage.EXTRACTION, so a project left at COMPLETED here
+    would never pick this work back up.
     """
     project = db.get(Project, publication.project_id)
     if project is None:
         return
+
+    from app.audit.service import record_audit
 
     if stage == ScreeningStage.TITLE_ABSTRACT and project.stage in {
         ProjectStage.FULL_TEXT,
@@ -86,7 +96,40 @@ def _initialize_downstream_work_for_late_inclusion(
     }:
         from app.fulltext.service import initialize_full_text_stage
 
+        if project.stage == ProjectStage.COMPLETED:
+            record_audit(
+                db,
+                action="project.reopened_for_late_inclusion",
+                entity_type="project",
+                entity_id=project.id,
+                project_id=project.id,
+                summary=(
+                    "Project moved back to full-text screening: a publication "
+                    "included at title/abstract needs downstream review"
+                ),
+                metadata={
+                    "previousStage": ProjectStage.COMPLETED.value,
+                    "targetStage": ProjectStage.FULL_TEXT.value,
+                    "publicationId": publication.id,
+                },
+            )
+            project.stage = ProjectStage.FULL_TEXT
+            project.completed_at = None
         initialize_full_text_stage(db, project)
+
+        # Only regenerate the title/abstract analysis once every publication
+        # newly enrolled at this stage -- not just this one -- has a decision;
+        # otherwise a batch of late arrivals would trigger a regeneration per
+        # publication instead of once the picture is stable again.
+        if not unresolved_publication_ids(db, project.id, ScreeningStage.TITLE_ABSTRACT):
+            enqueue_job(
+                db,
+                "generate_stage_analysis",
+                {"stage": "title_abstract_screening"},
+                project_id=project.id,
+                created_by_id=None,
+                priority=5,
+            )
     elif stage == ScreeningStage.FULL_TEXT and project.stage in {
         ProjectStage.EXTRACTION,
         ProjectStage.COMPLETED,
@@ -94,8 +137,49 @@ def _initialize_downstream_work_for_late_inclusion(
         from app.extraction.service import initialize_extraction
         from app.quality.service import initialize_quality
 
+        if project.stage == ProjectStage.COMPLETED:
+            record_audit(
+                db,
+                action="project.reopened_for_late_inclusion",
+                entity_type="project",
+                entity_id=project.id,
+                project_id=project.id,
+                summary=(
+                    "Project moved back to extraction & quality: a publication "
+                    "included at full-text needs downstream review"
+                ),
+                metadata={
+                    "previousStage": ProjectStage.COMPLETED.value,
+                    "targetStage": ProjectStage.EXTRACTION.value,
+                    "publicationId": publication.id,
+                },
+            )
+            project.stage = ProjectStage.EXTRACTION
+            project.completed_at = None
         initialize_extraction(db, project)
         initialize_quality(db, project)
+
+
+def _queue_retrieval_on_inclusion(
+    db: Session, publication: Publication, resolved_by_id: str | None
+) -> None:
+    """As soon as a publication is included at title/abstract, make sure it
+    has a FullTextRetrieval row and, if nobody has already attached a PDF, an
+    automatic browser retrieval job -- independent of whether the project as
+    a whole has reached the full-text stage yet (that still only happens
+    once every title/abstract decision is resolved)."""
+    from app.fulltext.models import RetrievalStatus
+    from app.fulltext.service import ensure_full_text_retrieval
+    from app.pdf_acquisition.service import auto_queue_publication_for_retrieval
+
+    project = db.get(Project, publication.project_id)
+    if project is None:
+        return
+    retrieval = ensure_full_text_retrieval(db, project, publication.id)
+    if retrieval is not None and retrieval.status == RetrievalStatus.NOT_YET_SOUGHT:
+        auto_queue_publication_for_retrieval(
+            db, project, publication.id, preferred_user_id=resolved_by_id
+        )
 
 
 def record_final_decision(
@@ -110,7 +194,6 @@ def record_final_decision(
     publication = db.get(Publication, publication_id)
     if publication is None:
         raise NotFoundError("Publication not found")
-    previous = valid_final_decision(db, publication_id, stage)
     invalidate_final_decisions(
         db, publication_id, stage, "Replaced by a newer final decision"
     )
@@ -135,8 +218,13 @@ def record_final_decision(
         stage == ScreeningStage.TITLE_ABSTRACT
         and final.outcome == ScreeningOutcome.INCLUDE
     ):
-        if previous is not None and previous.outcome != final.outcome:
-            _initialize_downstream_work_for_late_inclusion(db, publication, stage)
+        # Fires on a first-time decision too (not just a revision): a
+        # publication added to the project after title/abstract screening
+        # already finished for everyone else is just as "late" as a changed
+        # decision, and needs the same downstream backfill. The helper itself
+        # is a no-op unless the project has actually moved past this stage.
+        _initialize_downstream_work_for_late_inclusion(db, publication, stage)
+        _queue_retrieval_on_inclusion(db, publication, resolved_by_id)
         queue_preparation_if_eligible(
             db, publication_id, created_by_id=resolved_by_id, priority=0
         )
@@ -145,8 +233,7 @@ def record_final_decision(
     elif (
         stage == ScreeningStage.FULL_TEXT and final.outcome == ScreeningOutcome.INCLUDE
     ):
-        if previous is not None and previous.outcome != final.outcome:
-            _initialize_downstream_work_for_late_inclusion(db, publication, stage)
+        _initialize_downstream_work_for_late_inclusion(db, publication, stage)
         queue_preparation_if_eligible(
             db, publication_id, created_by_id=resolved_by_id, priority=10
         )

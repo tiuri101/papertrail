@@ -51,9 +51,7 @@ export function ProjectLifecyclePanel({ projectId }: { projectId: string }) {
         <InfoBox icon={<IconCheckCircle />}>
           <p>
             Automated checks for inconsistencies across a project's stages, such as decisions or
-            data left over from a stage the project has already moved past. These checks run
-            automatically whenever this page loads and don&apos;t block your work — they just
-            flag things worth a second look.
+            data left over from a stage the project has already moved past.
           </p>
         </InfoBox>
         {integrity.data?.issues.length ? (

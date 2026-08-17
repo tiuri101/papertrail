@@ -275,8 +275,11 @@ def test_retrieval_progress_counts_addressed_and_total(db) -> None:
 
 
 def test_only_title_abstract_inclusions_receive_retrieval_records(db) -> None:
+    # record_final_decision already creates the retrieval row immediately on
+    # inclusion (see conflicts.service._queue_retrieval_on_inclusion), so the
+    # batch initializer here has nothing left to create.
     _, _, project, included, excluded = setup_fulltext(db)
-    assert initialize_full_text_stage(db, project) == 1
+    assert initialize_full_text_stage(db, project) == 0
     db.commit()
     retrievals = list(
         db.scalars(

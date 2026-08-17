@@ -10,6 +10,7 @@ from sqlalchemy import (
     Enum,
     ForeignKey,
     Index,
+    Integer,
     String,
     UniqueConstraint,
     text,
@@ -59,6 +60,7 @@ class FullTextRetrieval(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 class DocumentSource(enum.StrEnum):
     MANUAL = "manual"
     BULK_IMPORT = "bulk_import"
+    BROWSER_RETRIEVAL = "browser_retrieval"
 
 
 class PublicationDocument(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -86,6 +88,7 @@ class PublicationDocument(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         String(100), default="application/pdf", nullable=False
     )
     file_size: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    page_count: Mapped[int | None] = mapped_column(Integer)
     sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     uploaded_by_user_id: Mapped[str | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), index=True

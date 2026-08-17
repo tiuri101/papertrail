@@ -37,7 +37,12 @@ def setup_quality(db, enabled=True):
         name="Review",
         review_type=ReviewType.SYSTEMATIC_REVIEW,
         random_seed="seed",
-        stage=ProjectStage.EXTRACTION,
+        # Resolve the full-text decision while still in the full-text stage --
+        # matching how the project would actually reach extraction -- so
+        # record_final_decision's downstream backfill (for a decision that
+        # resolves after the project has *already* moved on) doesn't fire
+        # early and race the batch initialize_quality() call below.
+        stage=ProjectStage.FULL_TEXT,
     )
     db.add(project)
     db.flush()
@@ -73,6 +78,7 @@ def setup_quality(db, enabled=True):
     record_final_decision(
         db, publication.id, ScreeningStage.FULL_TEXT, "include", "agreement", None, None
     )
+    project.stage = ProjectStage.EXTRACTION
     db.commit()
     return project, form, design, reporting, reviewer, publication
 

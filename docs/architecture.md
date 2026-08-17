@@ -18,7 +18,13 @@ Browser (React/TypeScript)
 
 ## Backend modules
 
-The backend is divided by domain: accounts, projects, imports, publications, deduplication, screening, conflicts, full text, forms, extraction, quality, reporting, audit, integrations, and jobs. FastAPI routes perform validation and authorization, then call domain services. Cross-module workflow changes use explicit service functions and database transactions.
+The backend is divided by domain: accounts, projects, imports, publications, deduplication, screening, conflicts, full text, pdf_acquisition, forms, extraction, quality, reporting, audit, integrations, and jobs. FastAPI routes perform validation and authorization, then call domain services. Cross-module workflow changes use explicit service functions and database transactions.
+
+## Browser-assisted PDF retrieval
+
+`pdf_acquisition` is a dedicated domain, separate from `fulltext`, for PDFs retrieved by an optional paired Chrome extension (`browser-extension/`, a standalone Manifest V3 package) rather than uploaded directly. The extension authenticates with its own opaque bearer token (`BrowserAgent`, hashed server-side, minted once through a single-use, time-limited `BrowserAgentPairing` secret) -- entirely separate from the session-cookie/CSRF mechanism the web UI uses, and unable to authenticate any other API. A `PdfRetrievalBatch` groups the `PdfRetrievalJob` rows created for one project's "retrieve missing PDFs" action; jobs are leased to a claiming agent with a short expiring lease (`SELECT ... FOR UPDATE SKIP LOCKED`), mirroring the existing full-text reviewer queue pattern, and are not `BackgroundJob`s because they are executed externally by the browser, not by a server-side worker.
+
+The extension resolves a publisher landing page from the publication's DOI/publisher URL, discovers a PDF link using pluggable per-publisher resolvers, validates the response looks like a real PDF, and uploads it to the same `stage_pdf_upload`/`attach_staged_pdf` pipeline manual uploads use, tagged with `DocumentSource.BROWSER_RETRIEVAL`. FastAPI re-validates every upload independently; the extension's own validation is only an early rejection. A successful upload is the only thing that automatically advances the authoritative `FullTextRetrieval` status to `AVAILABLE` -- an automated retrieval failure (needs authentication, not found, access denied, invalid response, or a network failure) never marks a human retrieval outcome, since it does not prove a human reviewer cannot obtain the paper by other means. The extension never sends Papertrail a publisher cookie, institutional credential, or `Cookie`/`Authorization` header captured from a publisher site.
 
 ## Background work
 

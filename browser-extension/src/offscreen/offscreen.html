@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Papertrail Browser Helper (background)</title>
+</head>
+<body>
+  <!-- Never shown to the user -- chrome.offscreen documents have no window
+       chrome and are never displayed. Exists purely to give the retrieval
+       loop access to DOMParser, which the MV3 service worker doesn't have. -->
+  <div id="app"></div>
+  <script type="module" src="./offscreen.ts"></script>
+</body>
+</html>
