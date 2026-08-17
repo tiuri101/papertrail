@@ -53,6 +53,25 @@ class LlmInstallationSettingsUpdate(ApiModel):
         return normalized
 
 
+class LlmPromptFlowStatus(ApiModel):
+    key: str
+    label: str
+    default_prompt: str = Field(serialization_alias="defaultPrompt")
+    current_prompt: str = Field(serialization_alias="currentPrompt")
+    is_overridden: bool = Field(serialization_alias="isOverridden")
+
+
+class LlmPromptOverridesResponse(ApiModel):
+    flows: list[LlmPromptFlowStatus]
+
+
+class LlmPromptOverridesUpdate(ApiModel):
+    title_abstract_prompt: str | None = Field(default=None, alias="titleAbstractPrompt")
+    full_text_prompt: str | None = Field(default=None, alias="fullTextPrompt")
+    extraction_prompt: str | None = Field(default=None, alias="extractionPrompt")
+    validation_prompt: str | None = Field(default=None, alias="validationPrompt")
+
+
 class LlmFieldUpdate(ApiModel):
     stable_key: str | None = Field(default=None, alias="stableKey")
     label: str = Field(min_length=1, max_length=300)

@@ -236,7 +236,11 @@ def _run_title_abstract(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
         result, response = validated_chat(
             create_ollama_client(),
             title_abstract_messages(
-                publication, criteria, research_questions, custom_instructions
+                publication,
+                criteria,
+                research_questions,
+                custom_instructions,
+                config.llm_title_abstract_base_prompt,
             ),
             schema,
             lambda payload: validate_screening_result(
@@ -311,6 +315,7 @@ def _run_full_text(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
                     research_questions,
                     chunk,
                     custom_instructions,
+                    config.llm_full_text_base_prompt,
                 ),
                 schema,
                 validator,
@@ -323,7 +328,11 @@ def _run_full_text(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
             schema=schema,
             validator=validator,
             messages=lambda batch: screening_consolidation_messages(
-                criteria, research_questions, batch, custom_instructions
+                criteria,
+                research_questions,
+                batch,
+                custom_instructions,
+                config.llm_full_text_base_prompt,
             ),
             metrics=metrics,
             context_length=config.llm_context_length,
@@ -417,7 +426,11 @@ def _run_validation(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
             result, response_metadata = validated_chat(
                 client,
                 validation_messages(
-                    fields, research_questions, chunk, custom_instructions
+                    fields,
+                    research_questions,
+                    chunk,
+                    custom_instructions,
+                    config.llm_validation_base_prompt,
                 ),
                 schema,
                 validator,
@@ -430,7 +443,11 @@ def _run_validation(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
             schema=schema,
             validator=validator,
             messages=lambda batch: validation_consolidation_messages(
-                fields, research_questions, batch, custom_instructions
+                fields,
+                research_questions,
+                batch,
+                custom_instructions,
+                config.llm_validation_base_prompt,
             ),
             metrics=metrics,
             context_length=config.llm_context_length,

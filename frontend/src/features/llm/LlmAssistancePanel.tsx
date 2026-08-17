@@ -6,7 +6,6 @@ import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { InfoBox } from '../../components/InfoBox'
 import { IconCheckCircle, IconChart, IconSettings, IconSparkle, IconTrash } from '../../components/icons'
-import { useSession } from '../auth/sessionQuery'
 import { STAGES } from '../projects/StageProgress'
 
 const stageColors = Object.fromEntries(STAGES.map((stage) => [stage.value, stage.color]))
@@ -23,10 +22,8 @@ interface LlmSettings {
   analysisNarrativeEnabled: boolean
   installationEnabled: boolean
   provider: string
-  endpoint?: string | null
   model: string | null
   contextLength: number
-  canManageInstallation: boolean
   currentSchemaVersionId: string | null
 }
 
@@ -99,7 +96,6 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
   setupMode = false,
 }, ref) {
   const queryClient = useQueryClient()
-  const session = useSession()
   const settings = useQuery({
     queryKey: ['llm-settings', projectId],
     queryFn: () => apiRequest<LlmSettings>(`/api/v1/projects/${projectId}/llm/settings`),
@@ -115,20 +111,8 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
   })
   const [fields, setFields] = useState<LlmSchemaField[]>([])
   const [connection, setConnection] = useState<{ message: string; ok: boolean } | null>(null)
-  const [installationEnabled, setInstallationEnabled] = useState(false)
-  const [installationEndpoint, setInstallationEndpoint] = useState('')
-  const [installationModel, setInstallationModel] = useState('')
-  const [installationContextLength, setInstallationContextLength] = useState('32768')
 
   useEffect(() => setFields(schema.data?.schema?.fields ?? []), [schema.data?.schema])
-
-  useEffect(() => {
-    if (!settings.data) return
-    setInstallationEnabled(settings.data.installationEnabled)
-    setInstallationEndpoint(settings.data.endpoint ?? '')
-    setInstallationModel(settings.data.model ?? '')
-    setInstallationContextLength(String(settings.data.contextLength))
-  }, [settings.data])
 
   useEffect(() => {
     const saved = schema.data?.schema?.fields ?? []
@@ -146,18 +130,6 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
       `/api/v1/projects/${projectId}/llm/settings`,
       { method: 'PATCH', body: JSON.stringify(patch) },
     ),
-    onSuccess: refresh,
-  })
-  const saveInstallation = useMutation({
-    mutationFn: () => apiRequest<LlmSettings>('/api/v1/llm/installation-settings', {
-      method: 'PATCH',
-      body: JSON.stringify({
-        enabled: installationEnabled,
-        endpoint: installationEndpoint,
-        model: installationModel,
-        contextLength: Number(installationContextLength),
-      }),
-    }),
     onSuccess: refresh,
   })
   const test = useMutation({
@@ -251,83 +223,31 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
     finishSetup: () => finishSetup.mutateAsync(),
   }), [finishSetup])
 
-  const installationError = saveInstallation.error
   const capabilitiesError = toggle.error
   const schemaError = initialize.error ?? save.error ?? publish.error ?? finishSetup.error
   const processingError = reanalyze.error
   const currentSchema = schema.data?.schema
   return (
     <>
+    {settings.data && !settings.data.installationEnabled ? (
+      <InfoBox icon={<IconSettings />} tone="danger" alert>
+        <p>
+          LLM support is currently disabled for this Papertrail installation. An administrator
+          must enable it from Instance Settings before AI assistance features work here.
+        </p>
+      </InfoBox>
+    ) : null}
     <CollapsibleSection id="section-llm-installation" title="LLM Installation" icon={<IconSettings />}>
       <InfoBox icon={<IconSettings />}>
         <p>
-          The Ollama connection Papertrail uses for LLM suggestions, shared across every project
-          on this installation.
+          The exact large language model and context length Papertrail is currently using for generating LLM-based suggestions.
         </p>
       </InfoBox>
-      {settings.data && !settings.data.canManageInstallation ? (
+      {settings.data ? (
         <dl className="detail-list">
-          <dt>Installation enabled</dt><dd>{settings.data.installationEnabled ? 'Yes' : 'No'}</dd>
-          <dt>Provider</dt><dd>{settings.data.provider}</dd>
           <dt>Model</dt><dd>{settings.data.model ?? 'Not configured'}</dd>
           <dt>Context length</dt><dd>{settings.data.contextLength.toLocaleString()}</dd>
         </dl>
-      ) : null}
-      {settings.data?.canManageInstallation && session.data?.user?.isAdmin ? (
-        <form
-          className="llm-installation-settings"
-          onSubmit={(event) => { event.preventDefault(); saveInstallation.mutate() }}
-        >
-          <div className="llm-installation-settings__heading">
-            <div>
-              <h3>Installation configuration</h3>
-            </div>
-            <label className="toggle-label">
-              <input
-                type="checkbox"
-                checked={installationEnabled}
-                onChange={(event) => setInstallationEnabled(event.target.checked)}
-              />
-              LLM enabled
-            </label>
-          </div>
-          <div className="llm-installation-settings__grid">
-            <label>
-              Endpoint
-              <input
-                type="url"
-                value={installationEndpoint}
-                onChange={(event) => setInstallationEndpoint(event.target.value)}
-                placeholder="http://ollama:11434"
-                required
-              />
-            </label>
-            <label>
-              Model
-              <input
-                value={installationModel}
-                onChange={(event) => setInstallationModel(event.target.value)}
-                placeholder="gemma3:12b"
-                required
-              />
-            </label>
-            <label>
-              Context length
-              <input
-                type="number"
-                min="4096"
-                step="1024"
-                value={installationContextLength}
-                onChange={(event) => setInstallationContextLength(event.target.value)}
-                required
-              />
-            </label>
-          </div>
-          <button type="submit" disabled={saveInstallation.isPending}>
-            <IconCheckCircle />
-            {saveInstallation.isPending ? 'Saving…' : 'Save Installation Settings'}
-          </button>
-        </form>
       ) : null}
       <div className="toolbar">
         <button type="button" onClick={() => test.mutate()} disabled={test.isPending}>
@@ -339,7 +259,6 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
           {connection.message}
         </p>
       ) : null}
-      {installationError ? <p className="error" role="alert">{installationError.message}</p> : null}
     </CollapsibleSection>
 
     <CollapsibleSection id="section-llm-capabilities" title="LLM Capabilities" icon={<IconCheckCircle />}>

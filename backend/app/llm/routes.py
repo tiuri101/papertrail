@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.accounts.dependencies import (
     get_current_user,
+    require_admin,
     require_admin_csrf,
     require_csrf,
 )
@@ -27,16 +28,20 @@ from app.fulltext.models import PublicationDocument
 from app.jobs.models import BackgroundJob
 from app.llm.installation_settings import (
     effective_llm_settings,
+    installation_settings,
+    update_installation_prompts,
     update_installation_settings,
 )
 from app.llm.models import (
     DocumentTextExtraction,
     LlmExtractionRun,
+    LlmInstallationSettings,
     LlmSchemaVersion,
     LlmTaskType,
     ProcessingStatus,
 )
 from app.llm.ollama import OllamaError, create_ollama_client
+from app.llm.prompt_flows import PROMPT_FLOW_DEFAULTS, PROMPT_FLOW_LABELS
 from app.llm.schema_service import (
     active_extraction_fields,
     current_schema,
@@ -51,6 +56,9 @@ from app.llm.schemas import (
     AssistanceResponse,
     ExtractionValidationResponse,
     LlmInstallationSettingsUpdate,
+    LlmPromptFlowStatus,
+    LlmPromptOverridesResponse,
+    LlmPromptOverridesUpdate,
     LlmSchemaUpdate,
     LlmSettingsUpdate,
     ManualRunRequest,
@@ -138,12 +146,12 @@ def _schema_payload(
 @router.get("/projects/{project_id}/llm/settings")
 def get_llm_settings(
     project_id: str,
-    user: User = Depends(require_project_manager),
+    _: User = Depends(require_project_manager),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
     config = effective_llm_settings(db)
     settings = project_settings(db, project_id)
-    result = {
+    return {
         "enabled": bool(settings and settings.enabled),
         "titleAbstractScreeningEnabled": bool(
             settings and settings.title_abstract_screening_enabled
@@ -161,14 +169,94 @@ def get_llm_settings(
         "provider": "Ollama",
         "model": config.ollama_model,
         "contextLength": config.llm_context_length,
-        "canManageInstallation": user.is_admin,
         "currentSchemaVersionId": (
             settings.current_schema_version_id if settings else None
         ),
     }
-    if user.is_admin:
-        result["endpoint"] = _public_endpoint(config.ollama_base_url)
-    return result
+
+
+@router.get("/llm/installation-settings")
+def get_llm_installation_settings(
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    config = effective_llm_settings(db)
+    return {
+        "enabled": config.llm_enabled,
+        "provider": "Ollama",
+        "endpoint": config.ollama_base_url,
+        "model": config.ollama_model,
+        "contextLength": config.llm_context_length,
+    }
+
+
+@router.post("/llm/installation-settings/test")
+def test_installation_connection(
+    _: User = Depends(require_admin),
+) -> dict[str, Any]:
+    try:
+        return create_ollama_client().test_connection()
+    except OllamaError as exc:
+        return {"available": False, "modelAvailable": False, "error": str(exc)}
+
+
+def _prompt_flow_status(
+    stored: LlmInstallationSettings | None,
+) -> LlmPromptOverridesResponse:
+    overrides = {
+        "titleAbstract": stored.title_abstract_base_prompt if stored else None,
+        "fullText": stored.full_text_base_prompt if stored else None,
+        "extraction": stored.extraction_base_prompt if stored else None,
+        "validation": stored.validation_base_prompt if stored else None,
+    }
+    return LlmPromptOverridesResponse(
+        flows=[
+            LlmPromptFlowStatus(
+                key=key,
+                label=PROMPT_FLOW_LABELS[key],
+                default_prompt=PROMPT_FLOW_DEFAULTS[key],
+                current_prompt=overrides[key] or PROMPT_FLOW_DEFAULTS[key],
+                is_overridden=bool(overrides[key]),
+            )
+            for key in PROMPT_FLOW_LABELS
+        ]
+    )
+
+
+@router.get("/llm/installation-settings/prompts")
+def get_llm_installation_prompts(
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> LlmPromptOverridesResponse:
+    return _prompt_flow_status(installation_settings(db))
+
+
+@router.put("/llm/installation-settings/prompts")
+def set_llm_installation_prompts(
+    payload: LlmPromptOverridesUpdate,
+    admin: User = Depends(require_admin_csrf),
+    db: Session = Depends(get_db),
+) -> LlmPromptOverridesResponse:
+    stored = update_installation_prompts(
+        db,
+        overrides={
+            "titleAbstract": payload.title_abstract_prompt,
+            "fullText": payload.full_text_prompt,
+            "extraction": payload.extraction_prompt,
+            "validation": payload.validation_prompt,
+        },
+        updated_by_user_id=admin.id,
+    )
+    record_audit(
+        db,
+        action="llm.installation_prompts_updated",
+        entity_type="llm_installation_settings",
+        entity_id=stored.id,
+        actor_id=admin.id,
+        summary="Updated installation LLM base prompts",
+    )
+    db.commit()
+    return _prompt_flow_status(stored)
 
 
 @router.patch("/llm/installation-settings")
@@ -214,12 +302,11 @@ def update_llm_installation_settings(
     )
     db.commit()
     return {
-        "installationEnabled": stored.enabled,
+        "enabled": stored.enabled,
         "provider": "Ollama",
-        "endpoint": _public_endpoint(stored.endpoint),
+        "endpoint": stored.endpoint,
         "model": stored.model,
         "contextLength": stored.context_length,
-        "canManageInstallation": True,
     }
 
 

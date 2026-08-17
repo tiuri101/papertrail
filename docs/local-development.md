@@ -86,15 +86,20 @@ cp .env.development.example .env.development
 ./scripts/dev.sh create-admin
 ```
 
-Run these commands in three terminals:
+Run these commands in separate terminals:
 
 ```bash
 ./scripts/dev.sh api
 ./scripts/dev.sh worker
+./scripts/dev.sh llm-worker
 ./scripts/dev.sh frontend
 ```
 
-Open http://localhost:5173.
+`llm-worker` runs the resource-limited Ollama worker; it stays idle when LLM assistance is disabled (the default), so it is safe to leave running even if you don't use that feature. Open:
+
+- Papertrail: http://localhost:5173
+- FastAPI documentation: http://127.0.0.1:8000/docs
+- API health check: http://127.0.0.1:8000/health
 
 ## Manual setup
 
