@@ -34,6 +34,7 @@ import { FullTextPage } from '../features/fulltext/FullTextPage'
 import { ImportPage } from '../features/imports/ImportPage'
 import { JobsPage } from '../features/jobs/JobsPage'
 import { LlmAssistancePanel } from '../features/llm/LlmAssistancePanel'
+import { MoveProjectBackPanel } from '../features/lifecycle/MoveProjectBackPanel'
 import { ProjectLifecyclePanel } from '../features/lifecycle/ProjectLifecyclePanel'
 import { ReopenProjectPanel } from '../features/lifecycle/ReopenProjectPanel'
 import { ProjectPage } from '../features/projects/ProjectPage'
@@ -225,6 +226,7 @@ function ProjectAdministrationPage() {
         ) : null}
         {activeTab === 'danger' ? (
           <>
+            <MoveProjectBackPanel projectId={projectId} />
             <ReopenProjectPanel projectId={projectId} />
             <DangerZonePanel projectId={projectId} />
           </>
