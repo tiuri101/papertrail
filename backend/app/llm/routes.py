@@ -15,6 +15,7 @@ from app.accounts.dependencies import (
     require_csrf,
 )
 from app.accounts.models import User, UserSession
+from app.analysis.jobs import cancel_queued_stage_analysis_jobs
 from app.api.errors import DomainError, ForbiddenError, NotFoundError
 from app.audit.service import record_audit
 from app.conflicts.models import FinalDecision
@@ -58,6 +59,7 @@ from app.llm.schemas import (
     ValidationReviewResponse,
 )
 from app.llm.service import (
+    cancel_all_llm_jobs,
     cancel_task_type_jobs,
     latest_current_run,
     queue_llm_run_after_text,
@@ -193,6 +195,14 @@ def update_llm_installation_settings(
     ):
         if before != after:
             changes[key] = {"from": before, "to": after}
+    if "enabled" in changes and not stored.enabled:
+        # Just turned off installation-wide: stop the flow of new
+        # suggestions everywhere. Queued jobs (all capabilities, every
+        # project) are cancelled outright; a run already in flight is
+        # marked cancelled so the worker discards its result via
+        # was_cancelled/the installation re-check in generate_stage_analysis_job.
+        cancel_all_llm_jobs(db)
+        cancel_queued_stage_analysis_jobs(db)
     record_audit(
         db,
         action="llm.installation_settings_updated",
