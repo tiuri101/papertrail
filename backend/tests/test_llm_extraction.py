@@ -9,6 +9,7 @@ from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 from sqlalchemy import func, select
 
 from app.accounts.service import create_user
+from app.analysis.jobs import STAGE_ANALYSIS_JOB
 from app.api.errors import DomainError
 from app.audit.models import AuditEvent
 from app.conflicts.service import record_final_decision
@@ -21,7 +22,7 @@ from app.fulltext.documents import attach_staged_pdf
 from app.fulltext.models import DocumentSource
 from app.fulltext.storage import stage_pdf_stream
 from app.jobs.models import BackgroundJob, JobStatus
-from app.jobs.service import claim_job
+from app.jobs.service import claim_job, enqueue_job
 from app.llm.evidence import verify_evidence
 from app.llm.extraction import run_llm_extraction_job
 from app.llm.models import (
@@ -826,6 +827,61 @@ def test_administrator_can_override_installation_llm_settings(client, db) -> Non
         headers={"X-CSRF-Token": owner_csrf},
     )
     assert forbidden.status_code == 403
+
+
+def test_disabling_installation_cancels_all_queued_llm_work(client, db) -> None:
+    admin, _, project, publication, _, _, _, _ = setup_llm_project(db)
+    include_title_abstract(db, publication)
+    csrf = client.post(
+        "/api/v1/auth/login",
+        json={"username": admin.username, "password": "secret-password"},
+    ).json()["csrfToken"]
+
+    enable = client.patch(
+        f"/api/v1/projects/{project.id}/llm/settings",
+        json={"titleAbstractScreeningEnabled": True},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert enable.status_code == 200
+    run = db.scalar(
+        select(LlmExtractionRun).where(
+            LlmExtractionRun.publication_id == publication.id,
+            LlmExtractionRun.task_type == LlmTaskType.TITLE_ABSTRACT_SCREENING,
+        )
+    )
+    assert run is not None
+    assert run.status == ProcessingStatus.PENDING
+    job = db.get(BackgroundJob, run.background_job_id)
+    assert job is not None
+    assert job.status == JobStatus.QUEUED
+
+    narrative_job = enqueue_job(
+        db,
+        STAGE_ANALYSIS_JOB,
+        {"stage": "extraction_quality"},
+        project_id=project.id,
+        created_by_id=admin.id,
+        priority=5,
+    )
+    db.commit()
+
+    disable = client.patch(
+        "/api/v1/llm/installation-settings",
+        json={
+            "enabled": False,
+            "endpoint": "https://ollama.internal.example:11434",
+            "model": "gemma3:12b",
+            "contextLength": 16384,
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert disable.status_code == 200
+    db.refresh(run)
+    db.refresh(job)
+    db.refresh(narrative_job)
+    assert run.status == ProcessingStatus.CANCELLED
+    assert job.status == JobStatus.CANCELLED
+    assert narrative_job.status == JobStatus.CANCELLED
 
 
 def test_suggestions_are_visible_only_to_assigned_reviewer(
