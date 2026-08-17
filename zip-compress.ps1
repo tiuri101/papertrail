@@ -21,6 +21,11 @@ $excludedRootDirectories = @(
     ".idea"
 )
 
+# Relative (forward-slash) paths, from the repo root, to exclude regardless of depth.
+$excludedRelativePaths = @(
+    "backend/data"
+)
+
 function Test-ExcludedDirectory {
     param(
         [System.IO.DirectoryInfo]$Directory,
@@ -33,6 +38,16 @@ function Test-ExcludedDirectory {
         [System.StringComparison]::OrdinalIgnoreCase
     )) {
         return $true
+    }
+
+    $relativePath = ($Directory.FullName.Substring($sourceDirectory.Length).TrimStart([char[]]"\/")) -replace '\\', '/'
+    foreach ($excludedPath in $excludedRelativePaths) {
+        if ($relativePath.Equals(
+            $excludedPath,
+            [System.StringComparison]::OrdinalIgnoreCase
+        )) {
+            return $true
+        }
     }
 
     if ($Depth -eq 0) {

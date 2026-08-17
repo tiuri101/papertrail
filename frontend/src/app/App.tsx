@@ -32,6 +32,7 @@ import { MyExtractionsPage } from '../features/extraction/MyExtractionsPage'
 import { ValidationReviewPage } from '../features/extraction/ValidationReviewPage'
 import { FullTextPage } from '../features/fulltext/FullTextPage'
 import { ImportPage } from '../features/imports/ImportPage'
+import { InstanceSettingsPage } from '../features/instanceSettings/InstanceSettingsPage'
 import { JobsPage } from '../features/jobs/JobsPage'
 import { LlmAssistancePanel } from '../features/llm/LlmAssistancePanel'
 import { MoveProjectBackPanel } from '../features/lifecycle/MoveProjectBackPanel'
@@ -280,6 +281,7 @@ export function App() {
           />
           <Route element={<AdminGate />}>
             <Route path="/users" element={<UsersPage />} />
+            <Route path="/instance-settings" element={<InstanceSettingsPage />} />
           </Route>
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/projects/new" element={<ProjectSetupWizard />} />

@@ -68,6 +68,10 @@ class Settings(BaseSettings):
     llm_context_length: int = 32768
     llm_max_evidence_items: int = 3
     llm_max_evidence_quote_chars: int = 500
+    llm_title_abstract_base_prompt: str | None = None
+    llm_full_text_base_prompt: str | None = None
+    llm_extraction_base_prompt: str | None = None
+    llm_validation_base_prompt: str | None = None
 
     @field_validator("cors_origins", "allowed_hosts", mode="before")
     @classmethod

@@ -150,6 +150,45 @@ def llm_configuration(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "llm_context_length", 8192)
 
 
+def test_message_builders_honor_base_prompt_override() -> None:
+    from app.llm.prompt import SYSTEM_PROMPT, extraction_messages
+    from app.llm.task_prompt import (
+        SCREENING_SYSTEM_PROMPT,
+        VALIDATION_SYSTEM_PROMPT,
+        title_abstract_messages,
+        validation_messages,
+    )
+
+    publication = Publication(id="pub-1", project_id="proj-1", title="Example paper")
+    criterion = Criterion(
+        id="crit-1", project_id="proj-1", kind=CriterionKind.INCLUSION, text="Is relevant."
+    )
+    research_questions = []
+
+    default_screening = title_abstract_messages(publication, [criterion], research_questions)
+    assert default_screening[0]["content"].startswith(SCREENING_SYSTEM_PROMPT)
+
+    overridden_screening = title_abstract_messages(
+        publication, [criterion], research_questions, base_prompt="Custom screening base."
+    )
+    assert overridden_screening[0]["content"] == "Custom screening base."
+    assert SCREENING_SYSTEM_PROMPT not in overridden_screening[0]["content"]
+
+    default_extraction = extraction_messages([], research_questions, "paper text")
+    assert default_extraction[0]["content"].startswith(SYSTEM_PROMPT)
+    overridden_extraction = extraction_messages(
+        [], research_questions, "paper text", base_prompt="Custom extraction base."
+    )
+    assert overridden_extraction[0]["content"] == "Custom extraction base."
+
+    default_validation = validation_messages([], research_questions, "paper text")
+    assert default_validation[0]["content"].startswith(VALIDATION_SYSTEM_PROMPT)
+    overridden_validation = validation_messages(
+        [], research_questions, "paper text", base_prompt="Custom validation base."
+    )
+    assert overridden_validation[0]["content"] == "Custom validation base."
+
+
 def setup_llm_project(db):
     admin = create_user(db, "llm-admin", "LLM Admin", "secret-password", is_admin=True)
     reviewer = create_user(db, "llm-reviewer", "Reviewer", "reviewer-password")
@@ -776,6 +815,9 @@ def test_administrator_can_override_installation_llm_settings(client, db) -> Non
     assert reviewer_membership is not None
     reviewer_membership.is_owner = True
     db.commit()
+    anonymous_get = client.get("/api/v1/llm/installation-settings")
+    assert anonymous_get.status_code == 403
+
     admin_csrf = client.post(
         "/api/v1/auth/login",
         json={"username": admin.username, "password": "secret-password"},
@@ -793,17 +835,27 @@ def test_administrator_can_override_installation_llm_settings(client, db) -> Non
     )
     assert updated.status_code == 200
     assert updated.json() == {
-        "installationEnabled": True,
+        "enabled": True,
         "provider": "Ollama",
         "endpoint": "https://ollama.internal.example:11434",
         "model": "gemma3:12b",
         "contextLength": 16384,
-        "canManageInstallation": True,
     }
 
-    admin_view = client.get(f"/api/v1/projects/{project.id}/llm/settings")
-    assert admin_view.json()["endpoint"] == "https://ollama.internal.example:11434"
-    assert admin_view.json()["model"] == "gemma3:12b"
+    admin_view = client.get("/api/v1/llm/installation-settings")
+    assert admin_view.status_code == 200
+    assert admin_view.json() == {
+        "enabled": True,
+        "provider": "Ollama",
+        "endpoint": "https://ollama.internal.example:11434",
+        "model": "gemma3:12b",
+        "contextLength": 16384,
+    }
+
+    project_view = client.get(f"/api/v1/projects/{project.id}/llm/settings")
+    assert project_view.json()["model"] == "gemma3:12b"
+    assert "endpoint" not in project_view.json()
+    assert "canManageInstallation" not in project_view.json()
 
     client.post("/api/v1/auth/logout", headers={"X-CSRF-Token": admin_csrf})
     owner_csrf = client.post(
@@ -812,7 +864,6 @@ def test_administrator_can_override_installation_llm_settings(client, db) -> Non
     ).json()["csrfToken"]
     owner_view = client.get(f"/api/v1/projects/{project.id}/llm/settings")
     assert owner_view.status_code == 200
-    assert owner_view.json()["canManageInstallation"] is False
     assert "endpoint" not in owner_view.json()
     assert owner_view.json()["model"] == "gemma3:12b"
 
@@ -827,6 +878,122 @@ def test_administrator_can_override_installation_llm_settings(client, db) -> Non
         headers={"X-CSRF-Token": owner_csrf},
     )
     assert forbidden.status_code == 403
+
+    forbidden_get_by_owner = client.get("/api/v1/llm/installation-settings")
+    assert forbidden_get_by_owner.status_code == 403
+
+
+def test_administrator_can_test_installation_connection(client, db, monkeypatch) -> None:
+    admin, reviewer, project, _, _, _, _, _ = setup_llm_project(db)
+    admin_csrf = client.post(
+        "/api/v1/auth/login",
+        json={"username": admin.username, "password": "secret-password"},
+    ).json()["csrfToken"]
+
+    class ConnectionClient:
+        def test_connection(self):
+            return {"available": True, "modelAvailable": True, "model": "test-model"}
+
+    monkeypatch.setattr(
+        "app.llm.routes.create_ollama_client", lambda: ConnectionClient()
+    )
+    tested = client.post(
+        "/api/v1/llm/installation-settings/test",
+        headers={"X-CSRF-Token": admin_csrf},
+    )
+    assert tested.status_code == 200
+    assert tested.json()["modelAvailable"] is True
+
+    client.post("/api/v1/auth/logout", headers={"X-CSRF-Token": admin_csrf})
+    reviewer_csrf = client.post(
+        "/api/v1/auth/login",
+        json={"username": reviewer.username, "password": "reviewer-password"},
+    ).json()["csrfToken"]
+    forbidden = client.post(
+        "/api/v1/llm/installation-settings/test",
+        headers={"X-CSRF-Token": reviewer_csrf},
+    )
+    assert forbidden.status_code == 403
+
+
+def test_administrator_can_override_and_reset_base_prompts(client, db) -> None:
+    from app.llm.prompt import SYSTEM_PROMPT
+    from app.llm.task_prompt import SCREENING_SYSTEM_PROMPT, VALIDATION_SYSTEM_PROMPT
+
+    admin, reviewer, project, _, _, _, _, _ = setup_llm_project(db)
+
+    anonymous_get = client.get("/api/v1/llm/installation-settings/prompts")
+    assert anonymous_get.status_code == 403
+
+    admin_csrf = client.post(
+        "/api/v1/auth/login",
+        json={"username": admin.username, "password": "secret-password"},
+    ).json()["csrfToken"]
+
+    default_flows = client.get("/api/v1/llm/installation-settings/prompts")
+    assert default_flows.status_code == 200
+    by_key = {flow["key"]: flow for flow in default_flows.json()["flows"]}
+    assert set(by_key) == {"titleAbstract", "fullText", "extraction", "validation"}
+    assert by_key["titleAbstract"]["defaultPrompt"] == SCREENING_SYSTEM_PROMPT
+    assert by_key["titleAbstract"]["currentPrompt"] == SCREENING_SYSTEM_PROMPT
+    assert by_key["titleAbstract"]["isOverridden"] is False
+    assert by_key["extraction"]["defaultPrompt"] == SYSTEM_PROMPT
+    assert by_key["validation"]["defaultPrompt"] == VALIDATION_SYSTEM_PROMPT
+
+    updated = client.put(
+        "/api/v1/llm/installation-settings/prompts",
+        json={"titleAbstractPrompt": "Custom screening instructions."},
+        headers={"X-CSRF-Token": admin_csrf},
+    )
+    assert updated.status_code == 200
+    updated_by_key = {flow["key"]: flow for flow in updated.json()["flows"]}
+    assert updated_by_key["titleAbstract"]["currentPrompt"] == "Custom screening instructions."
+    assert updated_by_key["titleAbstract"]["isOverridden"] is True
+    # Untouched flows stay at their defaults.
+    assert updated_by_key["fullText"]["isOverridden"] is False
+    assert updated_by_key["fullText"]["currentPrompt"] == SCREENING_SYSTEM_PROMPT
+
+    # The override is reflected back to project owners for reference.
+    project_prompts = client.get(
+        f"/api/v1/projects/{project.id}/prompt-settings",
+        headers={"X-CSRF-Token": admin_csrf},
+    )
+    project_flow = next(
+        flow for flow in project_prompts.json()["flows"] if flow["key"] == "titleAbstract"
+    )
+    assert project_flow["basePrompt"] == "Custom screening instructions."
+
+    reset = client.put(
+        "/api/v1/llm/installation-settings/prompts",
+        json={"titleAbstractPrompt": ""},
+        headers={"X-CSRF-Token": admin_csrf},
+    )
+    assert reset.status_code == 200
+    reset_by_key = {flow["key"]: flow for flow in reset.json()["flows"]}
+    assert reset_by_key["titleAbstract"]["isOverridden"] is False
+    assert reset_by_key["titleAbstract"]["currentPrompt"] == SCREENING_SYSTEM_PROMPT
+
+    client.post("/api/v1/auth/logout", headers={"X-CSRF-Token": admin_csrf})
+    reviewer_membership = db.scalar(
+        select(ProjectMembership).where(
+            ProjectMembership.project_id == project.id,
+            ProjectMembership.user_id == reviewer.id,
+        )
+    )
+    reviewer_membership.is_owner = True
+    db.commit()
+    owner_csrf = client.post(
+        "/api/v1/auth/login",
+        json={"username": reviewer.username, "password": "reviewer-password"},
+    ).json()["csrfToken"]
+    forbidden_get = client.get("/api/v1/llm/installation-settings/prompts")
+    assert forbidden_get.status_code == 403
+    forbidden_put = client.put(
+        "/api/v1/llm/installation-settings/prompts",
+        json={"extractionPrompt": "Should not be allowed."},
+        headers={"X-CSRF-Token": owner_csrf},
+    )
+    assert forbidden_put.status_code == 403
 
 
 def test_disabling_installation_cancels_all_queued_llm_work(client, db) -> None:

@@ -174,6 +174,7 @@ def extraction_messages(
     research_questions: list[ResearchQuestion],
     paper_text: str,
     custom_instructions: str | None = None,
+    base_prompt: str | None = None,
 ) -> list[dict[str, str]]:
     user = (
         "Extract every configured field from the page-aware paper text.\n\n"
@@ -185,7 +186,9 @@ def extraction_messages(
     return [
         {
             "role": "system",
-            "content": compose_system_prompt(SYSTEM_PROMPT, custom_instructions),
+            "content": compose_system_prompt(
+                base_prompt or SYSTEM_PROMPT, custom_instructions
+            ),
         },
         {"role": "user", "content": user},
     ]
@@ -196,6 +199,7 @@ def consolidation_messages(
     research_questions: list[ResearchQuestion],
     candidates: list[dict[str, Any]],
     custom_instructions: str | None = None,
+    base_prompt: str | None = None,
 ) -> list[dict[str, str]]:
     user = (
         "Consolidate the candidate extraction results below into one result per field. "
@@ -209,7 +213,9 @@ def consolidation_messages(
     return [
         {
             "role": "system",
-            "content": compose_system_prompt(SYSTEM_PROMPT, custom_instructions),
+            "content": compose_system_prompt(
+                base_prompt or SYSTEM_PROMPT, custom_instructions
+            ),
         },
         {"role": "user", "content": user},
     ]

@@ -68,6 +68,7 @@ def _consolidate_candidates(
     metrics: dict[str, int],
     context_length: int,
     custom_instructions: str | None = None,
+    base_prompt: str | None = None,
 ) -> ExtractionResult:
     current = candidates
     instruction_tokens = (
@@ -101,7 +102,11 @@ def _consolidate_candidates(
             result, response = _validated_chat(
                 client,
                 consolidation_messages(
-                    fields, research_questions, candidate_batch, custom_instructions
+                    fields,
+                    research_questions,
+                    candidate_batch,
+                    custom_instructions,
+                    base_prompt,
                 ),
                 schema,
                 fields,
@@ -203,7 +208,11 @@ def run_llm_extraction_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
             result, response = _validated_chat(
                 client,
                 extraction_messages(
-                    fields, research_questions, chunk, custom_instructions
+                    fields,
+                    research_questions,
+                    chunk,
+                    custom_instructions,
+                    config.llm_extraction_base_prompt,
                 ),
                 schema,
                 fields,
@@ -219,6 +228,7 @@ def run_llm_extraction_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
             metrics,
             config.llm_context_length,
             custom_instructions,
+            config.llm_extraction_base_prompt,
         )
     except OllamaTransientError as exc:
         raise TransientJobError(str(exc)) from exc

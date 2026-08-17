@@ -76,7 +76,7 @@ cp .env.development.example .env.development
 ./scripts/dev.sh create-admin
 ```
 
-Then run `api`, `worker`, and `frontend` in separate terminals.
+Then run `api`, `worker`, `llm-worker`, and `frontend` in separate terminals. `llm-worker` runs the resource-limited Ollama worker and stays idle when LLM assistance is disabled (the default).
 
 See the [local-development guide](docs/local-development.md) for manual setup, testing, database management, IDE configuration, and troubleshooting.
 

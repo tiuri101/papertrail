@@ -158,6 +158,7 @@ def title_abstract_messages(
     criteria: list[Criterion],
     research_questions: list[ResearchQuestion],
     custom_instructions: str | None = None,
+    base_prompt: str | None = None,
 ) -> list[dict[str, str]]:
     user = (
         "Independently suggest a title/abstract screening outcome. Assess every criterion by its "
@@ -172,7 +173,7 @@ def title_abstract_messages(
         {
             "role": "system",
             "content": compose_system_prompt(
-                SCREENING_SYSTEM_PROMPT, custom_instructions
+                base_prompt or SCREENING_SYSTEM_PROMPT, custom_instructions
             ),
         },
         {"role": "user", "content": user},
@@ -185,6 +186,7 @@ def full_text_messages(
     research_questions: list[ResearchQuestion],
     paper_text: str,
     custom_instructions: str | None = None,
+    base_prompt: str | None = None,
 ) -> list[dict[str, str]]:
     user = (
         "Assess every eligibility criterion using the page-aware paper text. Evidence is the "
@@ -199,7 +201,7 @@ def full_text_messages(
         {
             "role": "system",
             "content": compose_system_prompt(
-                SCREENING_SYSTEM_PROMPT, custom_instructions
+                base_prompt or SCREENING_SYSTEM_PROMPT, custom_instructions
             ),
         },
         {"role": "user", "content": user},
@@ -211,6 +213,7 @@ def screening_consolidation_messages(
     research_questions: list[ResearchQuestion],
     candidates: list[dict[str, Any]],
     custom_instructions: str | None = None,
+    base_prompt: str | None = None,
 ) -> list[dict[str, str]]:
     user = (
         "Consolidate chunk-level eligibility assessments. Use only the candidate assessments and "
@@ -226,7 +229,7 @@ def screening_consolidation_messages(
         {
             "role": "system",
             "content": compose_system_prompt(
-                SCREENING_SYSTEM_PROMPT, custom_instructions
+                base_prompt or SCREENING_SYSTEM_PROMPT, custom_instructions
             ),
         },
         {"role": "user", "content": user},
@@ -277,6 +280,7 @@ def validation_messages(
     research_questions: list[ResearchQuestion],
     paper_text: str,
     custom_instructions: str | None = None,
+    base_prompt: str | None = None,
 ) -> list[dict[str, str]]:
     user = (
         "Validate each final human extraction value against the page-aware paper text.\n\n"
@@ -289,7 +293,7 @@ def validation_messages(
         {
             "role": "system",
             "content": compose_system_prompt(
-                VALIDATION_SYSTEM_PROMPT, custom_instructions
+                base_prompt or VALIDATION_SYSTEM_PROMPT, custom_instructions
             ),
         },
         {"role": "user", "content": user},
@@ -301,6 +305,7 @@ def validation_consolidation_messages(
     research_questions: list[ResearchQuestion],
     candidates: list[dict[str, Any]],
     custom_instructions: str | None = None,
+    base_prompt: str | None = None,
 ) -> list[dict[str, str]]:
     user = (
         "Consolidate chunk-level validation results for the human values. Use only existing "
@@ -315,7 +320,7 @@ def validation_consolidation_messages(
         {
             "role": "system",
             "content": compose_system_prompt(
-                VALIDATION_SYSTEM_PROMPT, custom_instructions
+                base_prompt or VALIDATION_SYSTEM_PROMPT, custom_instructions
             ),
         },
         {"role": "user", "content": user},

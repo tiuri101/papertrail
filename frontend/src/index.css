@@ -2565,6 +2565,15 @@ tbody th {
   color: var(--color-warning);
 }
 
+.info-box--danger {
+  border-color: color-mix(in srgb, var(--color-danger) 32%, var(--color-border));
+  background: var(--color-danger-container);
+}
+
+.info-box--danger .info-box__icon {
+  color: var(--color-danger);
+}
+
 .info-box__icon {
   display: inline-flex;
   flex: 0 0 auto;
