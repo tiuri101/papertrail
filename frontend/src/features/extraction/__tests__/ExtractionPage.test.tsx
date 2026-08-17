@@ -8,7 +8,6 @@ import { renderWithProviders } from '../../../test/render'
 const workItem = {
   id: 'extraction-1',
   publicationId: 'publication-1',
-  fullTextAvailable: true,
   status: 'reserved',
   draft: {},
   publication: {
@@ -27,18 +26,22 @@ const workItem = {
 describe('ExtractionPage', () => {
   it('fetches the next extraction automatically on load and renders publication context', async () => {
     const fetchMock = mockFetch(async (input, init) => {
-      if (String(input).endsWith('/next') && init?.method === 'POST') return jsonResponse(workItem)
+      const path = String(input)
+      if (path.endsWith('/next') && init?.method === 'POST') return jsonResponse(workItem)
+      if (path.endsWith('/full-text') && (!init || init.method === undefined)) {
+        return jsonResponse({ available: true, document: { pageCount: 9 } })
+      }
       return jsonResponse({})
     })
     renderWithProviders(<ExtractionPage />, { route: '/projects/p1/extraction', path: '/projects/:projectId/extraction' })
 
     expect(await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })).toBeInTheDocument()
     expect(screen.getByText(/A\. Author/)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'View PDF' })).toHaveAttribute(
+    expect(await screen.findByRole('link', { name: 'PDF (9 pages)' })).toHaveAttribute(
       'href',
       '/api/v1/projects/p1/publications/publication-1/full-text/content',
     )
-    expect(screen.getByRole('link', { name: 'Open DOI' })).toHaveAttribute('href', 'https://doi.org/10.1000/example')
+    expect(screen.getByRole('link', { name: 'DOI' })).toHaveAttribute('href', 'https://doi.org/10.1000/example')
     expect(fetchMock.mock.calls.filter(([input, init]) => String(input).endsWith('/next') && init?.method === 'POST')).toHaveLength(1)
   })
 
@@ -183,13 +186,19 @@ describe('ExtractionPage', () => {
   })
 
   it('does not offer PDF viewing when no stored full text is available', async () => {
-    mockFetch(async (input) => String(input).endsWith('/next')
-      ? jsonResponse({ ...workItem, fullTextAvailable: false })
-      : jsonResponse({}))
+    mockFetch(async (input, init) => {
+      const path = String(input)
+      if (path.endsWith('/next') && init?.method === 'POST') return jsonResponse(workItem)
+      if (path.endsWith('/full-text') && (!init || init.method === undefined)) {
+        return jsonResponse({ available: false, document: null })
+      }
+      return jsonResponse({})
+    })
     renderWithProviders(<ExtractionPage />, { route: '/projects/p1/extraction', path: '/projects/:projectId/extraction' })
 
     await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
-    expect(screen.queryByRole('link', { name: 'View PDF' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: /^PDF/ })).not.toBeInTheDocument()
+    expect(await screen.findByText('No PDF')).toBeInTheDocument()
   })
 
   it('shows mapped suggestions, inference status, and verified evidence in context', async () => {

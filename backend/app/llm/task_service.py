@@ -34,7 +34,7 @@ from app.llm.task_prompt import (
     FULL_TEXT_PROMPT_VERSION,
     TITLE_ABSTRACT_PROMPT_VERSION,
 )
-from app.projects.models import Criterion, ScreeningStage
+from app.projects.models import Criterion, ResearchQuestion, ScreeningStage
 from app.publications.models import Publication
 from app.screening.models import ScreeningOutcome
 
@@ -77,6 +77,25 @@ def _criteria_input(criteria: list[Criterion]) -> list[dict[str, Any]]:
     ]
 
 
+def active_research_questions(db: Session, project_id: str) -> list[ResearchQuestion]:
+    return list(
+        db.scalars(
+            select(ResearchQuestion)
+            .where(
+                ResearchQuestion.project_id == project_id,
+                ResearchQuestion.is_active.is_(True),
+            )
+            .order_by(ResearchQuestion.position, ResearchQuestion.id)
+        )
+    )
+
+
+def _research_questions_input(
+    questions: list[ResearchQuestion],
+) -> list[dict[str, Any]]:
+    return [{"id": item.id, "text": item.text} for item in questions]
+
+
 def _model(db: Session) -> str | None:
     config = effective_llm_settings(db)
     return config.ollama_model if config.llm_enabled else None
@@ -109,6 +128,9 @@ def _title_input(db: Session, publication: Publication) -> dict[str, Any]:
             "type": publication.publication_type,
         },
         "criteria": _criteria_input(active_criteria(db, publication.project_id)),
+        "researchQuestions": _research_questions_input(
+            active_research_questions(db, publication.project_id)
+        ),
     }
 
 
@@ -132,6 +154,9 @@ def full_text_fingerprint(
             "textExtraction": extraction.id,
             "extractor": [extraction.extractor, extraction.extractor_version],
             "criteria": _criteria_input(active_criteria(db, publication.project_id)),
+            "researchQuestions": _research_questions_input(
+                active_research_questions(db, publication.project_id)
+            ),
         }
     )
 
@@ -150,6 +175,9 @@ def data_extraction_fingerprint(
             "sha256": document.sha256,
             "textExtraction": extraction.id,
             "schema": schema_id,
+            "researchQuestions": _research_questions_input(
+                active_research_questions(db, document.project_id)
+            ),
         }
     )
 
@@ -170,6 +198,9 @@ def validation_fingerprint(
             "response": response.id,
             "formVersion": response.form_version_id,
             "answers": response.answers,
+            "researchQuestions": _research_questions_input(
+                active_research_questions(db, document.project_id)
+            ),
         }
     )
 

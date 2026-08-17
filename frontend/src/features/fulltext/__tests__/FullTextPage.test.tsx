@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { FullTextPage } from '../FullTextPage'
 import { jsonResponse, mockFetch } from '../../../test/http'
 import { renderWithProviders } from '../../../test/render'
+import { lastScreeningKey, saveLastCompletedItem } from '../../../lib/lastCompletedItem'
 
 const publicationA = {
   id: 'publication-1',
@@ -35,11 +36,13 @@ const workItem = {
 function render({
   fulltextNext,
   progress = { total: 1, addressed: 0 },
+  screeningProgress = { assigned: 0, completed: 0, remaining: 0, claimMode: false },
   screeningNext = [null],
   putResponses = [{}],
 }: {
   fulltextNext: (unknown | null)[]
   progress?: { total: number; addressed: number }
+  screeningProgress?: { assigned: number; completed: number; remaining: number; claimMode: boolean }
   screeningNext?: (unknown | null)[]
   putResponses?: unknown[]
 }) {
@@ -55,6 +58,9 @@ function render({
     }
     if (path.endsWith('/full-text/progress')) {
       return jsonResponse(progress)
+    }
+    if (path.endsWith('/screening/full_text/progress')) {
+      return jsonResponse(screeningProgress)
     }
     if (path.includes('/full-text/') && path.endsWith('/release')) {
       return jsonResponse({ status: 'released' })
@@ -85,8 +91,19 @@ describe('FullTextPage', () => {
 
     expect(await screen.findByRole('heading', { name: 'Urban Data in VR' })).toBeInTheDocument()
     expect(screen.getByLabelText('Retrieval status for Urban Data in VR')).toBeInTheDocument()
-    expect(screen.getByText('0 of 1 retrieval decisions made')).toBeInTheDocument()
+    expect(screen.getByText('Retrieval status recorded for 0 of 1 publications')).toBeInTheDocument()
     expect(screen.queryByText('Criteria')).not.toBeInTheDocument()
+  })
+
+  it('shows how many papers still need a full-text screening decision', async () => {
+    const retrieval = { id: 'retrieval-1', publicationId: 'publication-1', publication: publicationA, status: 'not_yet_sought', note: null }
+    render({
+      fulltextNext: [retrieval],
+      progress: { total: 1, addressed: 0 },
+      screeningProgress: { assigned: 5, completed: 2, remaining: 3, claimMode: false },
+    })
+
+    expect(await screen.findByText('3 papers remaining for screening')).toBeInTheDocument()
   })
 
   it('temporarily skips a retrieval and advances to another paper', async () => {
@@ -116,7 +133,7 @@ describe('FullTextPage', () => {
     render({ fulltextNext: [null], progress: { total: 2, addressed: 2 } })
 
     expect(await screen.findByText('No full-text work is currently available for you.')).toBeInTheDocument()
-    expect(screen.getByText('2 of 2 retrieval decisions made')).toBeInTheDocument()
+    expect(screen.getByText('Retrieval status recorded for 2 of 2 publications')).toBeInTheDocument()
   })
 
   it('prioritizes an already-claimed screening item over a pending retrieval action', async () => {
@@ -214,5 +231,40 @@ describe('FullTextPage', () => {
       })
     })
     expect(screen.queryByRole('button', { name: 'Submit Decision' })).not.toBeInTheDocument()
+  })
+
+  it('offers a "Go back" affordance for the last completed full-text screening decision', async () => {
+    saveLastCompletedItem(lastScreeningKey('p1', 'full_text'), { id: 'work-1', title: 'Urban Data in VR' })
+    const previousItem = {
+      id: 'work-1',
+      publication: workItem.publication,
+      criteria,
+      decision: {
+        id: 'decision-1',
+        outcome: 'include',
+        criteriaAnswers: { 'criterion-1': true },
+        notes: null,
+        version: 1,
+      },
+    }
+    const fetchMock = mockFetch((input, init) => {
+      const path = String(input)
+      if (path.includes('/full-text/next') && init?.method === 'POST') return jsonResponse(null)
+      if (path.endsWith('/full-text/progress')) return jsonResponse({ total: 0, addressed: 0 })
+      if (path.endsWith('/screening/full_text/progress')) {
+        return jsonResponse({ assigned: 0, completed: 1, remaining: 0, claimMode: false })
+      }
+      if (path.includes('/screening/full_text/next') && init?.method === 'POST') return jsonResponse(null)
+      if (path.endsWith('/screening/work-items/work-1') && !init?.method) return jsonResponse(previousItem)
+      if (/\/projects\/[^/]+$/.test(path) && (!init || init.method === undefined)) return jsonResponse({ criteria })
+      return jsonResponse({})
+    })
+    renderWithProviders(<FullTextPage />, { route: '/projects/p1/full-text', path: '/projects/:projectId/full-text' })
+
+    const button = await screen.findByRole('button', { name: /Go back to/ })
+    fireEvent.click(button)
+
+    await screen.findByText('You went back to the previous paper. Changes here update your existing decision.')
+    expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith('/screening/work-items/work-1'))).toBe(true)
   })
 })

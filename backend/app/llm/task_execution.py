@@ -48,6 +48,7 @@ from app.llm.task_prompt import (
 )
 from app.llm.task_service import (
     active_criteria,
+    active_research_questions,
     current_task_fingerprint,
     was_cancelled,
 )
@@ -222,6 +223,7 @@ def _run_title_abstract(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
         project.title_abstract_prompt_instructions if project else None
     )
     criteria = active_criteria(db, run.project_id)
+    research_questions = active_research_questions(db, run.project_id)
     config = effective_llm_settings(db)
     schema = screening_output_schema(
         [item.id for item in criteria],
@@ -233,7 +235,9 @@ def _run_title_abstract(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
     try:
         result, response = validated_chat(
             create_ollama_client(),
-            title_abstract_messages(publication, criteria, custom_instructions),
+            title_abstract_messages(
+                publication, criteria, research_questions, custom_instructions
+            ),
             schema,
             lambda payload: validate_screening_result(
                 payload, {item.id: item.kind for item in criteria}
@@ -272,6 +276,7 @@ def _run_full_text(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
     custom_instructions = project.full_text_prompt_instructions if project else None
     page_rows = _pages(db, extraction.id)
     criteria = active_criteria(db, run.project_id)
+    research_questions = active_research_questions(db, run.project_id)
     config = effective_llm_settings(db)
     criterion_ids = [item.id for item in criteria]
     schema = screening_output_schema(
@@ -282,7 +287,8 @@ def _run_full_text(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
     chunks = chunk_pages(
         [(page.page_number, page.text) for page in page_rows],
         context_length=config.llm_context_length,
-        instruction_chars=sum(len(item.text) for item in criteria),
+        instruction_chars=sum(len(item.text) for item in criteria)
+        + sum(len(item.text) for item in research_questions),
         field_count=len(criteria),
     )
     _commit_started(db, run)
@@ -299,7 +305,13 @@ def _run_full_text(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
         for chunk in chunks:
             result, response = validated_chat(
                 client,
-                full_text_messages(publication, criteria, chunk, custom_instructions),
+                full_text_messages(
+                    publication,
+                    criteria,
+                    research_questions,
+                    chunk,
+                    custom_instructions,
+                ),
                 schema,
                 validator,
             )
@@ -311,7 +323,7 @@ def _run_full_text(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
             schema=schema,
             validator=validator,
             messages=lambda batch: screening_consolidation_messages(
-                criteria, batch, custom_instructions
+                criteria, research_questions, batch, custom_instructions
             ),
             metrics=metrics,
             context_length=config.llm_context_length,
@@ -377,6 +389,7 @@ def _run_validation(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
     custom_instructions = project.validation_prompt_instructions if project else None
     fields = _validation_fields(db, response)
     field_keys = [str(item["fieldKey"]) for item in fields]
+    research_questions = active_research_questions(db, run.project_id)
     pages = _pages(db, extraction.id)
     config = effective_llm_settings(db)
     schema = validation_output_schema(
@@ -387,7 +400,8 @@ def _run_validation(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
     chunks = chunk_pages(
         [(page.page_number, page.text) for page in pages],
         context_length=config.llm_context_length,
-        instruction_chars=len(json.dumps(fields, ensure_ascii=False)),
+        instruction_chars=len(json.dumps(fields, ensure_ascii=False))
+        + sum(len(item.text) for item in research_questions),
         field_count=len(fields),
     )
     _commit_started(db, run)
@@ -402,7 +416,9 @@ def _run_validation(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
         for chunk in chunks:
             result, response_metadata = validated_chat(
                 client,
-                validation_messages(fields, chunk, custom_instructions),
+                validation_messages(
+                    fields, research_questions, chunk, custom_instructions
+                ),
                 schema,
                 validator,
             )
@@ -414,7 +430,7 @@ def _run_validation(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
             schema=schema,
             validator=validator,
             messages=lambda batch: validation_consolidation_messages(
-                fields, batch, custom_instructions
+                fields, research_questions, batch, custom_instructions
             ),
             metrics=metrics,
             context_length=config.llm_context_length,

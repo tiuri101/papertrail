@@ -1,6 +1,8 @@
 import { useState } from 'react'
 
+import { DoiPill } from '../../components/DoiPill'
 import { HighlightedText } from '../../components/HighlightedText'
+import { PublisherLinkPill } from '../../components/PublisherLinkPill'
 import { formatHotkey, loadScreeningHotkeys } from '../../lib/screeningHotkeys'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { ScreeningLlmPanel } from '../llm/LlmTaskComponents'
@@ -58,15 +60,9 @@ export function PreviousItemCard({
           : 'No abstract available.'}
       </p>
       <div className="toolbar">
-        {previousItem.publication.doi ? (
-          <a href={`https://doi.org/${previousItem.publication.doi}`} target="_blank" rel="noreferrer">
-            Open DOI
-          </a>
-        ) : null}
+        <DoiPill doi={previousItem.publication.doi} />
         {isSafeHttpUrl(previousItem.publication.publisherUrl) ? (
-          <a href={previousItem.publication.publisherUrl} target="_blank" rel="noreferrer">
-            Open publisher page
-          </a>
+          <PublisherLinkPill url={previousItem.publication.publisherUrl} />
         ) : null}
       </div>
       {decision ? (

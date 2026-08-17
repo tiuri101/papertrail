@@ -24,7 +24,7 @@ from app.projects.models import (
     ScreeningStage,
 )
 from app.publications.models import MetadataConflict, Publication, PublicationSource
-from app.publications.service import apply_enrichment, normalize_imported_records
+from app.publications.service import apply_enrichment, clean_text, normalize_imported_records
 from app.screening.models import (
     ScreeningDecision,
     ScreeningOutcome,
@@ -419,6 +419,17 @@ def project_and_batch(db):
     db.add(batch)
     db.flush()
     return admin, project, batch
+
+
+def test_clean_text_decodes_latex_accents_and_html_entities() -> None:
+    assert clean_text(r'K{\"u}chenmeister') == "Küchenmeister"
+    assert clean_text(r'J{\"u}rgen') == "Jürgen"
+    assert clean_text(r"Jo{\~a}o") == "João"
+    assert clean_text(r"Pl{\'a}cido") == "Plácido"
+    assert clean_text("PTSD&nbsp;Patients") == "PTSD Patients"
+    assert clean_text(r"{COVID-19} outcomes") == "COVID-19 outcomes"
+    assert clean_text(r"Stra{\ss}e") == "Straße"
+    assert clean_text("a {b c} d") == "a {b c} d"
 
 
 def test_normalization_creates_publication_and_preserves_source(db) -> None:

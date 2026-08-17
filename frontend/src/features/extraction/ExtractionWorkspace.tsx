@@ -3,10 +3,14 @@ import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { DoiPill } from '../../components/DoiPill'
 import { IconArrowRight, IconCheckCircle, IconRestart } from '../../components/icons'
+import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
+import { PublisherLinkPill } from '../../components/PublisherLinkPill'
 import { isAnswered, normalizeForSuggestionMatch } from '../forms/answers'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { DynamicForm, type DynamicFormField } from '../forms/DynamicForm'
+import { fullTextDocumentEndpoint, useFullTextDocument } from '../fulltext/useFullTextDocument'
 import { LlmAssistanceHeading, LlmEvidence, type LlmEvidenceItem } from '../llm/LlmTaskComponents'
 
 interface PublicationSummary {
@@ -20,7 +24,6 @@ interface PublicationSummary {
 interface WorkItem {
   id: string
   publicationId: string
-  fullTextAvailable: boolean
   status: string
   draft: Record<string, unknown>
   publication: PublicationSummary
@@ -104,6 +107,7 @@ export function ExtractionWorkspace({
   const [suggestionActions, setSuggestionActions] = useState<Record<string, 'accepted' | 'modified' | 'ignored' | 'manual'>>({})
   const [completedResponse, setCompletedResponse] = useState<ExtractionResponse | null>(null)
   const skippedItemIds = useRef<Set<string>>(new Set())
+  const fullTextDocument = useFullTextDocument(projectId, item?.publicationId ?? '')
   const assistance = useQuery({
     queryKey: ['extraction-llm', projectId, item?.id],
     queryFn: () => apiRequest<LlmAssistance>(
@@ -186,6 +190,11 @@ export function ExtractionWorkspace({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, itemId])
+
+  const visibleItemId = item?.id
+  useEffect(() => {
+    if (variant !== 'inline' && visibleItemId) window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [variant, visibleItemId])
 
   const submit = useMutation({
     mutationFn: () => {
@@ -370,23 +379,16 @@ export function ExtractionWorkspace({
             {item.publication.publicationYear ? ` (${item.publication.publicationYear})` : ''}
           </p>
           <div className="toolbar">
-            {item.fullTextAvailable ? (
-              <a
-                href={`/api/v1/projects/${projectId}/publications/${item.publicationId}/full-text/content`}
-                target="_blank"
-                rel="noreferrer"
-              >
-                View PDF
-              </a>
+            {fullTextDocument.data ? (
+              <PdfAvailabilityPill
+                available={fullTextDocument.data.available}
+                href={`${fullTextDocumentEndpoint(projectId, item.publicationId)}/content`}
+                pageCount={fullTextDocument.data.document?.pageCount}
+              />
             ) : null}
-            {item.publication.doi ? (
-              <a href={`https://doi.org/${item.publication.doi}`} target="_blank" rel="noreferrer">
-                Open DOI
-              </a>
-            ) : isSafeHttpUrl(item.publication.publisherUrl) ? (
-              <a href={item.publication.publisherUrl} target="_blank" rel="noreferrer">
-                Open publisher page
-              </a>
+            <DoiPill doi={item.publication.doi} />
+            {isSafeHttpUrl(item.publication.publisherUrl) ? (
+              <PublisherLinkPill url={item.publication.publisherUrl} />
             ) : null}
           </div>
         </>

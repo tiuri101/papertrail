@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { DoiPill } from '../../components/DoiPill'
 import { IconCheckCircle } from '../../components/icons'
 import { Tooltip } from '../../components/Tooltip'
 import { StageEyebrow } from '../projects/StageEyebrow'
@@ -55,9 +56,7 @@ function PublicationSummary({ publication }: { publication: CandidatePublication
         {publication.publicationYear ? ` — ${publication.publicationYear}` : ''}
       </p>
       {publication.venue ? <p className="muted">{publication.venue}</p> : null}
-      {publication.doi ? (
-        <p><a href={`https://doi.org/${publication.doi}`} target="_blank" rel="noopener noreferrer">DOI</a></p>
-      ) : null}
+      {publication.doi ? <p><DoiPill doi={publication.doi} /></p> : null}
     </div>
   )
 }

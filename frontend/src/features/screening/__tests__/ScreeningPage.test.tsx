@@ -687,4 +687,20 @@ describe('ScreeningPage', () => {
       )).toBe(true)
     })
   })
+
+  it('offers a "Go back" affordance in full-text screening too, scoped to its own last-completed item', async () => {
+    saveLastCompletedItem(lastScreeningKey('project-1', 'full_text'), { id: 'work-1', title: previousWorkItem.publication.title })
+    const fetchMock = renderScreening(async (input, init) => {
+      const path = String(input)
+      if (path.endsWith('/next') && init?.method === 'POST') return jsonResponse(null)
+      if (path.endsWith('/work-items/work-1') && !init?.method) return jsonResponse(previousWorkItem)
+      return jsonResponse({})
+    }, 'full_text')
+
+    const button = await screen.findByRole('button', { name: /Go back to/ })
+    fireEvent.click(button)
+
+    await screen.findByText('You went back to the previous paper. Changes here update your existing decision.')
+    expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith('/screening/work-items/work-1'))).toBe(true)
+  })
 })
