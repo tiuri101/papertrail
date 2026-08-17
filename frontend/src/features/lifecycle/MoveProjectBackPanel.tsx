@@ -46,8 +46,7 @@ export function MoveProjectBackPanel({ projectId }: { projectId: string }) {
           merges, extraction responses, and quality-assessment data recorded in the target
           stage and every stage after it are permanently deleted, and the target stage is then
           regenerated fresh. Data from stages before the target, and project configuration
-          (criteria, forms, members), are left untouched. Only shown while a project is still
-          active — once a project reaches Completed, use Reopen at an Earlier Stage instead.
+          (criteria, forms, members), are left untouched.
         </p>
       </InfoBox>
       {moveBack.error ? <p className="error" role="alert">{moveBack.error.message}</p> : null}

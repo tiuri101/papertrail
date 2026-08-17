@@ -16,7 +16,10 @@ import {
   IconUpload,
   IconXCircle,
 } from '../../components/icons'
+import { DoiPill } from '../../components/DoiPill'
 import { OutcomeBadge } from '../../components/OutcomeBadge'
+import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
+import { PublisherLinkPill } from '../../components/PublisherLinkPill'
 import { InfoTooltip } from '../../components/Tooltip'
 import { FullTextDocumentPanel } from '../fulltext/FullTextDocumentPanel'
 import { AdministrationEyebrow } from '../projects/StageEyebrow'
@@ -270,35 +273,18 @@ function PublicationRow({
           )}
           {' — '}{publication.authors ?? 'Unknown authors'}
           {publication.publicationYear ? ` (${publication.publicationYear})` : ''}
-          {' '}
-          {isSafeHttpUrl(publication.publisherUrl) ? (
-            <> <a href={publication.publisherUrl} target="_blank" rel="noopener noreferrer">Publisher link</a></>
-          ) : null}
         </div>
       </div>
       <div className="publication-card__workflow" aria-label="Review decisions">
-        {publication.doi ? (
-          <a
-            className="status-badge status-badge--info"
-            href={`https://doi.org/${publication.doi}`}
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            DOI
-          </a>
+        <DoiPill doi={publication.doi} />
+        {isSafeHttpUrl(publication.publisherUrl) ? (
+          <PublisherLinkPill url={publication.publisherUrl!} />
         ) : null}
-        {publication.fullText?.available ? (
-          <a
-            className="status-badge status-badge--success"
-            href={`/api/v1/projects/${projectId}/publications/${publication.id}/full-text/content`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            <IconCheckCircle /> PDF{publication.fullText.document?.pageCount ? ` (${publication.fullText.document.pageCount})` : ''}
-          </a>
-        ) : (
-          <span className="status-badge status-badge--neutral"><IconXCircle /> No PDF</span>
-        )}
+        <PdfAvailabilityPill
+          available={Boolean(publication.fullText?.available)}
+          href={`/api/v1/projects/${projectId}/publications/${publication.id}/full-text/content`}
+          pageCount={publication.fullText?.document?.pageCount}
+        />
         <OutcomeBadge
           outcome={publication.screeningStatus?.titleAbstract}
           label={`Title/Abstract: ${screeningLabel(publication.screeningStatus?.titleAbstract)}`}

@@ -706,7 +706,7 @@ describe('PublicationsPage', () => {
     expect(within(withPdfCard).getByRole('link', { name: /Export PDF/ })).toHaveAttribute(
       'href', '/api/v1/projects/p1/publications/publication-1/export/pdf',
     )
-    expect(within(withPdfCard).getByRole('link', { name: 'PDF (12)' })).toHaveAttribute(
+    expect(within(withPdfCard).getByRole('link', { name: 'PDF (12 pages)' })).toHaveAttribute(
       'href', '/api/v1/projects/p1/publications/publication-1/full-text/content',
     )
 

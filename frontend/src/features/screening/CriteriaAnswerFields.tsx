@@ -4,6 +4,7 @@ import type { KeyboardEvent } from 'react'
 import { IconCheckCircle, IconXCircle } from '../../components/icons'
 import { formatHotkey, loadScreeningHotkeys, type ScreeningHotkeyAction } from '../../lib/screeningHotkeys'
 import type { CriterionAnswer, ScreeningCriterion } from './useScreeningQueue'
+import {InfoBox} from "../../components/InfoBox";
 
 function capitalize(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1)
@@ -162,9 +163,12 @@ export function CriteriaAnswerFields({
           ))}
         </tbody>
       </table>
-      <p className="muted criteria-table__hint">
-        Click a row, then use the arrow keys to move between criteria and Left/Right to answer them.
-      </p>
+      <InfoBox icon={<IconCheckCircle />}>
+        <p>
+          Click on a checkbox, then use the arrow keys to move between criteria and Left/Right keys to answer them. Use your
+          personalized hotkeys to include/exclude the paper and submit.
+        </p>
+      </InfoBox>
       <div className="decision-field">
         <span className="decision-field__label">Decision</span>
         <div className="decision-group" role="radiogroup" aria-label="Decision">

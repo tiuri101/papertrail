@@ -320,4 +320,69 @@ describe('ImportPage', () => {
     expect(await screen.findByText('1 files processed · 1 matched')).toBeInTheDocument()
     expect(screen.getByText('Review PDF matches')).toBeInTheDocument()
   })
+
+  it('warns about already-screened papers before deleting a search, then deletes on confirmation', async () => {
+    let deleted = false
+    mockFetch((input, init) => {
+      const url = String(input)
+      if (url.endsWith('/projects/project-1')) return jsonResponse({ id: 'project-1', canManage: true })
+      if (init?.method === 'DELETE' && url.includes('/searches/search-1')) {
+        if (url.includes('force=true')) {
+          deleted = true
+          return jsonResponse({ deleted: true, requiresConfirmation: false, publicationCount: 2, screenedPublicationCount: 1 })
+        }
+        return jsonResponse({
+          deleted: false,
+          requiresConfirmation: true,
+          publicationCount: 2,
+          screenedPublicationCount: 1,
+          screenedPublicationTitles: ['Screened Paper'],
+        })
+      }
+      if (url.endsWith('/searches')) {
+        return jsonResponse(deleted ? [] : [
+          { id: 'search-1', sourceName: 'IEEE Xplore', query: 'virtual reality', searchDate: '2026-07-30', filters: null },
+        ])
+      }
+      return jsonResponse({})
+    })
+    renderWithProviders(<ImportPage />, { route: '/projects/project-1/imports', path: '/projects/:projectId/imports' })
+
+    expect(await screen.findByText('IEEE Xplore')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Delete search/ }))
+
+    expect(await screen.findByRole('alertdialog')).toBeInTheDocument()
+    expect(screen.getByText(/One of these papers has already been screened/)).toBeInTheDocument()
+    expect(screen.getByText(/all 2 papers it exclusively brought in/)).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Search' }))
+
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(screen.getByText('No searches have been documented for this project yet.')).toBeInTheDocument()
+  })
+
+  it('lets the reviewer cancel out of deleting a search without calling the API', async () => {
+    const fetchMock = mockFetch((input, init) => {
+      const url = String(input)
+      if (url.endsWith('/projects/project-1')) return jsonResponse({ id: 'project-1', canManage: true })
+      if (init?.method === 'DELETE' && url.includes('/searches/search-1')) {
+        return jsonResponse({ deleted: false, requiresConfirmation: true, publicationCount: 0, screenedPublicationCount: 0 })
+      }
+      if (url.endsWith('/searches')) {
+        return jsonResponse([
+          { id: 'search-1', sourceName: 'IEEE Xplore', query: 'virtual reality', searchDate: '2026-07-30', filters: null },
+        ])
+      }
+      return jsonResponse({})
+    })
+    renderWithProviders(<ImportPage />, { route: '/projects/project-1/imports', path: '/projects/:projectId/imports' })
+
+    expect(await screen.findByText('IEEE Xplore')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: /Delete search/ }))
+    expect(await screen.findByRole('alertdialog')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'Cancel' }))
+    expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument()
+    expect(fetchMock.mock.calls.some(([callInput, callInit]) => callInit?.method === 'DELETE' && String(callInput).includes('force=true'))).toBe(false)
+  })
 })

@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
@@ -11,6 +12,11 @@ export function ScreeningPage() {
   const navigate = useNavigate()
   const highlightKeywords = useHighlightKeywords(projectId)
   const queue = useScreeningQueue(projectId, stage)
+
+  const visibleItemId = queue.previousItem?.id ?? queue.item?.id
+  useEffect(() => {
+    if (visibleItemId) window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [visibleItemId])
 
   return (
     <main className="page">

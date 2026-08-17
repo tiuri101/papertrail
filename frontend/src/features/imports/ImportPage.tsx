@@ -4,8 +4,9 @@ import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { DateField } from '../../components/DateField'
-import { IconClock, IconPerson, IconUpload } from '../../components/icons'
+import { IconClock, IconPerson, IconTrash, IconUpload } from '../../components/icons'
 import { useRegisterSectionItems } from '../../components/sectionNavigation'
 import { InfoTooltip } from '../../components/Tooltip'
 import { getCsrfToken } from '../auth/session'
@@ -41,6 +42,14 @@ interface SearchSource {
 }
 
 interface ImportResult { jobId: string; importBatchId: string }
+
+interface DeleteSearchPreview {
+  deleted: boolean
+  requiresConfirmation: boolean
+  publicationCount: number
+  screenedPublicationCount: number
+  screenedPublicationTitles?: string[]
+}
 
 const importSections = [
   { id: 'section-import-records', label: 'Import an Export File' },
@@ -82,6 +91,9 @@ export function ImportPage() {
   const [pendingJobId, setPendingJobId] = useState<string | null>(null)
   const [attachBatchId, setAttachBatchId] = useState<string | null>(null)
   const [hadSearchHistoryOnLoad, setHadSearchHistoryOnLoad] = useState<boolean | null>(null)
+  const [deleteCandidate, setDeleteCandidate] = useState<
+    { search: SearchSource; preview: DeleteSearchPreview } | null
+  >(null)
 
   const searches = useQuery({
     queryKey: ['searches', projectId],
@@ -168,6 +180,29 @@ export function ImportPage() {
       setPdfArchives([])
       setPendingJobId(result.jobId)
       queryClient.invalidateQueries({ queryKey: ['searches', projectId] })
+    },
+  })
+
+  const previewDeleteSearch = useMutation({
+    mutationFn: (search: SearchSource) =>
+      apiRequest<DeleteSearchPreview>(`/api/v1/projects/${projectId}/searches/${search.id}`, {
+        method: 'DELETE',
+      }).then((preview) => ({ search, preview })),
+    onSuccess: ({ search, preview }) => {
+      setDeleteCandidate({ search, preview })
+    },
+  })
+
+  const confirmDeleteSearch = useMutation({
+    mutationFn: (search: SearchSource) =>
+      apiRequest<DeleteSearchPreview>(
+        `/api/v1/projects/${projectId}/searches/${search.id}?force=true`,
+        { method: 'DELETE' },
+      ),
+    onSuccess: () => {
+      setDeleteCandidate(null)
+      queryClient.invalidateQueries({ queryKey: ['searches', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['publications', projectId] })
     },
   })
 
@@ -332,7 +367,19 @@ export function ImportPage() {
                         <strong>{paperCount}</strong>
                         <span>{paperCount === 1 ? 'paper' : 'papers'}</span>
                       </div>
+                      <button
+                        type="button"
+                        className="button-danger"
+                        onClick={() => previewDeleteSearch.mutate(search)}
+                        disabled={previewDeleteSearch.isPending && previewDeleteSearch.variables?.id === search.id}
+                      >
+                        <IconTrash />
+                        Delete search
+                      </button>
                     </header>
+                    {previewDeleteSearch.error && previewDeleteSearch.variables?.id === search.id ? (
+                      <p className="error" role="alert">{previewDeleteSearch.error.message}</p>
+                    ) : null}
 
                     <dl className="search-history__metadata">
                       <div>
@@ -427,6 +474,44 @@ export function ImportPage() {
       </section>
       {projectNeedsPdfReview ? (
         <PdfMatchReview projectId={projectId} />
+      ) : null}
+      {deleteCandidate ? (
+        <ConfirmDialog
+          title={`Delete search "${deleteCandidate.search.sourceName}"?`}
+          variant="danger"
+          confirmLabel="Delete Search"
+          onCancel={() => setDeleteCandidate(null)}
+          onConfirm={() => confirmDeleteSearch.mutate(deleteCandidate.search)}
+          message={(
+            <>
+              {deleteCandidate.preview.publicationCount > 0 ? (
+                <>
+                  This will permanently delete the search and{' '}
+                  {deleteCandidate.preview.publicationCount === 1
+                    ? 'the 1 paper'
+                    : `all ${deleteCandidate.preview.publicationCount} papers`}{' '}
+                  it exclusively brought in. Papers also found by another search are kept.
+                </>
+              ) : (
+                <>This will permanently delete the search. No papers came in exclusively through it.</>
+              )}
+              {deleteCandidate.preview.screenedPublicationCount > 0 ? (
+                <span className="error" role="alert" style={{ display: 'block', marginTop: '0.75rem' }}>
+                  {deleteCandidate.preview.screenedPublicationCount === 1
+                    ? 'One of these papers has'
+                    : `${deleteCandidate.preview.screenedPublicationCount} of these papers have`}{' '}
+                  already been screened. Deleting will permanently lose that screening
+                  {deleteCandidate.preview.screenedPublicationCount === 1 ? ' decision.' : ' work.'}
+                </span>
+              ) : null}
+              {confirmDeleteSearch.error ? (
+                <span className="error" role="alert" style={{ display: 'block', marginTop: '0.75rem' }}>
+                  {confirmDeleteSearch.error.message}
+                </span>
+              ) : null}
+            </>
+          )}
+        />
       ) : null}
     </main>
   )

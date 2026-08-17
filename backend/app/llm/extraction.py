@@ -40,9 +40,9 @@ from app.llm.prompt import (
 )
 from app.llm.service import full_text_excluded, title_abstract_included
 from app.llm.structured import add_metrics, validated_chat
-from app.llm.task_service import was_cancelled
+from app.llm.task_service import active_research_questions, was_cancelled
 from app.llm.validation import ExtractionResult, validate_result
-from app.projects.models import Project
+from app.projects.models import Project, ResearchQuestion
 
 
 def _validated_chat(
@@ -64,12 +64,16 @@ def _consolidate_candidates(
     candidates: list[dict[str, Any]],
     schema: dict[str, Any],
     fields: list[LlmSchemaField],
+    research_questions: list[ResearchQuestion],
     metrics: dict[str, int],
     context_length: int,
     custom_instructions: str | None = None,
 ) -> ExtractionResult:
     current = candidates
-    instruction_tokens = len(field_instructions(fields)) // 3
+    instruction_tokens = (
+        len(field_instructions(fields))
+        + sum(len(item.text) for item in research_questions)
+    ) // 3
     response_tokens = max(1200, len(fields) * 300)
     char_budget = max(4000, (context_length - instruction_tokens - response_tokens) * 3)
     while len(current) > 1:
@@ -96,7 +100,9 @@ def _consolidate_candidates(
                 continue
             result, response = _validated_chat(
                 client,
-                consolidation_messages(fields, candidate_batch, custom_instructions),
+                consolidation_messages(
+                    fields, research_questions, candidate_batch, custom_instructions
+                ),
                 schema,
                 fields,
             )
@@ -163,6 +169,7 @@ def run_llm_extraction_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
         db.flush()
         return {"runId": run.id, "status": "failed"}
     fields = [field for field in schema_version.fields if field.enabled]
+    research_questions = active_research_questions(db, run.project_id)
     pages = list(
         db.scalars(
             select(DocumentPageText)
@@ -177,7 +184,8 @@ def run_llm_extraction_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
     chunks = chunk_pages(
         [(page.page_number, page.text) for page in pages],
         context_length=config.llm_context_length,
-        instruction_chars=len(field_instructions(fields)),
+        instruction_chars=len(field_instructions(fields))
+        + sum(len(item.text) for item in research_questions),
         field_count=len(fields),
     )
     run.status = ProcessingStatus.PROCESSING
@@ -194,7 +202,9 @@ def run_llm_extraction_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
         for chunk in chunks:
             result, response = _validated_chat(
                 client,
-                extraction_messages(fields, chunk, custom_instructions),
+                extraction_messages(
+                    fields, research_questions, chunk, custom_instructions
+                ),
                 schema,
                 fields,
             )
@@ -205,6 +215,7 @@ def run_llm_extraction_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
             candidates,
             schema,
             fields,
+            research_questions,
             metrics,
             config.llm_context_length,
             custom_instructions,

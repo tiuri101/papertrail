@@ -177,6 +177,7 @@ export function FormFieldsPanel({
     }),
     onSuccess: () => {
       setFieldLabel('')
+      setRequired(false)
       setOptionsText('')
       setRatingMin('1')
       setRatingMax('5')

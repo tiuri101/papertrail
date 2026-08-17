@@ -615,7 +615,7 @@ def test_long_documents_are_page_aware_and_chunked_without_losing_page_numbers(
     assert len(chunks) > 1
     assert "--- PDF PAGE 1 ---" in chunks[0]
     assert any("--- PDF PAGE 8 ---" in chunk for chunk in chunks)
-    messages = extraction_messages(schema.fields, chunks[0])
+    messages = extraction_messages(schema.fields, [], chunks[0])
     schema_json = output_schema(schema.fields, 3, 500)
     assert messages[0]["role"] == "system"
     assert schema_json["additionalProperties"] is False

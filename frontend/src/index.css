@@ -2936,6 +2936,11 @@ kbd {
   color: var(--color-primary-contrast);
 }
 
+.status-badge--primary {
+  background: var(--color-primary-container);
+  color: var(--color-primary);
+}
+
 .status-badge--success {
   background: var(--color-success-container);
   color: var(--color-success);
