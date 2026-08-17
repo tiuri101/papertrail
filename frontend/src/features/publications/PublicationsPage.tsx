@@ -24,6 +24,7 @@ import { useCanManageProject, useCanManagePublications } from '../../hooks/useCa
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 import { BackgroundJob, findJob, hasActiveJob, isJobActive } from '../jobs/jobStatus'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
+import { BrowserPdfRetrievalPanel } from '../fulltext/BrowserPdfRetrievalPanel'
 import { BulkPdfUploadPanel } from './BulkPdfUploadPanel'
 import { PublicationReviewDetails } from './PublicationReviewDetails'
 import { PublicationFieldInputs } from './publicationFields'
@@ -49,7 +50,11 @@ interface Publication {
   issn: string | null
   pubmedId: string | null
   arxivId: string | null
-  fullText: { available: boolean; retrievalStatus?: string | null }
+  fullText: {
+    available: boolean
+    retrievalStatus?: string | null
+    document?: { pageCount: number | null } | null
+  }
   screeningStatus?: ScreeningStatus
   extractionStatus?: string | null
 }
@@ -266,18 +271,34 @@ function PublicationRow({
           {' — '}{publication.authors ?? 'Unknown authors'}
           {publication.publicationYear ? ` (${publication.publicationYear})` : ''}
           {' '}
-          {publication.fullText?.available ? (
-            <span className="status-badge status-badge--success"><IconCheckCircle /> PDF</span>
-          ) : null}
-          {publication.doi ? (
-            <> <a href={`https://doi.org/${publication.doi}`} target="_blank" rel="noopener noreferrer">DOI</a></>
-          ) : null}
           {isSafeHttpUrl(publication.publisherUrl) ? (
             <> <a href={publication.publisherUrl} target="_blank" rel="noopener noreferrer">Publisher link</a></>
           ) : null}
         </div>
       </div>
       <div className="publication-card__workflow" aria-label="Review decisions">
+        {publication.doi ? (
+          <a
+            className="status-badge status-badge--info"
+            href={`https://doi.org/${publication.doi}`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            DOI
+          </a>
+        ) : null}
+        {publication.fullText?.available ? (
+          <a
+            className="status-badge status-badge--success"
+            href={`/api/v1/projects/${projectId}/publications/${publication.id}/full-text/content`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            <IconCheckCircle /> PDF{publication.fullText.document?.pageCount ? ` (${publication.fullText.document.pageCount})` : ''}
+          </a>
+        ) : (
+          <span className="status-badge status-badge--neutral"><IconXCircle /> No PDF</span>
+        )}
         <OutcomeBadge
           outcome={publication.screeningStatus?.titleAbstract}
           label={`Title/Abstract: ${screeningLabel(publication.screeningStatus?.titleAbstract)}`}
@@ -304,15 +325,15 @@ function PublicationRow({
           </span>
         ) : null}
       </div>
+      <details className="publication-card__abstract">
+        <summary>Abstract</summary>
+        <p>{publication.abstract?.trim() || 'No abstract available.'}</p>
+      </details>
       <PublicationReviewDetails
         projectId={projectId}
         publicationId={publication.id}
         canManage={canOverride}
       />
-      <details className="publication-card__abstract">
-        <summary>Abstract</summary>
-        <p>{publication.abstract?.trim() || 'No abstract available.'}</p>
-      </details>
       {canManage ? (
         <div className="toolbar publication-card__actions">
           <button type="button" className="button-secondary" onClick={() => setEditing(true)}>Edit</button>
@@ -629,6 +650,7 @@ export function PublicationsPage() {
           </div>
         </CollapsibleSection>
       ) : null}
+      <BrowserPdfRetrievalPanel projectId={projectId} />
       {canManage ? <MetadataConflictsPanel projectId={projectId} /> : null}
       {canManage ? <BulkPdfUploadPanel projectId={projectId} /> : null}
       {query.data ? (

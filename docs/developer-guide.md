@@ -53,6 +53,18 @@ npm run build
 npm run test:e2e
 ```
 
+## Browser extension checks
+
+```powershell
+cd browser-extension
+npm run typecheck
+npm run lint
+npm test
+npm run build
+```
+
+See [local development](local-development.md#browser-extension-development) for loading the unpacked extension and pairing it with a local Papertrail instance.
+
 ## Branching and releasing
 
 Day-to-day work happens on `dev`. Changes reach `main` only through a pull request from `dev`. Pull requests run the full backend and frontend test suites; that PR run is the only place tests execute, so `main` must require those checks to pass before allowing a merge (branch protection).
@@ -71,3 +83,4 @@ An out-of-band release can still be cut by pushing an annotated tag matching `YE
 - Create Alembic migrations for every persistent schema change and validate the full migration chain on a fresh database.
 - Do not start important background work from FastAPI request threads; enqueue it for the persistent worker.
 - Keep frontend server state in TanStack Query and validate authoritative rules again in FastAPI.
+- Keep publisher-specific logic (PDF discovery, redirect handling, publisher HTTP quirks) inside `browser-extension/`, not the backend; the backend should only ever understand a publication, a retrieval job, a browser agent, and a PDF result. FastAPI still validates every uploaded PDF independently -- the extension's own checks are only an early rejection, never the authority.

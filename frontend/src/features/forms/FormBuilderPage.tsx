@@ -19,6 +19,7 @@ import {
   selectFieldTypes,
   weightedFieldTypes,
 } from './fieldTypes'
+import {InfoBox} from "../../components/InfoBox";
 
 const formBuilderSections = [
   { id: 'section-create-form', label: 'Create Project Form' },
@@ -314,11 +315,12 @@ export function FormBuilderPage() {
       {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
       <section id="section-create-form" className="card">
         <h2>Create Project Form</h2>
-        <p className="muted">
-          Each project has one extraction form and one quality form. These are the forms used
-          when reviewers extract data or assess quality — there's no separate "active" form to
-          pick, so once a kind has a form here, edit that one instead of creating another.
-        </p>
+        <InfoBox icon={<IconCheckCircle />}>
+          <p>
+            Each project has one extraction form and one (optional) quality form. These forms are show to the reviewers
+            during screening and data extraction.
+          </p>
+        </InfoBox>
         <label>
           Kind
           <select

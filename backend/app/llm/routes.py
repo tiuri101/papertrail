@@ -152,6 +152,9 @@ def get_llm_settings(
         "extractionValidationEnabled": bool(
             settings and settings.extraction_validation_enabled
         ),
+        "analysisNarrativeEnabled": (
+            settings.analysis_narrative_enabled if settings else True
+        ),
         "installationEnabled": config.llm_enabled,
         "provider": "Ollama",
         "model": config.ollama_model,
@@ -273,6 +276,7 @@ def update_llm_settings(
         "titleAbstractScreeningEnabled": settings.title_abstract_screening_enabled,
         "fullTextScreeningEnabled": settings.full_text_screening_enabled,
         "extractionValidationEnabled": settings.extraction_validation_enabled,
+        "analysisNarrativeEnabled": settings.analysis_narrative_enabled,
     }
 
 

@@ -341,6 +341,8 @@ export function MyDecisionsPage() {
               <h3>This stage has been completed</h3>
               <p>
                 You can still change a decision, but doing so may affect results that have already been finalized.
+                Background jobs will be run automatically, but you might have to complete tasks such as screening or
+                data extraction manually.
               </p>
             </InfoBox>
           ) : null}

@@ -99,6 +99,9 @@ class ProjectLlmSettings(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     extraction_validation_enabled: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False
     )
+    analysis_narrative_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=True, nullable=False
+    )
     current_schema_version_id: Mapped[str | None] = mapped_column(
         String(36), index=True
     )

@@ -35,7 +35,7 @@ export function TitleAbstractSection({ projectId }: { projectId: string }) {
           ) : null}
         </>
       ) : null}
-      {query.data ? (
+      {query.data?.narrativeEnabled ? (
         <StageNarrativePanel
           projectId={projectId}
           stage="title_abstract_screening"

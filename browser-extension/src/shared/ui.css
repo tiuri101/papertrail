@@ -1,0 +1,430 @@
+/* Mirrors the color tokens, spacing scale, and card language used by the
+ * main Papertrail web app (frontend/src/index.css) so the extension's own
+ * pages read as part of the same product rather than a bare browser
+ * utility page. Kept self-contained (no import of the full app stylesheet)
+ * since these are a handful of simple pages. */
+
+:root {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color-scheme: dark;
+
+  --color-bg: #090e1a;
+  --color-surface: #121b2e;
+  --color-surface-raised: #172238;
+  --color-border: #2a3854;
+  --color-border-strong: #3a4b6d;
+  --color-text: #ffffff;
+  --color-text-secondary: #e6ebf3;
+  --color-text-muted: #c3cddc;
+  --color-primary: #8fa6ff;
+  --color-primary-strong: #7690f4;
+  --color-primary-contrast: #0d1530;
+  --color-primary-container: rgba(143, 166, 255, 0.14);
+  --color-success: #69d9ad;
+  --color-success-container: rgba(105, 217, 173, 0.12);
+  --color-warning: #f6c76c;
+  --color-warning-container: rgba(246, 199, 108, 0.12);
+  --color-danger: #ff9a9a;
+  --color-danger-strong: #ff7f82;
+  --color-danger-container: rgba(255, 127, 130, 0.12);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.22);
+  --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.22);
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    --color-bg: #f4f6fb;
+    --color-surface: #ffffff;
+    --color-surface-raised: #ffffff;
+    --color-border: #d9e0ec;
+    --color-border-strong: #c4cede;
+    --color-text: #172033;
+    --color-text-secondary: #59667a;
+    --color-text-muted: #7a8799;
+    --color-primary: #5369d8;
+    --color-primary-strong: #4358c6;
+    --color-primary-contrast: #ffffff;
+    --color-primary-container: rgba(83, 105, 216, 0.1);
+    --color-success: #147a59;
+    --color-success-container: rgba(20, 122, 89, 0.1);
+    --color-warning: #9d6712;
+    --color-warning-container: rgba(157, 103, 18, 0.1);
+    --color-danger: #bf3f46;
+    --color-danger-strong: #a9323a;
+    --color-danger-container: rgba(191, 63, 70, 0.09);
+
+    --shadow-sm: 0 1px 2px rgba(28, 39, 60, 0.08);
+    --shadow-md: 0 12px 32px rgba(28, 39, 60, 0.09);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-height: 100%;
+  background: var(--color-bg);
+}
+
+body {
+  margin: 0;
+  min-width: 300px;
+  padding: var(--space-5);
+  font-family: inherit;
+  font-size: 14px;
+  color: var(--color-text);
+  background:
+    radial-gradient(circle at 8% -12%, var(--color-primary-container), transparent 22rem),
+    var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Applied to the top-level <main> on full-tab pages (options, retrieval) so
+ * content forms a centered column instead of hugging one corner of a wide
+ * browser tab. The popup stays unwrapped -- its own fixed small width
+ * already reads correctly without centering. */
+.page {
+  width: min(440px, 100%);
+  margin: 0 auto;
+}
+
+h1 {
+  font-size: 17px;
+  font-weight: 720;
+  letter-spacing: -0.02em;
+  margin: 0 0 var(--space-4);
+  color: var(--color-text);
+}
+
+h2 {
+  font-size: 14px;
+  font-weight: 650;
+  margin: 0 0 var(--space-2);
+  color: var(--color-text);
+}
+
+.eyebrow {
+  display: block;
+  margin: 0 0 var(--space-1);
+  color: var(--color-text-muted);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+p {
+  font-size: 13px;
+  line-height: 1.55;
+  margin: 0 0 var(--space-2);
+  color: var(--color-text-secondary);
+}
+
+a {
+  color: var(--color-primary);
+}
+
+.muted {
+  color: var(--color-text-muted);
+}
+
+.error {
+  color: var(--color-danger);
+}
+
+label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-3);
+}
+
+input[type="text"],
+input[type="url"] {
+  display: block;
+  width: 100%;
+  padding: 8px 10px;
+  margin-top: var(--space-1);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+input[type="text"]:focus,
+input[type="url"]:focus {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 1px;
+}
+
+button {
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 8px 14px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--color-primary);
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+  transition: transform 120ms ease, background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease, opacity 140ms ease;
+}
+
+button:hover:not(:disabled) {
+  background: var(--color-primary-strong);
+  border-color: var(--color-primary-strong);
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
+}
+
+button:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: var(--shadow-sm);
+}
+
+button.secondary {
+  background: transparent;
+  color: var(--color-primary);
+}
+
+button.secondary:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
+}
+
+button.danger {
+  background: transparent;
+  border-color: var(--color-danger);
+  color: var(--color-danger);
+}
+
+button.danger:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+}
+
+button:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.toggle-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-3) 0 var(--space-1);
+}
+
+.toggle-row input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+
+.toolbar {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  margin: var(--space-3) 0;
+}
+
+.card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  background: linear-gradient(180deg, var(--color-surface-raised), var(--color-surface));
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-4);
+  margin: var(--space-4) 0;
+}
+
+.card > *:last-child {
+  margin-bottom: 0;
+}
+
+.alert {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  border: 1px solid color-mix(in srgb, var(--color-danger) 28%, var(--color-border));
+  border-radius: var(--radius-md);
+  background: var(--color-danger-container);
+  padding: var(--space-3);
+  margin: var(--space-3) 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-danger);
+}
+
+.alert__icon {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  fill: currentColor;
+}
+
+.callout {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 24%, var(--color-border));
+  border-radius: var(--radius-md);
+  background: var(--color-primary-container);
+  padding: var(--space-3);
+  margin: var(--space-3) 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-secondary);
+}
+
+.callout--warning {
+  border-color: color-mix(in srgb, var(--color-warning) 28%, var(--color-border));
+  background: var(--color-warning-container);
+}
+
+.callout__icon {
+  flex: 0 0 auto;
+  width: 16px;
+  height: 16px;
+  margin-top: 1px;
+  fill: currentColor;
+  color: var(--color-primary);
+}
+
+.callout--warning .callout__icon {
+  color: var(--color-warning);
+}
+
+.stats {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: 0;
+  margin: var(--space-3) 0;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 999px;
+  padding: 5px 11px;
+  font-size: 12px;
+  font-weight: 700;
+  border: 1px solid color-mix(in srgb, var(--color-text-muted) 28%, var(--color-border));
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+}
+
+.pill--success {
+  border-color: color-mix(in srgb, var(--color-success) 28%, var(--color-border));
+  background: var(--color-success-container);
+  color: var(--color-success);
+}
+
+.pill--warning {
+  border-color: color-mix(in srgb, var(--color-warning) 32%, var(--color-border));
+  background: var(--color-warning-container);
+  color: var(--color-warning);
+}
+
+.empty-state {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-2);
+  border: 1px dashed var(--color-border-strong);
+  border-radius: var(--radius-md);
+  padding: var(--space-6) var(--space-4);
+  margin: var(--space-4) 0;
+  text-align: center;
+}
+
+.empty-state h3 {
+  margin: 0;
+}
+
+.empty-state p {
+  margin: 0;
+}
+
+.empty-state__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
+  background: var(--color-primary-container);
+  color: var(--color-primary);
+}
+
+.empty-state__icon svg {
+  width: 20px;
+  height: 20px;
+  fill: currentColor;
+}
+
+.empty-state--success .empty-state__icon {
+  background: var(--color-success-container);
+  color: var(--color-success);
+}
+
+.empty-state--warning .empty-state__icon {
+  background: var(--color-warning-container);
+  color: var(--color-warning);
+}
+
+.status-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.status-row > h2 {
+  margin: 0;
+}
+
+.status-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+}
+
+.status-dot--active {
+  background: var(--color-primary);
+  animation: status-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes status-pulse {
+  0%, 100% { opacity: 1; box-shadow: 0 0 0 0 var(--color-primary-container); }
+  50% { opacity: 0.6; box-shadow: 0 0 0 4px var(--color-primary-container); }
+}
+
+code {
+  display: inline-block;
+  padding: 6px 8px;
+  background: color-mix(in srgb, var(--color-text) 8%, transparent);
+  border-radius: var(--radius-sm);
+  word-break: break-all;
+  font-size: 12px;
+  color: var(--color-text);
+}

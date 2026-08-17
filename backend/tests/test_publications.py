@@ -593,6 +593,38 @@ def test_publication_added_manually_after_title_abstract_started_gets_screened(
     assert work_item.assigned_reviewer_id == reviewer.id
 
 
+@pytest.mark.parametrize(
+    "stage",
+    [ProjectStage.FULL_TEXT, ProjectStage.EXTRACTION, ProjectStage.COMPLETED],
+)
+def test_publication_can_be_added_after_earlier_stages_have_finished(
+    client, db, stage
+) -> None:
+    _, reviewer, project = project_in_title_abstract(db, stage=stage)
+    csrf = login(client)
+
+    created = client.post(
+        f"/api/v1/projects/{project.id}/publications",
+        json={"title": "Added after other stages finished"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert created.status_code == 201
+    publication_id = created.json()["id"]
+
+    work_item = db.scalar(
+        select(ScreeningWorkItem).where(
+            ScreeningWorkItem.publication_id == publication_id,
+            ScreeningWorkItem.stage == ScreeningStage.TITLE_ABSTRACT,
+        )
+    )
+    assert work_item is not None
+    assert work_item.assigned_reviewer_id == reviewer.id
+    # Adding the publication must not move other, already-finished
+    # publications' project stage backwards.
+    db.refresh(project)
+    assert project.stage == stage
+
+
 def test_publication_import_after_title_abstract_started_gets_screened(db) -> None:
     _, reviewer, project = project_in_title_abstract(db)
     batch = ImportBatch(
@@ -820,15 +852,3 @@ def test_publication_response_includes_screening_status_per_stage(client, db) ->
     assert audit.event_metadata["reason"] == "Incorrectly included during screening"
 
 
-def test_publication_creation_blocked_once_full_text_has_started(client, db) -> None:
-    _, _, project = project_in_title_abstract(db, stage=ProjectStage.FULL_TEXT)
-    csrf = login(client)
-
-    response = client.post(
-        f"/api/v1/projects/{project.id}/publications",
-        json={"title": "Too late"},
-        headers={"X-CSRF-Token": csrf},
-    )
-
-    assert response.status_code == 400
-    assert db.scalar(select(Publication).where(Publication.title == "Too late")) is None

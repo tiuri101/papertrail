@@ -26,6 +26,7 @@ export interface StageAnalysisResponse<TStats> {
   stats: TStats
   narrative: StageNarrative | null
   isStale: boolean
+  narrativeEnabled: boolean
 }
 
 export interface DuplicateReviewStats {

@@ -354,6 +354,44 @@ def test_reset_password_rejects_expired_or_unknown_token(client) -> None:
     assert response.json()["error"]["code"] == "invalid_reset_token"
 
 
+def test_update_me_current_password_is_rate_limited(client, db) -> None:
+    create_user(db, "reviewer", "Reviewer", "reviewer-password", is_admin=False)
+    db.commit()
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"username": "reviewer", "password": "reviewer-password"},
+    )
+    csrf = login.json()["csrfToken"]
+
+    settings = get_settings()
+    original_attempts = settings.login_max_attempts
+    settings.login_max_attempts = 2
+    try:
+        for _ in range(2):
+            wrong = client.patch(
+                "/api/v1/auth/me",
+                json={
+                    "currentPassword": "wrong-password",
+                    "newPassword": "new-password-1",
+                },
+                headers={"X-CSRF-Token": csrf},
+            )
+            assert wrong.status_code == 400
+
+        blocked = client.patch(
+            "/api/v1/auth/me",
+            json={
+                "currentPassword": "reviewer-password",
+                "newPassword": "new-password-1",
+            },
+            headers={"X-CSRF-Token": csrf},
+        )
+        assert blocked.status_code == 429
+        assert blocked.json()["error"]["code"] == "rate_limited"
+    finally:
+        settings.login_max_attempts = original_attempts
+
+
 def test_forgot_password_is_rate_limited_per_email_and_client(client, db) -> None:
     create_user(
         db, "reviewer", "Reviewer", "old-password", email="reviewer@example.org"

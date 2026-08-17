@@ -21,3 +21,4 @@ frontend/test-results/
 backend/.idea
 backend/papertrail_backend.egg-info
 frontend/.idea
+browser-extension/.idea

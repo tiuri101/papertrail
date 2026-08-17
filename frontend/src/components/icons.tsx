@@ -190,6 +190,15 @@ export function IconFile() {
   )
 }
 
+export function IconKeyboard() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" fillRule="evenodd">
+      <path d="M2 6.5A1.5 1.5 0 0 1 3.5 5h17A1.5 1.5 0 0 1 22 6.5v11a1.5 1.5 0 0 1-1.5 1.5h-17A1.5 1.5 0 0 1 2 17.5v-11Zm2 .5v10h16V7H4Z" />
+      <path d="M5.5 9h2v2h-2V9Zm3.5 0h2v2h-2V9Zm3.5 0h2v2h-2V9Zm3.5 0h2v2h-2V9ZM5.5 12h2v2h-2v-2Zm3.5 0h2v2h-2v-2Zm3.5 0h2v2h-2v-2Zm3.5 0h2v2h-2v-2ZM6.5 15h11v2h-11v-2Z" />
+    </svg>
+  )
+}
+
 export function IconSparkle() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">

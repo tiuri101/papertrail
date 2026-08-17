@@ -160,7 +160,6 @@ function ProjectAdministrationPage() {
       <h1>Project Administration</h1>
       <p className="muted">
         Configure this project's details, membership, workflow rules, and AI assistance.
-        Changes here apply only to this project.
       </p>
       <div className="admin-tabs" role="tablist" aria-label="Project administration sections">
         {adminTabs.map((tab) => (

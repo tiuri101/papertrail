@@ -1,16 +1,30 @@
 import { HighlightedText } from '../../components/HighlightedText'
 import { IconArrowRight, IconCheckCircle } from '../../components/icons'
+import { formatHotkey, loadScreeningHotkeys } from '../../lib/screeningHotkeys'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { CriteriaAnswerFields } from './CriteriaAnswerFields'
+import { useScreeningDecisionHotkeys } from './useScreeningDecisionHotkeys'
 import type { ScreeningQueue } from './useScreeningQueue'
 import { ScreeningLlmPanel } from '../llm/LlmTaskComponents'
 
 export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: string[] }) {
   const { item, answers, setAnswers, outcome, setOutcome, notes, setNotes, criteriaComplete, submit, highlightKeywords } = queue
-  if (!item) return null
   const awaitingConfirmation = queue.submitted !== null
-  const decisionError = awaitingConfirmation ? queue.reviseDecision.error : submit.error
   const decisionPending = awaitingConfirmation ? queue.reviseDecision.isPending : submit.isPending
+
+  useScreeningDecisionHotkeys({
+    enabled: Boolean(item),
+    setOutcome,
+    onSubmit: () => {
+      if (decisionPending || !criteriaComplete) return
+      if (awaitingConfirmation) queue.confirmDecision()
+      else submit.mutate()
+    },
+  })
+
+  if (!item) return null
+  const decisionError = awaitingConfirmation ? queue.reviseDecision.error : submit.error
+  const submitHotkey = formatHotkey(loadScreeningHotkeys().submit)
 
   return (
     <article className="card">
@@ -43,6 +57,7 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
         ) : null}
       </div>
       <CriteriaAnswerFields
+        key={item.id}
         criteria={item.criteria}
         answers={answers}
         setAnswers={setAnswers}
@@ -50,6 +65,7 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
         setOutcome={setOutcome}
         notes={notes}
         setNotes={setNotes}
+        autoFocusFirstCriterion
       />
       <ScreeningLlmPanel
         projectId={queue.projectId}
@@ -74,6 +90,7 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
         >
           <IconCheckCircle />
           {awaitingConfirmation ? 'Confirm Decision' : 'Submit Decision'}
+          {submitHotkey ? <kbd className="submit-button__hotkey" aria-hidden="true">{submitHotkey}</kbd> : null}
         </button>
         {!awaitingConfirmation ? (
           <button

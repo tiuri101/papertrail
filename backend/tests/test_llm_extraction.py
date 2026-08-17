@@ -1621,6 +1621,31 @@ def test_validation_review_lists_assigned_mismatches_and_supports_revision(
     assert forbidden.status_code == 403
 
 
+def test_analysis_narrative_enabled_defaults_true_and_can_be_toggled(
+    client, db
+) -> None:
+    admin, _, project, _, _, _, _, _ = setup_llm_project(db)
+    csrf = client.post(
+        "/api/v1/auth/login",
+        json={"username": admin.username, "password": "secret-password"},
+    ).json()["csrfToken"]
+
+    settings_response = client.get(f"/api/v1/projects/{project.id}/llm/settings")
+    assert settings_response.status_code == 200
+    assert settings_response.json()["analysisNarrativeEnabled"] is True
+
+    disabled = client.patch(
+        f"/api/v1/projects/{project.id}/llm/settings",
+        json={"analysisNarrativeEnabled": False},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert disabled.status_code == 200
+    assert disabled.json()["analysisNarrativeEnabled"] is False
+
+    settings_response = client.get(f"/api/v1/projects/{project.id}/llm/settings")
+    assert settings_response.json()["analysisNarrativeEnabled"] is False
+
+
 def test_disabling_capability_cancels_queued_run_and_job(client, db) -> None:
     admin, _, project, publication, _, _, _, _ = setup_llm_project(db)
     include_title_abstract(db, publication)

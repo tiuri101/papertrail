@@ -22,6 +22,9 @@ class LlmSettingsUpdate(ApiModel):
     extraction_validation_enabled: bool | None = Field(
         default=None, alias="extractionValidationEnabled"
     )
+    analysis_narrative_enabled: bool | None = Field(
+        default=None, alias="analysisNarrativeEnabled"
+    )
 
 
 class LlmInstallationSettingsUpdate(ApiModel):

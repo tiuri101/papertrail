@@ -230,12 +230,7 @@ export function ResearchQuestionsPanel({
           Research Questions
         </span>
       </h2>
-      <InfoBox icon={<IconHelpCircle />}>
-        <p>
-          The questions this review sets out to answer. Keep them specific — reviewers and
-          screening criteria will be built around them.
-        </p>
-      </InfoBox>
+
       {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
       <table>
         <thead>
@@ -345,8 +340,8 @@ export function CriteriaPanel({
       </h2>
       <InfoBox icon={<IconCheckCircle />}>
         <p>
-          The criteria reviewers apply when screening publications. Every inclusion and exclusion
-          criterion is shown to reviewers as a question they must answer for each publication.
+          Every inclusion and exclusion criterion is shown during the screening phases. If LLM-support is
+          enabled, these criteria are part of the context for LLM-based content generation.
         </p>
       </InfoBox>
       {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}

@@ -25,6 +25,7 @@ from app.forms.models import FormKind
 from app.forms.service import add_field, create_form
 from app.fulltext.models import FullTextRetrieval, RetrievalStatus
 from app.jobs.models import BackgroundJob
+from app.llm.schema_service import project_settings
 from app.projects.models import (
     Criterion,
     CriterionKind,
@@ -408,6 +409,54 @@ def test_project_stage_analysis_endpoint_reports_staleness(client, db) -> None:
     current_body = current.json()
     assert current_body["narrative"]["summary"] == "Looks fine."
     assert current_body["isStale"] is False
+
+
+def test_project_stage_analysis_hides_narrative_when_disabled(client, db) -> None:
+    project = _seed_extraction_project(db)
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    db.commit()
+    login(client, "admin", "secret-password")
+
+    settings = project_settings(db, project.id, create=True)
+    settings.analysis_narrative_enabled = False
+    db.commit()
+
+    stats = compute_extraction_stats(db, project.id)
+    db.add(
+        StageAnalysis(
+            project_id=project.id,
+            stage="extraction_quality",
+            summary="Looks fine.",
+            stats_fingerprint=compute_stats_fingerprint(stats),
+            generated_at=datetime.now(UTC),
+        )
+    )
+    db.commit()
+
+    response = client.get(f"/api/v1/projects/{project.id}/analysis/extraction_quality")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["narrativeEnabled"] is False
+    assert body["narrative"] is None
+
+
+def test_regenerate_stage_analysis_rejected_when_narrative_disabled(
+    client, db
+) -> None:
+    project = _seed_extraction_project(db)
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    db.commit()
+    csrf = login(client, "admin", "secret-password")
+
+    settings = project_settings(db, project.id, create=True)
+    settings.analysis_narrative_enabled = False
+    db.commit()
+
+    response = client.post(
+        f"/api/v1/projects/{project.id}/analysis/extraction_quality/regenerate",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 400
 
 
 def test_project_stage_analysis_endpoint_rejects_unknown_stage(client, db) -> None:

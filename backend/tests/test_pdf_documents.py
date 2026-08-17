@@ -16,10 +16,13 @@ from app.projects.models import Project, ProjectMembership, ReviewType
 from app.publications.models import Publication
 
 
-def pdf_bytes(*, title: str = "Test paper", doi: str = "10.1000/test") -> bytes:
+def pdf_bytes(
+    *, title: str = "Test paper", doi: str = "10.1000/test", pages: int = 1
+) -> bytes:
     stream = BytesIO()
     writer = PdfWriter()
-    writer.add_blank_page(width=72, height=72)
+    for _ in range(pages):
+        writer.add_blank_page(width=72, height=72)
     writer.add_metadata(
         {"/Title": title, "/Author": "Doe, Jane", "/Subject": f"doi:{doi}"}
     )
@@ -83,18 +86,21 @@ def test_upload_view_replace_remove_and_history(client, db) -> None:
     document = uploaded.json()["document"]
     assert document["originalFilename"] == "preprint.pdf"
     assert document["sha256"] == hashlib.sha256(first).hexdigest()
+    assert document["pageCount"] == 1
     assert "storage" not in str(uploaded.json()).lower()
 
     row = db.get(PublicationDocument, document["id"])
     assert row is not None
     assert row.storage_key.endswith(f"/{row.id}.pdf")
     assert "preprint" not in row.storage_key
+    assert row.page_count == 1
     assert storage_path(row.storage_key).read_bytes() == first
     publication_response = client.get(
         f"/api/v1/projects/{project.id}/publications/{publication.id}"
     )
     assert publication_response.json()["fullText"]["available"] is True
     assert publication_response.json()["fullText"]["document"]["id"] == row.id
+    assert publication_response.json()["fullText"]["document"]["pageCount"] == 1
 
     content = client.get(f"{endpoint}/content")
     assert content.status_code == 200
@@ -120,13 +126,14 @@ def test_upload_view_replace_remove_and_history(client, db) -> None:
     assert db.get(PublicationDocument, document["id"]).is_active is True
     assert client.get(f"{endpoint}/content").content == first
 
-    second = pdf_bytes(title="Final", doi="10.1000/final")
+    second = pdf_bytes(title="Final", doi="10.1000/final", pages=3)
     replaced = client.post(
         endpoint,
         files={"file": ("final.pdf", second, "application/pdf")},
         headers={"X-CSRF-Token": csrf},
     )
     assert replaced.status_code == 201
+    assert replaced.json()["document"]["pageCount"] == 3
     replacement_id = replaced.json()["document"]["id"]
     db.expire_all()
     previous = db.get(PublicationDocument, document["id"])

@@ -156,7 +156,6 @@ export function ReportingPage() {
           <div>
             <span className="eyebrow">At a glance</span>
             <h2 id="prisma-counts-heading">PRISMA Counts</h2>
-            <p className="muted">A quick view of the current reporting totals.</p>
           </div>
           {prisma.isLoading ? <p>Loading counts…</p> : null}
           {prismaCounts.length ? (

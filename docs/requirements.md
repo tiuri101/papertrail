@@ -15,7 +15,7 @@ Papertrail is a self-hosted web application for managing academic literature rev
 
 Users manually export literature search results from academic databases such as ScienceDirect, IEEE Xplore, the ACM Digital Library, and SpringerLink. These exports are imported into Papertrail, normalized, checked for duplicates, screened in two stages, and processed through configurable extraction and quality-assessment forms.
 
-Papertrail does not retrieve or store full-text publications. Instead, it provides DOI, publisher, and other external links so reviewers can access full texts outside the application.
+Papertrail stores full-text PDFs that reviewers supply, either uploaded directly or retrieved through an optional paired Chrome extension using the reviewer's own browser network access and sign-in state. The Papertrail server itself never scrapes publisher full text using server-side institutional credentials; it also provides DOI, publisher, and other external links for cases where a reviewer obtains the full text manually outside the application.
 
 The application follows the structure and reporting requirements of PRISMA 2020 where applicable. It records the information needed to generate a PRISMA flow diagram, exclusion tables, review datasets, and bibliographic exports.
 
@@ -469,15 +469,13 @@ A separate discussion or comment system is not required.
 
 ## 16. Full-Text Retrieval and Screening
 
-Papertrail does not retrieve or store full-text files.
-
-For each publication, the application provides available external links, including:
+Papertrail stores full-text PDFs. For each publication, the application also provides available external links, including:
 
 - DOI link
 - Publisher URL
 - Other identifier-based links where useful
 
-Reviewers obtain the full text manually outside Papertrail.
+Reviewers obtain the full text either by uploading a PDF they are authorized to access and store, or by pairing an optional Chrome Manifest V3 extension ("Browser Helper") that retrieves it through the reviewer's own browser network access and sign-in state (e.g. institutional IP access, VPN, or an existing publisher sign-in in Chrome) and uploads it through the same PDF pipeline. The Papertrail server never scrapes publisher full text using server-side institutional credentials, receives publisher cookies or credentials, or bypasses publisher access controls. Automated browser retrieval attempts are tracked separately from the retrieval status below: only a successful automated retrieval changes it, and an automated failure never marks a publication as not found or inaccessible on a reviewer's behalf.
 
 ### 16.1 Retrieval status
 
