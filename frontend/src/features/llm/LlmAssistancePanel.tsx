@@ -233,7 +233,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
       <InfoBox icon={<IconSettings />} tone="danger" alert>
         <p>
           LLM support is currently disabled for this Papertrail installation. An administrator
-          must enable it from Instance Settings before AI assistance features work here.
+          must enable it from Global Settings before AI assistance features work here.
         </p>
       </InfoBox>
     ) : null}

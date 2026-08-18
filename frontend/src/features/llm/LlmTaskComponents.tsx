@@ -3,7 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 
 import { apiRequest } from '../../api/client'
 import { IconRestart } from '../../components/icons'
-import { criterionNumbers } from '../screening/criteriaNumbering'
+import { criterionNumbers, criterionOrderIndex } from '../screening/criteriaNumbering'
 import type { CriterionAnswer, ScreeningCriterion } from '../screening/useScreeningQueue'
 
 export interface LlmEvidenceItem {
@@ -112,6 +112,7 @@ export function ScreeningLlmPanel({
   criteria?: ScreeningCriterion[]
 }) {
   const numbers = criterionNumbers(criteria)
+  const orderIndex = criterionOrderIndex(criteria)
   const suffix = stage === 'title_abstract' ? 'llm-title-abstract' : 'llm-full-text'
   const endpoint = `/api/v1/projects/${projectId}/screening/work-items/${itemId}/${suffix}`
   const query = useQuery({
@@ -241,7 +242,16 @@ export function ScreeningLlmPanel({
         {data.confidence ? ` · ${data.confidence} confidence` : ''}
       </p>
       {data.reasoningSummary ? <p>{data.reasoningSummary}</p> : null}
-      {(data.criteria ?? []).map((criterion) => {
+      {[...(data.criteria ?? [])]
+        .sort((a, b) => {
+          const aIndex = a.criterionId ? orderIndex[a.criterionId] : undefined
+          const bIndex = b.criterionId ? orderIndex[b.criterionId] : undefined
+          if (aIndex === undefined && bIndex === undefined) return 0
+          if (aIndex === undefined) return 1
+          if (bIndex === undefined) return -1
+          return aIndex - bIndex
+        })
+        .map((criterion) => {
         const comparison = criterion.criterionId
           ? criterionComparison(criterion.assessment, criteriaAnswers?.[criterion.criterionId])
           : null

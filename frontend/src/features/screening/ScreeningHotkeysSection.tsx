@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import type { KeyboardEvent } from 'react'
 
+import { CollapsibleSection } from '../../components/CollapsibleSection'
+import { IconKeyboard } from '../../components/icons'
 import {
   DEFAULT_SCREENING_HOTKEYS,
   formatHotkey,
@@ -66,8 +68,7 @@ export function ScreeningHotkeysSection() {
   const conflicts = duplicateKeys(hotkeys)
 
   return (
-    <section className="card">
-      <h2>Screening Hotkeys</h2>
+    <CollapsibleSection id="section-account-hotkeys" title="Screening Hotkeys" icon={<IconKeyboard />}>
       <p className="muted">
         Assign a keyboard shortcut for each screening decision, plus one to submit or confirm it, so
         you can quickly move through papers. Click a field and press the key you
@@ -108,6 +109,6 @@ export function ScreeningHotkeysSection() {
         </button>
       </div>
       <p className="muted" aria-live="polite">{saved ? 'Saved.' : ' '}</p>
-    </section>
+    </CollapsibleSection>
   )
 }
