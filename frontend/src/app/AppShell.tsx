@@ -71,7 +71,7 @@ export function AppShell() {
                   }
                 >
                   <IconSettings />
-                  Instance Settings
+                  Global Settings
                 </NavLink>
               ) : null}
               <NavLink
@@ -156,7 +156,7 @@ export function AppShell() {
             {session?.user.isAdmin ? (
               <NavLink to="/instance-settings" className="nav-link" onClick={() => setMobileMenuOpen(false)}>
                 <IconSettings />
-                Instance Settings
+                Global Settings
               </NavLink>
             ) : null}
             <NavLink to="/account" className="nav-link" onClick={() => setMobileMenuOpen(false)}>

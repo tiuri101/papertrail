@@ -5,6 +5,7 @@ import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { Button } from '../../components/Button'
 import { InfoBox } from '../../components/InfoBox'
+import { SectionNavigationLayout } from '../../components/SectionNavigationLayout'
 import {
   IconAlertTriangle,
   IconCheckCircle,
@@ -14,6 +15,15 @@ import {
   IconMail,
   IconSettings,
 } from '../../components/icons'
+
+const instanceSettingsSections = [
+  { id: 'section-instance-llm-connection', label: 'LLM Connection' },
+  { id: 'section-instance-llm-prompts', label: 'AI Prompts' },
+  { id: 'section-instance-email', label: 'Email (SMTP)' },
+  { id: 'section-instance-account-security', label: 'Account Security' },
+  { id: 'section-instance-pdfs', label: 'Full-Text PDFs' },
+  { id: 'section-instance-background-jobs', label: 'Background Jobs' },
+]
 
 interface InstallationConnectionSettings {
   enabled: boolean
@@ -256,464 +266,466 @@ export function InstanceSettingsPage() {
   })
 
   return (
-    <main className="page">
-      <p className="eyebrow">Installation administration</p>
-      <h1>Instance Settings</h1>
-      <p className="muted">
-        Settings shared across every project on this Papertrail installation.
-      </p>
-
-      <CollapsibleSection id="section-instance-llm-connection" title="LLM Connection" icon={<IconSettings />}>
-        <InfoBox icon={<IconSettings />}>
-          <p>
-            The Ollama connection Papertrail uses for LLM suggestions, shared across every project
-            on this installation.
-          </p>
-        </InfoBox>
-        {connection.data ? (
-          <form
-            className="llm-installation-settings"
-            onSubmit={(event) => { event.preventDefault(); saveConnection.mutate() }}
-          >
-            <div className="llm-installation-settings__heading">
-              <div>
-                <h3>Connection configuration</h3>
+    <SectionNavigationLayout items={instanceSettingsSections}>
+      <main className="page">
+        <p className="eyebrow">Installation administration</p>
+        <h1>Global Settings</h1>
+        <p className="muted">
+          Settings shared across every project on this Papertrail installation.
+        </p>
+  
+        <CollapsibleSection id="section-instance-llm-connection" title="LLM Connection" icon={<IconSettings />}>
+          <InfoBox icon={<IconSettings />}>
+            <p>
+              The Ollama connection Papertrail uses for LLM suggestions, shared across every project
+              on this installation.
+            </p>
+          </InfoBox>
+          {connection.data ? (
+            <form
+              className="llm-installation-settings"
+              onSubmit={(event) => { event.preventDefault(); saveConnection.mutate() }}
+            >
+              <div className="llm-installation-settings__heading">
+                <div>
+                  <h3>Connection configuration</h3>
+                </div>
+                <label className="toggle-label">
+                  <input
+                    type="checkbox"
+                    checked={enabled}
+                    onChange={(event) => setEnabled(event.target.checked)}
+                  />
+                  LLM enabled
+                </label>
               </div>
-              <label className="toggle-label">
-                <input
-                  type="checkbox"
-                  checked={enabled}
-                  onChange={(event) => setEnabled(event.target.checked)}
+              <div className="llm-installation-settings__grid">
+                <label>
+                  Endpoint
+                  <input
+                    type="url"
+                    value={endpoint}
+                    onChange={(event) => setEndpoint(event.target.value)}
+                    placeholder="http://ollama:11434"
+                    required
+                  />
+                </label>
+                <label>
+                  Model
+                  <input
+                    value={model}
+                    onChange={(event) => setModel(event.target.value)}
+                    placeholder="gemma3:12b"
+                    required
+                  />
+                </label>
+                <label>
+                  Context length
+                  <input
+                    type="number"
+                    min="4096"
+                    step="1024"
+                    value={contextLength}
+                    onChange={(event) => setContextLength(event.target.value)}
+                    required
+                  />
+                </label>
+                <label>
+                  API key
+                  <input
+                    type="password"
+                    value={apiKey}
+                    onChange={(event) => setApiKey(event.target.value)}
+                    placeholder={apiKeySet ? 'Saved — leave blank to keep it' : 'Optional bearer token'}
+                    autoComplete="new-password"
+                  />
+                </label>
+                <label>
+                  Request timeout (seconds)
+                  <input
+                    type="number"
+                    min="1"
+                    value={requestTimeoutSeconds}
+                    onChange={(event) => setRequestTimeoutSeconds(event.target.value)}
+                    required
+                  />
+                </label>
+                <label>
+                  Max concurrent jobs
+                  <input
+                    type="number"
+                    min="1"
+                    value={maxConcurrentJobs}
+                    onChange={(event) => setMaxConcurrentJobs(event.target.value)}
+                    required
+                  />
+                </label>
+                <label>
+                  Max evidence items
+                  <input
+                    type="number"
+                    min="1"
+                    max="10"
+                    value={maxEvidenceItems}
+                    onChange={(event) => setMaxEvidenceItems(event.target.value)}
+                    required
+                  />
+                </label>
+                <label>
+                  Max evidence quote length (characters)
+                  <input
+                    type="number"
+                    min="50"
+                    max="2000"
+                    value={maxEvidenceQuoteChars}
+                    onChange={(event) => setMaxEvidenceQuoteChars(event.target.value)}
+                    required
+                  />
+                </label>
+              </div>
+              <div className="toolbar">
+                <Button type="submit" loading={saveConnection.isPending}>
+                  <IconCheckCircle />
+                  {saveConnection.isPending ? 'Saving…' : 'Save Connection Settings'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => test.mutate()}
+                  loading={test.isPending}
+                >
+                  {test.isPending ? 'Testing…' : 'Test Connection'}
+                </Button>
+              </div>
+            </form>
+          ) : null}
+          {testResult ? (
+            <p className={testResult.ok ? 'success' : 'error'} role={testResult.ok ? 'status' : 'alert'}>
+              {testResult.message}
+            </p>
+          ) : null}
+          {saveConnection.error ? <p className="error" role="alert">{saveConnection.error.message}</p> : null}
+        </CollapsibleSection>
+  
+        <CollapsibleSection id="section-instance-llm-prompts" title="AI Prompts" icon={<IconLightbulb />}>
+          <InfoBox icon={<IconLightbulb />}>
+            <p>
+              The base system prompts Papertrail sends to the LLM for each task. Project owners can
+              append project-specific instructions to these from their project&apos;s AI Prompts
+              settings.
+            </p>
+          </InfoBox>
+          {prompts.error ? <p className="error" role="alert">{prompts.error.message}</p> : null}
+          {prompts.data?.flows.map((flow) => (
+            <div className="prompt-flow" key={flow.key}>
+              <h3>
+                {flow.label}
+                {flow.isOverridden ? <span className="status-badge">Customized</span> : null}
+              </h3>
+              <label>
+                Base prompt
+                <textarea
+                  value={promptDraft[flow.key] ?? ''}
+                  onChange={(event) => setPromptDraft((current) => ({
+                    ...current, [flow.key]: event.target.value,
+                  }))}
+                  rows={8}
                 />
-                LLM enabled
               </label>
+              <div className="toolbar">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => savePrompts.mutate({ [PROMPT_PAYLOAD_FIELD[flow.key]]: null })}
+                  disabled={!flow.isOverridden || savePrompts.isPending}
+                >
+                  Reset to Default
+                </Button>
+              </div>
             </div>
-            <div className="llm-installation-settings__grid">
-              <label>
-                Endpoint
-                <input
-                  type="url"
-                  value={endpoint}
-                  onChange={(event) => setEndpoint(event.target.value)}
-                  placeholder="http://ollama:11434"
-                  required
-                />
-              </label>
-              <label>
-                Model
-                <input
-                  value={model}
-                  onChange={(event) => setModel(event.target.value)}
-                  placeholder="gemma3:12b"
-                  required
-                />
-              </label>
-              <label>
-                Context length
-                <input
-                  type="number"
-                  min="4096"
-                  step="1024"
-                  value={contextLength}
-                  onChange={(event) => setContextLength(event.target.value)}
-                  required
-                />
-              </label>
-              <label>
-                API key
-                <input
-                  type="password"
-                  value={apiKey}
-                  onChange={(event) => setApiKey(event.target.value)}
-                  placeholder={apiKeySet ? 'Saved — leave blank to keep it' : 'Optional bearer token'}
-                  autoComplete="new-password"
-                />
-              </label>
-              <label>
-                Request timeout (seconds)
-                <input
-                  type="number"
-                  min="1"
-                  value={requestTimeoutSeconds}
-                  onChange={(event) => setRequestTimeoutSeconds(event.target.value)}
-                  required
-                />
-              </label>
-              <label>
-                Max concurrent jobs
-                <input
-                  type="number"
-                  min="1"
-                  value={maxConcurrentJobs}
-                  onChange={(event) => setMaxConcurrentJobs(event.target.value)}
-                  required
-                />
-              </label>
-              <label>
-                Max evidence items
-                <input
-                  type="number"
-                  min="1"
-                  max="10"
-                  value={maxEvidenceItems}
-                  onChange={(event) => setMaxEvidenceItems(event.target.value)}
-                  required
-                />
-              </label>
-              <label>
-                Max evidence quote length (characters)
-                <input
-                  type="number"
-                  min="50"
-                  max="2000"
-                  value={maxEvidenceQuoteChars}
-                  onChange={(event) => setMaxEvidenceQuoteChars(event.target.value)}
-                  required
-                />
-              </label>
-            </div>
-            <div className="toolbar">
-              <Button type="submit" loading={saveConnection.isPending}>
-                <IconCheckCircle />
-                {saveConnection.isPending ? 'Saving…' : 'Save Connection Settings'}
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => test.mutate()}
-                loading={test.isPending}
-              >
-                {test.isPending ? 'Testing…' : 'Test Connection'}
-              </Button>
-            </div>
-          </form>
-        ) : null}
-        {testResult ? (
-          <p className={testResult.ok ? 'success' : 'error'} role={testResult.ok ? 'status' : 'alert'}>
-            {testResult.message}
-          </p>
-        ) : null}
-        {saveConnection.error ? <p className="error" role="alert">{saveConnection.error.message}</p> : null}
-      </CollapsibleSection>
-
-      <CollapsibleSection id="section-instance-llm-prompts" title="AI Prompts" icon={<IconLightbulb />}>
-        <InfoBox icon={<IconLightbulb />}>
-          <p>
-            The base system prompts Papertrail sends to the LLM for each task. Project owners can
-            append project-specific instructions to these from their project&apos;s AI Prompts
-            settings.
-          </p>
-        </InfoBox>
-        {prompts.error ? <p className="error" role="alert">{prompts.error.message}</p> : null}
-        {prompts.data?.flows.map((flow) => (
-          <div className="prompt-flow" key={flow.key}>
-            <h3>
-              {flow.label}
-              {flow.isOverridden ? <span className="status-badge">Customized</span> : null}
-            </h3>
-            <label>
-              Base prompt
-              <textarea
-                value={promptDraft[flow.key] ?? ''}
-                onChange={(event) => setPromptDraft((current) => ({
-                  ...current, [flow.key]: event.target.value,
-                }))}
-                rows={8}
-              />
-            </label>
-            <div className="toolbar">
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => savePrompts.mutate({ [PROMPT_PAYLOAD_FIELD[flow.key]]: null })}
-                disabled={!flow.isOverridden || savePrompts.isPending}
-              >
-                Reset to Default
-              </Button>
-            </div>
+          ))}
+          <div className="toolbar">
+            <Button type="button" onClick={savePromptsIfChanged} loading={savePrompts.isPending} disabled={!prompts.data}>
+              <IconCheckCircle />
+              {savePrompts.isPending ? 'Saving…' : 'Save Prompts'}
+            </Button>
           </div>
-        ))}
-        <div className="toolbar">
-          <Button type="button" onClick={savePromptsIfChanged} loading={savePrompts.isPending} disabled={!prompts.data}>
-            <IconCheckCircle />
-            {savePrompts.isPending ? 'Saving…' : 'Save Prompts'}
-          </Button>
-        </div>
-        {savePrompts.error ? <p className="error" role="alert">{savePrompts.error.message}</p> : null}
-      </CollapsibleSection>
-
-      <CollapsibleSection id="section-instance-email" title="Email (SMTP)" icon={<IconMail />}>
-        <InfoBox icon={<IconMail />}>
-          <p>
-            The SMTP connection Papertrail's background worker uses to deliver account, project, and
-            password-reset emails.
-          </p>
-        </InfoBox>
-        {instance.data ? (
-          <form
-            className="llm-installation-settings"
-            onSubmit={(event) => { event.preventDefault(); saveInstanceSettings.mutate() }}
-          >
-            <div className="llm-installation-settings__heading">
-              <div>
-                <h3>SMTP configuration</h3>
+          {savePrompts.error ? <p className="error" role="alert">{savePrompts.error.message}</p> : null}
+        </CollapsibleSection>
+  
+        <CollapsibleSection id="section-instance-email" title="Email (SMTP)" icon={<IconMail />}>
+          <InfoBox icon={<IconMail />}>
+            <p>
+              The SMTP connection Papertrail's background worker uses to deliver account, project, and
+              password-reset emails.
+            </p>
+          </InfoBox>
+          {instance.data ? (
+            <form
+              className="llm-installation-settings"
+              onSubmit={(event) => { event.preventDefault(); saveInstanceSettings.mutate() }}
+            >
+              <div className="llm-installation-settings__heading">
+                <div>
+                  <h3>SMTP configuration</h3>
+                </div>
+                <label className="toggle-label">
+                  <input
+                    type="checkbox"
+                    checked={emailEnabled}
+                    onChange={(event) => setEmailEnabled(event.target.checked)}
+                  />
+                  Email enabled
+                </label>
               </div>
-              <label className="toggle-label">
-                <input
-                  type="checkbox"
-                  checked={emailEnabled}
-                  onChange={(event) => setEmailEnabled(event.target.checked)}
-                />
-                Email enabled
-              </label>
-            </div>
-            <div className="llm-installation-settings__grid">
-              <label>
-                Public base URL
-                <input
-                  type="url"
-                  value={publicBaseUrl}
-                  onChange={(event) => setPublicBaseUrl(event.target.value)}
-                  placeholder="https://papertrail.example.org"
-                  required
-                />
-              </label>
-              <label>
-                SMTP host
-                <input
-                  value={smtpHost}
-                  onChange={(event) => setSmtpHost(event.target.value)}
-                  placeholder="smtp.example.org"
-                />
-              </label>
-              <label>
-                SMTP port
-                <input
-                  type="number"
-                  min="1"
-                  max="65535"
-                  value={smtpPort}
-                  onChange={(event) => setSmtpPort(event.target.value)}
-                  required
-                />
-              </label>
-              <label>
-                SMTP username
-                <input
-                  value={smtpUsername}
-                  onChange={(event) => setSmtpUsername(event.target.value)}
-                />
-              </label>
-              <label>
-                SMTP password
-                <input
-                  type="password"
-                  value={smtpPassword}
-                  onChange={(event) => setSmtpPassword(event.target.value)}
-                  placeholder={smtpPasswordSet ? 'Saved — leave blank to keep it' : ''}
-                  autoComplete="new-password"
-                />
-              </label>
-              <label>
-                From address
-                <input
-                  value={smtpFromAddress}
-                  onChange={(event) => setSmtpFromAddress(event.target.value)}
-                  placeholder="Papertrail <noreply@example.org>"
-                />
-              </label>
-              <label>
-                SMTP timeout (seconds)
-                <input
-                  type="number"
-                  min="1"
-                  value={smtpTimeoutSeconds}
-                  onChange={(event) => setSmtpTimeoutSeconds(event.target.value)}
-                  required
-                />
-              </label>
-              <label className="toggle-label">
-                <input
-                  type="checkbox"
-                  checked={smtpStarttls}
-                  onChange={(event) => setSmtpStarttls(event.target.checked)}
-                />
-                Use STARTTLS
-              </label>
-              <label className="toggle-label">
-                <input
-                  type="checkbox"
-                  checked={smtpUseSsl}
-                  onChange={(event) => setSmtpUseSsl(event.target.checked)}
-                />
-                Use implicit SSL
-              </label>
-            </div>
-            <div className="toolbar">
-              <Button type="submit" loading={saveInstanceSettings.isPending}>
-                <IconCheckCircle />
-                {saveInstanceSettings.isPending ? 'Saving…' : 'Save Email Settings'}
-              </Button>
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={() => testEmail.mutate()}
-                loading={testEmail.isPending}
-              >
-                {testEmail.isPending ? 'Sending…' : 'Send Test Email'}
-              </Button>
-            </div>
-          </form>
-        ) : null}
-        {testEmailResult ? (
-          <p className={testEmailResult.ok ? 'success' : 'error'} role={testEmailResult.ok ? 'status' : 'alert'}>
-            {testEmailResult.message}
-          </p>
-        ) : null}
-        {saveInstanceSettings.error ? (
-          <p className="error" role="alert">{saveInstanceSettings.error.message}</p>
-        ) : null}
-      </CollapsibleSection>
-
-      <CollapsibleSection id="section-instance-account-security" title="Account Security" icon={<IconClock />}>
-        <InfoBox icon={<IconClock />}>
-          <p>Password reset link lifetime and how many reset attempts an account may make before being throttled.</p>
-        </InfoBox>
-        {instance.data ? (
-          <form
-            className="llm-installation-settings"
-            onSubmit={(event) => { event.preventDefault(); saveInstanceSettings.mutate() }}
-          >
-            <div className="llm-installation-settings__grid">
-              <label>
-                Password reset link lifetime (minutes)
-                <input
-                  type="number"
-                  min="1"
-                  value={passwordResetTtlMinutes}
-                  onChange={(event) => setPasswordResetTtlMinutes(event.target.value)}
-                  required
-                />
-              </label>
-              <label>
-                Password reset max attempts
-                <input
-                  type="number"
-                  min="1"
-                  value={passwordResetMaxAttempts}
-                  onChange={(event) => setPasswordResetMaxAttempts(event.target.value)}
-                  required
-                />
-              </label>
-            </div>
-            <div className="toolbar">
-              <Button type="submit" loading={saveInstanceSettings.isPending}>
-                <IconCheckCircle />
-                {saveInstanceSettings.isPending ? 'Saving…' : 'Save Account Security Settings'}
-              </Button>
-            </div>
-          </form>
-        ) : null}
-      </CollapsibleSection>
-
-      <CollapsibleSection id="section-instance-pdfs" title="Full-Text PDFs" icon={<IconFile />}>
-        <InfoBox icon={<IconFile />}>
-          <p>
-            The maximum size accepted for an uploaded or browser-retrieved PDF, and how long the
-            browser extension may hold a claimed retrieval job before it is reclaimable.
-          </p>
-        </InfoBox>
-        {instance.data ? (
-          <form
-            className="llm-installation-settings"
-            onSubmit={(event) => { event.preventDefault(); saveInstanceSettings.mutate() }}
-          >
-            <div className="llm-installation-settings__grid">
-              <label>
-                Max PDF size (MB)
-                <input
-                  type="number"
-                  min="1"
-                  value={maxPdfSizeMb}
-                  onChange={(event) => setMaxPdfSizeMb(event.target.value)}
-                  required
-                />
-              </label>
-              <label>
-                Browser retrieval lease (seconds)
-                <input
-                  type="number"
-                  min="1"
-                  value={browserRetrievalLeaseSeconds}
-                  onChange={(event) => setBrowserRetrievalLeaseSeconds(event.target.value)}
-                  required
-                />
-              </label>
-            </div>
-            <div className="toolbar">
-              <Button type="submit" loading={saveInstanceSettings.isPending}>
-                <IconCheckCircle />
-                {saveInstanceSettings.isPending ? 'Saving…' : 'Save PDF Settings'}
-              </Button>
-            </div>
-          </form>
-        ) : null}
-      </CollapsibleSection>
-
-      <CollapsibleSection id="section-instance-background-jobs" title="Background Jobs" icon={<IconAlertTriangle />}>
-        <InfoBox icon={<IconAlertTriangle />}>
-          <p>
-            Worker thread count and poll interval only take effect the next time the background
-            worker process restarts. Job lease applies immediately to newly claimed jobs.
-          </p>
-        </InfoBox>
-        {instance.data ? (
-          <form
-            className="llm-installation-settings"
-            onSubmit={(event) => { event.preventDefault(); saveInstanceSettings.mutate() }}
-          >
-            <div className="llm-installation-settings__grid">
-              <label>
-                Worker threads
-                <input
-                  type="number"
-                  min="1"
-                  value={workerThreads}
-                  onChange={(event) => setWorkerThreads(event.target.value)}
-                  required
-                />
-              </label>
-              <label>
-                Poll interval (seconds)
-                <input
-                  type="number"
-                  min="0.1"
-                  step="0.1"
-                  value={jobPollIntervalSeconds}
-                  onChange={(event) => setJobPollIntervalSeconds(event.target.value)}
-                  required
-                />
-              </label>
-              <label>
-                Job lease (seconds)
-                <input
-                  type="number"
-                  min="1"
-                  value={jobLeaseSeconds}
-                  onChange={(event) => setJobLeaseSeconds(event.target.value)}
-                  required
-                />
-              </label>
-            </div>
-            <div className="toolbar">
-              <Button type="submit" loading={saveInstanceSettings.isPending}>
-                <IconCheckCircle />
-                {saveInstanceSettings.isPending ? 'Saving…' : 'Save Background Job Settings'}
-              </Button>
-            </div>
-          </form>
-        ) : null}
-      </CollapsibleSection>
-    </main>
+              <div className="llm-installation-settings__grid">
+                <label>
+                  Public base URL
+                  <input
+                    type="url"
+                    value={publicBaseUrl}
+                    onChange={(event) => setPublicBaseUrl(event.target.value)}
+                    placeholder="https://papertrail.example.org"
+                    required
+                  />
+                </label>
+                <label>
+                  SMTP host
+                  <input
+                    value={smtpHost}
+                    onChange={(event) => setSmtpHost(event.target.value)}
+                    placeholder="smtp.example.org"
+                  />
+                </label>
+                <label>
+                  SMTP port
+                  <input
+                    type="number"
+                    min="1"
+                    max="65535"
+                    value={smtpPort}
+                    onChange={(event) => setSmtpPort(event.target.value)}
+                    required
+                  />
+                </label>
+                <label>
+                  SMTP username
+                  <input
+                    value={smtpUsername}
+                    onChange={(event) => setSmtpUsername(event.target.value)}
+                  />
+                </label>
+                <label>
+                  SMTP password
+                  <input
+                    type="password"
+                    value={smtpPassword}
+                    onChange={(event) => setSmtpPassword(event.target.value)}
+                    placeholder={smtpPasswordSet ? 'Saved — leave blank to keep it' : ''}
+                    autoComplete="new-password"
+                  />
+                </label>
+                <label>
+                  From address
+                  <input
+                    value={smtpFromAddress}
+                    onChange={(event) => setSmtpFromAddress(event.target.value)}
+                    placeholder="Papertrail <noreply@example.org>"
+                  />
+                </label>
+                <label>
+                  SMTP timeout (seconds)
+                  <input
+                    type="number"
+                    min="1"
+                    value={smtpTimeoutSeconds}
+                    onChange={(event) => setSmtpTimeoutSeconds(event.target.value)}
+                    required
+                  />
+                </label>
+                <label className="toggle-label">
+                  <input
+                    type="checkbox"
+                    checked={smtpStarttls}
+                    onChange={(event) => setSmtpStarttls(event.target.checked)}
+                  />
+                  Use STARTTLS
+                </label>
+                <label className="toggle-label">
+                  <input
+                    type="checkbox"
+                    checked={smtpUseSsl}
+                    onChange={(event) => setSmtpUseSsl(event.target.checked)}
+                  />
+                  Use implicit SSL
+                </label>
+              </div>
+              <div className="toolbar">
+                <Button type="submit" loading={saveInstanceSettings.isPending}>
+                  <IconCheckCircle />
+                  {saveInstanceSettings.isPending ? 'Saving…' : 'Save Email Settings'}
+                </Button>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => testEmail.mutate()}
+                  loading={testEmail.isPending}
+                >
+                  {testEmail.isPending ? 'Sending…' : 'Send Test Email'}
+                </Button>
+              </div>
+            </form>
+          ) : null}
+          {testEmailResult ? (
+            <p className={testEmailResult.ok ? 'success' : 'error'} role={testEmailResult.ok ? 'status' : 'alert'}>
+              {testEmailResult.message}
+            </p>
+          ) : null}
+          {saveInstanceSettings.error ? (
+            <p className="error" role="alert">{saveInstanceSettings.error.message}</p>
+          ) : null}
+        </CollapsibleSection>
+  
+        <CollapsibleSection id="section-instance-account-security" title="Account Security" icon={<IconClock />}>
+          <InfoBox icon={<IconClock />}>
+            <p>Password reset link lifetime and how many reset attempts an account may make before being throttled.</p>
+          </InfoBox>
+          {instance.data ? (
+            <form
+              className="llm-installation-settings"
+              onSubmit={(event) => { event.preventDefault(); saveInstanceSettings.mutate() }}
+            >
+              <div className="llm-installation-settings__grid">
+                <label>
+                  Password reset link lifetime (minutes)
+                  <input
+                    type="number"
+                    min="1"
+                    value={passwordResetTtlMinutes}
+                    onChange={(event) => setPasswordResetTtlMinutes(event.target.value)}
+                    required
+                  />
+                </label>
+                <label>
+                  Password reset max attempts
+                  <input
+                    type="number"
+                    min="1"
+                    value={passwordResetMaxAttempts}
+                    onChange={(event) => setPasswordResetMaxAttempts(event.target.value)}
+                    required
+                  />
+                </label>
+              </div>
+              <div className="toolbar">
+                <Button type="submit" loading={saveInstanceSettings.isPending}>
+                  <IconCheckCircle />
+                  {saveInstanceSettings.isPending ? 'Saving…' : 'Save Account Security Settings'}
+                </Button>
+              </div>
+            </form>
+          ) : null}
+        </CollapsibleSection>
+  
+        <CollapsibleSection id="section-instance-pdfs" title="Full-Text PDFs" icon={<IconFile />}>
+          <InfoBox icon={<IconFile />}>
+            <p>
+              The maximum size accepted for an uploaded or browser-retrieved PDF, and how long the
+              browser extension may hold a claimed retrieval job before it is reclaimable.
+            </p>
+          </InfoBox>
+          {instance.data ? (
+            <form
+              className="llm-installation-settings"
+              onSubmit={(event) => { event.preventDefault(); saveInstanceSettings.mutate() }}
+            >
+              <div className="llm-installation-settings__grid">
+                <label>
+                  Max PDF size (MB)
+                  <input
+                    type="number"
+                    min="1"
+                    value={maxPdfSizeMb}
+                    onChange={(event) => setMaxPdfSizeMb(event.target.value)}
+                    required
+                  />
+                </label>
+                <label>
+                  Browser retrieval lease (seconds)
+                  <input
+                    type="number"
+                    min="1"
+                    value={browserRetrievalLeaseSeconds}
+                    onChange={(event) => setBrowserRetrievalLeaseSeconds(event.target.value)}
+                    required
+                  />
+                </label>
+              </div>
+              <div className="toolbar">
+                <Button type="submit" loading={saveInstanceSettings.isPending}>
+                  <IconCheckCircle />
+                  {saveInstanceSettings.isPending ? 'Saving…' : 'Save PDF Settings'}
+                </Button>
+              </div>
+            </form>
+          ) : null}
+        </CollapsibleSection>
+  
+        <CollapsibleSection id="section-instance-background-jobs" title="Background Jobs" icon={<IconAlertTriangle />}>
+          <InfoBox icon={<IconAlertTriangle />}>
+            <p>
+              Worker thread count and poll interval only take effect the next time the background
+              worker process restarts. Job lease applies immediately to newly claimed jobs.
+            </p>
+          </InfoBox>
+          {instance.data ? (
+            <form
+              className="llm-installation-settings"
+              onSubmit={(event) => { event.preventDefault(); saveInstanceSettings.mutate() }}
+            >
+              <div className="llm-installation-settings__grid">
+                <label>
+                  Worker threads
+                  <input
+                    type="number"
+                    min="1"
+                    value={workerThreads}
+                    onChange={(event) => setWorkerThreads(event.target.value)}
+                    required
+                  />
+                </label>
+                <label>
+                  Poll interval (seconds)
+                  <input
+                    type="number"
+                    min="0.1"
+                    step="0.1"
+                    value={jobPollIntervalSeconds}
+                    onChange={(event) => setJobPollIntervalSeconds(event.target.value)}
+                    required
+                  />
+                </label>
+                <label>
+                  Job lease (seconds)
+                  <input
+                    type="number"
+                    min="1"
+                    value={jobLeaseSeconds}
+                    onChange={(event) => setJobLeaseSeconds(event.target.value)}
+                    required
+                  />
+                </label>
+              </div>
+              <div className="toolbar">
+                <Button type="submit" loading={saveInstanceSettings.isPending}>
+                  <IconCheckCircle />
+                  {saveInstanceSettings.isPending ? 'Saving…' : 'Save Background Job Settings'}
+                </Button>
+              </div>
+            </form>
+          ) : null}
+        </CollapsibleSection>
+      </main>
+    </SectionNavigationLayout>
   )
 }

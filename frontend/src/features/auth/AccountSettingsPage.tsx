@@ -2,11 +2,20 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { apiRequest } from '../../api/client'
-import { IconCheckCircle } from '../../components/icons'
+import { CollapsibleSection } from '../../components/CollapsibleSection'
+import { IconCheckCircle, IconPerson, IconSettings } from '../../components/icons'
+import { SectionNavigationLayout } from '../../components/SectionNavigationLayout'
 import { ScreeningHotkeysSection } from '../screening/ScreeningHotkeysSection'
 import { BrowserHelpersSection } from './BrowserHelpersSection'
 import type { LoginResponse, User } from './types'
 import { sessionQueryOptions } from './sessionQuery'
+
+const accountSections = [
+  { id: 'section-account-profile', label: 'Profile' },
+  { id: 'section-account-password', label: 'Password' },
+  { id: 'section-account-hotkeys', label: 'Screening Hotkeys' },
+  { id: 'section-account-browser-helpers', label: 'Browser Helpers' },
+]
 
 export function AccountSettingsPage() {
   const queryClient = useQueryClient()
@@ -53,97 +62,97 @@ export function AccountSettingsPage() {
   const passwordUnchanged = currentPassword.length > 0 && newPassword === currentPassword
 
   return (
-    <main className="page">
-      <p className="eyebrow">Personal settings</p>
-      <h1>Account Settings</h1>
-      <p className="muted">Manage your profile, password, and personal preferences.</p>
-      <section className="card">
-        <h2>Profile</h2>
-        <p className="muted">Changes save automatically when you leave a field.</p>
-        <label>
-          Display name
-          <input
-            value={displayName}
-            onChange={(event) => setDisplayName(event.target.value)}
-            onBlur={saveProfileIfChanged}
-            required
-          />
-        </label>
-        <label>
-          Email address
-          <input
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-            onBlur={saveProfileIfChanged}
-            placeholder="you@example.org"
-          />
-        </label>
-        {updateProfile.error ? <p className="error" role="alert">{updateProfile.error.message}</p> : null}
-        <p className="muted" aria-live="polite">
-          {updateProfile.isPending ? 'Saving…' : updateProfile.isSuccess ? 'Saved.' : ' '}
-        </p>
-      </section>
-      <section className="card">
-        <h2>Password</h2>
-        <form onSubmit={(event) => { event.preventDefault(); updatePassword.mutate() }}>
+    <SectionNavigationLayout items={accountSections}>
+      <main className="page">
+        <p className="eyebrow">Personal settings</p>
+        <h1>Account Settings</h1>
+        <p className="muted">Manage your profile, password, and personal preferences.</p>
+        <CollapsibleSection id="section-account-profile" title="Profile" icon={<IconPerson />}>
+          <p className="muted">Changes save automatically when you leave a field.</p>
           <label>
-            Current password
+            Display name
             <input
-              type="password"
-              value={currentPassword}
-              onChange={(event) => setCurrentPassword(event.target.value)}
-              autoComplete="current-password"
+              value={displayName}
+              onChange={(event) => setDisplayName(event.target.value)}
+              onBlur={saveProfileIfChanged}
               required
             />
           </label>
           <label>
-            New password
+            Email address
             <input
-              type="password"
-              value={newPassword}
-              onChange={(event) => setNewPassword(event.target.value)}
-              autoComplete="new-password"
-              minLength={8}
-              required
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              onBlur={saveProfileIfChanged}
+              placeholder="you@example.org"
             />
           </label>
-          <label>
-            Confirm new password
-            <input
-              type="password"
-              value={confirmPassword}
-              onChange={(event) => setConfirmPassword(event.target.value)}
-              autoComplete="new-password"
-              minLength={8}
-              required
-            />
-          </label>
-          {passwordUnchanged ? (
-            <p className="error" role="alert">
-              New password must be different from your current password.
-            </p>
-          ) : null}
-          {passwordsMismatch ? <p className="error" role="alert">New passwords do not match.</p> : null}
-          {updatePassword.error ? <p className="error" role="alert">{updatePassword.error.message}</p> : null}
-          {updatePassword.isSuccess ? <p>Password updated.</p> : null}
-          <button
-            type="submit"
-            disabled={
-              updatePassword.isPending
-              || !currentPassword
-              || newPassword.length < 8
-              || passwordUnchanged
-              || passwordsMismatch
-            }
-          >
-            <IconCheckCircle />
-            Change Password
-          </button>
-        </form>
-      </section>
-      <ScreeningHotkeysSection />
-      <BrowserHelpersSection />
-    </main>
+          {updateProfile.error ? <p className="error" role="alert">{updateProfile.error.message}</p> : null}
+          <p className="muted" aria-live="polite">
+            {updateProfile.isPending ? 'Saving…' : updateProfile.isSuccess ? 'Saved.' : ' '}
+          </p>
+        </CollapsibleSection>
+        <CollapsibleSection id="section-account-password" title="Password" icon={<IconSettings />}>
+          <form onSubmit={(event) => { event.preventDefault(); updatePassword.mutate() }}>
+            <label>
+              Current password
+              <input
+                type="password"
+                value={currentPassword}
+                onChange={(event) => setCurrentPassword(event.target.value)}
+                autoComplete="current-password"
+                required
+              />
+            </label>
+            <label>
+              New password
+              <input
+                type="password"
+                value={newPassword}
+                onChange={(event) => setNewPassword(event.target.value)}
+                autoComplete="new-password"
+                minLength={8}
+                required
+              />
+            </label>
+            <label>
+              Confirm new password
+              <input
+                type="password"
+                value={confirmPassword}
+                onChange={(event) => setConfirmPassword(event.target.value)}
+                autoComplete="new-password"
+                minLength={8}
+                required
+              />
+            </label>
+            {passwordUnchanged ? (
+              <p className="error" role="alert">
+                New password must be different from your current password.
+              </p>
+            ) : null}
+            {passwordsMismatch ? <p className="error" role="alert">New passwords do not match.</p> : null}
+            {updatePassword.error ? <p className="error" role="alert">{updatePassword.error.message}</p> : null}
+            {updatePassword.isSuccess ? <p>Password updated.</p> : null}
+            <button
+              type="submit"
+              disabled={
+                updatePassword.isPending
+                || !currentPassword
+                || newPassword.length < 8
+                || passwordUnchanged
+                || passwordsMismatch
+              }
+            >
+              <IconCheckCircle />
+              Change Password
+            </button>
+          </form>
+        </CollapsibleSection>
+        <ScreeningHotkeysSection />
+        <BrowserHelpersSection />
+      </main>
+    </SectionNavigationLayout>
   )
 }

@@ -1,7 +1,8 @@
 import { useState } from 'react'
 
+import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { ConfirmButton } from '../../components/ConfirmButton'
-import { IconCopy, IconPlus, IconTrash } from '../../components/icons'
+import { IconCopy, IconPlus, IconTrash, IconUpload } from '../../components/icons'
 import type { PairingSecret } from './useBrowserAgents'
 import { useBrowserAgents } from './useBrowserAgents'
 
@@ -33,8 +34,7 @@ export function BrowserHelpersSection() {
   }
 
   return (
-    <section className="card">
-      <h2>Browser Helpers</h2>
+    <CollapsibleSection id="section-account-browser-helpers" title="Browser Helpers" icon={<IconUpload />}>
       <p className="muted">
         A paired Chrome extension can retrieve publisher PDFs using this computer&apos;s own
         network connection and browser sign-in (e.g. university IP access, VPN, or an
@@ -108,6 +108,6 @@ export function BrowserHelpersSection() {
           </button>
         </>
       )}
-    </section>
+    </CollapsibleSection>
   )
 }
