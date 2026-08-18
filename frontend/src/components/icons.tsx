@@ -199,6 +199,15 @@ export function IconKeyboard() {
   )
 }
 
+export function IconMail() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" fillRule="evenodd">
+      <path d="M4 6.5A1.5 1.5 0 0 1 5.5 5h13A1.5 1.5 0 0 1 20 6.5v11a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5v-11Z" opacity="0.45" />
+      <path d="m5.2 6.6 6.8 5.1 6.8-5.1 1 1.5-7.8 5.9-7.8-5.9 1-1.5Z" />
+    </svg>
+  )
+}
+
 export function IconSparkle() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">

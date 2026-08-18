@@ -728,6 +728,10 @@ def test_disabling_installation_llm_cancels_queued_stage_analysis_job(
             "endpoint": "http://ollama.example:11434",
             "model": "test-model:latest",
             "contextLength": 8192,
+            "requestTimeoutSeconds": 300,
+            "maxConcurrentJobs": 1,
+            "maxEvidenceItems": 3,
+            "maxEvidenceQuoteChars": 500,
         },
         headers={"X-CSRF-Token": csrf},
     )

@@ -126,6 +126,43 @@ jobs:
           if-no-files-found: ignore
           retention-days: 7
 
+  browser-extension:
+    name: Browser extension tests
+    runs-on: ubuntu-latest
+
+    if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: browser-extension/package-lock.json
+
+      - name: Install browser extension dependencies
+        working-directory: browser-extension
+        run: npm ci --no-audit --no-fund
+
+      - name: Run TypeScript checks
+        working-directory: browser-extension
+        run: npm run typecheck
+
+      - name: Run ESLint
+        working-directory: browser-extension
+        run: npm run lint
+
+      - name: Run browser extension unit tests
+        working-directory: browser-extension
+        run: npm test
+
+      - name: Build browser extension
+        working-directory: browser-extension
+        run: npm run build
+
   version:
     name: Determine version
     runs-on: ubuntu-latest
@@ -235,6 +272,47 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.name }}
           cache-to: type=gha,mode=max,scope=${{ matrix.name }}
 
+  browser-extension-package:
+    name: Package browser extension
+    runs-on: ubuntu-latest
+
+    needs:
+      - version
+
+    if: github.event_name == 'push'
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: browser-extension/package-lock.json
+
+      - name: Install browser extension dependencies
+        working-directory: browser-extension
+        run: npm ci --no-audit --no-fund
+
+      - name: Build browser extension
+        working-directory: browser-extension
+        run: npm run build
+
+      - name: Package browser extension
+        run: |
+          cd browser-extension/dist
+          zip -r "../../papertrail-browser-extension-${{ needs.version.outputs.value }}.zip" .
+
+      - name: Upload browser extension artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: browser-extension
+          path: papertrail-browser-extension-${{ needs.version.outputs.value }}.zip
+          if-no-files-found: error
+          retention-days: 7
+
   release:
     name: Create GitHub release
     runs-on: ubuntu-latest
@@ -242,6 +320,7 @@ jobs:
     needs:
       - version
       - docker-images
+      - browser-extension-package
 
     if: github.event_name == 'push' && needs.version.outputs.is_release == 'true'
 
@@ -252,8 +331,14 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v7
 
+      - name: Download browser extension artifact
+        uses: actions/download-artifact@v6
+        with:
+          name: browser-extension
+
       - name: Create GitHub release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ needs.version.outputs.value }}
           generate_release_notes: true
+          files: papertrail-browser-extension-${{ needs.version.outputs.value }}.zip

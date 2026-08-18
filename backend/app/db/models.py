@@ -9,6 +9,7 @@ from app.extraction.models import ExtractionResponse, ExtractionWorkItem
 from app.forms.models import FormField, FormVersion, ReviewForm
 from app.fulltext.models import FullTextRetrieval, PublicationDocument
 from app.imports.models import ImportBatch, ImportedRecord, ImportPdfItem, SearchSource
+from app.instance_settings.models import InstanceSettings
 from app.jobs.models import BackgroundJob
 from app.llm.models import (
     DocumentPageText,
@@ -64,6 +65,7 @@ __all__ = [
     "ImportBatch",
     "ImportPdfItem",
     "ImportedRecord",
+    "InstanceSettings",
     "LoginThrottle",
     "LlmExtractionRun",
     "LlmCriterionSuggestion",
