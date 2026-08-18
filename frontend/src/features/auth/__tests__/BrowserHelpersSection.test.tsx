@@ -92,6 +92,42 @@ describe('BrowserHelpersSection', () => {
     })
   })
 
+  it('polls and lists a newly paired browser helper without a page refresh', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    try {
+      let agents: unknown[] = []
+      const fetchMock = mockFetch((input, init) => {
+        const path = String(input)
+        if (path.endsWith('/browser-agents') && (!init || init.method === undefined)) {
+          return jsonResponse(agents)
+        }
+        if (path.endsWith('/browser-agents/pairing-secrets') && init?.method === 'POST') {
+          return jsonResponse({
+            pairingSecret: 'secret-value-12345',
+            expiresAt: '2026-08-15T10:10:00Z',
+            serverUrl: 'https://papertrail.example.org',
+          })
+        }
+        return jsonResponse({})
+      })
+      renderWithProviders(<BrowserHelpersSection />)
+
+      fireEvent.click(await screen.findByRole('button', { name: /Pair new browser helper/ }))
+      await screen.findByText('secret-value-12345')
+
+      // The extension pairs directly against the backend, outside this tab.
+      agents = [agent]
+      await vi.advanceTimersByTimeAsync(3000)
+
+      await waitFor(() => expect(fetchMock.mock.calls.filter(
+        ([input, init]) => String(input).endsWith('/browser-agents') && (!init || init.method === undefined),
+      ).length).toBeGreaterThan(1))
+      expect(await screen.findByText('Chrome on Desktop')).toBeInTheDocument()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('shows an API error when creating a pairing secret fails', async () => {
     const fetchMock = mockFetch(async (input, init) => {
       const path = String(input)
