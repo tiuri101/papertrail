@@ -266,8 +266,9 @@ def run_worker(*, llm_only: bool = False) -> None:
     allowed_job_types = LLM_JOB_TYPES if llm_only else None
     excluded_job_types = None if llm_only else LLM_JOB_TYPES
     logger.info(
-        "Papertrail worker starting (worker_id=%s, threads=%d, poll_interval=%ss)",
+        "Papertrail worker starting (worker_id=%s, version=%s, threads=%d, poll_interval=%ss)",
         worker_id,
+        settings.app_version,
         thread_count,
         settings.job_poll_interval_seconds,
     )
