@@ -83,6 +83,7 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
         stage={queue.stage as 'title_abstract' | 'full_text'}
         humanDecision={awaitingConfirmation ? outcome : undefined}
         criteriaAnswers={answers}
+        criteria={item.criteria}
       />
       {!criteriaComplete ? (
         <p className="muted">Answer every criterion before {awaitingConfirmation ? 'confirming' : 'submitting'}.</p>

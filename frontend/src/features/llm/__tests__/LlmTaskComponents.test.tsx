@@ -40,6 +40,7 @@ describe('ScreeningLlmPanel', () => {
         itemId="item-1"
         stage="title_abstract"
         humanDecision="include"
+        criteria={[{ id: 'criterion-1', kind: 'inclusion', text: 'Population is in scope' }]}
       />,
     )
 
@@ -50,6 +51,7 @@ describe('ScreeningLlmPanel', () => {
     )
     expect(screen.queryByText(/suggestion differ/)).not.toBeInTheDocument()
     expect(screen.getByText(/Population is in scope/)).toBeInTheDocument()
+    expect(screen.getByText('IC1')).toHaveClass('criterion-badge--inclusion')
   })
 
   it('marks a matching title/abstract decision and scrolls the revealed result into view', async () => {
@@ -97,10 +99,12 @@ describe('ScreeningLlmPanel', () => {
         publicationId="publication-1"
         itemId="item-1"
         stage="full_text"
+        criteria={[{ id: 'criterion-1', kind: 'inclusion', text: 'Reports an evaluation' }]}
       />,
     )
 
     expect(await screen.findByText(/result is stale/)).toBeInTheDocument()
+    expect(screen.getByText('IC1')).toHaveClass('criterion-badge--inclusion')
     expect(screen.getByText(/Verified evidence/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Open PDF at page 4' })).toHaveAttribute(
       'href',
@@ -146,15 +150,23 @@ describe('ScreeningLlmPanel', () => {
           'criterion-not-met-mismatch': true,
           'criterion-unclear': true,
         }}
+        criteria={[
+          { id: 'criterion-met-match', kind: 'inclusion', text: 'Reviewer agrees it is met' },
+          { id: 'criterion-not-met-mismatch', kind: 'inclusion', text: 'Reviewer disagrees' },
+          { id: 'criterion-unclear', kind: 'inclusion', text: 'LLM is unclear' },
+          { id: 'criterion-unanswered', kind: 'inclusion', text: 'Reviewer has not answered yet' },
+        ]}
       />,
     )
 
     const matchRow = (await screen.findByText(/Reviewer agrees it is met/)).closest('details') as HTMLElement
     expect(matchRow).toHaveClass('llm-criterion--match')
+    expect(within(matchRow).getByText('IC1')).toHaveClass('criterion-badge--inclusion')
 
     const mismatchRow = screen.getByText(/Reviewer disagrees/).closest('details') as HTMLElement
     expect(mismatchRow).toHaveClass('llm-criterion--mismatch')
     expect(within(mismatchRow).getByText(/Differs from your answer/)).toBeInTheDocument()
+    expect(within(mismatchRow).getByText('IC2')).toBeInTheDocument()
 
     const unclearRow = screen.getByText(/LLM is unclear/).closest('details') as HTMLElement
     expect(unclearRow).not.toHaveClass('llm-criterion--match')
