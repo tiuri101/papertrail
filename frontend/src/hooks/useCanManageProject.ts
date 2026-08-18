@@ -5,6 +5,7 @@ import { apiRequest } from '../api/client'
 interface ProjectManageFlag {
   canManage: boolean
   canManagePublications: boolean
+  canAdjudicate: boolean
 }
 
 /**
@@ -47,4 +48,21 @@ export function useCanManagePublications(projectId: string): boolean {
     enabled: Boolean(projectId),
   })
   return query.data?.canManagePublications ?? false
+}
+
+/**
+ * Extraction reconciliation is scoped to project managers/admins or members
+ * with the adjudication permission -- narrower than useCanManageProject
+ * (owner/admin only) but broader than a plain member check.
+ */
+export function useCanReconcileExtractionState(projectId: string): { canReconcile: boolean; isLoading: boolean } {
+  const query = useQuery({
+    queryKey: ['project', projectId],
+    queryFn: () => apiRequest<ProjectManageFlag>(`/api/v1/projects/${projectId}`),
+    enabled: Boolean(projectId),
+  })
+  return {
+    canReconcile: Boolean(query.data?.canManage || query.data?.canAdjudicate),
+    isLoading: query.isLoading,
+  }
 }

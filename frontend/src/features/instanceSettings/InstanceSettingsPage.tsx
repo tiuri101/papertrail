@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
+import { Button } from '../../components/Button'
 import { InfoBox } from '../../components/InfoBox'
 import { IconCheckCircle, IconLightbulb, IconSettings } from '../../components/icons'
 
@@ -175,18 +176,18 @@ export function InstanceSettingsPage() {
               </label>
             </div>
             <div className="toolbar">
-              <button type="submit" disabled={saveConnection.isPending}>
+              <Button type="submit" loading={saveConnection.isPending}>
                 <IconCheckCircle />
                 {saveConnection.isPending ? 'Saving…' : 'Save Connection Settings'}
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                className="button-secondary"
+                variant="secondary"
                 onClick={() => test.mutate()}
-                disabled={test.isPending}
+                loading={test.isPending}
               >
                 {test.isPending ? 'Testing…' : 'Test Connection'}
-              </button>
+              </Button>
             </div>
           </form>
         ) : null}
@@ -224,22 +225,22 @@ export function InstanceSettingsPage() {
               />
             </label>
             <div className="toolbar">
-              <button
+              <Button
                 type="button"
-                className="button-secondary"
+                variant="secondary"
                 onClick={() => savePrompts.mutate({ [PROMPT_PAYLOAD_FIELD[flow.key]]: null })}
                 disabled={!flow.isOverridden || savePrompts.isPending}
               >
                 Reset to Default
-              </button>
+              </Button>
             </div>
           </div>
         ))}
         <div className="toolbar">
-          <button type="button" onClick={savePromptsIfChanged} disabled={savePrompts.isPending || !prompts.data}>
+          <Button type="button" onClick={savePromptsIfChanged} loading={savePrompts.isPending} disabled={!prompts.data}>
             <IconCheckCircle />
             {savePrompts.isPending ? 'Saving…' : 'Save Prompts'}
-          </button>
+          </Button>
         </div>
         {savePrompts.error ? <p className="error" role="alert">{savePrompts.error.message}</p> : null}
       </CollapsibleSection>

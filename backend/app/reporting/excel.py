@@ -13,6 +13,7 @@ from app.accounts.models import User
 from app.audit.models import AuditEvent
 from app.conflicts.models import FinalDecision
 from app.deduplication.models import DuplicateCandidate
+from app.extraction.final import get_current_final_extractions
 from app.extraction.models import ExtractionResponse, ExtractionWorkItem
 from app.forms.models import FormField, FormVersion, ReviewForm
 from app.fulltext.models import FullTextRetrieval
@@ -520,7 +521,7 @@ def _add_evidence_sheets(
     )
     add_sheet(
         workbook,
-        "Extraction",
+        "Extraction (reviewer responses)",
         ["Publication ID", "Publication title", "Reviewer", "Form version", "Answers"],
         [
             [
@@ -535,6 +536,32 @@ def _add_evidence_sheets(
                 ),
             ]
             for item in extraction
+        ],
+    )
+    final_extractions = get_current_final_extractions(db, list(titles))
+    add_sheet(
+        workbook,
+        "Extraction (final)",
+        [
+            "Publication ID",
+            "Publication title",
+            "Resolution method",
+            "Resolved by",
+            "Form version",
+            "Answers",
+        ],
+        [
+            [
+                publication_id,
+                titles.get(publication_id, publication_id),
+                final.resolution_method,
+                user_names.get(final.resolved_by_id, "") if final.resolved_by_id else "",
+                form_version_labels.get(final.form_version_id, final.form_version_id),
+                _readable_answers(
+                    final.answers, field_labels.get(final.form_version_id, {})
+                ),
+            ]
+            for publication_id, final in final_extractions.items()
         ],
     )
     quality = list(

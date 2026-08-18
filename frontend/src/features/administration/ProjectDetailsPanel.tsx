@@ -81,9 +81,7 @@ export function ProjectDetailsPanel({ projectId }: { projectId: string }) {
           <IconCheckCircle />
           {save.isPending ? 'Saving…' : 'Save Project Details'}
         </button>
-        <p className="muted" aria-live="polite">
-          {save.isSuccess ? 'Saved.' : ' '}
-        </p>
+        {save.isSuccess ? <p className="muted" aria-live="polite">Saved.</p> : null}
       </form>
     </CollapsibleSection>
   )

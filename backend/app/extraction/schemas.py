@@ -14,10 +14,12 @@ class ApiModel(BaseModel):
 
 class ExtractionConfigUpdate(ApiModel):
     allocation_mode: TaskAllocationMode = Field(alias="allocationMode")
+    required_reviewers: int = Field(alias="requiredReviewers", ge=1, le=2)
 
 
 class ExtractionConfigResponse(ApiModel):
     allocation_mode: TaskAllocationMode = Field(serialization_alias="allocationMode")
+    required_reviewers: int = Field(serialization_alias="requiredReviewers")
 
 
 class ExtractionSubmit(ApiModel):
@@ -46,6 +48,8 @@ class ExtractionResponseModel(ApiModel):
 class ExtractionItemResponse(ApiModel):
     id: str
     publication_id: str = Field(serialization_alias="publicationId")
+    slot_number: int = Field(serialization_alias="slotNumber")
+    required_reviewers: int = Field(serialization_alias="requiredReviewers")
     full_text_available: bool = Field(serialization_alias="fullTextAvailable")
     assigned_reviewer_id: str | None = Field(serialization_alias="assignedReviewerId")
     status: str
@@ -60,6 +64,62 @@ class ExtractionItemResponse(ApiModel):
 class CompletedExtractionSummary(ApiModel):
     id: str
     publication_id: str = Field(serialization_alias="publicationId")
+    slot_number: int = Field(serialization_alias="slotNumber")
     publication: PublicationItem
     completed_at: datetime | None = Field(serialization_alias="completedAt")
     version: int
+
+
+class FieldProvenanceEntry(ApiModel):
+    from_: Literal["response_a", "response_b", "agreed", "manual"] = Field(
+        alias="from"
+    )
+    response_id: str | None = Field(alias="responseId")
+
+
+class FinalExtractionModel(ApiModel):
+    id: str
+    publication_id: str = Field(serialization_alias="publicationId")
+    answers: dict[str, Any]
+    form_version_id: str = Field(serialization_alias="formVersionId")
+    resolution_method: str = Field(serialization_alias="resolutionMethod")
+    resolved_by_id: str | None = Field(serialization_alias="resolvedById")
+    note: str | None
+    field_provenance: dict[str, FieldProvenanceEntry] = Field(
+        serialization_alias="fieldProvenance"
+    )
+    contributing_response_ids: list[str] = Field(
+        serialization_alias="contributingResponseIds"
+    )
+    created_at: datetime = Field(serialization_alias="createdAt")
+
+
+class ReconciliationQueueItem(ApiModel):
+    publication: PublicationItem
+
+
+class ReconciliationFieldComparison(ApiModel):
+    stable_key: str = Field(serialization_alias="stableKey")
+    field_type: str = Field(serialization_alias="fieldType")
+    value_a: Any = Field(serialization_alias="valueA")
+    value_b: Any = Field(serialization_alias="valueB")
+    agree: bool
+
+
+class ReconciliationDetailResponse(ApiModel):
+    publication: PublicationItem
+    full_text_available: bool = Field(serialization_alias="fullTextAvailable")
+    fields: list[FieldResponse]
+    comparisons: list[ReconciliationFieldComparison]
+
+
+class ReconciliationFieldChoice(ApiModel):
+    choice: Literal["response_a", "response_b", "manual"]
+    value: Any = None
+
+
+class ReconciliationSubmit(ApiModel):
+    field_choices: dict[str, ReconciliationFieldChoice] = Field(
+        alias="fieldChoices", default_factory=dict
+    )
+    note: str = Field(min_length=1, max_length=2000)

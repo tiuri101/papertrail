@@ -36,6 +36,9 @@ x-backend-environment: &backend-environment
   PAPERTRAIL_LLM_CONTEXT_LENGTH: ${PAPERTRAIL_LLM_CONTEXT_LENGTH:-32768}
   PAPERTRAIL_LLM_MAX_EVIDENCE_ITEMS: ${PAPERTRAIL_LLM_MAX_EVIDENCE_ITEMS:-3}
   PAPERTRAIL_LLM_MAX_EVIDENCE_QUOTE_CHARS: ${PAPERTRAIL_LLM_MAX_EVIDENCE_QUOTE_CHARS:-500}
+  PAPERTRAIL_ADMIN_USERNAME: ${PAPERTRAIL_ADMIN_USERNAME:-admin}
+  PAPERTRAIL_ADMIN_DISPLAY_NAME: ${PAPERTRAIL_ADMIN_DISPLAY_NAME:-Papertrail Administrator}
+  PAPERTRAIL_ADMIN_PASSWORD: ${PAPERTRAIL_ADMIN_PASSWORD:?PAPERTRAIL_ADMIN_PASSWORD is required}
 
 services:
   postgres:
@@ -56,7 +59,8 @@ services:
   migrate:
     image: tiuri101/papertrail-backend:${PAPERTRAIL_IMAGE_TAG:?PAPERTRAIL_IMAGE_TAG is required}
     environment: *backend-environment
-    command: alembic upgrade head
+    command: >-
+      sh -c 'alembic upgrade head && python -m app.cli create-admin'
     volumes:
       - papertrail_files:/data
     depends_on:

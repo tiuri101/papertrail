@@ -66,6 +66,16 @@ class ScreeningWorkItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         JSONType, default=dict, nullable=False
     )
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # True only for a conflict-resolution "additional reviewer" slot created
+    # by add_resolution_reviewer, never for one of the originally-configured
+    # required_reviewers slots. ScreeningConfig.required_reviewers can change
+    # over a project's life with no snapshot of what it was at creation time,
+    # so this flag -- not slot_number vs. the current config value -- is the
+    # reliable way to tell original decisions apart from tie-break ones for
+    # reviewer-agreement analysis.
+    is_additional_slot: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
 
     decisions: Mapped[list[ScreeningDecision]] = relationship(
         back_populates="work_item",

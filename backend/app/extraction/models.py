@@ -4,7 +4,17 @@ import enum
 from datetime import datetime
 from typing import Any
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    String,
+    Text,
+    UniqueConstraint,
+    text,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -30,12 +40,17 @@ class ExtractionConfig(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     allocation_mode: Mapped[TaskAllocationMode] = mapped_column(
         default=TaskAllocationMode.CLAIM, nullable=False
     )
+    required_reviewers: Mapped[int] = mapped_column(
+        Integer, default=1, server_default="1", nullable=False
+    )
 
 
 class ExtractionWorkItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "extraction_work_items"
     __table_args__ = (
-        UniqueConstraint("publication_id", name="uq_extraction_publication"),
+        UniqueConstraint(
+            "publication_id", "slot_number", name="uq_extraction_slot"
+        ),
     )
 
     project_id: Mapped[str] = mapped_column(
@@ -43,6 +58,9 @@ class ExtractionWorkItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     publication_id: Mapped[str] = mapped_column(
         ForeignKey("publications.id", ondelete="CASCADE"), index=True
+    )
+    slot_number: Mapped[int] = mapped_column(
+        Integer, default=1, server_default="1", nullable=False
     )
     assigned_reviewer_id: Mapped[str | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), index=True
@@ -90,3 +108,55 @@ class ExtractionResponse(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
 
     work_item: Mapped[ExtractionWorkItem] = relationship(back_populates="responses")
+
+
+class FinalExtraction(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """The authoritative, current extraction result for a publication.
+
+    Distinct from ExtractionResponse (an individual reviewer's immutable,
+    versioned answer set): exactly zero-or-one row with is_valid=True exists
+    per publication at any time, enforced both here (invalidate-then-insert
+    in one transaction, see extraction/final.py) and by the partial unique
+    index below as defense-in-depth. History is kept by flipping is_valid to
+    False rather than deleting, mirroring app.conflicts.models.FinalDecision.
+    """
+
+    __tablename__ = "final_extractions"
+    __table_args__ = (
+        Index(
+            "uq_final_extraction_current",
+            "publication_id",
+            unique=True,
+            postgresql_where=text("is_valid = true"),
+            sqlite_where=text("is_valid = 1"),
+        ),
+    )
+
+    project_id: Mapped[str] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), index=True
+    )
+    publication_id: Mapped[str] = mapped_column(
+        ForeignKey("publications.id", ondelete="CASCADE"), index=True
+    )
+    form_version_id: Mapped[str] = mapped_column(
+        ForeignKey("form_versions.id"), index=True
+    )
+    answers: Mapped[dict[str, Any]] = mapped_column(JSONType, nullable=False)
+    # "single_reviewer" | "agreement" | "reconciliation" | "override"
+    resolution_method: Mapped[str] = mapped_column(String(80), nullable=False)
+    resolved_by_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    note: Mapped[str | None] = mapped_column(Text)
+    # {stable_key: {"from": "response_a"|"response_b"|"agreed"|"manual", "responseId": str | None}}
+    field_provenance: Mapped[dict[str, Any]] = mapped_column(
+        JSONType, default=dict, nullable=False
+    )
+    contributing_response_ids: Mapped[list[str]] = mapped_column(
+        JSONType, default=list, nullable=False
+    )
+    is_valid: Mapped[bool] = mapped_column(
+        Boolean, default=True, index=True, nullable=False
+    )
+    invalidated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    invalidation_reason: Mapped[str | None] = mapped_column(Text)

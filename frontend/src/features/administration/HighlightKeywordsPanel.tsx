@@ -131,9 +131,9 @@ export function HighlightKeywordsPanel({ projectId }: { projectId: string }) {
         </div>
       </form>
       {save.error ? <p className="error" role="alert">{save.error.message}</p> : null}
-      <p className="muted" aria-live="polite">
+      {save.isPending || save.isSuccess ? <p className="muted" aria-live="polite">
         {save.isPending ? 'Saving…' : save.isSuccess ? 'Saved.' : ' '}
-      </p>
+      </p> : null}
     </CollapsibleSection>
   )
 }

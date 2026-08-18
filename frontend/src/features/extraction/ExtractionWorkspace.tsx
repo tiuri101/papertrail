@@ -29,6 +29,8 @@ interface WorkItem {
   publication: PublicationSummary
   fields: DynamicFormField[]
   currentResponse: ExtractionResponse | null
+  slotNumber: number
+  requiredReviewers: number
 }
 
 interface LlmSuggestion {
@@ -378,6 +380,13 @@ export function ExtractionWorkspace({
             {item.publication.authors ?? 'Unknown authors'}
             {item.publication.publicationYear ? ` (${item.publication.publicationYear})` : ''}
           </p>
+          {item.requiredReviewers > 1 ? (
+            <p className="muted">
+              Independent extraction {item.slotNumber} of {item.requiredReviewers}. Your answers are
+              kept independent from the other reviewer&apos;s until both are submitted.
+              {completedResponse ? ' Once both reviewers have submitted, agreeing answers become final automatically; any disagreements go to reconciliation.' : ''}
+            </p>
+          ) : null}
           <div className="toolbar">
             {fullTextDocument.data ? (
               <PdfAvailabilityPill

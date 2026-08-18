@@ -63,7 +63,7 @@ router = APIRouter(tags=["screening"])
 def _pending_workflow_steps(db: Session, item: ScreeningWorkItem) -> list[str]:
     """Describe work introduced by revising a completed screening stage."""
     from app.conflicts.service import valid_final_decision
-    from app.extraction.models import ExtractionStatus, ExtractionWorkItem
+    from app.extraction.final import get_current_final_extraction
     from app.fulltext.models import FullTextRetrieval, RetrievalStatus
     from app.projects.models import ProjectStage
     from app.quality.models import QualityConfig, QualityStatus, QualityWorkItem
@@ -109,12 +109,7 @@ def _pending_workflow_steps(db: Session, item: ScreeningWorkItem) -> list[str]:
 
     project = get_project(db, item.project_id)
     if project.stage in {ProjectStage.EXTRACTION, ProjectStage.COMPLETED}:
-        extraction = db.scalar(
-            select(ExtractionWorkItem).where(
-                ExtractionWorkItem.publication_id == item.publication_id
-            )
-        )
-        if extraction is None or extraction.status != ExtractionStatus.COMPLETED:
+        if get_current_final_extraction(db, item.publication_id) is None:
             steps.append("Complete data extraction")
 
         quality_config = db.scalar(

@@ -6,7 +6,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.accounts.models import User
-from app.extraction.models import ExtractionResponse, ExtractionWorkItem
+from app.extraction.final import get_current_final_extractions
+from app.extraction.models import ExtractionResponse, ExtractionStatus, ExtractionWorkItem
 from app.extraction.service import active_fields as extraction_active_fields
 from app.extraction.service import project_form
 from app.forms.models import FormField
@@ -50,25 +51,34 @@ def build_final_results(db: Session, project_id: str) -> dict[str, Any]:
     extraction_fields = (
         extraction_active_fields(db, extraction_form) if extraction_form else []
     )
-    extraction_items = {
-        item.publication_id: item
-        for item in db.scalars(
-            select(ExtractionWorkItem).where(
-                ExtractionWorkItem.project_id == project_id
-            )
+    # Per-publication slot statuses, used only to represent progress while no
+    # authoritative final exists yet -- the authoritative *value* always
+    # comes from FinalExtraction, never an individual slot's response.
+    extraction_slots_by_publication: dict[str, list[ExtractionStatus]] = {}
+    for pub_id, status in db.execute(
+        select(ExtractionWorkItem.publication_id, ExtractionWorkItem.status).where(
+            ExtractionWorkItem.project_id == project_id
         )
+    ):
+        extraction_slots_by_publication.setdefault(pub_id, []).append(status)
+    final_extractions = get_current_final_extractions(db, list(publication_ids))
+    contributing_response_ids = {
+        response_id
+        for final in final_extractions.values()
+        for response_id in final.contributing_response_ids
     }
-    extraction_responses = {
-        response.work_item_id: response
-        for response in db.scalars(
-            select(ExtractionResponse).where(
-                ExtractionResponse.work_item_id.in_(
-                    [item.id for item in extraction_items.values()]
-                ),
-                ExtractionResponse.is_current.is_(True),
+    responses_by_id = (
+        {
+            response.id: response
+            for response in db.scalars(
+                select(ExtractionResponse).where(
+                    ExtractionResponse.id.in_(contributing_response_ids)
+                )
             )
-        )
-    }
+        }
+        if contributing_response_ids
+        else {}
+    )
 
     config = db.scalar(
         select(QualityConfig).where(QualityConfig.project_id == project_id)
@@ -100,20 +110,44 @@ def build_final_results(db: Session, project_id: str) -> dict[str, Any]:
 
     items = []
     for publication in publications:
-        extraction_item = extraction_items.get(publication.id)
+        final = final_extractions.get(publication.id)
         extraction_payload = None
-        if extraction_item is not None:
-            response = extraction_responses.get(extraction_item.id)
+        if final is not None:
+            reviewer_name = None
+            if final.resolved_by_id:
+                reviewer_name = user_names.get(final.resolved_by_id)
+            elif final.resolution_method == "single_reviewer" and final.contributing_response_ids:
+                response = responses_by_id.get(final.contributing_response_ids[0])
+                reviewer_name = user_names.get(response.reviewer_id) if response else None
             extraction_payload = {
-                "status": extraction_item.status,
-                "completedAt": extraction_item.completed_at,
-                "reviewerName": (
-                    user_names.get(extraction_item.assigned_reviewer_id)
-                    if extraction_item.assigned_reviewer_id
-                    else None
-                ),
-                "answers": response.answers if response else {},
+                "status": "completed",
+                "resolutionMethod": final.resolution_method,
+                "completedAt": final.created_at,
+                "reviewerName": reviewer_name,
+                "answers": final.answers,
             }
+        else:
+            slots = extraction_slots_by_publication.get(publication.id)
+            if slots:
+                # No authoritative result yet. Never surface an individual,
+                # unresolved response as though it were final -- report a
+                # progress status instead: the raw per-slot status in
+                # single-reviewer mode (unchanged from before), or, once
+                # every slot is done but they disagree, an explicit
+                # "reconciliation_pending" state distinct from "completed".
+                if all(status == ExtractionStatus.COMPLETED for status in slots):
+                    status_value = "reconciliation_pending"
+                elif any(status == ExtractionStatus.RESERVED for status in slots):
+                    status_value = ExtractionStatus.RESERVED.value
+                else:
+                    status_value = ExtractionStatus.AVAILABLE.value
+                extraction_payload = {
+                    "status": status_value,
+                    "resolutionMethod": None,
+                    "completedAt": None,
+                    "reviewerName": None,
+                    "answers": {},
+                }
 
         quality_payload = None
         if quality_enabled:

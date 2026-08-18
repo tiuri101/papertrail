@@ -248,7 +248,8 @@ export function ScreeningLlmPanel({
             className={comparison ? `llm-criterion llm-criterion--${comparison}` : 'llm-criterion'}
           >
             <summary>
-              {criterion.criterionText} · {statusText(criterion.assessment)}
+              <span className="llm-criterion__title">{criterion.criterionText}</span>
+              <span className="llm-criterion__status"> · {statusText(criterion.assessment)}</span>
               {comparison === 'mismatch' ? (
                 <span className="llm-criterion__flag"> ⚠ Differs from your answer</span>
               ) : null}

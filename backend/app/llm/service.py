@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 import hashlib
-import json
 from collections.abc import Mapping
 from datetime import UTC, datetime
-from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from app.analysis.rq_jobs import RQ_SYNTHESIS_JOB
 from app.conflicts.models import FinalDecision
 from app.extraction.models import ExtractionResponse, ExtractionWorkItem
 from app.fulltext.documents import active_document
@@ -27,6 +26,8 @@ from app.llm.models import (
 )
 from app.llm.prompt import PROMPT_TEMPLATE_VERSION
 from app.llm.schema_service import current_schema, mapping_state, project_settings
+from app.llm.value_compare import canonical_json as _canonical_json
+from app.llm.value_compare import values_equal
 from app.projects.models import ScreeningStage
 from app.screening.models import ScreeningOutcome
 
@@ -42,7 +43,13 @@ LLM_JOB_TYPE_BY_TASK: dict[LlmTaskType, str] = {
     LlmTaskType.DATA_EXTRACTION: LLM_JOB_DATA_EXTRACTION,
     LlmTaskType.EXTRACTION_VALIDATION: LLM_JOB_EXTRACTION_VALIDATION,
 }
-LLM_JOB_TYPES = set(LLM_JOB_TYPE_BY_TASK.values())
+# RQ synthesis isn't keyed to LlmTaskType/LlmExtractionRun (it has its own
+# ResearchQuestionAnalysisRun model), but it makes real Ollama calls like
+# every other member here, so it belongs on the dedicated --llm worker pool
+# too. Unlike STAGE_ANALYSIS_JOB (a pre-existing, out-of-scope inconsistency
+# that also calls Ollama but is not in this set), RQ synthesis does not
+# repeat that gap.
+LLM_JOB_TYPES = set(LLM_JOB_TYPE_BY_TASK.values()) | {RQ_SYNTHESIS_JOB}
 
 
 def utcnow() -> datetime:
@@ -349,18 +356,6 @@ def latest_current_run(
         )
         .order_by(LlmExtractionRun.created_at.desc())
     )
-
-
-def _canonical_json(value: Any) -> str:
-    return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-
-
-def values_equal(left: Any, right: Any) -> bool:
-    if isinstance(left, list) and isinstance(right, list):
-        return sorted(map(_canonical_json, left)) == sorted(map(_canonical_json, right))
-    if isinstance(left, (int, float)) and isinstance(right, (int, float)):
-        return float(left) == float(right)
-    return bool(left == right)
 
 
 def record_suggestion_provenance(

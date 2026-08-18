@@ -21,7 +21,7 @@ flowchart LR
     C --> D[📄 Retrieve<br/>full-text PDFs]
     D --> E[📝 Extract<br/>versioned dynamic forms]
     E --> F[✅ Quality assess<br/>risk-of-bias review]
-    F --> G[📊 Report<br/>PRISMA, Excel, BibTeX]
+    F --> G[📊 Report<br/>PRISMA, Excel, Parquet, JSON, CSV, BibTeX]
 ```
 
 Every step is logged to an immutable audit trail, and an optional local LLM can suggest — never decide — screening and extraction answers.
@@ -32,10 +32,11 @@ Every step is logged to an immutable audit trail, and an optional local LLM can 
 - **PDF management** — attach full-text PDFs with version history, stored locally; an optional paired Chrome extension can retrieve them through the reviewer's own browser network access and sign-in state
 - **Duplicate review** — configurable duplicate scoring with reviewer-driven merge decisions
 - **Multi-reviewer screening** — title/abstract and full-text screening stages with configurable reviewer counts and conflict resolution
-- **Dynamic extraction forms** — versioned, project-defined forms with stable field identifiers for structured data extraction
+- **Dynamic extraction forms** — versioned, project-defined forms with stable field identifiers for structured data extraction, optionally with two independent extractors per publication and adjudicator-led reconciliation of disagreements
 - **Quality assessment** — reviewer-recorded quality/risk-of-bias evaluation, kept separate from extraction data
-- **Optional LLM assistance** — evidence-backed suggestions for screening, extraction, and validation via an external Ollama service; suggestions are advisory only and reviewer decisions remain authoritative
-- **Reporting and export** — PRISMA flow outputs, Excel workbooks, and BibTeX export
+- **Optional LLM assistance** — evidence-backed suggestions for screening, extraction, and validation, plus source-cited research-question synthesis, via an external Ollama service; suggestions are advisory only and reviewer decisions remain authoritative
+- **Charts & Analysis** — anonymized inter-rater agreement, a searchable/filterable evidence matrix of every result with its source traceable, and optional LLM-generated per-research-question synthesis
+- **Reporting and export** — PRISMA flow outputs, Excel workbooks, Parquet datasets, JSON and CSV exports, and BibTeX export
 - **Audit trail** — durable audit logging of workflow and reviewer actions
 - **Role-based access** — project-scoped membership so reviewers only see projects and actions they're eligible for
 
@@ -86,8 +87,11 @@ See the [local-development guide](docs/local-development.md) for manual setup, t
 cp .env.example .env
 # Replace all example passwords, set PAPERTRAIL_IMAGE_TAG, and configure the public hostname.
 docker compose up -d
-scripts/create_admin.sh
 ```
+
+The one-shot migration container applies the database migrations and creates the
+administrator from `PAPERTRAIL_ADMIN_USERNAME`, `PAPERTRAIL_ADMIN_DISPLAY_NAME`,
+and `PAPERTRAIL_ADMIN_PASSWORD` before the API starts.
 
 See [Installation](docs/installation.md) for production configuration.
 

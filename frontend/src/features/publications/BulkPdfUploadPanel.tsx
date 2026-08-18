@@ -77,6 +77,7 @@ export function BulkPdfUploadPanel({ projectId }: { projectId: string }) {
       <div className="toolbar">
         <button
           type="button"
+          className="button-sm"
           disabled={(!pdfFiles.length && !pdfArchives.length) || upload.isPending}
           onClick={() => upload.mutate()}
         >

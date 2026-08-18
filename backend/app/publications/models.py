@@ -59,8 +59,8 @@ class Publication(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         back_populates="publication", cascade="all, delete-orphan"
     )
     final_decisions: Mapped[list[FinalDecision]] = relationship(viewonly=True)
-    extraction_work_item: Mapped[ExtractionWorkItem | None] = relationship(
-        viewonly=True, uselist=False
+    extraction_work_items: Mapped[list[ExtractionWorkItem]] = relationship(
+        viewonly=True, order_by="ExtractionWorkItem.slot_number"
     )
     full_text_retrieval: Mapped[FullTextRetrieval | None] = relationship(
         viewonly=True, uselist=False
@@ -98,11 +98,13 @@ class Publication(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
     @property
     def extraction_status(self) -> str | None:
-        return (
-            str(self.extraction_work_item.status)
-            if self.extraction_work_item is not None
-            else None
-        )
+        # NOTE: reflects slot 1's status only. In dual-extraction mode this
+        # is a placeholder pending the authoritative-FinalExtraction-aware
+        # repointing tracked separately -- callers that need the true
+        # authoritative status should use app.extraction.final instead.
+        if not self.extraction_work_items:
+            return None
+        return str(self.extraction_work_items[0].status)
 
     @property
     def search_sources(self) -> list[dict[str, Any]]:

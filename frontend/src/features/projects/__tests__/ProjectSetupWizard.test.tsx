@@ -97,6 +97,9 @@ describe('ProjectSetupWizard', () => {
           runs: [],
         })
       }
+      if (url === '/api/v1/projects/p1/extraction-config') {
+        return jsonResponse({ allocationMode: 'claim', requiredReviewers: 1 })
+      }
       return jsonResponse({})
     })
 
@@ -113,6 +116,10 @@ describe('ProjectSetupWizard', () => {
     fireEvent.click(screen.getByRole('button', { name: /Reviewers/ }))
     expect(await screen.findByRole('heading', { name: 'Project Members' })).toBeInTheDocument()
     expect(await screen.findByText('Ada Lovelace (ada)')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: /Extraction Form/ }))
+    expect(await screen.findByRole('heading', { name: 'Extraction Settings' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Data Extraction Form' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: /LLM Assistance/ }))
 

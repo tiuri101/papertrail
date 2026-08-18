@@ -23,6 +23,7 @@ interface ProjectDetail {
   canFullTextScreen: boolean
   canExtract: boolean
   canAssessQuality: boolean
+  canAdjudicate: boolean
 }
 
 interface WorkflowIntegrityIssue {
@@ -66,6 +67,7 @@ type ProjectCapability =
   | 'canFullTextScreen'
   | 'canExtract'
   | 'canAssessQuality'
+  | 'canAdjudicate'
 
 interface ProjectSectionLink {
   path: string
@@ -162,6 +164,11 @@ const projectSectionGroups: ProjectSectionGroup[] = [
         label: 'Review LLM Extraction Validation',
         validationOnly: true,
         requiresCapability: 'canExtract',
+      },
+      {
+        path: 'extraction/reconciliation',
+        label: 'Extraction Conflicts',
+        requiresCapability: 'canAdjudicate',
       },
       { path: 'quality', label: 'Quality Assessment', requiresCapability: 'canAssessQuality' },
       {

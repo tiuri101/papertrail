@@ -45,7 +45,13 @@ export function StageNarrativePanel({
 
   return (
     <div className="stage-narrative">
-      <h3>Interpretation</h3>
+      <div className="stage-narrative__header">
+        <div>
+          <span className="stage-narrative__eyebrow">AI-assisted insight</span>
+          <h3>Interpretation</h3>
+        </div>
+        <span className="stage-narrative__badge">Summary</span>
+      </div>
       {narrative ? (
         <>
           {isStale ? (
@@ -54,10 +60,18 @@ export function StageNarrativePanel({
               it was generated.
             </p>
           ) : null}
-          <p>{narrative.summary}</p>
+          <div className="stage-narrative__content">
+            <p className="stage-narrative__summary">{narrative.summary}</p>
+            <span className="stage-narrative__timestamp">
+              Generated {new Date(narrative.generatedAt).toLocaleDateString()}
+            </span>
+          </div>
         </>
       ) : (
-        <p className="muted">No summary generated yet.</p>
+        <div className="stage-narrative__empty">
+          <p className="muted">No summary generated yet.</p>
+          <p className="stage-narrative__empty-hint">Generate an interpretation to add context to the results above.</p>
+        </div>
       )}
       {regenerate.error ? <p className="error" role="alert">{regenerate.error.message}</p> : null}
       {pendingJob?.status === 'failed' ? (
@@ -65,9 +79,11 @@ export function StageNarrativePanel({
           Summary generation failed{pendingJob.errorMessage ? `: ${pendingJob.errorMessage}` : ''}
         </p>
       ) : null}
-      <button type="button" onClick={() => regenerate.mutate()} disabled={isGenerating}>
+      <div className="stage-narrative__footer">
+        <button type="button" className="button-secondary" onClick={() => regenerate.mutate()} disabled={isGenerating}>
         {isGenerating ? 'Generating…' : narrative ? 'Regenerate summary' : 'Generate summary'}
-      </button>
+        </button>
+      </div>
     </div>
   )
 }

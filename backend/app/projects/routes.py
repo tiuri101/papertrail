@@ -198,6 +198,8 @@ def _serialize_project_detail(
         can_extract=can_manage or bool(own_membership and own_membership.can_extract),
         can_assess_quality=can_manage
         or bool(own_membership and own_membership.can_assess_quality),
+        can_adjudicate=can_manage
+        or bool(own_membership and own_membership.can_adjudicate),
     )
 
 

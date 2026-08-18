@@ -38,7 +38,7 @@ const stageDescriptions: Record<string, string> = {
   title_abstract_screening: 'Each reviewer checks every publication against the inclusion/exclusion criteria and decides include, exclude, uncertain, or duplicate.',
   full_text_screening: 'Retrieve and upload full-text PDFs, then make the final eligibility decision for each publication that passed title/abstract screening.',
   extraction_quality: 'Extract structured data from each included publication and, when enabled, assess its quality or risk of bias.',
-  completed: 'Review integrity warnings, generate PRISMA, Excel, and BibTeX exports, or reopen an earlier stage if corrections are still needed.',
+  completed: 'Review integrity warnings, generate PRISMA, Excel, Parquet, JSON, CSV, and BibTeX exports, or reopen an earlier stage if corrections are still needed.',
 }
 
 const llmStageDescriptions: Record<string, string> = {
@@ -63,7 +63,7 @@ const overviewPillars = [
   },
   {
     title: 'Traceable results',
-    description: 'An immutable audit trail supports PRISMA, Excel, and BibTeX outputs you can carry into analysis and reporting.',
+    description: 'An immutable audit trail supports PRISMA, Excel, Parquet, JSON, CSV, and BibTeX outputs you can carry into analysis and reporting.',
     icon: <IconCheckCircle />,
   },
 ]
@@ -208,7 +208,7 @@ const stages: StageResponsibilities[] = [
     id: 'completed',
     name: 'Completed',
     owner: [
-      'Review integrity warnings, then generate the PRISMA flow diagram, Excel workbook, and BibTeX export.',
+      'Review integrity warnings, then generate the PRISMA flow diagram, Excel workbook, Parquet dataset, JSON, CSV, and BibTeX exports.',
       'Reopen the project at an earlier stage if corrections are needed later. Downstream data is retained but excluded from active counts.',
     ],
     reviewer: [

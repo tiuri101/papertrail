@@ -11,10 +11,12 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.conflicts.models import FinalDecision
+from app.extraction.final import get_current_final_extraction, get_current_final_extractions
 from app.extraction.models import (
     ExtractionResponse,
     ExtractionStatus,
     ExtractionWorkItem,
+    FinalExtraction,
 )
 from app.fulltext.documents import active_document
 from app.fulltext.models import PublicationDocument
@@ -186,7 +188,7 @@ def validation_fingerprint(
     db: Session,
     document: PublicationDocument,
     extraction: DocumentTextExtraction,
-    response: ExtractionResponse,
+    final: FinalExtraction,
 ) -> str:
     return fingerprint(
         {
@@ -195,9 +197,9 @@ def validation_fingerprint(
             "document": document.id,
             "sha256": document.sha256,
             "textExtraction": extraction.id,
-            "response": response.id,
-            "formVersion": response.form_version_id,
-            "answers": response.answers,
+            "finalExtraction": final.id,
+            "formVersion": final.form_version_id,
+            "answers": final.answers,
             "researchQuestions": _research_questions_input(
                 active_research_questions(db, document.project_id)
             ),
@@ -242,6 +244,7 @@ def _create_run(
     document: PublicationDocument | None = None,
     extraction: DocumentTextExtraction | None = None,
     extraction_response: ExtractionResponse | None = None,
+    final_extraction: FinalExtraction | None = None,
 ) -> LlmExtractionRun:
     existing = _existing_run(
         db, publication.id, task_type, input_fingerprint, force=force
@@ -275,6 +278,7 @@ def _create_run(
         document_id=document.id if document else None,
         text_extraction_id=extraction.id if extraction else None,
         extraction_response_id=extraction_response.id if extraction_response else None,
+        final_extraction_id=final_extraction.id if final_extraction else None,
         provider="ollama",
         model=model,
         model_configuration={
@@ -414,53 +418,34 @@ def queue_full_text_assistance(
     )
 
 
-def _current_response(db: Session, publication_id: str) -> ExtractionResponse | None:
-    return db.scalar(
-        select(ExtractionResponse)
-        .join(ExtractionWorkItem)
-        .where(
-            ExtractionWorkItem.publication_id == publication_id,
-            ExtractionResponse.is_current.is_(True),
-        )
-        .order_by(ExtractionResponse.created_at.desc())
-    )
-
-
 def project_extractions_completed(db: Session, project_id: str) -> bool:
-    items = list(
-        db.scalars(
-            select(ExtractionWorkItem).where(
-                ExtractionWorkItem.project_id == project_id
-            )
-        )
-    )
-    return bool(items) and all(
-        item.status == ExtractionStatus.COMPLETED for item in items
-    )
+    """Whether every included publication has an authoritative
+    FinalExtraction -- not merely that every individual reviewer slot is
+    COMPLETED, which in dual-extraction mode can be true while a
+    publication still sits in reconciliation with no final result yet."""
+    from app.extraction.service import included_publication_ids
+
+    publication_ids = included_publication_ids(db, project_id)
+    if not publication_ids:
+        return False
+    finals = get_current_final_extractions(db, publication_ids)
+    return set(finals) == set(publication_ids)
 
 
 def current_validation_run(
-    db: Session, item: ExtractionWorkItem
+    db: Session, publication_id: str
 ) -> LlmExtractionRun | None:
-    response = db.scalar(
-        select(ExtractionResponse)
-        .where(
-            ExtractionResponse.work_item_id == item.id,
-            ExtractionResponse.is_current.is_(True),
-        )
-        .order_by(ExtractionResponse.created_at.desc())
-    )
-    document = active_document(db, item.publication_id)
-    if response is None or document is None:
+    final = get_current_final_extraction(db, publication_id)
+    document = active_document(db, publication_id)
+    if final is None or document is None:
         return None
     return db.scalar(
         select(LlmExtractionRun)
         .options(selectinload(LlmExtractionRun.validation_results))
         .where(
-            LlmExtractionRun.project_id == item.project_id,
-            LlmExtractionRun.publication_id == item.publication_id,
+            LlmExtractionRun.publication_id == publication_id,
             LlmExtractionRun.document_id == document.id,
-            LlmExtractionRun.extraction_response_id == response.id,
+            LlmExtractionRun.final_extraction_id == final.id,
             LlmExtractionRun.task_type == LlmTaskType.EXTRACTION_VALIDATION,
         )
         .order_by(LlmExtractionRun.created_at.desc())
@@ -468,19 +453,16 @@ def current_validation_run(
 
 
 def project_validation_progress(db: Session, project_id: str) -> ValidationProgress:
-    items = list(
-        db.scalars(
-            select(ExtractionWorkItem)
-            .where(ExtractionWorkItem.project_id == project_id)
-            .order_by(ExtractionWorkItem.random_rank)
-        )
-    )
+    from app.extraction.service import included_publication_ids
+
+    publication_ids = included_publication_ids(db, project_id)
+    finals = get_current_final_extractions(db, publication_ids)
     completed = pending = failed = unavailable = outstanding = 0
-    for item in items:
-        if item.status != ExtractionStatus.COMPLETED:
+    for publication_id in publication_ids:
+        if publication_id not in finals:
             outstanding += 1
             continue
-        document = active_document(db, item.publication_id)
+        document = active_document(db, publication_id)
         if document is None:
             unavailable += 1
             continue
@@ -495,7 +477,7 @@ def project_validation_progress(db: Session, project_id: str) -> ValidationProgr
         }:
             unavailable += 1
             continue
-        run = current_validation_run(db, item)
+        run = current_validation_run(db, publication_id)
         if run is None or run.status == ProcessingStatus.STALE:
             outstanding += 1
         elif run.status == ProcessingStatus.COMPLETED:
@@ -505,7 +487,7 @@ def project_validation_progress(db: Session, project_id: str) -> ValidationProgr
         else:
             failed += 1
     return ValidationProgress(
-        total=len(items),
+        total=len(publication_ids),
         completed=completed,
         pending=pending,
         failed=failed,
@@ -527,16 +509,13 @@ def queue_project_extraction_validations(
         db, project_id, LlmTaskType.EXTRACTION_VALIDATION
     ):
         return []
+    from app.extraction.service import included_publication_ids
+
     queued: list[LlmExtractionRun | BackgroundJob] = []
     bulk_id = bulk_id or str(uuid4())
-    publication_ids = list(
-        db.scalars(
-            select(ExtractionWorkItem.publication_id).where(
-                ExtractionWorkItem.project_id == project_id,
-                ExtractionWorkItem.status == ExtractionStatus.COMPLETED,
-            )
-        )
-    )
+    publication_ids = get_current_final_extractions(
+        db, included_publication_ids(db, project_id)
+    ).keys()
     for publication_id in publication_ids:
         result = queue_extraction_validation(
             db,
@@ -555,7 +534,7 @@ def queue_extraction_validation(
     db: Session,
     publication_id: str,
     *,
-    response: ExtractionResponse | None = None,
+    final_extraction: FinalExtraction | None = None,
     created_by_id: str | None = None,
     priority: int = 10,
     force: bool = False,
@@ -572,9 +551,11 @@ def queue_extraction_validation(
         return None
     if allow_disabled_manual and _model(db) is None:
         return None
-    response = response or _current_response(db, publication_id)
+    final_extraction = final_extraction or get_current_final_extraction(
+        db, publication_id
+    )
     document = active_document(db, publication_id)
-    if response is None or document is None:
+    if final_extraction is None or document is None:
         return None
     extraction = extraction or db.scalar(
         select(DocumentTextExtraction).where(
@@ -593,7 +574,9 @@ def queue_extraction_validation(
         db,
         publication=publication,
         task_type=LlmTaskType.EXTRACTION_VALIDATION,
-        input_fingerprint=validation_fingerprint(db, document, extraction, response),
+        input_fingerprint=validation_fingerprint(
+            db, document, extraction, final_extraction
+        ),
         prompt_version=EXTRACTION_VALIDATION_PROMPT_VERSION,
         created_by_id=created_by_id,
         priority=priority,
@@ -601,7 +584,7 @@ def queue_extraction_validation(
         bulk_id=bulk_id,
         document=document,
         extraction=extraction,
-        extraction_response=response,
+        final_extraction=final_extraction,
     )
 
 
@@ -716,12 +699,14 @@ def queue_tasks_after_text(
     )
     if extraction_run is not None:
         queued = extraction_run
-    response = _current_response(db, document.publication_id)
-    if response is not None and project_extractions_completed(db, document.project_id):
+    final_extraction = get_current_final_extraction(db, document.publication_id)
+    if final_extraction is not None and project_extractions_completed(
+        db, document.project_id
+    ):
         validation = queue_extraction_validation(
             db,
             document.publication_id,
-            response=response,
+            final_extraction=final_extraction,
             created_by_id=created_by_id,
             priority=max(priority, 10),
             extraction=extraction,
@@ -907,9 +892,11 @@ def current_task_fingerprint(db: Session, run: LlmExtractionRun) -> str | None:
             if schema
             else None
         )
-    response = _current_response(db, publication.id)
+    final_extraction = get_current_final_extraction(db, publication.id)
     return (
-        validation_fingerprint(db, document, extraction, response) if response else None
+        validation_fingerprint(db, document, extraction, final_extraction)
+        if final_extraction
+        else None
     )
 
 

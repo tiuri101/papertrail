@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
-import { IconDownload, IconInfo, IconTrash } from '../../components/icons'
+import { IconDownload, IconTrash } from '../../components/icons'
 import { useCanManagePublications } from '../../hooks/useCanManageProject'
 import { BackgroundJob, findJob, hasActiveJob, isJobActive } from '../jobs/jobStatus'
 import { StageEyebrow } from '../projects/StageEyebrow'
@@ -24,6 +24,24 @@ const exportOptions = [
     buttonLabel: 'Generate Excel Workbook',
   },
   {
+    type: 'parquet',
+    title: 'Parquet Dataset',
+    description: 'A compact, typed dataset for Python, R, DuckDB, Spark, and dashboard workflows.',
+    buttonLabel: 'Generate Parquet Dataset',
+  },
+  {
+    type: 'json',
+    title: 'JSON Export',
+    description: 'A structured export that preserves project results for APIs and application workflows.',
+    buttonLabel: 'Generate JSON Export',
+  },
+  {
+    type: 'csv',
+    title: 'CSV Dataset',
+    description: 'A common tabular export for Python, R, spreadsheets, and dashboard tools.',
+    buttonLabel: 'Generate CSV Dataset',
+  },
+  {
     type: 'prisma_svg',
     title: 'PRISMA Flow Diagram',
     description: 'A publication-ready SVG of the current PRISMA 2020 flow diagram.',
@@ -31,9 +49,9 @@ const exportOptions = [
   },
   {
     type: 'prisma_tables',
-    title: 'PRISMA Supporting Tables',
+    title: 'PRISMA Tables',
     description: 'The structured counts behind the diagram for reporting and verification.',
-    buttonLabel: 'Generate PRISMA Supporting Tables',
+    buttonLabel: 'Generate PRISMA Tables',
   },
   {
     type: 'bibtex',
@@ -51,7 +69,12 @@ function humanizeKey(value: string) {
 }
 
 function formatArtifactType(value: string) {
-  return humanizeKey(value).replace('Prisma', 'PRISMA').replace('Xlsx', 'Excel').replace('Pdf', 'PDF')
+  return humanizeKey(value)
+    .replace('Prisma', 'PRISMA')
+    .replace('Xlsx', 'Excel')
+    .replace('Pdf', 'PDF')
+    .replace('Json', 'JSON')
+    .replace('Csv', 'CSV')
 }
 
 export function ReportingPage() {
@@ -138,7 +161,6 @@ export function ReportingPage() {
       <div className="reporting-overview-grid">
         <figure className="reporting-prisma-card">
           <figcaption>
-            <span className="reporting-card-icon" aria-hidden="true"><IconInfo /></span>
             <div>
               <span className="eyebrow">Study selection</span>
               <h2>PRISMA Flow</h2>
@@ -181,15 +203,16 @@ export function ReportingPage() {
             <span className="eyebrow">Choose a format</span>
             <h2 id="create-export-heading">Create a New Export</h2>
           </div>
-          <p>Exports use the latest completed review data at the time they are generated.</p>
         </header>
         <div className="reporting-export-grid">
           {exportOptions.map((option) => (
             <article className="reporting-export-option" key={option.type}>
-              <span className="reporting-export-option__icon" aria-hidden="true">
-                <IconDownload />
-              </span>
-              <h3>{option.title}</h3>
+              <div className="reporting-export-option__heading">
+                <span className="reporting-export-option__icon" aria-hidden="true">
+                  <IconDownload />
+                </span>
+                <h3>{option.title}</h3>
+              </div>
               <p>{option.description}</p>
               <button
                 type="button"

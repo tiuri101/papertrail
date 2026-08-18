@@ -17,10 +17,12 @@ from app.accounts.dependencies import (
 )
 from app.accounts.models import User, UserSession
 from app.analysis.jobs import cancel_queued_stage_analysis_jobs
+from app.analysis.rq_jobs import cancel_queued_rq_synthesis_jobs
 from app.api.errors import DomainError, ForbiddenError, NotFoundError
 from app.audit.service import record_audit
 from app.conflicts.models import FinalDecision
 from app.db.session import get_db
+from app.extraction.final import get_current_final_extraction
 from app.extraction.models import ExtractionResponse, ExtractionWorkItem
 from app.forms.schemas import FieldResponse
 from app.fulltext.documents import active_document
@@ -291,6 +293,7 @@ def update_llm_installation_settings(
         # was_cancelled/the installation re-check in generate_stage_analysis_job.
         cancel_all_llm_jobs(db)
         cancel_queued_stage_analysis_jobs(db)
+        cancel_queued_rq_synthesis_jobs(db)
     record_audit(
         db,
         action="llm.installation_settings_updated",
@@ -1040,7 +1043,7 @@ def _assigned_extraction_item(
 
 
 def _validation_payload(db: Session, item: ExtractionWorkItem) -> dict[str, Any]:
-    response = db.scalar(
+    own_response = db.scalar(
         select(ExtractionResponse)
         .where(
             ExtractionResponse.work_item_id == item.id,
@@ -1048,15 +1051,23 @@ def _validation_payload(db: Session, item: ExtractionWorkItem) -> dict[str, Any]
         )
         .order_by(ExtractionResponse.created_at.desc())
     )
-    if response is None:
+    if own_response is None:
         return {"state": "not_submitted"}
+    final = get_current_final_extraction(db, item.publication_id)
+    if final is None:
+        # This reviewer's own slot is done, but there is no authoritative
+        # result yet -- either the other independent slot isn't done, or
+        # both are done but disagree and it's awaiting reconciliation.
+        # Validation always targets the authoritative final, never an
+        # individual (possibly unresolved) response.
+        return {"state": "awaiting_final", "responseId": own_response.id}
     if not feature_enabled(db, item.project_id, LlmTaskType.EXTRACTION_VALIDATION):
         # Disabled always wins, even over an existing (possibly completed)
         # run from before the capability was turned off.
-        return {"state": "disabled", "responseId": response.id}
+        return {"state": "disabled", "responseId": own_response.id}
     run = latest_task_run(db, item.publication_id, LlmTaskType.EXTRACTION_VALIDATION)
     if run is None:
-        return {"state": "unavailable", "responseId": response.id}
+        return {"state": "unavailable", "responseId": own_response.id}
     stale = run_is_stale(db, run)
     return {
         "state": (
@@ -1065,7 +1076,7 @@ def _validation_payload(db: Session, item: ExtractionWorkItem) -> dict[str, Any]
             else "queued" if run.status == ProcessingStatus.PENDING else run.status
         ),
         "runId": run.id,
-        "responseId": run.extraction_response_id,
+        "responseId": own_response.id,
         "model": run.model,
         "promptVersion": run.prompt_template_version,
         "stale": stale,
@@ -1142,11 +1153,18 @@ def extraction_validation_review(
         publication = db.get(Publication, item.publication_id)
         if publication is None:
             continue
+        final = get_current_final_extraction(db, item.publication_id)
         # Disabled always wins, even over an existing (possibly completed)
         # run from before the capability was turned off.
-        run = current_validation_run(db, item) if enabled else None
+        run = current_validation_run(db, item.publication_id) if enabled else None
         if response is None:
             state = "waiting_for_extraction"
+        elif final is None:
+            # This slot's own response is submitted, but there is no
+            # authoritative result yet (dual mode: still waiting on the
+            # other slot, or awaiting reconciliation). Validation always
+            # targets the authoritative final, never an unresolved response.
+            state = "awaiting_final"
         elif not enabled:
             state = "disabled"
         elif run is None:
@@ -1252,6 +1270,12 @@ def request_extraction_validation(
     )
     if response is None:
         raise DomainError("Submit the human extraction before validating it")
+    final = get_current_final_extraction(db, item.publication_id)
+    if final is None:
+        raise DomainError(
+            "Both independent extractors must agree or a reconciliation must be "
+            "completed before validating this publication"
+        )
     if not project_extractions_completed(db, project_id):
         raise DomainError(
             "Extraction validation starts after every paper has been manually extracted"
@@ -1259,7 +1283,7 @@ def request_extraction_validation(
     result = queue_extraction_validation(
         db,
         item.publication_id,
-        response=response,
+        final_extraction=final,
         created_by_id=session.user.id,
         priority=10,
         force=payload.force,

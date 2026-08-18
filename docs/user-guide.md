@@ -2,7 +2,7 @@
 
 Reviewers only see projects in which they are members and activities for which they are eligible. The interface only shows actions you're allowed to take — for example, project setup and administration pages are only visible to that project's owner or an administrator.
 
-Any project member can edit the project's research questions and inclusion/exclusion criteria, document a database search and upload its import file, resolve duplicate candidates, and generate and download exports (PRISMA outputs, the Excel workbook, and BibTeX).
+Any project member can edit the project's research questions and inclusion/exclusion criteria, document a database search and upload its import file, resolve duplicate candidates, and generate and download exports (PRISMA outputs, the Excel workbook, Parquet, JSON, CSV, and BibTeX).
 
 ## Search documentation and imports
 
@@ -56,8 +56,20 @@ If the installation administrator enables email and records your address, Papert
 
 ## Extraction and quality assessment
 
-Each included publication has one extractor and, when enabled, one quality assessor. As with screening, the project owner or an administrator chooses how publications reach reviewers for each of these stages: **Claim** (the default) lets reviewers pick up the next unclaimed publication themselves, while **Pre-assigned** divides publications round-robin across eligible reviewers ahead of time, weighted by workload weight. Complete all required fields before submission. Submitted work can be revised, or reopened by the project owner or an administrator.
+Each included publication has one extractor, or — if the project owner or administrator has configured **two independent extractors** (Project Administration → Extraction Settings, locked once any response exists) — two reviewers who extract it independently without seeing each other's answers until their own is complete. When enabled, each publication also has one quality assessor. As with screening, the project owner or an administrator chooses how publications reach reviewers for each of these stages: **Claim** (the default) lets reviewers pick up the next unclaimed publication themselves, while **Pre-assigned** divides publications round-robin across eligible reviewers ahead of time, weighted by workload weight. Complete all required fields before submission. Submitted work can be revised, or reopened by the project owner or an administrator.
+
+In two-extractor projects, once both reviewers finish a publication Papertrail compares their answers field by field. Full agreement finalizes the result immediately — no extra step. A disagreement sends the publication to the **Reconciliation** queue, visible only to the project owner, an administrator, or a member granted the adjudicator permission. There, the adjudicator sees both answers per field, picks reviewer A's, reviewer B's, or enters a manual value for whichever fields disagree (agreeing fields are pre-filled), adds a required note, and submits — this becomes the authoritative result, and both original reviewer responses are kept as-is. See [Review Workflow](review-workflow.md) for the full mechanics.
 
 ## Final results
 
 Any project member can browse a sortable, paginated table of every finally included publication alongside its extraction answers and, when enabled, quality-assessment answers and score.
+
+## Charts & Analysis
+
+Beyond the per-stage progress charts, the Charts & Analysis page has three views built on the project's authoritative results:
+
+**Reviewer Analysis** shows how independent reviewers agreed with each other for title/abstract and full-text screening, without ever naming who made which decision — reviewers are shown only as anonymous "Reviewer A", "Reviewer B", etc. Alongside raw percent agreement, it reports **Cohen's kappa** (for two reviewers) or **Fleiss' kappa** (for more than two): a measure of agreement that corrects for how often reviewers would agree purely by chance. Kappa ranges roughly from 0 (no better than chance) to 1 (perfect agreement); as a rough guide, below 0.4 is usually considered weak agreement, 0.4–0.75 moderate to good, and above 0.75 excellent — but always read it alongside the raw agreement rate and how many decisions it's based on. Kappa shows as "N/A" (never a bare "0") when there isn't enough data to compute it meaningfully, or when every reviewer picked the same option so there's no variation to measure agreement over.
+
+**Evidence Matrix** is a spreadsheet-like view of every included publication against every extraction and quality field, with the authoritative (single-reviewer, agreed, reconciled, or overridden) value in each cell. A publication still awaiting reconciliation shows as a distinct "pending reconciliation" state rather than looking like a blank/missing answer. Search, per-field filters, and column visibility all work server-side for large projects. Click a cell to see its resolution method and, where traceable, the exact quoted evidence behind it.
+
+**Research Question Analysis** optionally generates an LLM synthesis of the authoritative results for each research question, when your administrator has enabled "AI-generated interpretive analysis" for the project (the same toggle that controls the per-stage narrative summaries above). Every statement links to `[SRC-xxxx]` badges you can expand to see exactly which publication, field, and value it's based on — including the original evidence quote when one is traceable. The synthesis never invents a citation: a claim the model couldn't tie back to real project data is dropped rather than shown unsupported. A "may be outdated" banner appears once the underlying data has changed since the synthesis was generated; regenerate it from the same card.

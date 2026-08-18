@@ -159,6 +159,7 @@ class ProjectDetail(ProjectSummary):
     can_full_text_screen: bool = Field(serialization_alias="canFullTextScreen")
     can_extract: bool = Field(serialization_alias="canExtract")
     can_assess_quality: bool = Field(serialization_alias="canAssessQuality")
+    can_adjudicate: bool = Field(serialization_alias="canAdjudicate")
 
 
 class PromptFlowSettings(ApiModel):

@@ -29,6 +29,7 @@ import { ConflictResolutionPage } from '../features/conflicts/ConflictResolution
 import { DuplicateReviewPage } from '../features/duplicates/DuplicateReviewPage'
 import { ExtractionPage } from '../features/extraction/ExtractionPage'
 import { MyExtractionsPage } from '../features/extraction/MyExtractionsPage'
+import { ReconciliationPage } from '../features/extraction/ReconciliationPage'
 import { ValidationReviewPage } from '../features/extraction/ValidationReviewPage'
 import { FullTextPage } from '../features/fulltext/FullTextPage'
 import { ImportPage } from '../features/imports/ImportPage'
@@ -312,6 +313,7 @@ export function App() {
             <Route path="/projects/:projectId/extraction/review/:itemId" element={<ExtractionPage />} />
             <Route path="/projects/:projectId/extraction/mine" element={<MyExtractionsPage />} />
             <Route path="/projects/:projectId/extraction/validation" element={<ValidationReviewPage />} />
+            <Route path="/projects/:projectId/extraction/reconciliation" element={<ReconciliationPage />} />
             <Route path="/projects/:projectId/quality" element={<QualityPage />} />
             <Route path="/projects/:projectId/quality/review/:itemId" element={<QualityPage />} />
             <Route path="/projects/:projectId/quality/mine" element={<MyQualityPage />} />

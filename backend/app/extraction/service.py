@@ -6,7 +6,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import case, func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, aliased
 
 from app.accounts.models import User
 from app.api.errors import DomainError, ForbiddenError, NotFoundError
@@ -26,6 +26,8 @@ from app.projects.models import (
 )
 from app.projects.service import reviewer_weights, weighted_round_robin_sequence
 from app.screening.models import ScreeningOutcome
+
+MAX_REQUIRED_REVIEWERS = 2
 
 
 def utcnow() -> datetime:
@@ -87,11 +89,57 @@ def extraction_allocation_mode(db: Session, project_id: str) -> TaskAllocationMo
     return config.allocation_mode if config else TaskAllocationMode.CLAIM
 
 
+def extraction_required_reviewers(db: Session, project_id: str) -> int:
+    config = get_extraction_config(db, project_id)
+    return config.required_reviewers if config else 1
+
+
+def update_extraction_config(
+    db: Session,
+    project_id: str,
+    *,
+    allocation_mode: TaskAllocationMode,
+    required_reviewers: int,
+) -> ExtractionConfig:
+    if not 1 <= required_reviewers <= MAX_REQUIRED_REVIEWERS:
+        raise DomainError(
+            f"Extractors per publication must be between 1 and "
+            f"{MAX_REQUIRED_REVIEWERS}"
+        )
+    existing = get_extraction_config(db, project_id)
+    if existing is not None and existing.required_reviewers != required_reviewers:
+        has_responses = db.scalar(
+            select(ExtractionResponse.id)
+            .join(ExtractionWorkItem)
+            .where(ExtractionWorkItem.project_id == project_id)
+            .limit(1)
+        )
+        if has_responses:
+            raise DomainError(
+                "Cannot change extractors per publication after extraction work "
+                "has begun"
+            )
+    config = existing
+    if config is None:
+        config = ExtractionConfig(project_id=project_id)
+        db.add(config)
+    config.allocation_mode = allocation_mode
+    config.required_reviewers = required_reviewers
+    db.flush()
+    return config
+
+
 def initialize_extraction(db: Session, project: Project) -> int:
     if project_form(db, project.id) is None:
         return 0
+    required = extraction_required_reviewers(db, project.id)
     reviewers = eligible_extractors(db, project.id)
-    if not reviewers:
+    if len(reviewers) < required:
+        if required > 1:
+            raise DomainError(
+                f"At least {required} eligible extraction reviewers are required "
+                "for dual extraction"
+            )
         raise DomainError("At least one eligible extraction reviewer is required")
     claim_mode = extraction_allocation_mode(db, project.id) == TaskAllocationMode.CLAIM
     publication_ids = sorted(included_publication_ids(db, project.id))
@@ -101,29 +149,61 @@ def initialize_extraction(db: Session, project: Project) -> int:
         else weighted_round_robin_sequence(
             reviewers,
             reviewer_weights(db, project.id, reviewers),
-            len(publication_ids),
+            len(publication_ids) * required,
         )
     )
     created = 0
-    for index, publication_id in enumerate(publication_ids):
-        if db.scalar(
-            select(ExtractionWorkItem.id).where(
-                ExtractionWorkItem.publication_id == publication_id
-            )
-        ):
-            continue
-        rank = hashlib.sha256(
-            f"{project.random_seed}:{project.id}:{publication_id}:extraction".encode()
-        ).hexdigest()
-        db.add(
-            ExtractionWorkItem(
-                project_id=project.id,
-                publication_id=publication_id,
-                assigned_reviewer_id=None if claim_mode else assignment_sequence[index],
-                random_rank=rank,
+    sequence_index = 0
+    for publication_id in publication_ids:
+        existing_slots = set(
+            db.scalars(
+                select(ExtractionWorkItem.slot_number).where(
+                    ExtractionWorkItem.publication_id == publication_id
+                )
             )
         )
-        created += 1
+        assigned_this_publication: set[str] = set(
+            db.scalars(
+                select(ExtractionWorkItem.assigned_reviewer_id).where(
+                    ExtractionWorkItem.publication_id == publication_id,
+                    ExtractionWorkItem.assigned_reviewer_id.is_not(None),
+                )
+            )
+        )
+        for slot_number in range(1, required + 1):
+            if slot_number in existing_slots:
+                continue
+            assignee = None
+            if not claim_mode:
+                # Draw the next eligible reviewer in rotation who isn't
+                # already assigned another slot for this same publication,
+                # guaranteeing distinct reviewers across slots.
+                while sequence_index < len(assignment_sequence):
+                    candidate = assignment_sequence[sequence_index]
+                    sequence_index += 1
+                    if candidate not in assigned_this_publication:
+                        assignee = candidate
+                        break
+                if assignee is None:
+                    remaining = [
+                        r for r in reviewers if r not in assigned_this_publication
+                    ]
+                    assignee = remaining[0] if remaining else reviewers[0]
+                assigned_this_publication.add(assignee)
+            rank = hashlib.sha256(
+                f"{project.random_seed}:{project.id}:{publication_id}:"
+                f"{slot_number}:extraction".encode()
+            ).hexdigest()
+            db.add(
+                ExtractionWorkItem(
+                    project_id=project.id,
+                    publication_id=publication_id,
+                    slot_number=slot_number,
+                    assigned_reviewer_id=assignee,
+                    random_rank=rank,
+                )
+            )
+            created += 1
     db.flush()
     return created
 
@@ -166,7 +246,46 @@ def reassign_work_items_from_ineligible_reviewers(db: Session, project_id: str) 
         item.status = ExtractionStatus.AVAILABLE
         item.reserved_until = None
     db.flush()
+    if not claim_mode:
+        _ensure_distinct_slot_assignments(db, project_id, eligible)
     return len(orphaned)
+
+
+def _ensure_distinct_slot_assignments(
+    db: Session, project_id: str, eligible: list[str]
+) -> None:
+    """Safety net for PRE_ASSIGNED dual extraction: if reassignment or
+    rebalancing ever left two not-yet-completed slots of the same
+    publication assigned to the same reviewer, swap one to a different
+    eligible reviewer not already on that publication."""
+    if len(eligible) < 2:
+        return
+    items = list(
+        db.scalars(
+            select(ExtractionWorkItem)
+            .where(
+                ExtractionWorkItem.project_id == project_id,
+                ExtractionWorkItem.status != ExtractionStatus.COMPLETED,
+            )
+            .order_by(ExtractionWorkItem.publication_id, ExtractionWorkItem.slot_number)
+        )
+    )
+    by_publication: dict[str, list[ExtractionWorkItem]] = {}
+    for item in items:
+        by_publication.setdefault(item.publication_id, []).append(item)
+    for pub_items in by_publication.values():
+        seen: set[str] = set()
+        for item in pub_items:
+            if item.assigned_reviewer_id is None:
+                continue
+            if item.assigned_reviewer_id in seen:
+                replacement = next((r for r in eligible if r not in seen), None)
+                if replacement is not None:
+                    item.assigned_reviewer_id = replacement
+                    seen.add(replacement)
+            else:
+                seen.add(item.assigned_reviewer_id)
+    db.flush()
 
 
 def rebalance_pending_work_items(db: Session, project_id: str) -> int:
@@ -206,6 +325,7 @@ def rebalance_pending_work_items(db: Session, project_id: str) -> int:
             reassigned += 1
         load[chosen] += 1
     db.flush()
+    _ensure_distinct_slot_assignments(db, project_id, eligible)
     return reassigned
 
 
@@ -324,6 +444,21 @@ def claim_next_extraction(
         )
         if excluded_item_ids:
             query = query.where(ExtractionWorkItem.id.not_in(excluded_item_ids))
+        if claim_mode:
+            # Never let one reviewer claim two slots of the same publication:
+            # exclude any work item whose publication already has another
+            # slot (any status) assigned to this reviewer.
+            sibling = aliased(ExtractionWorkItem)
+            sibling_assigned = (
+                select(sibling.id)
+                .where(
+                    sibling.publication_id == ExtractionWorkItem.publication_id,
+                    sibling.assigned_reviewer_id == reviewer_id,
+                )
+                .correlate(ExtractionWorkItem)
+                .exists()
+            )
+            query = query.where(~sibling_assigned)
         if db.bind is not None and db.bind.dialect.name == "postgresql":
             query = query.with_for_update(skip_locked=True)
         item = db.scalar(query)
@@ -345,6 +480,30 @@ def save_draft(
     ):
         raise ForbiddenError("This extraction work item cannot be edited")
     item.draft = draft
+
+
+def slot_responses_visible(
+    db: Session, work_item: ExtractionWorkItem, viewer_id: str
+) -> bool:
+    """Whether `viewer_id` may see the *other* extraction slot(s)' answers,
+    drafts, or history for this work item's publication.
+
+    Per-viewer and asymmetric, unlike screening's symmetric reveal-at-quorum
+    gate: a reviewer only sees sibling slot data once their OWN slot is
+    complete, regardless of whether the sibling slot is complete. In
+    single-reviewer mode there is never a sibling to hide, so this is
+    always true.
+    """
+    required = extraction_required_reviewers(db, work_item.project_id)
+    if required <= 1:
+        return True
+    own_item = db.scalar(
+        select(ExtractionWorkItem).where(
+            ExtractionWorkItem.publication_id == work_item.publication_id,
+            ExtractionWorkItem.assigned_reviewer_id == viewer_id,
+        )
+    )
+    return own_item is not None and own_item.status == ExtractionStatus.COMPLETED
 
 
 def active_fields(db: Session, form: ReviewForm) -> list[FormField]:
@@ -436,6 +595,16 @@ def submit_extraction(
     item.completed_at = utcnow()
     item.draft = {}
     db.flush()
+
+    # Must run before queue_project_extraction_validations below: validation
+    # targets the authoritative FinalExtraction, which this submission may
+    # just have created or invalidated (single-reviewer mode: immediately;
+    # dual-reviewer mode: once both slots agree).
+    from app.extraction.reconciliation import attempt_auto_finalize
+
+    attempt_auto_finalize(db, item.publication_id)
+    db.flush()
+
     from app.llm.task_service import queue_project_extraction_validations
 
     queue_project_extraction_validations(
@@ -450,8 +619,12 @@ def override_extraction(
     item: ExtractionWorkItem,
     actor_id: str,
     answers: dict[str, Any],
+    reason: str,
 ) -> tuple[ExtractionResponse, ExtractionResponse]:
-    """Record an owner override as a new immutable extraction response version."""
+    """Record an owner override as a new immutable extraction response
+    version, and as the new authoritative FinalExtraction for the
+    publication (superseding whatever was previously authoritative,
+    including a reconciled or agreed result)."""
     current = db.scalar(
         select(ExtractionResponse).where(
             ExtractionResponse.work_item_id == item.id,
@@ -484,6 +657,24 @@ def override_extraction(
     item.completed_at = utcnow()
     item.draft = {}
     db.flush()
+
+    from app.extraction.final import create_or_replace_final_extraction
+
+    create_or_replace_final_extraction(
+        db,
+        project_id=item.project_id,
+        publication_id=item.publication_id,
+        form_version_id=response.form_version_id,
+        answers=dict(response.answers),
+        resolution_method="override",
+        resolved_by_id=actor_id,
+        note=reason,
+        field_provenance={
+            key: {"from": "manual", "responseId": None} for key in response.answers
+        },
+        contributing_response_ids=[response.id],
+        invalidation_reason="manager_override",
+    )
 
     from app.llm.task_service import queue_project_extraction_validations
 
@@ -532,9 +723,18 @@ def reopen_for_required_field(db: Session, project_id: str) -> int:
             )
         )
     )
+    affected_publication_ids = {item.publication_id for item in items}
     for item in items:
         item.status = ExtractionStatus.AVAILABLE
         item.completed_at = None
         item.reserved_until = None
+    db.flush()
+
+    from app.extraction.final import invalidate_current_final_extraction
+
+    for publication_id in affected_publication_ids:
+        invalidate_current_final_extraction(
+            db, publication_id, "form_reopened_for_required_field"
+        )
     db.flush()
     return len(items)

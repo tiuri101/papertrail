@@ -11,14 +11,17 @@ from app.projects.models import Project
 from app.reporting.models import ExportArtifact
 from app.reporting.service import (
     build_bibtex,
+    build_csv,
     build_excel,
+    build_json,
+    build_parquet,
     build_prisma_svg,
     build_prisma_tables,
     build_publication_bundle,
     calculate_prisma_counts,
 )
 
-_TYPES_WITHOUT_SUFFIX = {"xlsx", "bibtex"}
+_TYPES_WITHOUT_SUFFIX = {"xlsx", "bibtex", "parquet", "json", "csv"}
 
 
 def _slugify_project_name(name: str) -> str:
@@ -49,6 +52,15 @@ def generate_export_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
     if export_type == "xlsx":
         data = build_excel(db, project.id)
         extension = "xlsx"
+    elif export_type == "parquet":
+        data = build_parquet(db, project.id)
+        extension = "parquet"
+    elif export_type == "json":
+        data = build_json(db, project.id)
+        extension = "json"
+    elif export_type == "csv":
+        data = build_csv(db, project.id)
+        extension = "csv"
     elif export_type == "prisma_tables":
         data = build_prisma_tables(db, project.id)
         extension = "xlsx"
