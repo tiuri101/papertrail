@@ -32,7 +32,7 @@ describe('AppShell', () => {
     renderShell(reviewerSession)
     expect(screen.getByRole('link', { name: 'Projects' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Users' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'Instance Settings' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Global Settings' })).not.toBeInTheDocument()
   })
 
   it('exposes Help to every signed-in user', () => {
@@ -46,7 +46,7 @@ describe('AppShell', () => {
       user: { ...reviewerSession.user, id: 'admin', username: 'admin', isAdmin: true },
     })
     expect(screen.getByRole('link', { name: 'Users' })).toHaveAttribute('href', '/users')
-    expect(screen.getByRole('link', { name: 'Instance Settings' })).toHaveAttribute('href', '/instance-settings')
+    expect(screen.getByRole('link', { name: 'Global Settings' })).toHaveAttribute('href', '/instance-settings')
   })
 
   it('logs out, clears client session state, and navigates to login', async () => {
@@ -81,18 +81,18 @@ describe('AppShell', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Main menu' }))
     const drawer = screen.getByRole('dialog', { name: 'Main menu' })
     expect(within(drawer).getByRole('link', { name: 'Users' })).toHaveAttribute('href', '/users')
-    expect(within(drawer).getByRole('link', { name: 'Instance Settings' })).toHaveAttribute('href', '/instance-settings')
+    expect(within(drawer).getByRole('link', { name: 'Global Settings' })).toHaveAttribute('href', '/instance-settings')
     expect(within(drawer).getByRole('link', { name: 'Account' })).toHaveAttribute('href', '/account')
     expect(within(drawer).getByRole('link', { name: 'Help' })).toHaveAttribute('href', '/help')
   })
 
-  it('hides Users and Instance Settings from the mobile menu for reviewers', () => {
+  it('hides Users and Global Settings from the mobile menu for reviewers', () => {
     renderShell(reviewerSession)
 
     fireEvent.click(screen.getByRole('button', { name: 'Main menu' }))
     const drawer = screen.getByRole('dialog', { name: 'Main menu' })
     expect(within(drawer).queryByRole('link', { name: 'Users' })).not.toBeInTheDocument()
-    expect(within(drawer).queryByRole('link', { name: 'Instance Settings' })).not.toBeInTheDocument()
+    expect(within(drawer).queryByRole('link', { name: 'Global Settings' })).not.toBeInTheDocument()
     expect(within(drawer).getByRole('link', { name: 'Account' })).toBeInTheDocument()
   })
 

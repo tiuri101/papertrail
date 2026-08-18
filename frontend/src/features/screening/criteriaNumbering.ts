@@ -15,3 +15,11 @@ export function criterionNumbers(criteria: ScreeningCriterion[]): Record<string,
   })
   return numbers
 }
+
+export function criterionOrderIndex(criteria: ScreeningCriterion[]): Record<string, number> {
+  const index: Record<string, number> = {}
+  sortedByKind(criteria).forEach((criterion, position) => {
+    index[criterion.id] = position
+  })
+  return index
+}
