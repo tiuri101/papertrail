@@ -400,6 +400,16 @@ export function ExtractionWorkspace({
               <PublisherLinkPill url={item.publication.publisherUrl} />
             ) : null}
           </div>
+          {fullTextDocument.data?.available ? (
+            <a
+              className="button-secondary button-sm"
+              href={`${fullTextDocumentEndpoint(projectId, item.publicationId)}/content`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Open PDF
+            </a>
+          ) : null}
         </>
       ) : null}
       {assistance.isLoading ? (

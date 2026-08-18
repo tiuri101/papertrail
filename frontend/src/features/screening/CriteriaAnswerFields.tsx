@@ -3,6 +3,7 @@ import type { KeyboardEvent } from 'react'
 
 import { IconCheckCircle, IconXCircle } from '../../components/icons'
 import { formatHotkey, loadScreeningHotkeys, type ScreeningHotkeyAction } from '../../lib/screeningHotkeys'
+import { criterionNumbers, sortedByKind } from './criteriaNumbering'
 import type { CriterionAnswer, ScreeningCriterion } from './useScreeningQueue'
 import {InfoBox} from "../../components/InfoBox";
 
@@ -16,22 +17,6 @@ const DECISION_OPTIONS: { value: string; label: string; hotkeyAction: ScreeningH
   { value: 'uncertain', label: 'Uncertain', hotkeyAction: 'uncertain' },
   { value: 'duplicate', label: 'Duplicate', hotkeyAction: 'duplicate' },
 ]
-
-function sortedByKind(criteria: ScreeningCriterion[]): ScreeningCriterion[] {
-  return [...criteria].sort((a, b) => (a.kind === b.kind ? 0 : a.kind === 'inclusion' ? -1 : 1))
-}
-
-function criterionNumbers(criteria: ScreeningCriterion[]): Record<string, string> {
-  const counts: Record<string, number> = {}
-  const numbers: Record<string, string> = {}
-  criteria.forEach((criterion) => {
-    const prefix = criterion.kind === 'inclusion' ? 'IC' : 'EC'
-    const count = (counts[criterion.kind] ?? 0) + 1
-    counts[criterion.kind] = count
-    numbers[criterion.id] = `${prefix}${count}`
-  })
-  return numbers
-}
 
 type CriterionColumn = 0 | 1
 

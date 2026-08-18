@@ -151,6 +151,7 @@ function DecisionEditForm({
         stage={stage as 'title_abstract' | 'full_text'}
         humanDecision={outcome}
         criteriaAnswers={answers}
+        criteria={criteria}
       />
       {!criteriaComplete ? (
         <p className="muted">Answer every criterion before saving.</p>

@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter
 from datetime import UTC, datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.api.errors import ConflictError, DomainError, NotFoundError
@@ -17,7 +17,7 @@ from app.projects.models import (
     ScreeningStage,
 )
 from app.publications.models import Publication
-from app.screening.models import ScreeningOutcome, ScreeningWorkItem
+from app.screening.models import ScreeningOutcome, ScreeningWorkItem, WorkItemStatus
 from app.screening.service import (
     current_decisions,
     decisions_visible,
@@ -182,6 +182,54 @@ def _queue_retrieval_on_inclusion(
         )
 
 
+def _retract_full_text_work_for_excluded_publication(
+    db: Session, publication_id: str
+) -> None:
+    """Mirror of _initialize_downstream_work_for_late_inclusion for the
+    opposite direction: a title/abstract decision that used to be INCLUDE
+    (and so already got a FullTextRetrieval row and a full-text
+    ScreeningWorkItem) has now been revised away from INCLUDE. Remove that
+    now-moot work so the publication doesn't keep sitting in the full-text
+    reviewer queue and doesn't leave a stray FullTextRetrieval row that
+    full_text_work_completed would otherwise have to reason about.
+
+    Only work nobody has acted on yet is removed -- a reviewer who already
+    submitted a full-text decision keeps that history. full_text_work_completed
+    itself stops counting this publication once it's no longer
+    title/abstract-included, regardless of whether anything gets removed here.
+    """
+    unsubmitted_item_ids = list(
+        db.scalars(
+            select(ScreeningWorkItem.id).where(
+                ScreeningWorkItem.publication_id == publication_id,
+                ScreeningWorkItem.stage == ScreeningStage.FULL_TEXT,
+                ScreeningWorkItem.status != WorkItemStatus.SUBMITTED,
+            )
+        )
+    )
+    if unsubmitted_item_ids:
+        db.execute(
+            delete(ScreeningWorkItem).where(
+                ScreeningWorkItem.id.in_(unsubmitted_item_ids)
+            )
+        )
+    remaining = db.scalar(
+        select(ScreeningWorkItem.id).where(
+            ScreeningWorkItem.publication_id == publication_id,
+            ScreeningWorkItem.stage == ScreeningStage.FULL_TEXT,
+        )
+    )
+    if remaining is None:
+        from app.fulltext.models import FullTextRetrieval
+
+        db.execute(
+            delete(FullTextRetrieval).where(
+                FullTextRetrieval.publication_id == publication_id
+            )
+        )
+    db.flush()
+
+
 def record_final_decision(
     db: Session,
     publication_id: str,
@@ -230,6 +278,10 @@ def record_final_decision(
         )
     elif stage == ScreeningStage.TITLE_ABSTRACT:
         cancel_queued_for_publication(db, publication_id)
+        # A no-op unless this publication previously had a valid INCLUDE
+        # decision that already queued full-text work -- e.g. a revised
+        # decision, not this being the first-ever verdict.
+        _retract_full_text_work_for_excluded_publication(db, publication_id)
     elif (
         stage == ScreeningStage.FULL_TEXT and final.outcome == ScreeningOutcome.INCLUDE
     ):
