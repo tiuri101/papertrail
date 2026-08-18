@@ -11,9 +11,9 @@ function formatDateTime(value: string | null) {
 }
 
 export function BrowserHelpersSection() {
-  const { agents, createPairingSecret, revoke } = useBrowserAgents()
   const [pairingSecret, setPairingSecret] = useState<PairingSecret | null>(null)
   const [copied, setCopied] = useState(false)
+  const { agents, createPairingSecret, revoke } = useBrowserAgents(pairingSecret !== null)
 
   const handleCreatePairingSecret = () => {
     setCopied(false)
