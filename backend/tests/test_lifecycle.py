@@ -5,6 +5,8 @@ from app.audit.models import AuditEvent
 from app.conflicts.models import FinalDecision
 from app.conflicts.service import record_final_decision
 from app.extraction.models import ExtractionStatus, ExtractionWorkItem, FinalExtraction
+from app.forms.models import FormKind
+from app.forms.service import create_form
 from app.fulltext.models import PublicationDocument
 from app.llm.models import (
     DocumentTextExtraction,
@@ -61,11 +63,12 @@ def complete_extraction_directly(
         status=ExtractionStatus.COMPLETED,
     )
     db.add(work_item)
+    form = create_form(db, "Extraction", FormKind.EXTRACTION, project_id=project.id)
     db.add(
         FinalExtraction(
             project_id=project.id,
             publication_id=publication.id,
-            form_version_id="test-form-version",
+            form_version_id=form.active_version_id,
             answers={},
             resolution_method="single_reviewer",
             field_provenance={},
