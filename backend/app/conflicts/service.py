@@ -384,6 +384,7 @@ def add_resolution_reviewer(
         stage=stage,
         slot_number=max_slot + 1,
         assigned_reviewer_id=candidates[0],
+        is_additional_slot=True,
         random_rank=rank_for(project, publication_id, stage),
     )
     db.add(item)

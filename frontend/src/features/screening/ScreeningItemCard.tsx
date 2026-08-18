@@ -1,4 +1,5 @@
 import { DoiPill } from '../../components/DoiPill'
+import { Button } from '../../components/Button'
 import { HighlightedText } from '../../components/HighlightedText'
 import { IconArrowRight, IconCheckCircle } from '../../components/icons'
 import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
@@ -90,26 +91,26 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
         <p className="error" role="alert">{decisionError.message}</p>
       ) : null}
       <div className="toolbar">
-        <button
+        <Button
           type="button"
-          className={awaitingConfirmation ? 'button-success' : undefined}
+          variant="primary"
           onClick={() => awaitingConfirmation ? queue.confirmDecision() : submit.mutate()}
           disabled={decisionPending || !criteriaComplete}
         >
           <IconCheckCircle />
           {awaitingConfirmation ? 'Confirm Decision' : 'Submit Decision'}
           {submitHotkey ? <kbd className="submit-button__hotkey" aria-hidden="true">{submitHotkey}</kbd> : null}
-        </button>
+        </Button>
         {!awaitingConfirmation ? (
-          <button
+          <Button
             type="button"
-            className="button-secondary"
+            variant="ghost"
             onClick={() => queue.skip.mutate()}
             disabled={queue.skip.isPending || submit.isPending}
           >
             <IconArrowRight />
             Skip for now
-          </button>
+          </Button>
         ) : null}
       </div>
       {queue.skip.error ? <p className="error" role="alert">{queue.skip.error.message}</p> : null}

@@ -313,7 +313,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
               disabled={!settings.data.installationEnabled || toggle.isPending}
               onChange={(event) => toggle.mutate({ analysisNarrativeEnabled: event.target.checked })}
             />
-            LLM-generated result analysis
+            AI-generated interpretive analysis (stage-result narrative summaries and research-question synthesis)
           </label>
         </fieldset>
       ) : null}

@@ -4,11 +4,13 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { Button } from '../../components/Button'
 import { IconArrowRight, IconCheckCircle, IconFolder } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
 import { CriteriaPanel, ResearchQuestionsPanel } from '../administration/ResearchAgendaPanel'
 import { HighlightKeywordsPanel } from '../administration/HighlightKeywordsPanel'
 import { MembersPanel } from '../administration/MembersPanel'
+import { ExtractionSettingsPanel } from '../administration/ExtractionSettingsPanel'
 import { ScreeningConfigPanel } from '../administration/ScreeningConfigPanel'
 import { FormFieldsPanel } from '../forms/FormFieldsPanel'
 import { LlmAssistancePanel, type LlmAssistancePanelHandle } from '../llm/LlmAssistancePanel'
@@ -281,12 +283,15 @@ export function ProjectSetupWizard() {
         <ScreeningConfigPanel projectId={projectId} onDirtyChange={setStepDirty} />
       ) : null}
       {WIZARD_STEPS[step].key === 'extraction' ? (
-        <FormFieldsPanel
-          projectId={projectId}
-          kind="extraction"
-          title="Data Extraction Form"
-          description="Define the fields reviewers will fill in when extracting data from included publications."
-        />
+        <>
+          <ExtractionSettingsPanel projectId={projectId} />
+          <FormFieldsPanel
+            projectId={projectId}
+            kind="extraction"
+            title="Data Extraction Form"
+            description="Define the fields reviewers fill in when extracting data from included publications."
+          />
+        </>
       ) : null}
       {WIZARD_STEPS[step].key === 'quality' ? (
         <FormFieldsPanel
@@ -311,19 +316,19 @@ export function ProjectSetupWizard() {
 
       {WIZARD_STEPS[step].key !== 'details' ? (
         <div className="toolbar wizard-nav">
-          <button type="button" className="button-secondary" onClick={() => goTo(step - 1)}>
+          <Button type="button" variant="ghost" onClick={() => goTo(step - 1)}>
             Back
-          </button>
+          </Button>
           {isLastStep ? (
-            <button type="button" onClick={finish} disabled={isFinishing}>
+            <Button type="button" onClick={finish} loading={isFinishing}>
               <IconCheckCircle />
               {isFinishing ? 'Finishing…' : 'Finish Setup'}
-            </button>
+            </Button>
           ) : (
-            <button type="button" onClick={() => goTo(step + 1)}>
+            <Button type="button" onClick={() => goTo(step + 1)}>
               {WIZARD_STEPS[step].optional ? 'Skip / Next' : 'Next'}
               <IconArrowRight />
-            </button>
+            </Button>
           )}
           <Link
             to={`/projects/${projectId}`}

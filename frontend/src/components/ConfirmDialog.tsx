@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { useEffect, useId, useRef } from 'react'
+import { Button } from './Button'
 
 interface ConfirmDialogProps {
   title: string
@@ -43,17 +44,17 @@ export function ConfirmDialog({
         <h2 id={titleId}>{title}</h2>
         <p>{message}</p>
         <div className="toolbar">
-          <button
+          <Button
             ref={confirmRef}
             type="button"
-            className={variant === 'danger' ? 'button-danger' : undefined}
+            variant={variant === 'danger' ? 'destructive' : 'primary'}
             onClick={onConfirm}
           >
             {confirmLabel}
-          </button>
-          <button type="button" className="button-secondary" onClick={onCancel}>
+          </Button>
+          <Button type="button" variant="ghost" onClick={onCancel}>
             {cancelLabel}
-          </button>
+          </Button>
         </div>
       </div>
     </div>

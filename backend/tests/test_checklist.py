@@ -308,6 +308,12 @@ def test_extraction_checklist_only_shows_llm_validation_when_enabled(db) -> None
     publication = Publication(project_id=project.id, title="A Study")
     db.add(publication)
     db.flush()
+    from app.conflicts.service import record_final_decision
+    from app.projects.models import ScreeningStage
+
+    record_final_decision(
+        db, publication.id, ScreeningStage.FULL_TEXT, "include", "agreement", None, None
+    )
     db.add(
         ExtractionWorkItem(
             project_id=project.id,

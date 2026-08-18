@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.api.errors import DomainError
 from app.audit.service import record_audit
-from app.extraction.models import ExtractionResponse
+from app.extraction.models import FinalExtraction
 from app.forms.models import FormField
 from app.jobs.errors import TransientJobError
 from app.jobs.models import BackgroundJob
@@ -352,14 +352,12 @@ def _run_full_text(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
 
 
 def _validation_fields(
-    db: Session, response: ExtractionResponse
+    db: Session, form_version_id: str, answers: dict[str, Any]
 ) -> list[dict[str, Any]]:
     fields = {
         item.stable_key: item
         for item in db.scalars(
-            select(FormField).where(
-                FormField.form_version_id == response.form_version_id
-            )
+            select(FormField).where(FormField.form_version_id == form_version_id)
         )
     }
     return [
@@ -369,14 +367,14 @@ def _validation_fields(
             "type": fields[key].field_type.value if key in fields else "unknown",
             "humanValue": value,
         }
-        for key, value in response.answers.items()
+        for key, value in answers.items()
     ]
 
 
 def _run_validation(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
-    response = (
-        db.get(ExtractionResponse, run.extraction_response_id)
-        if run.extraction_response_id
+    final_extraction = (
+        db.get(FinalExtraction, run.final_extraction_id)
+        if run.final_extraction_id
         else None
     )
     extraction = (
@@ -385,18 +383,20 @@ def _run_validation(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
         else None
     )
     if (
-        response is None
+        final_extraction is None
         or extraction is None
         or extraction.status != ProcessingStatus.COMPLETED
     ):
         return _mark_failed(
             run,
             "source_unavailable",
-            "Extraction response or PDF text is unavailable",
+            "The authoritative final extraction or PDF text is unavailable",
         )
     project = db.get(Project, run.project_id)
     custom_instructions = project.validation_prompt_instructions if project else None
-    fields = _validation_fields(db, response)
+    fields = _validation_fields(
+        db, final_extraction.form_version_id, final_extraction.answers
+    )
     field_keys = [str(item["fieldKey"]) for item in fields]
     research_questions = active_research_questions(db, run.project_id)
     pages = _pages(db, extraction.id)

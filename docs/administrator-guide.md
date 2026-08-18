@@ -22,7 +22,7 @@ An administrator is not automatically a reviewer on a project — reviewer eligi
 8. Track full-text retrieval (manual, or browser-assisted via a paired Chrome extension) and complete full-text screening.
 9. Configure extraction and quality-assessment forms.
 10. Complete extraction and quality assessment.
-11. Review integrity warnings and generate PRISMA, XLSX, and BibTeX exports.
+11. Review integrity warnings and generate PRISMA, XLSX, Parquet, JSON, CSV, and BibTeX exports.
 
 ## Accounts
 
@@ -48,10 +48,14 @@ Each stage that assigns publications to individual reviewers (title/abstract scr
 
 Workload weight only affects stages using Divided/Pre-assigned allocation; it has no effect on a stage using Claim or Independent allocation, since nothing is being pre-divided in those modes.
 
+## Data extraction: one or two extractors
+
+Extraction Settings (Project Administration) lets you choose one extractor per publication (default) or two independent extractors with reconciliation of disagreements — see [Review Workflow](review-workflow.md) for the full mechanics. This choice is locked once any extraction response exists in the project, so decide before extraction work begins. In two-extractor projects, grant the **Adjudication** permission to specific members from Project Members if you want reviewers other than yourself or an administrator to resolve disagreements; project owners and administrators can always reconcile regardless of this flag.
+
 ## Lifecycle changes
 
 Papertrail advances stages automatically when their completion rules are satisfied. A completed project may be reopened at a selected earlier stage. Reopening retains downstream data but excludes data that is no longer applicable from active counts.
 
 ## Background jobs
 
-Imports, enrichment, duplicate detection, exports, and email delivery are durable PostgreSQL jobs processed by the threaded worker. Inspect failed jobs before retrying. Restarting the API does not lose queued jobs.
+Imports, enrichment, duplicate detection, exports, and email delivery are durable PostgreSQL jobs processed by the threaded worker. Screening/extraction/validation LLM inference and research-question synthesis are claimed only by the separate, resource-limited LLM worker (`python -m app.jobs.worker --llm`), so a busy Ollama backend never starves ordinary workflow jobs. Inspect failed jobs before retrying. Restarting the API does not lose queued jobs.

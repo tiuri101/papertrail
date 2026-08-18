@@ -123,7 +123,10 @@ describe('ReportingPage', () => {
 
     expect(screen.getByRole('button', { name: 'Generate PRISMA SVG' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Generate Excel Workbook' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Generate PRISMA Supporting Tables' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Generate Parquet Dataset' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Generate JSON Export' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Generate CSV Dataset' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Generate PRISMA Tables' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Generate BibTeX' })).toBeInTheDocument()
   })
 })

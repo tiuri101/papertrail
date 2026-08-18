@@ -172,6 +172,76 @@ def test_compute_extraction_stats_counts_options_and_numeric_fields(db) -> None:
     assert risk["answeredCount"] == 2
 
 
+def test_compute_extraction_stats_uses_consensus_not_an_unresolved_response(db) -> None:
+    """Dual-extraction mode: stats must aggregate over the authoritative
+    FinalExtraction, never an individual reviewer's response -- a
+    publication still awaiting reconciliation must not be counted as
+    answered at all."""
+    from app.extraction.models import ExtractionConfig
+    from app.extraction.service import extraction_required_reviewers
+
+    admin = create_user(db, "admin", "Admin", "secret-password", is_admin=True)
+    r1 = create_user(db, "r1", "R1", "password-1")
+    r2 = create_user(db, "r2", "R2", "password-2")
+    project = Project(
+        name="Dual",
+        review_type="systematic_review",
+        random_seed="seed",
+        stage=ProjectStage.FULL_TEXT,
+    )
+    db.add(project)
+    db.flush()
+    for reviewer in (r1, r2):
+        db.add(
+            ProjectMembership(project_id=project.id, user_id=reviewer.id, can_extract=True)
+        )
+    db.add(ExtractionConfig(project_id=project.id, required_reviewers=2))
+    form = create_form(db, "Extraction", FormKind.EXTRACTION, project_id=project.id)
+    field = add_field(
+        db, form, "Outcome", "single_select", required=True, options=["Positive", "Negative"]
+    )
+    publication = Publication(project_id=project.id, title="Disagreeing paper")
+    db.add(publication)
+    db.flush()
+    record_final_decision(
+        db, publication.id, ScreeningStage.FULL_TEXT, "include", "agreement", None, None
+    )
+    project.stage = ProjectStage.EXTRACTION
+    db.commit()
+    initialize_extraction(db, project)
+    db.commit()
+    assert extraction_required_reviewers(db, project.id) == 2
+
+    item_r1 = claim_next_extraction(db, project.id, r1.id)
+    assert item_r1 is not None
+    submit_extraction(db, item_r1, r1.id, {field.stable_key: "Positive"})
+    item_r2 = claim_next_extraction(db, project.id, r2.id)
+    assert item_r2 is not None
+    submit_extraction(db, item_r2, r2.id, {field.stable_key: "Negative"})
+    db.commit()
+
+    stats = compute_extraction_stats(db, project.id)
+    fields_by_label = {field["label"]: field for field in stats["fields"]}
+    outcome = fields_by_label["Outcome"]
+    assert outcome["answeredCount"] == 0
+    assert outcome["totalCount"] == 1
+
+    from app.extraction.reconciliation import submit_reconciliation
+
+    submit_reconciliation(
+        db,
+        publication.id,
+        admin.id,
+        {field.stable_key: {"choice": "response_a"}},
+        "Resolved",
+    )
+    db.commit()
+
+    stats_after = compute_extraction_stats(db, project.id)
+    outcome_after = {f["label"]: f for f in stats_after["fields"]}["Outcome"]
+    assert outcome_after["answeredCount"] == 1
+
+
 def _project(db) -> Project:
     project = Project(
         name="Review", review_type="systematic_review", random_seed="seed"

@@ -4,6 +4,7 @@ from io import BytesIO
 from pathlib import Path
 from xml.etree import ElementTree
 
+import pyarrow.parquet as parquet  # type: ignore[import-untyped]
 import pytest
 from openpyxl import load_workbook
 from sqlalchemy import select
@@ -35,8 +36,11 @@ from app.reporting.jobs import generate_export_job
 from app.reporting.models import ExportArtifact
 from app.reporting.service import (
     build_bibtex,
+    build_csv,
     build_excel,
     build_final_results,
+    build_json,
+    build_parquet,
     build_prisma_svg,
     build_prisma_tables,
     build_publication_bundle,
@@ -237,6 +241,29 @@ def test_excel_and_bibtex_exports_are_valid_and_safe(db) -> None:
     assert "@article" in bibtex
     assert "10.1/include" in bibtex
     assert included.title in bibtex
+
+
+def test_parquet_export_is_analysis_ready_and_preserves_dynamic_answers(db) -> None:
+    project, included = setup_report(db)
+    data = build_parquet(db, project.id)
+    table = parquet.read_table(BytesIO(data))
+
+    assert "title" in table.column_names
+    assert "publication_year" in table.column_names
+    assert included.title in table.column("title").to_pylist()
+    assert str(table.schema.field("publication_year").type) == "int64"
+
+
+def test_json_and_csv_exports_are_interoperable(db) -> None:
+    project, included = setup_report(db)
+
+    json_data = build_json(db, project.id)
+    assert included.title in json_data.decode("utf-8")
+    assert '"items"' in json_data.decode("utf-8")
+
+    csv_data = build_csv(db, project.id).decode("utf-8-sig")
+    assert "publication_id,title,authors" in csv_data
+    assert included.title in csv_data
 
 
 def test_excel_normalized_records_link_back_to_their_search_import(db) -> None:
@@ -527,3 +554,95 @@ def test_final_results_omits_quality_when_disabled(db) -> None:
     assert result["qualityFields"] == []
     for item in result["items"]:
         assert item["quality"] is None
+
+
+def test_final_results_use_reconciled_value_not_an_arbitrary_response(db) -> None:
+    """Dual-extraction mode: build_final_results must show the reconciled
+    consensus value, and must never present an unresolved disagreement as
+    though it were final."""
+    from app.conflicts.service import record_final_decision
+    from app.extraction.service import claim_next_extraction, extraction_required_reviewers
+    from app.projects.models import ProjectStage
+
+    admin = create_user(db, "admin", "Admin", "secret-password", is_admin=True)
+    r1 = create_user(db, "r1", "R1", "password-1")
+    r2 = create_user(db, "r2", "R2", "password-2")
+    project = Project(
+        name="Dual", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed",
+        stage=ProjectStage.FULL_TEXT,
+    )
+    db.add(project)
+    db.flush()
+    for reviewer in (r1, r2):
+        db.add(
+            ProjectMembership(project_id=project.id, user_id=reviewer.id, can_extract=True)
+        )
+    db.add(ExtractionConfig(project_id=project.id, required_reviewers=2))
+    form = create_form(db, "Extraction", FormKind.EXTRACTION, project_id=project.id)
+    field = add_field(
+        db, form, "Outcome", "single_select", required=True, options=["Positive", "Negative"]
+    )
+    resolved_pub = Publication(project_id=project.id, title="Resolved paper")
+    pending_pub = Publication(project_id=project.id, title="Still disagreeing paper")
+    db.add_all([resolved_pub, pending_pub])
+    db.flush()
+    for pub in (resolved_pub, pending_pub):
+        record_final_decision(
+            db, pub.id, ScreeningStage.FULL_TEXT, "include", "agreement", None, None
+        )
+    project.stage = ProjectStage.EXTRACTION
+    db.commit()
+    initialize_extraction(db, project)
+    db.commit()
+    assert extraction_required_reviewers(db, project.id) == 2
+
+    def claim_for_publication(reviewer_id, publication_id):
+        excluded: set[str] = set()
+        for _ in range(10):
+            item = claim_next_extraction(db, project.id, reviewer_id, excluded)
+            assert item is not None
+            if item.publication_id == publication_id:
+                return item
+            excluded.add(item.id)
+        raise AssertionError("could not claim the target publication's slot")
+
+    # Which reviewer's submission ends up as reconciliation's "response_a" is
+    # defined by slot_number, not by claim order/reviewer identity.
+    slot1_value_by_publication: dict[str, str] = {}
+    for pub, value_r1, value_r2 in (
+        (resolved_pub, "Positive", "Negative"),
+        (pending_pub, "Positive", "Negative"),
+    ):
+        item_r1 = claim_for_publication(r1.id, pub.id)
+        submit_extraction(db, item_r1, r1.id, {field.stable_key: value_r1})
+        item_r2 = claim_for_publication(r2.id, pub.id)
+        submit_extraction(db, item_r2, r2.id, {field.stable_key: value_r2})
+        slot1_value_by_publication[pub.id] = (
+            value_r1 if item_r1.slot_number == 1 else value_r2
+        )
+    db.commit()
+
+    from app.extraction.reconciliation import submit_reconciliation
+
+    submit_reconciliation(
+        db,
+        resolved_pub.id,
+        admin.id,
+        {field.stable_key: {"choice": "response_a"}},
+        "Checked against source",
+    )
+    db.commit()
+
+    result = build_final_results(db, project.id)
+    by_title = {item["publication"]["title"]: item for item in result["items"]}
+
+    resolved = by_title["Resolved paper"]
+    assert resolved["extraction"]["status"] == "completed"
+    assert resolved["extraction"]["resolutionMethod"] == "reconciliation"
+    assert resolved["extraction"]["answers"] == {
+        field.stable_key: slot1_value_by_publication[resolved_pub.id]
+    }
+
+    still_pending = by_title["Still disagreeing paper"]
+    assert still_pending["extraction"]["status"] == "reconciliation_pending"
+    assert still_pending["extraction"]["answers"] == {}

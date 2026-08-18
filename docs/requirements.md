@@ -672,7 +672,13 @@ Papertrail generates one XLSX workbook with separate worksheets for at least:
 
 The workbook should use stable identifiers so records can be traced across worksheets.
 
-### 22.2 PRISMA outputs
+### 22.2 Parquet export
+
+Papertrail generates a compact Parquet dataset of final included publications. Publication metadata, extraction and quality-assessment status, and dynamic form answers are available as analysis-ready columns. Structured answers are preserved as JSON strings, and dynamic columns use `extraction_` or `quality_` prefixes with stable form field keys.
+
+Papertrail also generates JSON and CSV versions of the same final included results. JSON preserves the nested result structure; CSV uses the flattened analysis columns and is intended for broad interoperability with programming languages, spreadsheets, and dashboards.
+
+### 22.3 PRISMA outputs
 
 Papertrail exports:
 
@@ -681,7 +687,7 @@ Papertrail exports:
 - Full-text exclusions
 - SVG flow diagram
 
-### 22.3 BibTeX export
+### 22.4 BibTeX export
 
 BibTeX export scope is configurable.
 
@@ -695,7 +701,7 @@ Supported scopes should include:
 
 The application should generate valid BibTeX entries using the best available metadata and stable fallback citation keys.
 
-### 22.4 Final results view
+### 22.5 Final results view
 
 Beyond the downloadable exports, Papertrail provides an in-application, sortable and paginated table of every finally included publication together with its extraction answers and, when quality assessment is enabled, its quality-assessment answers and total score. Any project member can view it; it does not require generating a background export job.
 
@@ -905,10 +911,11 @@ The first usable release should include:
 17. Project-specific quality-assessment forms
 18. Reusable quality-assessment templates
 19. Excel exports
-20. Configurable BibTeX exports
-21. PRISMA 2020 tables and SVG flow diagram
-22. Audit logging
-23. Docker-based self-hosted deployment
+20. Parquet, JSON, and CSV exports
+21. Configurable BibTeX exports
+22. PRISMA 2020 tables and SVG flow diagram
+23. Audit logging
+24. Docker-based self-hosted deployment
 
 ---
 
@@ -958,7 +965,8 @@ Papertrail can be considered functionally complete for its first release when an
 12. Modify forms with warnings, versioning, and data preservation.
 13. Complete and reopen a project without losing downstream information.
 14. Export a structured Excel workbook.
-15. Export configurable BibTeX files.
+15. Export an analysis-ready Parquet dataset.
+16. Export configurable BibTeX files.
 16. Generate PRISMA 2020 tables and a valid SVG flow diagram.
 17. Review an audit trail of all significant project actions.
 

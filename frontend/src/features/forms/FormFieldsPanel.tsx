@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { ConfirmButton } from '../../components/ConfirmButton'
+import { Button } from '../../components/Button'
 import { IconCheckCircle, IconDownload, IconPlus, IconTrash } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
 import { DynamicForm } from './DynamicForm'
@@ -404,10 +405,10 @@ export function FormFieldsPanel({
             </select>
           </label>
           {templates.error ? <p className="error" role="alert">{templates.error.message}</p> : null}
-          <button type="submit" disabled={createForm.isPending}>
+          <Button type="submit" variant="primary" loading={createForm.isPending}>
             <IconPlus />
             Create {isQualityForm ? 'Quality' : 'Extraction'} Form
-          </button>
+          </Button>
         </form>
       ) : (
         <>
@@ -489,7 +490,7 @@ export function FormFieldsPanel({
                 </label>
               </>
             ) : null}
-            <button type="submit" disabled={addField.isPending}><IconPlus />Add Field</button>
+            <Button type="submit" variant="primary" loading={addField.isPending}><IconPlus />Add Field</Button>
           </form>
 
           <h3>Fields</h3>

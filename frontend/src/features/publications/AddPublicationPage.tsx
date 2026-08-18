@@ -63,7 +63,7 @@ export function AddPublicationPage() {
   })
 
   return (
-    <main className="page">
+    <main className="page add-publication-page">
       <h1>Add a Publication</h1>
       <BibtexPrefillPanel projectId={projectId} onPrefill={setDraft} />
       <section className="card">

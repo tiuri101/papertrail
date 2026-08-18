@@ -4,6 +4,7 @@ import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { ConfirmButton } from '../../components/ConfirmButton'
+import { Button } from '../../components/Button'
 import { IconCheckCircle, IconPlus, IconTrash } from '../../components/icons'
 import { useRegisterSectionItems } from '../../components/sectionNavigation'
 import { useProjectManageState } from '../../hooks/useCanManageProject'
@@ -368,7 +369,7 @@ export function FormBuilderPage() {
               </select>
             </label>
             {templates.error ? <p className="error" role="alert">{templates.error.message}</p> : null}
-            <button type="submit" disabled={createForm.isPending}><IconPlus />Create Form</button>
+            <Button type="submit" variant="primary" loading={createForm.isPending}><IconPlus />Create Form</Button>
           </form>
         )}
       </section>
@@ -419,9 +420,9 @@ export function FormBuilderPage() {
                       required
                     />
                   </label>
-                  <button type="submit" className="button-secondary" disabled={renameForm.isPending}>
+                  <Button type="submit" variant="secondary" loading={renameForm.isPending}>
                     Save Name
-                  </button>
+                  </Button>
                 </form>
               ) : null}
             </div>
@@ -527,7 +528,7 @@ export function FormBuilderPage() {
                   </label>
                 </>
               ) : null}
-              <button type="submit" disabled={addField.isPending}><IconPlus />Add Field</button>
+              <Button type="submit" variant="primary" loading={addField.isPending}><IconPlus />Add Field</Button>
             </form>
             </>
             ) : null}
@@ -787,7 +788,7 @@ export function FormBuilderPage() {
                 />
               </label>
               {saveAsTemplate.isSuccess ? <p>Template saved.</p> : null}
-              <button type="submit" disabled={saveAsTemplate.isPending}><IconCheckCircle />Save as Template</button>
+              <Button type="submit" variant="secondary" loading={saveAsTemplate.isPending}><IconCheckCircle />Save as Template</Button>
             </form>
             </>
             ) : null}

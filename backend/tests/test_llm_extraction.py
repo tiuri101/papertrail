@@ -1638,6 +1638,7 @@ def test_validation_uses_human_values_and_never_changes_extraction(
     settings = project_settings(db, project.id)
     settings.extraction_validation_enabled = True
     include_title_abstract(db, publication)
+    include_full_text(db, publication)
     text_job = db.scalar(
         select(BackgroundJob).where(BackgroundJob.job_type == TEXT_JOB)
     )
@@ -1709,6 +1710,7 @@ def test_validation_cohort_waits_until_every_human_extraction_is_complete(db) ->
     assert settings is not None
     settings.extraction_validation_enabled = True
     include_title_abstract(db, publication)
+    include_full_text(db, publication)
     text_job = db.scalar(
         select(BackgroundJob).where(BackgroundJob.job_type == TEXT_JOB)
     )
@@ -1718,6 +1720,7 @@ def test_validation_cohort_waits_until_every_human_extraction_is_complete(db) ->
     second_publication = Publication(project_id=project.id, title="Second paper")
     db.add(second_publication)
     db.flush()
+    include_full_text(db, second_publication)
     first_item = ExtractionWorkItem(
         project_id=project.id,
         publication_id=publication.id,
@@ -1779,6 +1782,10 @@ def test_validation_review_lists_assigned_mismatches_and_supports_revision(
         reviewer.id,
         {sample.stable_key: 22, method.stable_key: "experiment"},
     )
+    from app.extraction.final import get_current_final_extraction
+
+    final = get_current_final_extraction(db, publication.id)
+    assert final is not None
     run = LlmExtractionRun(
         project_id=project.id,
         publication_id=publication.id,
@@ -1786,6 +1793,7 @@ def test_validation_review_lists_assigned_mismatches_and_supports_revision(
         input_fingerprint="review-fingerprint",
         document_id=document.id,
         extraction_response_id=response.id,
+        final_extraction_id=final.id,
         provider="ollama",
         model="test-model:latest",
         model_configuration={"temperature": 0},
@@ -1842,6 +1850,83 @@ def test_validation_review_lists_assigned_mismatches_and_supports_revision(
         f"/api/v1/projects/{project.id}/llm/extraction-validation-review"
     )
     assert forbidden.status_code == 403
+
+
+def test_validation_waits_for_dual_extraction_consensus_then_targets_it(db) -> None:
+    """Dual-extraction mode: extraction validation must never queue against
+    an individual, still-unresolved response -- only once both independent
+    slots agree (or are reconciled) into an authoritative FinalExtraction."""
+    from app.extraction.final import get_current_final_extraction
+    from app.extraction.models import ExtractionConfig
+    from app.extraction.service import claim_next_extraction, initialize_extraction
+    from app.llm.task_service import project_extractions_completed, queue_extraction_validation
+    from app.projects.models import ProjectMembership as PM
+
+    admin, reviewer, project, publication, document, _schema, sample, method = (
+        setup_llm_project(db)
+    )
+    settings = project_settings(db, project.id)
+    assert settings is not None
+    settings.extraction_validation_enabled = True
+    second_reviewer = create_user(db, "llm-reviewer-2", "Reviewer 2", "password-2")
+    db.add(
+        PM(project_id=project.id, user_id=second_reviewer.id, can_extract=True)
+    )
+    db.add(ExtractionConfig(project_id=project.id, required_reviewers=2))
+    include_title_abstract(db, publication)
+    include_full_text(db, publication)
+    text_job = db.scalar(
+        select(BackgroundJob).where(BackgroundJob.job_type == TEXT_JOB)
+    )
+    extract_document_text_job(db, text_job)
+    db.commit()
+    initialize_extraction(db, project)
+    db.commit()
+
+    item_a = claim_next_extraction(db, project.id, reviewer.id)
+    assert item_a is not None
+    submit_extraction(
+        db, item_a, reviewer.id, {sample.stable_key: 22, method.stable_key: "experiment"}
+    )
+    db.commit()
+
+    # Only one of two required slots is done -- no authoritative result yet,
+    # so validation must not be queueable.
+    assert project_extractions_completed(db, project.id) is False
+    assert queue_extraction_validation(db, publication.id) is None
+
+    item_b = claim_next_extraction(db, project.id, second_reviewer.id)
+    assert item_b is not None
+    submit_extraction(
+        db, item_b, second_reviewer.id, {sample.stable_key: 99, method.stable_key: "survey"}
+    )
+    db.commit()
+
+    # Both slots are done but disagree -- still no authoritative result.
+    assert project_extractions_completed(db, project.id) is False
+    assert queue_extraction_validation(db, publication.id) is None
+
+    from app.extraction.reconciliation import submit_reconciliation
+
+    submit_reconciliation(
+        db,
+        publication.id,
+        admin.id,
+        {
+            sample.stable_key: {"choice": "response_a"},
+            method.stable_key: {"choice": "response_a"},
+        },
+        "Resolved via source PDF",
+    )
+    db.commit()
+
+    final = get_current_final_extraction(db, publication.id)
+    assert final is not None
+    assert project_extractions_completed(db, project.id) is True
+
+    run = queue_extraction_validation(db, publication.id)
+    assert run is not None
+    assert getattr(run, "final_extraction_id", None) == final.id
 
 
 def test_analysis_narrative_enabled_defaults_true_and_can_be_toggled(

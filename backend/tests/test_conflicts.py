@@ -8,7 +8,7 @@ from app.conflicts.service import (
     refresh_automatic_final_decision,
     transition_if_screening_complete,
 )
-from app.extraction.models import ExtractionStatus, ExtractionWorkItem
+from app.extraction.models import ExtractionStatus, ExtractionWorkItem, FinalExtraction
 from app.fulltext.models import (
     FullTextRetrieval,
     PublicationDocument,
@@ -352,6 +352,21 @@ def test_late_addition_to_a_completed_project_reopens_it_until_it_finishes(db) -
             status=ExtractionStatus.COMPLETED,
         )
     )
+    # evaluate_project_completion also requires an authoritative
+    # FinalExtraction per included publication, not just a COMPLETED
+    # work item -- normally produced by submit_extraction; this test
+    # manufactures the completed state directly, so add it directly too.
+    db.add(
+        FinalExtraction(
+            project_id=project.id,
+            publication_id=included.id,
+            form_version_id="test-form-version",
+            answers={},
+            resolution_method="single_reviewer",
+            field_provenance={},
+            contributing_response_ids=[],
+        )
+    )
     db.flush()
     assert evaluate_project_completion(db, project) is True
     assert project.stage == ProjectStage.COMPLETED
@@ -461,6 +476,21 @@ def test_late_addition_to_completed_project_records_audit_and_regenerates_analys
             assigned_reviewer_id=admin.id,
             random_rank="rank",
             status=ExtractionStatus.COMPLETED,
+        )
+    )
+    # evaluate_project_completion also requires an authoritative
+    # FinalExtraction per included publication, not just a COMPLETED
+    # work item -- normally produced by submit_extraction; this test
+    # manufactures the completed state directly, so add it directly too.
+    db.add(
+        FinalExtraction(
+            project_id=project.id,
+            publication_id=included.id,
+            form_version_id="test-form-version",
+            answers={},
+            resolution_method="single_reviewer",
+            field_provenance={},
+            contributing_response_ids=[],
         )
     )
     db.flush()

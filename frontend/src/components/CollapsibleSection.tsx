@@ -43,6 +43,7 @@ export function CollapsibleSection({
     <section
       id={id}
       className={['card', 'collapsible-section', className].filter(Boolean).join(' ')}
+      data-expanded={expanded}
     >
       {headingAccessory ? (
         <Heading className="collapsible-section__heading collapsible-section__heading--with-accessory" aria-label={title}>

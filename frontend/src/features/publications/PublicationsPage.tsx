@@ -322,15 +322,15 @@ function PublicationRow({
       />
       {canManage ? (
         <div className="toolbar publication-card__actions">
-          <button type="button" className="button-secondary" onClick={() => setEditing(true)}>Edit</button>
-          <button type="button" onClick={() => enrich.mutate()} disabled={enrich.isPending || !publication.doi}>
+          <button type="button" className="button-secondary button-sm" onClick={() => setEditing(true)}>Edit</button>
+          <button type="button" className="button-secondary button-sm" onClick={() => enrich.mutate()} disabled={enrich.isPending || !publication.doi}>
             Enrich Metadata
           </button>
-          <button type="button" className="button-secondary" onClick={() => setShowFullText((current) => !current)}>
+          <button type="button" className="button-secondary button-sm" onClick={() => setShowFullText((current) => !current)}>
             {showFullText ? 'Hide PDF' : publication.fullText?.available ? 'Manage PDF' : 'Attach PDF'}
           </button>
           <a
-            className="button-secondary"
+            className="button-secondary button-sm"
             href={`/api/v1/projects/${projectId}/publications/${publication.id}/export/bib`}
           >
             Export BibTeX
@@ -346,6 +346,7 @@ function PublicationRow({
           <ConfirmButton
             label="Delete"
             variant="danger"
+            className="button-sm"
             warning={`Delete "${publication.title}"? This cannot be undone.`}
             onConfirm={() => remove.mutate()}
             disabled={remove.isPending}
@@ -442,7 +443,7 @@ function MetadataConflictsPanel({ projectId }: { projectId: string }) {
               </button>
               <button
                 type="button"
-                className="button-secondary"
+                className="button-secondary button-sm"
                 disabled={resolve.isPending}
                 onClick={() => resolve.mutate({ conflictId: conflict.id, acceptProposed: false })}
               >
@@ -619,6 +620,7 @@ export function PublicationsPage() {
           <div className="toolbar">
             <button
               type="button"
+              className="button-secondary button-md"
               disabled={bulkEnrich.isPending || selectedIds.size === 0}
               onClick={() => bulkEnrich.mutate({ publicationIds: Array.from(selectedIds), missingOnly: false })}
             >
@@ -627,6 +629,7 @@ export function PublicationsPage() {
             </button>
             <button
               type="button"
+              className="button-secondary button-md"
               disabled={bulkEnrich.isPending}
               onClick={() => bulkEnrich.mutate({ missingOnly: true })}
             >
@@ -705,7 +708,7 @@ export function PublicationsPage() {
               <span className="muted">{selectedIds.size} selected</span>
               <button
                 type="button"
-                className="button-secondary"
+                className="button-secondary button-sm"
                 disabled={bulkExport.isPending || (pendingExportJob ? isJobActive(pendingExportJob.status) : false)}
                 onClick={() => bulkExport.mutate(Array.from(selectedIds))}
               >
@@ -713,6 +716,7 @@ export function PublicationsPage() {
                 Export Selected ({selectedIds.size})
               </button>
               <ConfirmButton
+                className="button-sm"
                 label={`Delete Selected (${selectedIds.size})`}
                 variant="danger"
                 warning={`Delete ${selectedIds.size} selected publication${selectedIds.size === 1 ? '' : 's'}? This cannot be undone.`}
