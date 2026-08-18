@@ -7,7 +7,7 @@ from app.conflicts.service import record_final_decision
 from app.extraction.models import ExtractionStatus, ExtractionWorkItem, FinalExtraction
 from app.forms.models import FormKind
 from app.forms.service import create_form
-from app.fulltext.models import PublicationDocument
+from app.fulltext.models import FullTextRetrieval, PublicationDocument, RetrievalStatus
 from app.llm.models import (
     DocumentTextExtraction,
     ProcessingStatus,
@@ -17,10 +17,12 @@ from app.projects.lifecycle import (
     evaluate_project_completion,
     move_project_back,
     project_integrity_issues,
+    reconcile_workflow_integrity,
     reopen_project,
 )
 from app.projects.models import Project, ProjectStage, ReviewType, ScreeningStage
 from app.publications.models import Publication
+from app.screening.models import ScreeningWorkItem
 
 
 def create_included_project(db):
@@ -206,3 +208,54 @@ def test_integrity_check_detects_missing_downstream_work(db) -> None:
     assert {(issue["code"], issue["entityId"]) for issue in issues} == {
         ("missing_extraction_item", publication.id)
     }
+
+
+def test_reconcile_workflow_integrity_backfills_missing_extraction_item(db) -> None:
+    admin, project, publication = create_included_project(db)
+    create_form(db, "Extraction", FormKind.EXTRACTION, project_id=project.id)
+    db.commit()
+    assert project_integrity_issues(db, project) != []
+
+    result = reconcile_workflow_integrity(db, project, admin.id)
+    db.commit()
+
+    assert result["createdExtractionItems"] == 1
+    assert "missing_extraction_item" not in {
+        issue["code"] for issue in project_integrity_issues(db, project)
+    }
+    assert db.query(ExtractionWorkItem).filter_by(publication_id=publication.id).count() == 1
+    assert "project.workflow_integrity_repaired" in {
+        event.action for event in db.query(AuditEvent)
+    }
+
+
+def test_reconcile_workflow_integrity_clears_stray_full_text_work(db) -> None:
+    admin, project, _publication = create_included_project(db)
+    stray = Publication(project_id=project.id, title="Stray")
+    db.add(stray)
+    db.flush()
+    db.add(
+        FullTextRetrieval(
+            project_id=project.id,
+            publication_id=stray.id,
+            status=RetrievalStatus.NOT_YET_SOUGHT,
+        )
+    )
+    db.add(
+        ScreeningWorkItem(
+            project_id=project.id,
+            publication_id=stray.id,
+            stage=ScreeningStage.FULL_TEXT,
+            slot_number=1,
+            random_rank="rank",
+        )
+    )
+    db.commit()
+
+    result = reconcile_workflow_integrity(db, project, admin.id)
+    db.commit()
+
+    assert result["removedFullTextRetrievals"] == 1
+    assert result["removedFullTextWorkItems"] == 1
+    assert db.query(FullTextRetrieval).filter_by(publication_id=stray.id).count() == 0
+    assert db.query(ScreeningWorkItem).filter_by(publication_id=stray.id).count() == 0

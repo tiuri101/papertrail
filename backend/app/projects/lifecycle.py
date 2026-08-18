@@ -450,6 +450,126 @@ def project_integrity_issues(db: Session, project: Project) -> list[dict[str, st
     return issues
 
 
+def reconcile_workflow_integrity(
+    db: Session, project: Project, actor_id: str
+) -> dict[str, int | bool]:
+    """Repair drift the workflow-integrity check can surface.
+
+    The main known cause: a title/abstract decision that used to be INCLUDE
+    (and so already queued a FullTextRetrieval row and a full-text
+    ScreeningWorkItem) got revised away from INCLUDE. New decisions retract
+    that work automatically (see
+    conflicts.service._retract_full_text_work_for_excluded_publication), but
+    older drift -- from before that fix, or from any other path that leaves a
+    stray row behind -- needs a one-time sweep. Also retries the full-text ->
+    extraction transition and backfills any extraction/quality work items
+    still missing for currently-included publications once that's unblocked.
+    """
+    from app.fulltext.service import (
+        title_abstract_included_ids,
+        transition_if_full_text_complete,
+    )
+    from app.screening.models import WorkItemStatus
+
+    currently_included = set(title_abstract_included_ids(db, project.id))
+    stray_publication_ids = (
+        set(
+            db.scalars(
+                select(FullTextRetrieval.publication_id).where(
+                    FullTextRetrieval.project_id == project.id
+                )
+            )
+        )
+        | set(
+            db.scalars(
+                select(ScreeningWorkItem.publication_id).where(
+                    ScreeningWorkItem.project_id == project.id,
+                    ScreeningWorkItem.stage == ScreeningStage.FULL_TEXT,
+                )
+            )
+        )
+    ) - currently_included
+
+    removed_work_items = 0
+    removed_retrievals = 0
+    for publication_id in stray_publication_ids:
+        unsubmitted_item_ids = list(
+            db.scalars(
+                select(ScreeningWorkItem.id).where(
+                    ScreeningWorkItem.publication_id == publication_id,
+                    ScreeningWorkItem.stage == ScreeningStage.FULL_TEXT,
+                    ScreeningWorkItem.status != WorkItemStatus.SUBMITTED,
+                )
+            )
+        )
+        if unsubmitted_item_ids:
+            db.execute(
+                delete(ScreeningWorkItem).where(
+                    ScreeningWorkItem.id.in_(unsubmitted_item_ids)
+                )
+            )
+            removed_work_items += len(unsubmitted_item_ids)
+        remaining = db.scalar(
+            select(ScreeningWorkItem.id).where(
+                ScreeningWorkItem.publication_id == publication_id,
+                ScreeningWorkItem.stage == ScreeningStage.FULL_TEXT,
+            )
+        )
+        if remaining is None:
+            had_retrieval = (
+                db.scalar(
+                    select(FullTextRetrieval.id).where(
+                        FullTextRetrieval.publication_id == publication_id
+                    )
+                )
+                is not None
+            )
+            db.execute(
+                delete(FullTextRetrieval).where(
+                    FullTextRetrieval.publication_id == publication_id
+                )
+            )
+            if had_retrieval:
+                removed_retrievals += 1
+    db.flush()
+
+    transitioned = False
+    if project.stage == ProjectStage.FULL_TEXT:
+        transitioned = transition_if_full_text_complete(db, project)
+
+    created_extraction = 0
+    created_quality = 0
+    if not transitioned and project.stage in (
+        ProjectStage.EXTRACTION,
+        ProjectStage.COMPLETED,
+    ):
+        from app.extraction.service import initialize_extraction
+        from app.quality.service import initialize_quality
+
+        created_extraction = initialize_extraction(db, project)
+        created_quality = initialize_quality(db, project)
+
+    summary = {
+        "removedFullTextWorkItems": removed_work_items,
+        "removedFullTextRetrievals": removed_retrievals,
+        "advancedToExtraction": transitioned,
+        "createdExtractionItems": created_extraction,
+        "createdQualityItems": created_quality,
+    }
+    record_audit(
+        db,
+        action="project.workflow_integrity_repaired",
+        entity_type="project",
+        entity_id=project.id,
+        project_id=project.id,
+        actor_id=actor_id,
+        summary="Repaired workflow integrity drift",
+        metadata=summary,
+    )
+    db.flush()
+    return summary
+
+
 def wipe_workflow_data(db: Session, project_id: str) -> None:
     """Delete every publication, import, and workflow-progress record for a project.
 

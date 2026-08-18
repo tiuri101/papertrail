@@ -833,6 +833,20 @@ def project_integrity(
     return {"issues": project_integrity_issues(db, project)}
 
 
+@router.post("/{project_id}/integrity/repair")
+def repair_project_integrity(
+    project_id: str,
+    admin: User = Depends(require_project_manager_csrf),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    from app.projects.lifecycle import reconcile_workflow_integrity
+
+    project = get_project(db, project_id)
+    result = reconcile_workflow_integrity(db, project, admin.id)
+    db.commit()
+    return result
+
+
 @router.post("/{project_id}/reopen", response_model=ProjectSummary)
 def reopen_completed_project(
     project_id: str,

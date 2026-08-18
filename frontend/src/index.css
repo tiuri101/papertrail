@@ -6241,12 +6241,13 @@ kbd {
   background: var(--color-bg-elevated);
 }
 
-.evidence-matrix__sticky-col {
+.evidence-matrix__table .evidence-matrix__sticky-col {
   position: sticky;
   left: 0;
   z-index: 1;
   background: var(--color-bg-elevated);
   white-space: normal;
+  overflow-wrap: anywhere;
   min-width: 14rem;
   max-width: 22rem;
 }

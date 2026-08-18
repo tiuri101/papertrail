@@ -200,6 +200,16 @@ function RetrievalCard({ projectId, retrieval, saving, onSubmit, onSkip, skippin
           <PublisherLinkPill url={publication.publisherUrl} />
         ) : null}
       </div>
+      {fullTextDocument.data?.available ? (
+        <a
+          className="button-secondary button-sm"
+          href={`${fullTextDocumentEndpoint(projectId, publication.id)}/content`}
+          target="_blank"
+          rel="noreferrer"
+        >
+          Open PDF
+        </a>
+      ) : null}
       <FullTextDocumentPanel
         projectId={projectId}
         publicationId={publication.id}

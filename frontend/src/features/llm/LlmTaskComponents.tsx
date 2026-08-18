@@ -3,7 +3,8 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 
 import { apiRequest } from '../../api/client'
 import { IconRestart } from '../../components/icons'
-import type { CriterionAnswer } from '../screening/useScreeningQueue'
+import { criterionNumbers } from '../screening/criteriaNumbering'
+import type { CriterionAnswer, ScreeningCriterion } from '../screening/useScreeningQueue'
 
 export interface LlmEvidenceItem {
   page: number
@@ -100,6 +101,7 @@ export function ScreeningLlmPanel({
   stage,
   humanDecision,
   criteriaAnswers,
+  criteria = [],
 }: {
   projectId: string
   publicationId: string
@@ -107,7 +109,9 @@ export function ScreeningLlmPanel({
   stage: 'title_abstract' | 'full_text'
   humanDecision?: string
   criteriaAnswers?: Record<string, CriterionAnswer>
+  criteria?: ScreeningCriterion[]
 }) {
+  const numbers = criterionNumbers(criteria)
   const suffix = stage === 'title_abstract' ? 'llm-title-abstract' : 'llm-full-text'
   const endpoint = `/api/v1/projects/${projectId}/screening/work-items/${itemId}/${suffix}`
   const query = useQuery({
@@ -248,6 +252,11 @@ export function ScreeningLlmPanel({
             className={comparison ? `llm-criterion llm-criterion--${comparison}` : 'llm-criterion'}
           >
             <summary>
+              {criterion.criterionId && numbers[criterion.criterionId] ? (
+                <span className={`criterion-badge criterion-badge--${criterion.criterionKind}`}>
+                  {numbers[criterion.criterionId]}
+                </span>
+              ) : null}
               <span className="llm-criterion__title">{criterion.criterionText}</span>
               <span className="llm-criterion__status"> · {statusText(criterion.assessment)}</span>
               {comparison === 'mismatch' ? (
