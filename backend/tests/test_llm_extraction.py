@@ -830,6 +830,11 @@ def test_administrator_can_override_installation_llm_settings(client, db) -> Non
             "endpoint": "https://ollama.internal.example:11434/",
             "model": "gemma3:12b",
             "contextLength": 16384,
+            "apiKey": "secret-key",
+            "requestTimeoutSeconds": 120,
+            "maxConcurrentJobs": 2,
+            "maxEvidenceItems": 5,
+            "maxEvidenceQuoteChars": 800,
         },
         headers={"X-CSRF-Token": admin_csrf},
     )
@@ -840,6 +845,11 @@ def test_administrator_can_override_installation_llm_settings(client, db) -> Non
         "endpoint": "https://ollama.internal.example:11434",
         "model": "gemma3:12b",
         "contextLength": 16384,
+        "apiKeySet": True,
+        "requestTimeoutSeconds": 120,
+        "maxConcurrentJobs": 2,
+        "maxEvidenceItems": 5,
+        "maxEvidenceQuoteChars": 800,
     }
 
     admin_view = client.get("/api/v1/llm/installation-settings")
@@ -850,6 +860,11 @@ def test_administrator_can_override_installation_llm_settings(client, db) -> Non
         "endpoint": "https://ollama.internal.example:11434",
         "model": "gemma3:12b",
         "contextLength": 16384,
+        "apiKeySet": True,
+        "requestTimeoutSeconds": 120,
+        "maxConcurrentJobs": 2,
+        "maxEvidenceItems": 5,
+        "maxEvidenceQuoteChars": 800,
     }
 
     project_view = client.get(f"/api/v1/projects/{project.id}/llm/settings")
@@ -874,6 +889,10 @@ def test_administrator_can_override_installation_llm_settings(client, db) -> Non
             "endpoint": "https://other.example",
             "model": "other-model",
             "contextLength": 8192,
+            "requestTimeoutSeconds": 300,
+            "maxConcurrentJobs": 1,
+            "maxEvidenceItems": 3,
+            "maxEvidenceQuoteChars": 500,
         },
         headers={"X-CSRF-Token": owner_csrf},
     )
@@ -1039,6 +1058,10 @@ def test_disabling_installation_cancels_all_queued_llm_work(client, db) -> None:
             "endpoint": "https://ollama.internal.example:11434",
             "model": "gemma3:12b",
             "contextLength": 16384,
+            "requestTimeoutSeconds": 300,
+            "maxConcurrentJobs": 1,
+            "maxEvidenceItems": 3,
+            "maxEvidenceQuoteChars": 500,
         },
         headers={"X-CSRF-Token": csrf},
     )
