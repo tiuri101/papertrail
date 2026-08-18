@@ -66,13 +66,14 @@ export function AttachPdfsPanel({ projectId, importBatchId, onClose }: {
       <div className="toolbar">
         <button
           type="button"
+          className="button-sm"
           disabled={(!pdfFiles.length && !pdfArchives.length) || upload.isPending}
           onClick={() => upload.mutate()}
         >
           <IconUpload />
           {upload.isPending ? 'Uploading…' : 'Upload PDFs'}
         </button>
-        <button type="button" onClick={onClose}>Close</button>
+        <button type="button" className="button-sm" onClick={onClose}>Close</button>
       </div>
       {upload.data ? (
         <p>

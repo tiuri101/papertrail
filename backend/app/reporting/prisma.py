@@ -194,13 +194,14 @@ def build_prisma_svg(project_name: str, counts: dict[str, int]) -> str:  # noqa:
         f'<text x="{canvas_width / 2}" y="32" text-anchor="middle" '
         'font-family="sans-serif" font-size="18" font-weight="bold">'
         f"{esc(project_name)}</text>",
-        # Bars occupy most of each stage (including the flow gap), with a small
-        # inset so adjacent stage labels remain visually distinct.
-        stage_bar(y_identified, y_dedup - y_identified, "Identification"),
-        stage_bar(y_dedup, y_screened - y_dedup, "Duplicates"),
-        stage_bar(y_screened, y_sought - y_screened, "Screening"),
-        stage_bar(y_sought, y_included - y_sought, "Eligibility"),
-        stage_bar(y_included, row_height + 20, "Included"),
+        # Keep each stage label vertically aligned with the rows it describes.
+        # The previous ranges included the gap before the next row, which made
+        # the labels appear lower than their corresponding boxes.
+        stage_bar(y_identified, row_height, "Identification"),
+        stage_bar(y_dedup, row_height, "Duplicates"),
+        stage_bar(y_screened, row_height, "Screening"),
+        stage_bar(y_sought, y_assessed + row_height - y_sought, "Eligibility"),
+        stage_bar(y_included, row_height, "Included"),
     ]
 
     # Identification: two boxes side by side, both feeding down into the

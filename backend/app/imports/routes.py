@@ -41,6 +41,7 @@ from app.imports.schemas import (
     SearchSourceCreate,
     SearchSourceResponse,
 )
+from app.imports.service import preview_or_delete_search
 from app.jobs.service import enqueue_job
 from app.projects.dependencies import require_project_member_csrf
 from app.projects.service import get_project, require_project_access
@@ -138,6 +139,37 @@ def add_search(
     )
     db.commit()
     return search
+
+
+@router.delete("/projects/{project_id}/searches/{search_id}")
+def delete_search(
+    project_id: str,
+    search_id: str,
+    force: bool = False,
+    admin: User = Depends(require_project_member_csrf),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    search = db.get(SearchSource, search_id)
+    if search is None or search.project_id != project_id:
+        raise NotFoundError("Search not found")
+    source_name = search.source_name
+    result = preview_or_delete_search(db, search, force=force)
+    if result["deleted"]:
+        record_audit(
+            db,
+            action="search.deleted",
+            entity_type="search_source",
+            entity_id=search_id,
+            project_id=project_id,
+            actor_id=admin.id,
+            summary=(
+                f"Deleted search {source_name} and "
+                f"{result['publicationCount']} publication(s)"
+            ),
+            metadata={"screenedPublicationCount": result["screenedPublicationCount"]},
+        )
+    db.commit()
+    return result
 
 
 @router.post(

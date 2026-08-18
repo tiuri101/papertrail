@@ -1,14 +1,24 @@
 from sqlalchemy import select
 
 from app.accounts.service import create_user
+from app.audit.models import AuditEvent
+from app.conflicts.models import FinalDecision
 from app.conflicts.service import (
     record_final_decision,
     refresh_automatic_final_decision,
     transition_if_screening_complete,
 )
-from app.fulltext.models import FullTextRetrieval, PublicationDocument, RetrievalStatus
+from app.extraction.models import ExtractionStatus, ExtractionWorkItem, FinalExtraction
+from app.forms.models import FormKind
+from app.forms.service import create_form
+from app.fulltext.models import (
+    FullTextRetrieval,
+    PublicationDocument,
+    RetrievalStatus,
+)
 from app.jobs.models import BackgroundJob, JobStatus
 from app.llm.models import ProjectLlmSettings
+from app.projects.lifecycle import evaluate_project_completion
 from app.projects.models import (
     AllocationMode,
     Criterion,
@@ -21,6 +31,7 @@ from app.projects.models import (
     ScreeningStage,
 )
 from app.publications.models import Publication
+from app.publications.service import sync_new_publications_with_stage
 from app.screening.models import ScreeningWorkItem
 from app.screening.service import (
     claim_next_work_item,
@@ -257,6 +268,364 @@ def test_late_title_abstract_inclusion_backfills_review_and_background_work(
         job.job_type == "extract_document_text"
         and job.payload["document_id"] == document.id
         for job in jobs
+    )
+
+
+def test_publication_added_after_full_text_started_backfills_on_first_decision(
+    db,
+) -> None:
+    """A newly added publication's *first* title/abstract decision is just as
+    "late" as a revised one -- the backfill must not only fire on revisions."""
+    create_user(db, "admin", "Admin", "secret-password", is_admin=True)
+    reviewer = create_user(db, "reviewer", "Reviewer", "password-1")
+    project = Project(
+        name="Late addition",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.FULL_TEXT,
+    )
+    db.add(project)
+    db.flush()
+    db.add(
+        ProjectMembership(
+            project_id=project.id,
+            user_id=reviewer.id,
+            can_title_abstract_screen=True,
+        )
+    )
+    db.add(
+        ScreeningConfig(
+            project_id=project.id,
+            stage=ScreeningStage.TITLE_ABSTRACT,
+            required_reviewers=1,
+            allocation_mode=AllocationMode.INDEPENDENT,
+        )
+    )
+    criterion = Criterion(
+        project_id=project.id, kind=CriterionKind.INCLUSION, text="Relevant", position=0
+    )
+    publication = Publication(project_id=project.id, title="Added late")
+    db.add_all([criterion, publication])
+    db.flush()
+
+    sync_new_publications_with_stage(db, project, [publication.id])
+    db.commit()
+
+    item = claim_next_work_item(
+        db, project.id, ScreeningStage.TITLE_ABSTRACT, reviewer.id
+    )
+    assert item is not None
+    submit_decision(db, item, reviewer.id, "include", {criterion.id: True}, None)
+    refresh_automatic_final_decision(db, publication.id, ScreeningStage.TITLE_ABSTRACT)
+    db.commit()
+
+    retrieval = db.scalar(
+        select(FullTextRetrieval).where(
+            FullTextRetrieval.publication_id == publication.id
+        )
+    )
+    assert retrieval is not None
+    assert project.stage == ProjectStage.FULL_TEXT
+
+
+def test_late_addition_to_a_completed_project_reopens_it_until_it_finishes(db) -> None:
+    admin = create_user(db, "admin", "Admin", "secret-password", is_admin=True)
+    reviewer = create_user(db, "reviewer", "Reviewer", "password-1")
+    project = Project(
+        name="Completed review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.EXTRACTION,
+    )
+    db.add(project)
+    db.flush()
+    included = Publication(project_id=project.id, title="Already finished paper")
+    db.add(included)
+    db.flush()
+    record_final_decision(
+        db, included.id, ScreeningStage.FULL_TEXT, "include", "agreement", None, None
+    )
+    db.add(
+        ExtractionWorkItem(
+            project_id=project.id,
+            publication_id=included.id,
+            assigned_reviewer_id=admin.id,
+            random_rank="rank",
+            status=ExtractionStatus.COMPLETED,
+        )
+    )
+    # evaluate_project_completion also requires an authoritative
+    # FinalExtraction per included publication, not just a COMPLETED
+    # work item -- normally produced by submit_extraction; this test
+    # manufactures the completed state directly, so add it directly too.
+    form = create_form(db, "Extraction", FormKind.EXTRACTION, project_id=project.id)
+    db.add(
+        FinalExtraction(
+            project_id=project.id,
+            publication_id=included.id,
+            form_version_id=form.active_version_id,
+            answers={},
+            resolution_method="single_reviewer",
+            field_provenance={},
+            contributing_response_ids=[],
+        )
+    )
+    db.flush()
+    assert evaluate_project_completion(db, project) is True
+    assert project.stage == ProjectStage.COMPLETED
+    assert project.completed_at is not None
+
+    db.add(
+        ProjectMembership(
+            project_id=project.id,
+            user_id=reviewer.id,
+            can_title_abstract_screen=True,
+        )
+    )
+    db.add(
+        ScreeningConfig(
+            project_id=project.id,
+            stage=ScreeningStage.TITLE_ABSTRACT,
+            required_reviewers=1,
+            allocation_mode=AllocationMode.INDEPENDENT,
+        )
+    )
+    criterion = Criterion(
+        project_id=project.id, kind=CriterionKind.INCLUSION, text="Relevant", position=0
+    )
+    late_arrival = Publication(project_id=project.id, title="Added after completion")
+    db.add_all([criterion, late_arrival])
+    db.flush()
+
+    sync_new_publications_with_stage(db, project, [late_arrival.id])
+    db.commit()
+
+    item = claim_next_work_item(
+        db, project.id, ScreeningStage.TITLE_ABSTRACT, reviewer.id
+    )
+    assert item is not None
+    submit_decision(db, item, reviewer.id, "include", {criterion.id: True}, None)
+    refresh_automatic_final_decision(
+        db, late_arrival.id, ScreeningStage.TITLE_ABSTRACT
+    )
+    db.commit()
+
+    # The project is genuinely no longer complete: real work is outstanding
+    # for the new publication.
+    assert project.stage == ProjectStage.FULL_TEXT
+    assert project.completed_at is None
+    retrieval = db.scalar(
+        select(FullTextRetrieval).where(
+            FullTextRetrieval.publication_id == late_arrival.id
+        )
+    )
+    assert retrieval is not None
+
+    # The already-finished publication's history is untouched.
+    already_finished_extraction = db.scalar(
+        select(ExtractionWorkItem).where(
+            ExtractionWorkItem.publication_id == included.id
+        )
+    )
+    assert already_finished_extraction.status == ExtractionStatus.COMPLETED
+
+
+def test_late_addition_to_completed_project_records_audit_and_regenerates_analysis(
+    db,
+) -> None:
+    """Reopening a completed project for a late-added publication should be
+    traceable (an audit event) and should refresh the title/abstract analysis
+    once that publication's screening decision settles the picture again."""
+    admin = create_user(db, "admin", "Admin", "secret-password", is_admin=True)
+    reviewer = create_user(db, "reviewer", "Reviewer", "password-1")
+    project = Project(
+        name="Completed review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.EXTRACTION,
+    )
+    db.add(project)
+    db.flush()
+    included = Publication(project_id=project.id, title="Already finished paper")
+    db.add(included)
+    db.flush()
+    # Recorded directly (not via record_final_decision) so this pre-existing
+    # title/abstract inclusion doesn't itself trigger the late-inclusion
+    # backfill this test is targeting at the newly-added publication below.
+    db.add(
+        FinalDecision(
+            project_id=project.id,
+            publication_id=included.id,
+            stage=ScreeningStage.TITLE_ABSTRACT,
+            outcome="include",
+            resolution_method="agreement",
+            is_valid=True,
+        )
+    )
+    db.add(
+        FullTextRetrieval(
+            project_id=project.id,
+            publication_id=included.id,
+            status=RetrievalStatus.AVAILABLE,
+        )
+    )
+    record_final_decision(
+        db, included.id, ScreeningStage.FULL_TEXT, "include", "agreement", None, None
+    )
+    db.add(
+        ExtractionWorkItem(
+            project_id=project.id,
+            publication_id=included.id,
+            assigned_reviewer_id=admin.id,
+            random_rank="rank",
+            status=ExtractionStatus.COMPLETED,
+        )
+    )
+    # evaluate_project_completion also requires an authoritative
+    # FinalExtraction per included publication, not just a COMPLETED
+    # work item -- normally produced by submit_extraction; this test
+    # manufactures the completed state directly, so add it directly too.
+    form = create_form(db, "Extraction", FormKind.EXTRACTION, project_id=project.id)
+    db.add(
+        FinalExtraction(
+            project_id=project.id,
+            publication_id=included.id,
+            form_version_id=form.active_version_id,
+            answers={},
+            resolution_method="single_reviewer",
+            field_provenance={},
+            contributing_response_ids=[],
+        )
+    )
+    db.flush()
+    assert evaluate_project_completion(db, project) is True
+    assert project.stage == ProjectStage.COMPLETED
+
+    db.add(
+        ProjectMembership(
+            project_id=project.id,
+            user_id=reviewer.id,
+            can_title_abstract_screen=True,
+        )
+    )
+    db.add(
+        ScreeningConfig(
+            project_id=project.id,
+            stage=ScreeningStage.TITLE_ABSTRACT,
+            required_reviewers=1,
+            allocation_mode=AllocationMode.INDEPENDENT,
+        )
+    )
+    criterion = Criterion(
+        project_id=project.id, kind=CriterionKind.INCLUSION, text="Relevant", position=0
+    )
+    late_arrival = Publication(project_id=project.id, title="Added after completion")
+    db.add_all([criterion, late_arrival])
+    db.flush()
+
+    sync_new_publications_with_stage(db, project, [late_arrival.id])
+    db.commit()
+
+    item = claim_next_work_item(
+        db, project.id, ScreeningStage.TITLE_ABSTRACT, reviewer.id
+    )
+    assert item is not None
+    submit_decision(db, item, reviewer.id, "include", {criterion.id: True}, None)
+    refresh_automatic_final_decision(
+        db, late_arrival.id, ScreeningStage.TITLE_ABSTRACT
+    )
+    db.commit()
+
+    reopen_event = db.scalar(
+        select(AuditEvent).where(
+            AuditEvent.project_id == project.id,
+            AuditEvent.action == "project.reopened_for_late_inclusion",
+        )
+    )
+    assert reopen_event is not None
+    assert reopen_event.event_metadata["publicationId"] == late_arrival.id
+
+    analysis_jobs = list(
+        db.scalars(
+            select(BackgroundJob).where(
+                BackgroundJob.project_id == project.id,
+                BackgroundJob.job_type == "generate_stage_analysis",
+                BackgroundJob.status == JobStatus.QUEUED,
+            )
+        )
+    )
+    assert any(
+        job.payload["stage"] == "title_abstract_screening" for job in analysis_jobs
+    )
+
+
+def test_inclusion_immediately_queues_retrieval_before_stage_transition(db) -> None:
+    """A title/abstract INCLUDE must get a retrieval row and an automatic
+    browser-retrieval job as soon as it's decided, without waiting for the
+    whole project to finish title/abstract screening and transition to the
+    full-text stage."""
+    from app.pdf_acquisition.models import BrowserAgent, PdfRetrievalJob, RetrievalJobStatus
+
+    admin, project, publication, r1, r2, items, criterion = setup_conflict(
+        db, second_outcome="include"
+    )
+    membership = db.scalar(
+        select(ProjectMembership).where(
+            ProjectMembership.project_id == project.id,
+            ProjectMembership.user_id == r1.id,
+        )
+    )
+    membership.can_full_text_screen = True
+    db.add(BrowserAgent(user_id=r1.id, display_name="R1's Chrome", token_hash="x" * 64))
+    db.commit()
+
+    final = refresh_automatic_final_decision(
+        db, publication.id, ScreeningStage.TITLE_ABSTRACT
+    )
+    db.commit()
+    assert final is not None
+    assert project.stage == ProjectStage.TITLE_ABSTRACT
+
+    retrieval = db.scalar(
+        select(FullTextRetrieval).where(
+            FullTextRetrieval.publication_id == publication.id
+        )
+    )
+    assert retrieval is not None
+    assert retrieval.status == RetrievalStatus.NOT_YET_SOUGHT
+
+    job = db.scalar(
+        select(PdfRetrievalJob).where(PdfRetrievalJob.publication_id == publication.id)
+    )
+    assert job is not None
+    assert job.status == RetrievalJobStatus.QUEUED
+    assert job.batch.created_by_user_id == r1.id
+
+
+def test_inclusion_without_any_paired_agent_skips_auto_queue(db) -> None:
+    from app.pdf_acquisition.models import PdfRetrievalJob
+
+    _, project, publication, *_ = setup_conflict(db, second_outcome="include")
+    final = refresh_automatic_final_decision(
+        db, publication.id, ScreeningStage.TITLE_ABSTRACT
+    )
+    db.commit()
+    assert final is not None
+
+    retrieval = db.scalar(
+        select(FullTextRetrieval).where(
+            FullTextRetrieval.publication_id == publication.id
+        )
+    )
+    assert retrieval is not None
+    assert retrieval.status == RetrievalStatus.NOT_YET_SOUGHT
+    assert (
+        db.scalar(
+            select(PdfRetrievalJob).where(
+                PdfRetrievalJob.publication_id == publication.id
+            )
+        )
+        is None
     )
 
 

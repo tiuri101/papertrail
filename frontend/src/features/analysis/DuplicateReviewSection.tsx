@@ -37,7 +37,7 @@ export function DuplicateReviewSection({ projectId }: { projectId: string }) {
           ) : null}
         </>
       ) : null}
-      {query.data ? (
+      {query.data?.narrativeEnabled ? (
         <StageNarrativePanel
           projectId={projectId}
           stage="duplicate_review"

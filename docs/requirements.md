@@ -15,7 +15,7 @@ Papertrail is a self-hosted web application for managing academic literature rev
 
 Users manually export literature search results from academic databases such as ScienceDirect, IEEE Xplore, the ACM Digital Library, and SpringerLink. These exports are imported into Papertrail, normalized, checked for duplicates, screened in two stages, and processed through configurable extraction and quality-assessment forms.
 
-Papertrail does not retrieve or store full-text publications. Instead, it provides DOI, publisher, and other external links so reviewers can access full texts outside the application.
+Papertrail stores full-text PDFs that reviewers supply, either uploaded directly or retrieved through an optional paired Chrome extension using the reviewer's own browser network access and sign-in state. The Papertrail server itself never scrapes publisher full text using server-side institutional credentials; it also provides DOI, publisher, and other external links for cases where a reviewer obtains the full text manually outside the application.
 
 The application follows the structure and reporting requirements of PRISMA 2020 where applicable. It records the information needed to generate a PRISMA flow diagram, exclusion tables, review datasets, and bibliographic exports.
 
@@ -469,15 +469,13 @@ A separate discussion or comment system is not required.
 
 ## 16. Full-Text Retrieval and Screening
 
-Papertrail does not retrieve or store full-text files.
-
-For each publication, the application provides available external links, including:
+Papertrail stores full-text PDFs. For each publication, the application also provides available external links, including:
 
 - DOI link
 - Publisher URL
 - Other identifier-based links where useful
 
-Reviewers obtain the full text manually outside Papertrail.
+Reviewers obtain the full text either by uploading a PDF they are authorized to access and store, or by pairing an optional Chrome Manifest V3 extension ("Browser Helper") that retrieves it through the reviewer's own browser network access and sign-in state (e.g. institutional IP access, VPN, or an existing publisher sign-in in Chrome) and uploads it through the same PDF pipeline. The Papertrail server never scrapes publisher full text using server-side institutional credentials, receives publisher cookies or credentials, or bypasses publisher access controls. Automated browser retrieval attempts are tracked separately from the retrieval status below: only a successful automated retrieval changes it, and an automated failure never marks a publication as not found or inaccessible on a reviewer's behalf.
 
 ### 16.1 Retrieval status
 
@@ -674,7 +672,13 @@ Papertrail generates one XLSX workbook with separate worksheets for at least:
 
 The workbook should use stable identifiers so records can be traced across worksheets.
 
-### 22.2 PRISMA outputs
+### 22.2 Parquet export
+
+Papertrail generates a compact Parquet dataset of final included publications. Publication metadata, extraction and quality-assessment status, and dynamic form answers are available as analysis-ready columns. Structured answers are preserved as JSON strings, and dynamic columns use `extraction_` or `quality_` prefixes with stable form field keys.
+
+Papertrail also generates JSON and CSV versions of the same final included results. JSON preserves the nested result structure; CSV uses the flattened analysis columns and is intended for broad interoperability with programming languages, spreadsheets, and dashboards.
+
+### 22.3 PRISMA outputs
 
 Papertrail exports:
 
@@ -683,7 +687,7 @@ Papertrail exports:
 - Full-text exclusions
 - SVG flow diagram
 
-### 22.3 BibTeX export
+### 22.4 BibTeX export
 
 BibTeX export scope is configurable.
 
@@ -697,7 +701,7 @@ Supported scopes should include:
 
 The application should generate valid BibTeX entries using the best available metadata and stable fallback citation keys.
 
-### 22.4 Final results view
+### 22.5 Final results view
 
 Beyond the downloadable exports, Papertrail provides an in-application, sortable and paginated table of every finally included publication together with its extraction answers and, when quality assessment is enabled, its quality-assessment answers and total score. Any project member can view it; it does not require generating a background export job.
 
@@ -907,10 +911,11 @@ The first usable release should include:
 17. Project-specific quality-assessment forms
 18. Reusable quality-assessment templates
 19. Excel exports
-20. Configurable BibTeX exports
-21. PRISMA 2020 tables and SVG flow diagram
-22. Audit logging
-23. Docker-based self-hosted deployment
+20. Parquet, JSON, and CSV exports
+21. Configurable BibTeX exports
+22. PRISMA 2020 tables and SVG flow diagram
+23. Audit logging
+24. Docker-based self-hosted deployment
 
 ---
 
@@ -960,7 +965,8 @@ Papertrail can be considered functionally complete for its first release when an
 12. Modify forms with warnings, versioning, and data preservation.
 13. Complete and reopen a project without losing downstream information.
 14. Export a structured Excel workbook.
-15. Export configurable BibTeX files.
+15. Export an analysis-ready Parquet dataset.
+16. Export configurable BibTeX files.
 16. Generate PRISMA 2020 tables and a valid SVG flow diagram.
 17. Review an audit trail of all significant project actions.
 

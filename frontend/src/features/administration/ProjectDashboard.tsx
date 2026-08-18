@@ -37,6 +37,8 @@ const METRIC_META: Record<string, MetricMeta> = {
   unresolvedDuplicates: { label: 'Unresolved duplicates', icon: <IconCopy />, group: 'attention' },
   uncertainDecisions: { label: 'Uncertain decisions', icon: <IconHelpCircle />, group: 'attention' },
   reportsNotRetrieved: { label: 'Reports not retrieved', icon: <IconXCircle />, group: 'attention' },
+  titleAbstractScreeningRemaining: { label: 'Title/abstract screening remaining', icon: <IconClock />, group: 'attention' },
+  fullTextScreeningRemaining: { label: 'Full-text screening remaining', icon: <IconClock />, group: 'attention' },
   extractionRemaining: { label: 'Extraction remaining', icon: <IconClock />, group: 'attention' },
   qualityRemaining: { label: 'Quality remaining', icon: <IconClock />, group: 'attention' },
   failedJobs: { label: 'Failed jobs', icon: <IconXCircle />, group: 'attention', danger: true },

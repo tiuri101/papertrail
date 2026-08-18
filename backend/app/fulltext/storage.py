@@ -205,3 +205,11 @@ def promote_pdf(
 def discard_pdf(storage_key: str | None) -> None:
     if storage_key:
         storage_path(storage_key).unlink(missing_ok=True)
+
+
+def count_pdf_pages(storage_key: str, settings: Settings | None = None) -> int | None:
+    try:
+        reader = PdfReader(storage_path(storage_key, settings), strict=False)
+        return len(reader.pages)
+    except Exception:
+        return None

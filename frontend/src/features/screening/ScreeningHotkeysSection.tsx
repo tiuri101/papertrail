@@ -1,0 +1,113 @@
+import { useState } from 'react'
+import type { KeyboardEvent } from 'react'
+
+import {
+  DEFAULT_SCREENING_HOTKEYS,
+  formatHotkey,
+  loadScreeningHotkeys,
+  saveScreeningHotkeys,
+  SCREENING_HOTKEY_ACTIONS,
+  type ScreeningHotkeyAction,
+  type ScreeningHotkeys,
+} from '../../lib/screeningHotkeys'
+
+const ACTION_LABELS: Record<ScreeningHotkeyAction, string> = {
+  include: 'Include',
+  exclude: 'Exclude',
+  uncertain: 'Uncertain',
+  duplicate: 'Duplicate',
+  submit: 'Submit / Confirm',
+}
+
+function duplicateKeys(hotkeys: ScreeningHotkeys): Set<string> {
+  const seen = new Map<string, number>()
+  SCREENING_HOTKEY_ACTIONS.forEach((action) => {
+    const key = hotkeys[action]?.toLowerCase()
+    if (!key) return
+    seen.set(key, (seen.get(key) ?? 0) + 1)
+  })
+  return new Set([...seen.entries()].filter(([, count]) => count > 1).map(([key]) => key))
+}
+
+export function ScreeningHotkeysSection() {
+  const [hotkeys, setHotkeys] = useState<ScreeningHotkeys>(() => loadScreeningHotkeys())
+  const [capturing, setCapturing] = useState<ScreeningHotkeyAction | null>(null)
+  const [saved, setSaved] = useState(false)
+
+  const update = (next: ScreeningHotkeys) => {
+    setHotkeys(next)
+    saveScreeningHotkeys(next)
+    setSaved(true)
+  }
+
+  const startCapture = (action: ScreeningHotkeyAction) => {
+    setSaved(false)
+    setCapturing(action)
+  }
+
+  const handleCaptureKeyDown = (action: ScreeningHotkeyAction) => (event: KeyboardEvent<HTMLButtonElement>) => {
+    event.preventDefault()
+    if (event.key === 'Escape') {
+      setCapturing(null)
+      return
+    }
+    if (event.key === 'Backspace' || event.key === 'Delete') {
+      update({ ...hotkeys, [action]: null })
+      setCapturing(null)
+      return
+    }
+    if (event.key === 'Tab' || event.key === 'Shift' || event.key === 'Control' || event.key === 'Alt' || event.key === 'Meta') {
+      return
+    }
+    update({ ...hotkeys, [action]: event.key })
+    setCapturing(null)
+  }
+
+  const conflicts = duplicateKeys(hotkeys)
+
+  return (
+    <section className="card">
+      <h2>Screening Hotkeys</h2>
+      <p className="muted">
+        Assign a keyboard shortcut for each screening decision, plus one to submit or confirm it, so
+        you can quickly move through papers. Click a field and press the key you
+        want to use. Press Backspace to clear it.
+      </p>
+      <div className="hotkey-list">
+        {SCREENING_HOTKEY_ACTIONS.map((action) => {
+          const key = hotkeys[action]
+          const hasConflict = key ? conflicts.has(key.toLowerCase()) : false
+          const displayKey = key ? formatHotkey(key) : 'Not set'
+          return (
+            <div key={action} className="hotkey-row">
+              <span className="hotkey-row__label" id={`hotkey-label-${action}`}>{ACTION_LABELS[action]}</span>
+              <button
+                type="button"
+                aria-labelledby={`hotkey-label-${action} hotkey-value-${action}`}
+                className={`hotkey-capture${capturing === action ? ' hotkey-capture--active' : ''}${hasConflict ? ' hotkey-capture--conflict' : ''}`}
+                onClick={() => startCapture(action)}
+                onKeyDown={capturing === action ? handleCaptureKeyDown(action) : undefined}
+                onBlur={() => setCapturing((current) => (current === action ? null : current))}
+              >
+                <span id={`hotkey-value-${action}`}>
+                  {capturing === action ? 'Press a key…' : key ? <kbd>{displayKey}</kbd> : displayKey}
+                </span>
+              </button>
+            </div>
+          )
+        })}
+      </div>
+      {conflicts.size > 0 ? (
+        <p className="error" role="alert">
+          Two actions share the same key. Only one will trigger when you press it.
+        </p>
+      ) : null}
+      <div className="toolbar">
+        <button type="button" className="button-secondary" onClick={() => update({ ...DEFAULT_SCREENING_HOTKEYS })}>
+          Reset to defaults
+        </button>
+      </div>
+      <p className="muted" aria-live="polite">{saved ? 'Saved.' : ' '}</p>
+    </section>
+  )
+}

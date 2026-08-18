@@ -9,9 +9,11 @@ from sqlalchemy.orm import Session
 from app.accounts.models import User
 from app.audit.models import AuditEvent
 from app.conflicts.models import FinalDecision
+from app.conflicts.service import unresolved_publication_ids
 from app.deduplication.models import DuplicateCandidate
 from app.extraction.models import ExtractionStatus, ExtractionWorkItem
 from app.fulltext.models import FullTextRetrieval, RetrievalStatus
+from app.fulltext.service import full_text_screening_remaining
 from app.jobs.models import BackgroundJob, JobStatus
 from app.projects.models import Project, ScreeningStage
 from app.publications.models import Publication
@@ -129,6 +131,10 @@ def project_dashboard(db: Session, project_id: str) -> dict[str, int | str]:
         )
         or 0
     )
+    title_abstract_screening_remaining = len(
+        unresolved_publication_ids(db, project_id, ScreeningStage.TITLE_ABSTRACT)
+    )
+    full_text_screening_remaining_count = full_text_screening_remaining(db, project_id)
     extraction_remaining = (
         db.scalar(
             select(func.count())
@@ -171,6 +177,8 @@ def project_dashboard(db: Session, project_id: str) -> dict[str, int | str]:
         "unresolvedDuplicates": int(unresolved_duplicates),
         "uncertainDecisions": int(uncertain),
         "reportsNotRetrieved": int(reports_not_retrieved),
+        "titleAbstractScreeningRemaining": int(title_abstract_screening_remaining),
+        "fullTextScreeningRemaining": int(full_text_screening_remaining_count),
         "extractionRemaining": int(extraction_remaining),
         "qualityRemaining": int(quality_remaining),
         "failedJobs": int(failed_jobs),

@@ -2,7 +2,7 @@
 
 **Self-hosted, multi-user structured literature reviews — with a human always in the loop.**
 
-Papertrail imports bibliographic exports and optional full-text PDFs, preserves source provenance and PDF version history, supports duplicate review and configurable multi-reviewer screening, tracks manual full-text retrieval, and provides optional evidence-backed extraction suggestions through an external Ollama service. Reviewer-controlled extraction and quality-assessment data remain authoritative.
+Papertrail imports bibliographic exports and optional full-text PDFs, preserves source provenance and PDF version history, supports duplicate review and configurable multi-reviewer screening, tracks full-text retrieval (manual, or browser-assisted through an optional paired Chrome extension), and provides optional evidence-backed extraction suggestions through an external Ollama service. Reviewer-controlled extraction and quality-assessment data remain authoritative.
 
 <p>
   <img alt="Python" src="https://img.shields.io/badge/Python-FastAPI-009688?logo=fastapi&logoColor=white">
@@ -21,7 +21,7 @@ flowchart LR
     C --> D[📄 Retrieve<br/>full-text PDFs]
     D --> E[📝 Extract<br/>versioned dynamic forms]
     E --> F[✅ Quality assess<br/>risk-of-bias review]
-    F --> G[📊 Report<br/>PRISMA, Excel, BibTeX]
+    F --> G[📊 Report<br/>PRISMA, Excel, Parquet, JSON, CSV, BibTeX]
 ```
 
 Every step is logged to an immutable audit trail, and an optional local LLM can suggest — never decide — screening and extraction answers.
@@ -29,13 +29,14 @@ Every step is logged to an immutable audit trail, and an optional local LLM can 
 ## ✨ Features
 
 - **Import and provenance** — import bibliographic exports from multiple databases
-- **PDF management** — attach full-text PDFs with version history; PDFs are stored locally and never fetched from publishers
+- **PDF management** — attach full-text PDFs with version history, stored locally; an optional paired Chrome extension can retrieve them through the reviewer's own browser network access and sign-in state
 - **Duplicate review** — configurable duplicate scoring with reviewer-driven merge decisions
 - **Multi-reviewer screening** — title/abstract and full-text screening stages with configurable reviewer counts and conflict resolution
-- **Dynamic extraction forms** — versioned, project-defined forms with stable field identifiers for structured data extraction
+- **Dynamic extraction forms** — versioned, project-defined forms with stable field identifiers for structured data extraction, optionally with two independent extractors per publication and adjudicator-led reconciliation of disagreements
 - **Quality assessment** — reviewer-recorded quality/risk-of-bias evaluation, kept separate from extraction data
-- **Optional LLM assistance** — evidence-backed suggestions for screening, extraction, and validation via an external Ollama service; suggestions are advisory only and reviewer decisions remain authoritative
-- **Reporting and export** — PRISMA flow outputs, Excel workbooks, and BibTeX export
+- **Optional LLM assistance** — evidence-backed suggestions for screening, extraction, and validation, plus source-cited research-question synthesis, via an external Ollama service; suggestions are advisory only and reviewer decisions remain authoritative
+- **Charts & Analysis** — anonymized inter-rater agreement, a searchable/filterable evidence matrix of every result with its source traceable, and optional LLM-generated per-research-question synthesis
+- **Reporting and export** — PRISMA flow outputs, Excel workbooks, Parquet datasets, JSON and CSV exports, and BibTeX export
 - **Audit trail** — durable audit logging of workflow and reviewer actions
 - **Role-based access** — project-scoped membership so reviewers only see projects and actions they're eligible for
 
@@ -50,7 +51,7 @@ Every step is logged to an immutable audit trail, and an optional local LLM can 
 
 Papertrail is a modular monolith. The API and worker share domain services and one authoritative database.
 
-PDF binaries are stored in a dedicated persistent filesystem volume, while their metadata and stable document IDs are stored in PostgreSQL. Papertrail never downloads or scrapes publisher PDFs; users must supply files they are authorized to access and store.
+PDF binaries are stored in a dedicated persistent filesystem volume, while their metadata and stable document IDs are stored in PostgreSQL. The Papertrail server never scrapes publisher full text using server-side institutional credentials. Reviewers upload PDFs directly, or pair the optional `browser-extension/` Chrome Manifest V3 extension (see [Reviewer guide](docs/user-guide.md#browser-assisted-pdf-retrieval)) so PDFs are retrieved through their own browser's network access and sign-in state and then uploaded through the same authoritative PDF pipeline.
 
 ## 🚀 Local development
 
@@ -76,7 +77,7 @@ cp .env.development.example .env.development
 ./scripts/dev.sh create-admin
 ```
 
-Then run `api`, `worker`, and `frontend` in separate terminals.
+Then run `api`, `worker`, `llm-worker`, and `frontend` in separate terminals. `llm-worker` runs the resource-limited Ollama worker and stays idle when LLM assistance is disabled (the default).
 
 See the [local-development guide](docs/local-development.md) for manual setup, testing, database management, IDE configuration, and troubleshooting.
 
@@ -86,8 +87,11 @@ See the [local-development guide](docs/local-development.md) for manual setup, t
 cp .env.example .env
 # Replace all example passwords, set PAPERTRAIL_IMAGE_TAG, and configure the public hostname.
 docker compose up -d
-scripts/create_admin.sh
 ```
+
+The one-shot migration container applies the database migrations and creates the
+administrator from `PAPERTRAIL_ADMIN_USERNAME`, `PAPERTRAIL_ADMIN_DISPLAY_NAME`,
+and `PAPERTRAIL_ADMIN_PASSWORD` before the API starts.
 
 See [Installation](docs/installation.md) for production configuration.
 

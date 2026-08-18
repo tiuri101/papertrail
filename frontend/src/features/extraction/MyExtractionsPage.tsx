@@ -3,7 +3,9 @@ import { useMemo, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { DoiPill } from '../../components/DoiPill'
 import { HighlightedText } from '../../components/HighlightedText'
+import { PublisherLinkPill } from '../../components/PublisherLinkPill'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { StageEyebrow } from '../projects/StageEyebrow'
@@ -52,13 +54,13 @@ function ExtractionCard({
           {publication.publicationYear ? ` (${publication.publicationYear})` : ''}
           {' '}
           <span className="muted">v{entry.version}</span>
-          {publication.doi ? (
-            <> <a href={`https://doi.org/${publication.doi}`} target="_blank" rel="noreferrer">DOI</a></>
-          ) : null}
-          {isSafeHttpUrl(publication.publisherUrl) ? (
-            <> <a href={publication.publisherUrl} target="_blank" rel="noreferrer">Publisher link</a></>
-          ) : null}
         </div>
+      </div>
+      <div className="publication-card__workflow">
+        <DoiPill doi={publication.doi} />
+        {isSafeHttpUrl(publication.publisherUrl) ? (
+          <PublisherLinkPill url={publication.publisherUrl!} />
+        ) : null}
       </div>
       <details className="publication-card__abstract">
         <summary>Publication details</summary>

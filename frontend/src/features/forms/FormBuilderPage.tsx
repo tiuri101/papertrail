@@ -4,6 +4,7 @@ import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { ConfirmButton } from '../../components/ConfirmButton'
+import { Button } from '../../components/Button'
 import { IconCheckCircle, IconPlus, IconTrash } from '../../components/icons'
 import { useRegisterSectionItems } from '../../components/sectionNavigation'
 import { useProjectManageState } from '../../hooks/useCanManageProject'
@@ -19,6 +20,7 @@ import {
   selectFieldTypes,
   weightedFieldTypes,
 } from './fieldTypes'
+import {InfoBox} from "../../components/InfoBox";
 
 const formBuilderSections = [
   { id: 'section-create-form', label: 'Create Project Form' },
@@ -314,11 +316,12 @@ export function FormBuilderPage() {
       {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
       <section id="section-create-form" className="card">
         <h2>Create Project Form</h2>
-        <p className="muted">
-          Each project has one extraction form and one quality form. These are the forms used
-          when reviewers extract data or assess quality — there's no separate "active" form to
-          pick, so once a kind has a form here, edit that one instead of creating another.
-        </p>
+        <InfoBox icon={<IconCheckCircle />}>
+          <p>
+            Each project has one extraction form and one (optional) quality form. These forms are show to the reviewers
+            during screening and data extraction.
+          </p>
+        </InfoBox>
         <label>
           Kind
           <select
@@ -366,7 +369,7 @@ export function FormBuilderPage() {
               </select>
             </label>
             {templates.error ? <p className="error" role="alert">{templates.error.message}</p> : null}
-            <button type="submit" disabled={createForm.isPending}><IconPlus />Create Form</button>
+            <Button type="submit" variant="primary" loading={createForm.isPending}><IconPlus />Create Form</Button>
           </form>
         )}
       </section>
@@ -417,9 +420,9 @@ export function FormBuilderPage() {
                       required
                     />
                   </label>
-                  <button type="submit" className="button-secondary" disabled={renameForm.isPending}>
+                  <Button type="submit" variant="secondary" loading={renameForm.isPending}>
                     Save Name
-                  </button>
+                  </Button>
                 </form>
               ) : null}
             </div>
@@ -525,7 +528,7 @@ export function FormBuilderPage() {
                   </label>
                 </>
               ) : null}
-              <button type="submit" disabled={addField.isPending}><IconPlus />Add Field</button>
+              <Button type="submit" variant="primary" loading={addField.isPending}><IconPlus />Add Field</Button>
             </form>
             </>
             ) : null}
@@ -785,7 +788,7 @@ export function FormBuilderPage() {
                 />
               </label>
               {saveAsTemplate.isSuccess ? <p>Template saved.</p> : null}
-              <button type="submit" disabled={saveAsTemplate.isPending}><IconCheckCircle />Save as Template</button>
+              <Button type="submit" variant="secondary" loading={saveAsTemplate.isPending}><IconCheckCircle />Save as Template</Button>
             </form>
             </>
             ) : null}

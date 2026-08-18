@@ -113,9 +113,9 @@ export function QualitySettingsPanel({ projectId }: { projectId: string }) {
         </div>
       )}
       {save.error ? <p className="error" role="alert">{save.error.message}</p> : null}
-      <p className="muted" aria-live="polite">
+      {save.isPending || save.isSuccess ? <p className="muted" aria-live="polite">
         {save.isPending ? 'Savingâ€¦' : save.isSuccess ? 'Saved.' : ' '}
-      </p>
+      </p> : null}
     </CollapsibleSection>
   )
 }

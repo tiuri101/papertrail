@@ -29,11 +29,14 @@ import { ConflictResolutionPage } from '../features/conflicts/ConflictResolution
 import { DuplicateReviewPage } from '../features/duplicates/DuplicateReviewPage'
 import { ExtractionPage } from '../features/extraction/ExtractionPage'
 import { MyExtractionsPage } from '../features/extraction/MyExtractionsPage'
+import { ReconciliationPage } from '../features/extraction/ReconciliationPage'
 import { ValidationReviewPage } from '../features/extraction/ValidationReviewPage'
 import { FullTextPage } from '../features/fulltext/FullTextPage'
 import { ImportPage } from '../features/imports/ImportPage'
+import { InstanceSettingsPage } from '../features/instanceSettings/InstanceSettingsPage'
 import { JobsPage } from '../features/jobs/JobsPage'
 import { LlmAssistancePanel } from '../features/llm/LlmAssistancePanel'
+import { MoveProjectBackPanel } from '../features/lifecycle/MoveProjectBackPanel'
 import { ProjectLifecyclePanel } from '../features/lifecycle/ProjectLifecyclePanel'
 import { ReopenProjectPanel } from '../features/lifecycle/ReopenProjectPanel'
 import { ProjectPage } from '../features/projects/ProjectPage'
@@ -160,7 +163,6 @@ function ProjectAdministrationPage() {
       <h1>Project Administration</h1>
       <p className="muted">
         Configure this project's details, membership, workflow rules, and AI assistance.
-        Changes here apply only to this project.
       </p>
       <div className="admin-tabs" role="tablist" aria-label="Project administration sections">
         {adminTabs.map((tab) => (
@@ -226,6 +228,7 @@ function ProjectAdministrationPage() {
         ) : null}
         {activeTab === 'danger' ? (
           <>
+            <MoveProjectBackPanel projectId={projectId} />
             <ReopenProjectPanel projectId={projectId} />
             <DangerZonePanel projectId={projectId} />
           </>
@@ -279,6 +282,7 @@ export function App() {
           />
           <Route element={<AdminGate />}>
             <Route path="/users" element={<UsersPage />} />
+            <Route path="/instance-settings" element={<InstanceSettingsPage />} />
           </Route>
           <Route path="/projects" element={<ProjectsPage />} />
           <Route path="/projects/new" element={<ProjectSetupWizard />} />
@@ -309,6 +313,7 @@ export function App() {
             <Route path="/projects/:projectId/extraction/review/:itemId" element={<ExtractionPage />} />
             <Route path="/projects/:projectId/extraction/mine" element={<MyExtractionsPage />} />
             <Route path="/projects/:projectId/extraction/validation" element={<ValidationReviewPage />} />
+            <Route path="/projects/:projectId/extraction/reconciliation" element={<ReconciliationPage />} />
             <Route path="/projects/:projectId/quality" element={<QualityPage />} />
             <Route path="/projects/:projectId/quality/review/:itemId" element={<QualityPage />} />
             <Route path="/projects/:projectId/quality/mine" element={<MyQualityPage />} />

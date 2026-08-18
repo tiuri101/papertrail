@@ -99,6 +99,9 @@ class ProjectLlmSettings(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     extraction_validation_enabled: Mapped[bool] = mapped_column(
         Boolean, default=False, nullable=False
     )
+    analysis_narrative_enabled: Mapped[bool] = mapped_column(
+        Boolean, default=True, nullable=False
+    )
     current_schema_version_id: Mapped[str | None] = mapped_column(
         String(36), index=True
     )
@@ -116,6 +119,10 @@ class LlmInstallationSettings(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     endpoint: Mapped[str | None] = mapped_column(String(2000))
     model: Mapped[str | None] = mapped_column(String(250))
     context_length: Mapped[int] = mapped_column(Integer, nullable=False)
+    title_abstract_base_prompt: Mapped[str | None] = mapped_column(Text)
+    full_text_base_prompt: Mapped[str | None] = mapped_column(Text)
+    extraction_base_prompt: Mapped[str | None] = mapped_column(Text)
+    validation_base_prompt: Mapped[str | None] = mapped_column(Text)
     updated_by_user_id: Mapped[str | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL")
     )
@@ -260,6 +267,13 @@ class LlmExtractionRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     extraction_response_id: Mapped[str | None] = mapped_column(
         ForeignKey("extraction_responses.id", ondelete="SET NULL"), index=True
+    )
+    # The authoritative FinalExtraction an EXTRACTION_VALIDATION run
+    # validated (single-reviewer mode: effectively the reviewer's response;
+    # dual-reviewer mode: the agreed/reconciled result) -- validation always
+    # targets this, never an individual reviewer's response directly.
+    final_extraction_id: Mapped[str | None] = mapped_column(
+        ForeignKey("final_extractions.id", ondelete="SET NULL"), index=True
     )
     provider: Mapped[str] = mapped_column(String(40), default="ollama", nullable=False)
     model: Mapped[str] = mapped_column(String(250), nullable=False)

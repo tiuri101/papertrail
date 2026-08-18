@@ -35,12 +35,12 @@ export function ReopenProjectPanel({ projectId }: { projectId: string }) {
       <InfoBox icon={<IconAlertTriangle />} tone="warning">
         <p>
           Move a completed project back to an earlier stage to resume work. Screening, extraction, and quality-assessment data already recorded is kept, not deleted. Only shown once a project
-          has reached Completed — if the project is still active, use Move Project Back instead.
+          has reached Completed.
         </p>
       </InfoBox>
       {reopen.error ? <p className="error" role="alert">{reopen.error.message}</p> : null}
       <label>
-        Move back to
+        Reopen at
         <select
           value={targetStage}
           onChange={(event) => setTargetStage(event.target.value)}

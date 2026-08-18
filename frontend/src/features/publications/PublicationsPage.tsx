@@ -16,7 +16,10 @@ import {
   IconUpload,
   IconXCircle,
 } from '../../components/icons'
+import { DoiPill } from '../../components/DoiPill'
 import { OutcomeBadge } from '../../components/OutcomeBadge'
+import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
+import { PublisherLinkPill } from '../../components/PublisherLinkPill'
 import { InfoTooltip } from '../../components/Tooltip'
 import { FullTextDocumentPanel } from '../fulltext/FullTextDocumentPanel'
 import { AdministrationEyebrow } from '../projects/StageEyebrow'
@@ -24,6 +27,7 @@ import { useCanManageProject, useCanManagePublications } from '../../hooks/useCa
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 import { BackgroundJob, findJob, hasActiveJob, isJobActive } from '../jobs/jobStatus'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
+import { BrowserPdfRetrievalPanel } from '../fulltext/BrowserPdfRetrievalPanel'
 import { BulkPdfUploadPanel } from './BulkPdfUploadPanel'
 import { PublicationReviewDetails } from './PublicationReviewDetails'
 import { PublicationFieldInputs } from './publicationFields'
@@ -49,7 +53,11 @@ interface Publication {
   issn: string | null
   pubmedId: string | null
   arxivId: string | null
-  fullText: { available: boolean; retrievalStatus?: string | null }
+  fullText: {
+    available: boolean
+    retrievalStatus?: string | null
+    document?: { pageCount: number | null } | null
+  }
   screeningStatus?: ScreeningStatus
   extractionStatus?: string | null
 }
@@ -265,19 +273,18 @@ function PublicationRow({
           )}
           {' — '}{publication.authors ?? 'Unknown authors'}
           {publication.publicationYear ? ` (${publication.publicationYear})` : ''}
-          {' '}
-          {publication.fullText?.available ? (
-            <span className="status-badge status-badge--success"><IconCheckCircle /> PDF</span>
-          ) : null}
-          {publication.doi ? (
-            <> <a href={`https://doi.org/${publication.doi}`} target="_blank" rel="noopener noreferrer">DOI</a></>
-          ) : null}
-          {isSafeHttpUrl(publication.publisherUrl) ? (
-            <> <a href={publication.publisherUrl} target="_blank" rel="noopener noreferrer">Publisher link</a></>
-          ) : null}
         </div>
       </div>
       <div className="publication-card__workflow" aria-label="Review decisions">
+        <DoiPill doi={publication.doi} />
+        {isSafeHttpUrl(publication.publisherUrl) ? (
+          <PublisherLinkPill url={publication.publisherUrl!} />
+        ) : null}
+        <PdfAvailabilityPill
+          available={Boolean(publication.fullText?.available)}
+          href={`/api/v1/projects/${projectId}/publications/${publication.id}/full-text/content`}
+          pageCount={publication.fullText?.document?.pageCount}
+        />
         <OutcomeBadge
           outcome={publication.screeningStatus?.titleAbstract}
           label={`Title/Abstract: ${screeningLabel(publication.screeningStatus?.titleAbstract)}`}
@@ -304,26 +311,26 @@ function PublicationRow({
           </span>
         ) : null}
       </div>
+      <details className="publication-card__abstract">
+        <summary>Abstract</summary>
+        <p>{publication.abstract?.trim() || 'No abstract available.'}</p>
+      </details>
       <PublicationReviewDetails
         projectId={projectId}
         publicationId={publication.id}
         canManage={canOverride}
       />
-      <details className="publication-card__abstract">
-        <summary>Abstract</summary>
-        <p>{publication.abstract?.trim() || 'No abstract available.'}</p>
-      </details>
       {canManage ? (
         <div className="toolbar publication-card__actions">
-          <button type="button" className="button-secondary" onClick={() => setEditing(true)}>Edit</button>
-          <button type="button" onClick={() => enrich.mutate()} disabled={enrich.isPending || !publication.doi}>
+          <button type="button" className="button-secondary button-sm" onClick={() => setEditing(true)}>Edit</button>
+          <button type="button" className="button-secondary button-sm" onClick={() => enrich.mutate()} disabled={enrich.isPending || !publication.doi}>
             Enrich Metadata
           </button>
-          <button type="button" className="button-secondary" onClick={() => setShowFullText((current) => !current)}>
+          <button type="button" className="button-secondary button-sm" onClick={() => setShowFullText((current) => !current)}>
             {showFullText ? 'Hide PDF' : publication.fullText?.available ? 'Manage PDF' : 'Attach PDF'}
           </button>
           <a
-            className="button-secondary"
+            className="button-secondary button-sm"
             href={`/api/v1/projects/${projectId}/publications/${publication.id}/export/bib`}
           >
             Export BibTeX
@@ -339,6 +346,7 @@ function PublicationRow({
           <ConfirmButton
             label="Delete"
             variant="danger"
+            className="button-sm"
             warning={`Delete "${publication.title}"? This cannot be undone.`}
             onConfirm={() => remove.mutate()}
             disabled={remove.isPending}
@@ -435,7 +443,7 @@ function MetadataConflictsPanel({ projectId }: { projectId: string }) {
               </button>
               <button
                 type="button"
-                className="button-secondary"
+                className="button-secondary button-sm"
                 disabled={resolve.isPending}
                 onClick={() => resolve.mutate({ conflictId: conflict.id, acceptProposed: false })}
               >
@@ -612,6 +620,7 @@ export function PublicationsPage() {
           <div className="toolbar">
             <button
               type="button"
+              className="button-secondary button-md"
               disabled={bulkEnrich.isPending || selectedIds.size === 0}
               onClick={() => bulkEnrich.mutate({ publicationIds: Array.from(selectedIds), missingOnly: false })}
             >
@@ -620,6 +629,7 @@ export function PublicationsPage() {
             </button>
             <button
               type="button"
+              className="button-secondary button-md"
               disabled={bulkEnrich.isPending}
               onClick={() => bulkEnrich.mutate({ missingOnly: true })}
             >
@@ -629,6 +639,7 @@ export function PublicationsPage() {
           </div>
         </CollapsibleSection>
       ) : null}
+      <BrowserPdfRetrievalPanel projectId={projectId} />
       {canManage ? <MetadataConflictsPanel projectId={projectId} /> : null}
       {canManage ? <BulkPdfUploadPanel projectId={projectId} /> : null}
       {query.data ? (
@@ -697,7 +708,7 @@ export function PublicationsPage() {
               <span className="muted">{selectedIds.size} selected</span>
               <button
                 type="button"
-                className="button-secondary"
+                className="button-secondary button-sm"
                 disabled={bulkExport.isPending || (pendingExportJob ? isJobActive(pendingExportJob.status) : false)}
                 onClick={() => bulkExport.mutate(Array.from(selectedIds))}
               >
@@ -705,6 +716,7 @@ export function PublicationsPage() {
                 Export Selected ({selectedIds.size})
               </button>
               <ConfirmButton
+                className="button-sm"
                 label={`Delete Selected (${selectedIds.size})`}
                 variant="danger"
                 warning={`Delete ${selectedIds.size} selected publication${selectedIds.size === 1 ? '' : 's'}? This cannot be undone.`}

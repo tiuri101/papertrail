@@ -11,14 +11,18 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.accounts.dependencies import (
     get_current_user,
+    require_admin,
     require_admin_csrf,
     require_csrf,
 )
 from app.accounts.models import User, UserSession
+from app.analysis.jobs import cancel_queued_stage_analysis_jobs
+from app.analysis.rq_jobs import cancel_queued_rq_synthesis_jobs
 from app.api.errors import DomainError, ForbiddenError, NotFoundError
 from app.audit.service import record_audit
 from app.conflicts.models import FinalDecision
 from app.db.session import get_db
+from app.extraction.final import get_current_final_extraction
 from app.extraction.models import ExtractionResponse, ExtractionWorkItem
 from app.forms.schemas import FieldResponse
 from app.fulltext.documents import active_document
@@ -26,16 +30,20 @@ from app.fulltext.models import PublicationDocument
 from app.jobs.models import BackgroundJob
 from app.llm.installation_settings import (
     effective_llm_settings,
+    installation_settings,
+    update_installation_prompts,
     update_installation_settings,
 )
 from app.llm.models import (
     DocumentTextExtraction,
     LlmExtractionRun,
+    LlmInstallationSettings,
     LlmSchemaVersion,
     LlmTaskType,
     ProcessingStatus,
 )
 from app.llm.ollama import OllamaError, create_ollama_client
+from app.llm.prompt_flows import PROMPT_FLOW_DEFAULTS, PROMPT_FLOW_LABELS
 from app.llm.schema_service import (
     active_extraction_fields,
     current_schema,
@@ -50,6 +58,9 @@ from app.llm.schemas import (
     AssistanceResponse,
     ExtractionValidationResponse,
     LlmInstallationSettingsUpdate,
+    LlmPromptFlowStatus,
+    LlmPromptOverridesResponse,
+    LlmPromptOverridesUpdate,
     LlmSchemaUpdate,
     LlmSettingsUpdate,
     ManualRunRequest,
@@ -58,6 +69,7 @@ from app.llm.schemas import (
     ValidationReviewResponse,
 )
 from app.llm.service import (
+    cancel_all_llm_jobs,
     cancel_task_type_jobs,
     latest_current_run,
     queue_llm_run_after_text,
@@ -136,12 +148,12 @@ def _schema_payload(
 @router.get("/projects/{project_id}/llm/settings")
 def get_llm_settings(
     project_id: str,
-    user: User = Depends(require_project_manager),
+    _: User = Depends(require_project_manager),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
     config = effective_llm_settings(db)
     settings = project_settings(db, project_id)
-    result = {
+    return {
         "enabled": bool(settings and settings.enabled),
         "titleAbstractScreeningEnabled": bool(
             settings and settings.title_abstract_screening_enabled
@@ -152,18 +164,101 @@ def get_llm_settings(
         "extractionValidationEnabled": bool(
             settings and settings.extraction_validation_enabled
         ),
+        "analysisNarrativeEnabled": (
+            settings.analysis_narrative_enabled if settings else True
+        ),
         "installationEnabled": config.llm_enabled,
         "provider": "Ollama",
         "model": config.ollama_model,
         "contextLength": config.llm_context_length,
-        "canManageInstallation": user.is_admin,
         "currentSchemaVersionId": (
             settings.current_schema_version_id if settings else None
         ),
     }
-    if user.is_admin:
-        result["endpoint"] = _public_endpoint(config.ollama_base_url)
-    return result
+
+
+@router.get("/llm/installation-settings")
+def get_llm_installation_settings(
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    config = effective_llm_settings(db)
+    return {
+        "enabled": config.llm_enabled,
+        "provider": "Ollama",
+        "endpoint": config.ollama_base_url,
+        "model": config.ollama_model,
+        "contextLength": config.llm_context_length,
+    }
+
+
+@router.post("/llm/installation-settings/test")
+def test_installation_connection(
+    _: User = Depends(require_admin),
+) -> dict[str, Any]:
+    try:
+        return create_ollama_client().test_connection()
+    except OllamaError as exc:
+        return {"available": False, "modelAvailable": False, "error": str(exc)}
+
+
+def _prompt_flow_status(
+    stored: LlmInstallationSettings | None,
+) -> LlmPromptOverridesResponse:
+    overrides = {
+        "titleAbstract": stored.title_abstract_base_prompt if stored else None,
+        "fullText": stored.full_text_base_prompt if stored else None,
+        "extraction": stored.extraction_base_prompt if stored else None,
+        "validation": stored.validation_base_prompt if stored else None,
+    }
+    return LlmPromptOverridesResponse(
+        flows=[
+            LlmPromptFlowStatus(
+                key=key,
+                label=PROMPT_FLOW_LABELS[key],
+                default_prompt=PROMPT_FLOW_DEFAULTS[key],
+                current_prompt=overrides[key] or PROMPT_FLOW_DEFAULTS[key],
+                is_overridden=bool(overrides[key]),
+            )
+            for key in PROMPT_FLOW_LABELS
+        ]
+    )
+
+
+@router.get("/llm/installation-settings/prompts")
+def get_llm_installation_prompts(
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> LlmPromptOverridesResponse:
+    return _prompt_flow_status(installation_settings(db))
+
+
+@router.put("/llm/installation-settings/prompts")
+def set_llm_installation_prompts(
+    payload: LlmPromptOverridesUpdate,
+    admin: User = Depends(require_admin_csrf),
+    db: Session = Depends(get_db),
+) -> LlmPromptOverridesResponse:
+    stored = update_installation_prompts(
+        db,
+        overrides={
+            "titleAbstract": payload.title_abstract_prompt,
+            "fullText": payload.full_text_prompt,
+            "extraction": payload.extraction_prompt,
+            "validation": payload.validation_prompt,
+        },
+        updated_by_user_id=admin.id,
+    )
+    record_audit(
+        db,
+        action="llm.installation_prompts_updated",
+        entity_type="llm_installation_settings",
+        entity_id=stored.id,
+        actor_id=admin.id,
+        summary="Updated installation LLM base prompts",
+    )
+    db.commit()
+    return _prompt_flow_status(stored)
 
 
 @router.patch("/llm/installation-settings")
@@ -190,6 +285,15 @@ def update_llm_installation_settings(
     ):
         if before != after:
             changes[key] = {"from": before, "to": after}
+    if "enabled" in changes and not stored.enabled:
+        # Just turned off installation-wide: stop the flow of new
+        # suggestions everywhere. Queued jobs (all capabilities, every
+        # project) are cancelled outright; a run already in flight is
+        # marked cancelled so the worker discards its result via
+        # was_cancelled/the installation re-check in generate_stage_analysis_job.
+        cancel_all_llm_jobs(db)
+        cancel_queued_stage_analysis_jobs(db)
+        cancel_queued_rq_synthesis_jobs(db)
     record_audit(
         db,
         action="llm.installation_settings_updated",
@@ -201,12 +305,11 @@ def update_llm_installation_settings(
     )
     db.commit()
     return {
-        "installationEnabled": stored.enabled,
+        "enabled": stored.enabled,
         "provider": "Ollama",
-        "endpoint": _public_endpoint(stored.endpoint),
+        "endpoint": stored.endpoint,
         "model": stored.model,
         "contextLength": stored.context_length,
-        "canManageInstallation": True,
     }
 
 
@@ -273,6 +376,7 @@ def update_llm_settings(
         "titleAbstractScreeningEnabled": settings.title_abstract_screening_enabled,
         "fullTextScreeningEnabled": settings.full_text_screening_enabled,
         "extractionValidationEnabled": settings.extraction_validation_enabled,
+        "analysisNarrativeEnabled": settings.analysis_narrative_enabled,
     }
 
 
@@ -939,7 +1043,7 @@ def _assigned_extraction_item(
 
 
 def _validation_payload(db: Session, item: ExtractionWorkItem) -> dict[str, Any]:
-    response = db.scalar(
+    own_response = db.scalar(
         select(ExtractionResponse)
         .where(
             ExtractionResponse.work_item_id == item.id,
@@ -947,15 +1051,23 @@ def _validation_payload(db: Session, item: ExtractionWorkItem) -> dict[str, Any]
         )
         .order_by(ExtractionResponse.created_at.desc())
     )
-    if response is None:
+    if own_response is None:
         return {"state": "not_submitted"}
+    final = get_current_final_extraction(db, item.publication_id)
+    if final is None:
+        # This reviewer's own slot is done, but there is no authoritative
+        # result yet -- either the other independent slot isn't done, or
+        # both are done but disagree and it's awaiting reconciliation.
+        # Validation always targets the authoritative final, never an
+        # individual (possibly unresolved) response.
+        return {"state": "awaiting_final", "responseId": own_response.id}
     if not feature_enabled(db, item.project_id, LlmTaskType.EXTRACTION_VALIDATION):
         # Disabled always wins, even over an existing (possibly completed)
         # run from before the capability was turned off.
-        return {"state": "disabled", "responseId": response.id}
+        return {"state": "disabled", "responseId": own_response.id}
     run = latest_task_run(db, item.publication_id, LlmTaskType.EXTRACTION_VALIDATION)
     if run is None:
-        return {"state": "unavailable", "responseId": response.id}
+        return {"state": "unavailable", "responseId": own_response.id}
     stale = run_is_stale(db, run)
     return {
         "state": (
@@ -964,7 +1076,7 @@ def _validation_payload(db: Session, item: ExtractionWorkItem) -> dict[str, Any]
             else "queued" if run.status == ProcessingStatus.PENDING else run.status
         ),
         "runId": run.id,
-        "responseId": run.extraction_response_id,
+        "responseId": own_response.id,
         "model": run.model,
         "promptVersion": run.prompt_template_version,
         "stale": stale,
@@ -1041,11 +1153,18 @@ def extraction_validation_review(
         publication = db.get(Publication, item.publication_id)
         if publication is None:
             continue
+        final = get_current_final_extraction(db, item.publication_id)
         # Disabled always wins, even over an existing (possibly completed)
         # run from before the capability was turned off.
-        run = current_validation_run(db, item) if enabled else None
+        run = current_validation_run(db, item.publication_id) if enabled else None
         if response is None:
             state = "waiting_for_extraction"
+        elif final is None:
+            # This slot's own response is submitted, but there is no
+            # authoritative result yet (dual mode: still waiting on the
+            # other slot, or awaiting reconciliation). Validation always
+            # targets the authoritative final, never an unresolved response.
+            state = "awaiting_final"
         elif not enabled:
             state = "disabled"
         elif run is None:
@@ -1151,6 +1270,12 @@ def request_extraction_validation(
     )
     if response is None:
         raise DomainError("Submit the human extraction before validating it")
+    final = get_current_final_extraction(db, item.publication_id)
+    if final is None:
+        raise DomainError(
+            "Both independent extractors must agree or a reconciliation must be "
+            "completed before validating this publication"
+        )
     if not project_extractions_completed(db, project_id):
         raise DomainError(
             "Extraction validation starts after every paper has been manually extracted"
@@ -1158,7 +1283,7 @@ def request_extraction_validation(
     result = queue_extraction_validation(
         db,
         item.publication_id,
-        response=response,
+        final_extraction=final,
         created_by_id=session.user.id,
         priority=10,
         force=payload.force,

@@ -12,6 +12,6 @@ High-confidence unique matches are attached automatically. Ambiguous, unmatched,
 
 ZIP entries are processed one archive at a time in temporary storage with batch-wide file-count and expanded-size limits plus compression-ratio and path-traversal protections. A bad archive is reported without preventing the remaining archives from being processed. Non-PDF entries are reported and ignored. Supported full-text inputs are PDFs and ZIPs containing PDFs.
 
-Papertrail does not automatically retrieve, download, or scrape publisher PDFs. Users are responsible for supplying files they are authorized to access and store.
+The Papertrail server does not scrape publisher full text using server-side institutional credentials, and import PDFs must be supplied by users who are authorized to access and store them. An optional paired Chrome extension (the "Browser Helper") can retrieve PDFs through the user's own browser network access and sign-in state and upload them through this same PDF pipeline -- see [Reviewer guide](user-guide.md#browser-assisted-pdf-retrieval).
 
 Unresolved bulk files remain in protected staging storage so they can be attached during match review. Attached files move to generated project/publication keys. Replaced and logically removed PDFs remain in protected storage as history; reviewer actions do not physically erase historical versions.

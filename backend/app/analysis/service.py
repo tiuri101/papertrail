@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.conflicts.models import FinalDecision
 from app.deduplication.models import DuplicateCandidate, PublicationMerge
-from app.extraction.models import ExtractionResponse, ExtractionWorkItem
+from app.extraction.final import get_current_final_extractions
 from app.extraction.service import active_fields as extraction_active_fields
 from app.extraction.service import project_form
 from app.forms.models import FieldType, FormField
@@ -139,25 +139,15 @@ def _field_stats(
 def _current_extraction_answers(
     db: Session, project_id: str
 ) -> dict[str, dict[str, Any]]:
-    items = {
-        item.id: item.publication_id
-        for item in db.scalars(
-            select(ExtractionWorkItem).where(
-                ExtractionWorkItem.project_id == project_id
-            )
-        )
+    """The authoritative answers per publication -- from FinalExtraction,
+    never an individual (possibly unresolved) reviewer response."""
+    publication_ids = included_publication_ids(db, project_id)
+    return {
+        publication_id: final.answers
+        for publication_id, final in get_current_final_extractions(
+            db, list(publication_ids)
+        ).items()
     }
-    answers: dict[str, dict[str, Any]] = {}
-    for response in db.scalars(
-        select(ExtractionResponse).where(
-            ExtractionResponse.work_item_id.in_(items.keys()),
-            ExtractionResponse.is_current.is_(True),
-        )
-    ):
-        publication_id = items.get(response.work_item_id)
-        if publication_id:
-            answers[publication_id] = response.answers
-    return answers
 
 
 def _current_quality(

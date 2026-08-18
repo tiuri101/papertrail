@@ -19,6 +19,7 @@ class DocumentResponse(ApiModel):
     original_filename: str = Field(serialization_alias="originalFilename")
     mime_type: str = Field(serialization_alias="mimeType")
     file_size: int = Field(serialization_alias="fileSize")
+    page_count: int | None = Field(default=None, serialization_alias="pageCount")
     sha256: str
     uploaded_at: datetime = Field(serialization_alias="uploadedAt")
     uploaded_by: DocumentUserResponse | None = Field(serialization_alias="uploadedBy")

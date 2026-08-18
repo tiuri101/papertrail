@@ -13,6 +13,7 @@ from app.extraction.models import (
     ExtractionResponse,
     ExtractionStatus,
     ExtractionWorkItem,
+    FinalExtraction,
 )
 from app.forms.models import FormField, FormVersion, ReviewForm
 from app.fulltext.models import FullTextRetrieval
@@ -70,13 +71,21 @@ def evaluate_project_completion(db: Session, project: Project) -> bool:
             )
         )
     )
-    extraction_by_publication = {item.publication_id: item for item in extraction_items}
-    if set(extraction_by_publication) != included_ids:
+    extraction_publications = {item.publication_id for item in extraction_items}
+    if extraction_publications != included_ids:
         return False
-    if any(
-        item.status != ExtractionStatus.COMPLETED
-        for item in extraction_by_publication.values()
-    ):
+    if any(item.status != ExtractionStatus.COMPLETED for item in extraction_items):
+        return False
+
+    # Every required extraction slot being COMPLETED is necessary but not
+    # sufficient in dual-extraction mode: a publication whose two slots
+    # disagree stays in the reconciliation queue with no authoritative
+    # result until an adjudicator resolves it. Completion requires an
+    # authoritative FinalExtraction for every included publication too.
+    from app.extraction.final import get_current_final_extractions
+
+    finals = get_current_final_extractions(db, list(included_ids))
+    if set(finals) != included_ids:
         return False
 
     from app.llm.schema_service import project_settings
@@ -264,6 +273,9 @@ def _wipe_extraction_and_quality(db: Session, project_id: str) -> None:
         delete(QualityResponse).where(
             QualityResponse.work_item_id.in_(quality_item_ids)
         )
+    )
+    db.execute(
+        delete(FinalExtraction).where(FinalExtraction.project_id == project_id)
     )
     db.execute(
         delete(ExtractionWorkItem).where(ExtractionWorkItem.project_id == project_id)
@@ -482,6 +494,9 @@ def wipe_workflow_data(db: Session, project_id: str) -> None:
         delete(ScreeningDecision).where(
             ScreeningDecision.work_item_id.in_(screening_item_ids)
         )
+    )
+    db.execute(
+        delete(FinalExtraction).where(FinalExtraction.project_id == project_id)
     )
     db.execute(
         delete(ExtractionWorkItem).where(ExtractionWorkItem.project_id == project_id)

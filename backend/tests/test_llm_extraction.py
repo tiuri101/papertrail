@@ -9,6 +9,7 @@ from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
 from sqlalchemy import func, select
 
 from app.accounts.service import create_user
+from app.analysis.jobs import STAGE_ANALYSIS_JOB
 from app.api.errors import DomainError
 from app.audit.models import AuditEvent
 from app.conflicts.service import record_final_decision
@@ -21,7 +22,7 @@ from app.fulltext.documents import attach_staged_pdf
 from app.fulltext.models import DocumentSource
 from app.fulltext.storage import stage_pdf_stream
 from app.jobs.models import BackgroundJob, JobStatus
-from app.jobs.service import claim_job
+from app.jobs.service import claim_job, enqueue_job
 from app.llm.evidence import verify_evidence
 from app.llm.extraction import run_llm_extraction_job
 from app.llm.models import (
@@ -147,6 +148,45 @@ def llm_configuration(tmp_path, monkeypatch):
     monkeypatch.setattr(settings, "ollama_base_url", "http://ollama.example:11434")
     monkeypatch.setattr(settings, "ollama_model", "test-model:latest")
     monkeypatch.setattr(settings, "llm_context_length", 8192)
+
+
+def test_message_builders_honor_base_prompt_override() -> None:
+    from app.llm.prompt import SYSTEM_PROMPT, extraction_messages
+    from app.llm.task_prompt import (
+        SCREENING_SYSTEM_PROMPT,
+        VALIDATION_SYSTEM_PROMPT,
+        title_abstract_messages,
+        validation_messages,
+    )
+
+    publication = Publication(id="pub-1", project_id="proj-1", title="Example paper")
+    criterion = Criterion(
+        id="crit-1", project_id="proj-1", kind=CriterionKind.INCLUSION, text="Is relevant."
+    )
+    research_questions = []
+
+    default_screening = title_abstract_messages(publication, [criterion], research_questions)
+    assert default_screening[0]["content"].startswith(SCREENING_SYSTEM_PROMPT)
+
+    overridden_screening = title_abstract_messages(
+        publication, [criterion], research_questions, base_prompt="Custom screening base."
+    )
+    assert overridden_screening[0]["content"] == "Custom screening base."
+    assert SCREENING_SYSTEM_PROMPT not in overridden_screening[0]["content"]
+
+    default_extraction = extraction_messages([], research_questions, "paper text")
+    assert default_extraction[0]["content"].startswith(SYSTEM_PROMPT)
+    overridden_extraction = extraction_messages(
+        [], research_questions, "paper text", base_prompt="Custom extraction base."
+    )
+    assert overridden_extraction[0]["content"] == "Custom extraction base."
+
+    default_validation = validation_messages([], research_questions, "paper text")
+    assert default_validation[0]["content"].startswith(VALIDATION_SYSTEM_PROMPT)
+    overridden_validation = validation_messages(
+        [], research_questions, "paper text", base_prompt="Custom validation base."
+    )
+    assert overridden_validation[0]["content"] == "Custom validation base."
 
 
 def setup_llm_project(db):
@@ -615,7 +655,7 @@ def test_long_documents_are_page_aware_and_chunked_without_losing_page_numbers(
     assert len(chunks) > 1
     assert "--- PDF PAGE 1 ---" in chunks[0]
     assert any("--- PDF PAGE 8 ---" in chunk for chunk in chunks)
-    messages = extraction_messages(schema.fields, chunks[0])
+    messages = extraction_messages(schema.fields, [], chunks[0])
     schema_json = output_schema(schema.fields, 3, 500)
     assert messages[0]["role"] == "system"
     assert schema_json["additionalProperties"] is False
@@ -775,6 +815,9 @@ def test_administrator_can_override_installation_llm_settings(client, db) -> Non
     assert reviewer_membership is not None
     reviewer_membership.is_owner = True
     db.commit()
+    anonymous_get = client.get("/api/v1/llm/installation-settings")
+    assert anonymous_get.status_code == 403
+
     admin_csrf = client.post(
         "/api/v1/auth/login",
         json={"username": admin.username, "password": "secret-password"},
@@ -792,17 +835,27 @@ def test_administrator_can_override_installation_llm_settings(client, db) -> Non
     )
     assert updated.status_code == 200
     assert updated.json() == {
-        "installationEnabled": True,
+        "enabled": True,
         "provider": "Ollama",
         "endpoint": "https://ollama.internal.example:11434",
         "model": "gemma3:12b",
         "contextLength": 16384,
-        "canManageInstallation": True,
     }
 
-    admin_view = client.get(f"/api/v1/projects/{project.id}/llm/settings")
-    assert admin_view.json()["endpoint"] == "https://ollama.internal.example:11434"
-    assert admin_view.json()["model"] == "gemma3:12b"
+    admin_view = client.get("/api/v1/llm/installation-settings")
+    assert admin_view.status_code == 200
+    assert admin_view.json() == {
+        "enabled": True,
+        "provider": "Ollama",
+        "endpoint": "https://ollama.internal.example:11434",
+        "model": "gemma3:12b",
+        "contextLength": 16384,
+    }
+
+    project_view = client.get(f"/api/v1/projects/{project.id}/llm/settings")
+    assert project_view.json()["model"] == "gemma3:12b"
+    assert "endpoint" not in project_view.json()
+    assert "canManageInstallation" not in project_view.json()
 
     client.post("/api/v1/auth/logout", headers={"X-CSRF-Token": admin_csrf})
     owner_csrf = client.post(
@@ -811,7 +864,6 @@ def test_administrator_can_override_installation_llm_settings(client, db) -> Non
     ).json()["csrfToken"]
     owner_view = client.get(f"/api/v1/projects/{project.id}/llm/settings")
     assert owner_view.status_code == 200
-    assert owner_view.json()["canManageInstallation"] is False
     assert "endpoint" not in owner_view.json()
     assert owner_view.json()["model"] == "gemma3:12b"
 
@@ -826,6 +878,177 @@ def test_administrator_can_override_installation_llm_settings(client, db) -> Non
         headers={"X-CSRF-Token": owner_csrf},
     )
     assert forbidden.status_code == 403
+
+    forbidden_get_by_owner = client.get("/api/v1/llm/installation-settings")
+    assert forbidden_get_by_owner.status_code == 403
+
+
+def test_administrator_can_test_installation_connection(client, db, monkeypatch) -> None:
+    admin, reviewer, project, _, _, _, _, _ = setup_llm_project(db)
+    admin_csrf = client.post(
+        "/api/v1/auth/login",
+        json={"username": admin.username, "password": "secret-password"},
+    ).json()["csrfToken"]
+
+    class ConnectionClient:
+        def test_connection(self):
+            return {"available": True, "modelAvailable": True, "model": "test-model"}
+
+    monkeypatch.setattr(
+        "app.llm.routes.create_ollama_client", lambda: ConnectionClient()
+    )
+    tested = client.post(
+        "/api/v1/llm/installation-settings/test",
+        headers={"X-CSRF-Token": admin_csrf},
+    )
+    assert tested.status_code == 200
+    assert tested.json()["modelAvailable"] is True
+
+    client.post("/api/v1/auth/logout", headers={"X-CSRF-Token": admin_csrf})
+    reviewer_csrf = client.post(
+        "/api/v1/auth/login",
+        json={"username": reviewer.username, "password": "reviewer-password"},
+    ).json()["csrfToken"]
+    forbidden = client.post(
+        "/api/v1/llm/installation-settings/test",
+        headers={"X-CSRF-Token": reviewer_csrf},
+    )
+    assert forbidden.status_code == 403
+
+
+def test_administrator_can_override_and_reset_base_prompts(client, db) -> None:
+    from app.llm.prompt import SYSTEM_PROMPT
+    from app.llm.task_prompt import SCREENING_SYSTEM_PROMPT, VALIDATION_SYSTEM_PROMPT
+
+    admin, reviewer, project, _, _, _, _, _ = setup_llm_project(db)
+
+    anonymous_get = client.get("/api/v1/llm/installation-settings/prompts")
+    assert anonymous_get.status_code == 403
+
+    admin_csrf = client.post(
+        "/api/v1/auth/login",
+        json={"username": admin.username, "password": "secret-password"},
+    ).json()["csrfToken"]
+
+    default_flows = client.get("/api/v1/llm/installation-settings/prompts")
+    assert default_flows.status_code == 200
+    by_key = {flow["key"]: flow for flow in default_flows.json()["flows"]}
+    assert set(by_key) == {"titleAbstract", "fullText", "extraction", "validation"}
+    assert by_key["titleAbstract"]["defaultPrompt"] == SCREENING_SYSTEM_PROMPT
+    assert by_key["titleAbstract"]["currentPrompt"] == SCREENING_SYSTEM_PROMPT
+    assert by_key["titleAbstract"]["isOverridden"] is False
+    assert by_key["extraction"]["defaultPrompt"] == SYSTEM_PROMPT
+    assert by_key["validation"]["defaultPrompt"] == VALIDATION_SYSTEM_PROMPT
+
+    updated = client.put(
+        "/api/v1/llm/installation-settings/prompts",
+        json={"titleAbstractPrompt": "Custom screening instructions."},
+        headers={"X-CSRF-Token": admin_csrf},
+    )
+    assert updated.status_code == 200
+    updated_by_key = {flow["key"]: flow for flow in updated.json()["flows"]}
+    assert updated_by_key["titleAbstract"]["currentPrompt"] == "Custom screening instructions."
+    assert updated_by_key["titleAbstract"]["isOverridden"] is True
+    # Untouched flows stay at their defaults.
+    assert updated_by_key["fullText"]["isOverridden"] is False
+    assert updated_by_key["fullText"]["currentPrompt"] == SCREENING_SYSTEM_PROMPT
+
+    # The override is reflected back to project owners for reference.
+    project_prompts = client.get(
+        f"/api/v1/projects/{project.id}/prompt-settings",
+        headers={"X-CSRF-Token": admin_csrf},
+    )
+    project_flow = next(
+        flow for flow in project_prompts.json()["flows"] if flow["key"] == "titleAbstract"
+    )
+    assert project_flow["basePrompt"] == "Custom screening instructions."
+
+    reset = client.put(
+        "/api/v1/llm/installation-settings/prompts",
+        json={"titleAbstractPrompt": ""},
+        headers={"X-CSRF-Token": admin_csrf},
+    )
+    assert reset.status_code == 200
+    reset_by_key = {flow["key"]: flow for flow in reset.json()["flows"]}
+    assert reset_by_key["titleAbstract"]["isOverridden"] is False
+    assert reset_by_key["titleAbstract"]["currentPrompt"] == SCREENING_SYSTEM_PROMPT
+
+    client.post("/api/v1/auth/logout", headers={"X-CSRF-Token": admin_csrf})
+    reviewer_membership = db.scalar(
+        select(ProjectMembership).where(
+            ProjectMembership.project_id == project.id,
+            ProjectMembership.user_id == reviewer.id,
+        )
+    )
+    reviewer_membership.is_owner = True
+    db.commit()
+    owner_csrf = client.post(
+        "/api/v1/auth/login",
+        json={"username": reviewer.username, "password": "reviewer-password"},
+    ).json()["csrfToken"]
+    forbidden_get = client.get("/api/v1/llm/installation-settings/prompts")
+    assert forbidden_get.status_code == 403
+    forbidden_put = client.put(
+        "/api/v1/llm/installation-settings/prompts",
+        json={"extractionPrompt": "Should not be allowed."},
+        headers={"X-CSRF-Token": owner_csrf},
+    )
+    assert forbidden_put.status_code == 403
+
+
+def test_disabling_installation_cancels_all_queued_llm_work(client, db) -> None:
+    admin, _, project, publication, _, _, _, _ = setup_llm_project(db)
+    include_title_abstract(db, publication)
+    csrf = client.post(
+        "/api/v1/auth/login",
+        json={"username": admin.username, "password": "secret-password"},
+    ).json()["csrfToken"]
+
+    enable = client.patch(
+        f"/api/v1/projects/{project.id}/llm/settings",
+        json={"titleAbstractScreeningEnabled": True},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert enable.status_code == 200
+    run = db.scalar(
+        select(LlmExtractionRun).where(
+            LlmExtractionRun.publication_id == publication.id,
+            LlmExtractionRun.task_type == LlmTaskType.TITLE_ABSTRACT_SCREENING,
+        )
+    )
+    assert run is not None
+    assert run.status == ProcessingStatus.PENDING
+    job = db.get(BackgroundJob, run.background_job_id)
+    assert job is not None
+    assert job.status == JobStatus.QUEUED
+
+    narrative_job = enqueue_job(
+        db,
+        STAGE_ANALYSIS_JOB,
+        {"stage": "extraction_quality"},
+        project_id=project.id,
+        created_by_id=admin.id,
+        priority=5,
+    )
+    db.commit()
+
+    disable = client.patch(
+        "/api/v1/llm/installation-settings",
+        json={
+            "enabled": False,
+            "endpoint": "https://ollama.internal.example:11434",
+            "model": "gemma3:12b",
+            "contextLength": 16384,
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert disable.status_code == 200
+    db.refresh(run)
+    db.refresh(job)
+    db.refresh(narrative_job)
+    assert run.status == ProcessingStatus.CANCELLED
+    assert job.status == JobStatus.CANCELLED
+    assert narrative_job.status == JobStatus.CANCELLED
 
 
 def test_suggestions_are_visible_only_to_assigned_reviewer(
@@ -1415,6 +1638,7 @@ def test_validation_uses_human_values_and_never_changes_extraction(
     settings = project_settings(db, project.id)
     settings.extraction_validation_enabled = True
     include_title_abstract(db, publication)
+    include_full_text(db, publication)
     text_job = db.scalar(
         select(BackgroundJob).where(BackgroundJob.job_type == TEXT_JOB)
     )
@@ -1486,6 +1710,7 @@ def test_validation_cohort_waits_until_every_human_extraction_is_complete(db) ->
     assert settings is not None
     settings.extraction_validation_enabled = True
     include_title_abstract(db, publication)
+    include_full_text(db, publication)
     text_job = db.scalar(
         select(BackgroundJob).where(BackgroundJob.job_type == TEXT_JOB)
     )
@@ -1495,6 +1720,7 @@ def test_validation_cohort_waits_until_every_human_extraction_is_complete(db) ->
     second_publication = Publication(project_id=project.id, title="Second paper")
     db.add(second_publication)
     db.flush()
+    include_full_text(db, second_publication)
     first_item = ExtractionWorkItem(
         project_id=project.id,
         publication_id=publication.id,
@@ -1556,6 +1782,10 @@ def test_validation_review_lists_assigned_mismatches_and_supports_revision(
         reviewer.id,
         {sample.stable_key: 22, method.stable_key: "experiment"},
     )
+    from app.extraction.final import get_current_final_extraction
+
+    final = get_current_final_extraction(db, publication.id)
+    assert final is not None
     run = LlmExtractionRun(
         project_id=project.id,
         publication_id=publication.id,
@@ -1563,6 +1793,7 @@ def test_validation_review_lists_assigned_mismatches_and_supports_revision(
         input_fingerprint="review-fingerprint",
         document_id=document.id,
         extraction_response_id=response.id,
+        final_extraction_id=final.id,
         provider="ollama",
         model="test-model:latest",
         model_configuration={"temperature": 0},
@@ -1619,6 +1850,108 @@ def test_validation_review_lists_assigned_mismatches_and_supports_revision(
         f"/api/v1/projects/{project.id}/llm/extraction-validation-review"
     )
     assert forbidden.status_code == 403
+
+
+def test_validation_waits_for_dual_extraction_consensus_then_targets_it(db) -> None:
+    """Dual-extraction mode: extraction validation must never queue against
+    an individual, still-unresolved response -- only once both independent
+    slots agree (or are reconciled) into an authoritative FinalExtraction."""
+    from app.extraction.final import get_current_final_extraction
+    from app.extraction.models import ExtractionConfig
+    from app.extraction.service import claim_next_extraction, initialize_extraction
+    from app.llm.task_service import project_extractions_completed, queue_extraction_validation
+    from app.projects.models import ProjectMembership as PM
+
+    admin, reviewer, project, publication, document, _schema, sample, method = (
+        setup_llm_project(db)
+    )
+    settings = project_settings(db, project.id)
+    assert settings is not None
+    settings.extraction_validation_enabled = True
+    second_reviewer = create_user(db, "llm-reviewer-2", "Reviewer 2", "password-2")
+    db.add(
+        PM(project_id=project.id, user_id=second_reviewer.id, can_extract=True)
+    )
+    db.add(ExtractionConfig(project_id=project.id, required_reviewers=2))
+    include_title_abstract(db, publication)
+    include_full_text(db, publication)
+    text_job = db.scalar(
+        select(BackgroundJob).where(BackgroundJob.job_type == TEXT_JOB)
+    )
+    extract_document_text_job(db, text_job)
+    db.commit()
+    initialize_extraction(db, project)
+    db.commit()
+
+    item_a = claim_next_extraction(db, project.id, reviewer.id)
+    assert item_a is not None
+    submit_extraction(
+        db, item_a, reviewer.id, {sample.stable_key: 22, method.stable_key: "experiment"}
+    )
+    db.commit()
+
+    # Only one of two required slots is done -- no authoritative result yet,
+    # so validation must not be queueable.
+    assert project_extractions_completed(db, project.id) is False
+    assert queue_extraction_validation(db, publication.id) is None
+
+    item_b = claim_next_extraction(db, project.id, second_reviewer.id)
+    assert item_b is not None
+    submit_extraction(
+        db, item_b, second_reviewer.id, {sample.stable_key: 99, method.stable_key: "survey"}
+    )
+    db.commit()
+
+    # Both slots are done but disagree -- still no authoritative result.
+    assert project_extractions_completed(db, project.id) is False
+    assert queue_extraction_validation(db, publication.id) is None
+
+    from app.extraction.reconciliation import submit_reconciliation
+
+    submit_reconciliation(
+        db,
+        publication.id,
+        admin.id,
+        {
+            sample.stable_key: {"choice": "response_a"},
+            method.stable_key: {"choice": "response_a"},
+        },
+        "Resolved via source PDF",
+    )
+    db.commit()
+
+    final = get_current_final_extraction(db, publication.id)
+    assert final is not None
+    assert project_extractions_completed(db, project.id) is True
+
+    run = queue_extraction_validation(db, publication.id)
+    assert run is not None
+    assert getattr(run, "final_extraction_id", None) == final.id
+
+
+def test_analysis_narrative_enabled_defaults_true_and_can_be_toggled(
+    client, db
+) -> None:
+    admin, _, project, _, _, _, _, _ = setup_llm_project(db)
+    csrf = client.post(
+        "/api/v1/auth/login",
+        json={"username": admin.username, "password": "secret-password"},
+    ).json()["csrfToken"]
+
+    settings_response = client.get(f"/api/v1/projects/{project.id}/llm/settings")
+    assert settings_response.status_code == 200
+    assert settings_response.json()["analysisNarrativeEnabled"] is True
+
+    disabled = client.patch(
+        f"/api/v1/projects/{project.id}/llm/settings",
+        json={"analysisNarrativeEnabled": False},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert disabled.status_code == 200
+    assert disabled.json()["analysisNarrativeEnabled"] is False
+
+    settings_response = client.get(f"/api/v1/projects/{project.id}/llm/settings")
+    assert settings_response.json()["analysisNarrativeEnabled"] is False
 
 
 def test_disabling_capability_cancels_queued_run_and_job(client, db) -> None:

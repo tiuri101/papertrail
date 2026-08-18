@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Papertrail Browser Helper",
+  "version": "0.1.0",
+  "description": "Retrieves publisher PDFs for Papertrail using this browser's own network access and sign-in state. Never reads or exports cookies, and never sees your institutional credentials.",
+  "action": {
+    "default_popup": "src/popup/popup.html"
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "options_page": "src/options/options.html",
+  "permissions": ["storage", "alarms", "offscreen"],
+  "optional_host_permissions": [
+    "https://*/*",
+    "http://localhost/*",
+    "http://127.0.0.1/*",
+    "http://*.localhost/*"
+  ],
+  "minimum_chrome_version": "116"
+}

@@ -12,7 +12,6 @@ const settings = {
   extractionValidationEnabled: false,
   installationEnabled: true,
   provider: 'Ollama',
-  endpoint: 'http://ollama.example:11434',
   model: 'qwen3:8b',
   contextLength: 32768,
   currentSchemaVersionId: null,
@@ -31,7 +30,12 @@ describe('LlmAssistancePanel', () => {
     renderWithProviders(<LlmAssistancePanel projectId="p1" />)
 
     expect(await screen.findByText('qwen3:8b')).toBeInTheDocument()
+    expect(screen.getByText('Context length').nextElementSibling).toHaveTextContent(/32.?768/)
     expect(screen.queryByText('http://ollama.example:11434')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Endpoint')).not.toBeInTheDocument()
+    expect(screen.queryByLabelText('Context length')).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Save Installation Settings' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     expect(screen.getByText('Stages')).toHaveClass('subsection-heading')
     const schemaSection = screen.getByRole('heading', { name: 'LLM Extraction Schema' }).closest('section')
     expect(schemaSection).toContainElement(
@@ -63,6 +67,21 @@ describe('LlmAssistancePanel', () => {
     expect(rerunActions?.children[3]).toHaveStyle({ '--stage-color': '#e87ba4' })
     fireEvent.click(screen.getByRole('button', { name: 'Test Connection' }))
     expect(await screen.findByText('Available; configured model found.')).toBeInTheDocument()
+  })
+
+  it('shows a warning banner when the installation-wide LLM support is disabled', async () => {
+    mockFetch(async (input) => {
+      const path = String(input)
+      if (path.endsWith('/llm/settings')) return jsonResponse({ ...settings, installationEnabled: false })
+      if (path.endsWith('/llm/schema')) return jsonResponse({ schema: null, extractionFields: [] })
+      if (path.includes('/llm/runs')) return jsonResponse({ total: 0, counts: {}, statistics: {}, overview: { eligible: 0, missingPdf: 0, outdatedSchema: 0 }, runs: [] })
+      return jsonResponse({})
+    })
+    renderWithProviders(<LlmAssistancePanel projectId="p1" />)
+
+    const banner = await screen.findByRole('alert')
+    expect(banner).toHaveTextContent(/LLM support is currently disabled for this Papertrail installation/)
+    expect(banner).toHaveClass('info-box--danger')
   })
 
   it('re-runs an enabled capability with its task type', async () => {
@@ -115,49 +134,6 @@ describe('LlmAssistancePanel', () => {
         .filter(([, init]) => init?.method === 'PATCH')
         .map(([, init]) => JSON.parse(String(init?.body)))
       expect(patches).toContainEqual({ enabled: true })
-    })
-  })
-
-  it('lets an administrator edit the installation configuration', async () => {
-    const fetchMock = mockFetch(async (input, init) => {
-      const path = String(input)
-      if (path.endsWith('/auth/session')) {
-        return jsonResponse({ user: { id: 'admin', isAdmin: true }, csrfToken: 'csrf' })
-      }
-      if (path.endsWith('/llm/installation-settings') && init?.method === 'PATCH') {
-        return jsonResponse({
-          ...settings,
-          ...JSON.parse(String(init.body)),
-          installationEnabled: true,
-          canManageInstallation: true,
-        })
-      }
-      if (path.endsWith('/llm/settings')) {
-        return jsonResponse({ ...settings, canManageInstallation: true })
-      }
-      if (path.endsWith('/llm/schema')) return jsonResponse({ schema: null, extractionFields: [] })
-      if (path.includes('/llm/runs')) return jsonResponse({ total: 0, counts: {}, statistics: {}, overview: { eligible: 0, missingPdf: 0, outdatedSchema: 0 }, runs: [] })
-      return jsonResponse({})
-    })
-    renderWithProviders(<LlmAssistancePanel projectId="p1" />)
-
-    fireEvent.change(await screen.findByLabelText('Endpoint'), {
-      target: { value: 'https://ollama.internal:11434' },
-    })
-    fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'gemma3:12b' } })
-    fireEvent.change(screen.getByLabelText('Context length'), { target: { value: '16384' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Save Installation Settings' }))
-
-    await waitFor(() => {
-      const call = fetchMock.mock.calls.find(([input, init]) => (
-        String(input).endsWith('/llm/installation-settings') && init?.method === 'PATCH'
-      ))
-      expect(JSON.parse(String(call?.[1]?.body))).toEqual({
-        enabled: true,
-        endpoint: 'https://ollama.internal:11434',
-        model: 'gemma3:12b',
-        contextLength: 16384,
-      })
     })
   })
 

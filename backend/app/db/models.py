@@ -24,6 +24,12 @@ from app.llm.models import (
     ProjectLlmSettings,
 )
 from app.notifications.models import EmailNotification
+from app.pdf_acquisition.models import (
+    BrowserAgent,
+    BrowserAgentPairing,
+    PdfRetrievalBatch,
+    PdfRetrievalJob,
+)
 from app.projects.models import (
     Criterion,
     Project,
@@ -39,6 +45,8 @@ from app.screening.models import ScreeningDecision, ScreeningWorkItem
 __all__ = [
     "AuditEvent",
     "BackgroundJob",
+    "BrowserAgent",
+    "BrowserAgentPairing",
     "DocumentPageText",
     "DocumentTextExtraction",
     "EmailNotification",
@@ -69,6 +77,8 @@ __all__ = [
     "ProjectLlmSettings",
     "ProjectMembership",
     "PasswordResetToken",
+    "PdfRetrievalBatch",
+    "PdfRetrievalJob",
     "Publication",
     "PublicationMerge",
     "PublicationSource",

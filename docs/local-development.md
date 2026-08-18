@@ -86,15 +86,20 @@ cp .env.development.example .env.development
 ./scripts/dev.sh create-admin
 ```
 
-Run these commands in three terminals:
+Run these commands in separate terminals:
 
 ```bash
 ./scripts/dev.sh api
 ./scripts/dev.sh worker
+./scripts/dev.sh llm-worker
 ./scripts/dev.sh frontend
 ```
 
-Open http://localhost:5173.
+`llm-worker` runs the resource-limited Ollama worker; it stays idle when LLM assistance is disabled (the default), so it is safe to leave running even if you don't use that feature. Open:
+
+- Papertrail: http://localhost:5173
+- FastAPI documentation: http://127.0.0.1:8000/docs
+- API health check: http://127.0.0.1:8000/health
 
 ## Manual setup
 
@@ -184,6 +189,40 @@ npm run dev
 
 Vite serves the frontend at http://localhost:5173 and proxies `/api` requests to FastAPI at http://localhost:8000. This avoids separate frontend API configuration during development.
 
+## Browser extension development
+
+The Chrome Manifest V3 "Papertrail Browser Helper" extension lives in `browser-extension/`, a standalone package -- it is not part of the frontend workspace and has its own `package.json`.
+
+```powershell
+cd browser-extension
+npm install
+npm run dev
+```
+
+`npm run dev` runs `vite build --watch`, rebuilding `browser-extension/dist` on every change. There is no dev-server/HMR mode for the extension itself, since Chrome loads the built `dist` directory directly:
+
+1. Open `chrome://extensions`.
+2. Enable **Developer mode**.
+3. **Load unpacked** and select `browser-extension/dist`.
+4. After a rebuild, click the extension's reload icon on `chrome://extensions` to pick up the change (a full `npm run build` is not required while `dev` is running).
+
+To pair the extension with your local Papertrail instance: sign in to Papertrail at http://localhost:5173, go to Account Settings → Browser Helpers → **Pair new browser helper**, and copy the pairing secret. Click the extension's toolbar icon and **Set up** (or **Settings** once paired) -- this opens the setup/settings page in a small chrome-less window (no tab strip, menu, or address bar), positioned near the top-right of the browser window, close to the toolbar button that opened it. `chrome://extensions` → Details → Extension options opens the same page as a normal tab instead. In the setup page, enter:
+
+- **Papertrail server URL:** `http://localhost:5173` (the Vite dev server proxies `/api` to FastAPI, so this is also the correct value in development -- not `http://127.0.0.1:8000` directly)
+- **Pairing secret:** the value just copied
+- **Device name:** e.g. `Chrome on Desktop`
+
+Plain `http://localhost` is accepted only for this kind of local development URL; a production Papertrail server URL must be HTTPS. The extension only requests `storage` and `alarms` (for the background badge check below) up front, so clicking **Pair** triggers a Chrome permission prompt asking to allow access to the Papertrail server's own origin (needed so the pairing request isn't subject to the backend's CORS policy) -- allow it, or pairing fails with "Could not reach ...". Retrieval itself similarly requests runtime host permission for each publisher origin it visits, from the retrieval page on first use.
+
+Once paired, a `chrome.alarms`-driven background check runs every five minutes and calls the read-only `pending-count` endpoint; if jobs are waiting, the toolbar icon shows a count badge (no window needs to be open for this). It's a notification only -- it never claims or retrieves anything by itself.
+
+```powershell
+npm run typecheck
+npm run lint
+npm test
+npm run build
+```
+
 ## Development commands
 
 ### PowerShell helper
@@ -241,6 +280,18 @@ cd frontend
 npx playwright install chromium
 npm run test:e2e
 ```
+
+### Browser extension
+
+```powershell
+cd browser-extension
+npm run typecheck
+npm run lint
+npm test
+npm run build
+```
+
+Extension tests mock the `chrome.*` APIs (see `browser-extension/tests/chrome-mock.ts`) and run under Vitest/jsdom; they do not require Chrome or contact any real publisher website.
 
 The current Playwright tests mock API responses and start their own Vite server. They do not require the FastAPI process or PostgreSQL.
 

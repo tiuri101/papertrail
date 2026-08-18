@@ -3,7 +3,7 @@ import { useEffect, useId, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 
 import { apiRequest } from '../api/client'
-import { IconFolder, IconHelpCircle, IconPerson, IconUsers } from '../components/icons'
+import { IconFolder, IconHelpCircle, IconPerson, IconSettings, IconUsers } from '../components/icons'
 import { MOBILE_MENU_SECTION_SLOT_ID, MobileMenuContext } from '../components/mobileMenu'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { setCsrfToken } from '../features/auth/session'
@@ -61,6 +61,17 @@ export function AppShell() {
                 >
                   <IconUsers />
                   Users
+                </NavLink>
+              ) : null}
+              {session?.user.isAdmin ? (
+                <NavLink
+                  to="/instance-settings"
+                  className={({ isActive }) =>
+                    isActive ? 'nav-link nav-link--active nav-link--collapsible' : 'nav-link nav-link--collapsible'
+                  }
+                >
+                  <IconSettings />
+                  Instance Settings
                 </NavLink>
               ) : null}
               <NavLink
@@ -140,6 +151,12 @@ export function AppShell() {
               <NavLink to="/users" className="nav-link" onClick={() => setMobileMenuOpen(false)}>
                 <IconUsers />
                 Users
+              </NavLink>
+            ) : null}
+            {session?.user.isAdmin ? (
+              <NavLink to="/instance-settings" className="nav-link" onClick={() => setMobileMenuOpen(false)}>
+                <IconSettings />
+                Instance Settings
               </NavLink>
             ) : null}
             <NavLink to="/account" className="nav-link" onClick={() => setMobileMenuOpen(false)}>

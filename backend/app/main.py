@@ -24,6 +24,7 @@ from app.fulltext.routes import router as fulltext_router
 from app.imports.routes import router as imports_router
 from app.jobs.routes import router as jobs_router
 from app.llm.routes import router as llm_router
+from app.pdf_acquisition.routes import router as pdf_acquisition_router
 from app.projects.routes import router as projects_router
 from app.publications.routes import router as publications_router
 from app.quality.routes import router as quality_router
@@ -85,6 +86,7 @@ def create_app() -> FastAPI:
     app.include_router(conflicts_router, prefix=settings.api_prefix)
     app.include_router(fulltext_router, prefix=settings.api_prefix)
     app.include_router(fulltext_document_router, prefix=settings.api_prefix)
+    app.include_router(pdf_acquisition_router, prefix=settings.api_prefix)
     app.include_router(forms_router, prefix=settings.api_prefix)
     app.include_router(extraction_router, prefix=settings.api_prefix)
     app.include_router(quality_router, prefix=settings.api_prefix)

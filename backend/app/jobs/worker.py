@@ -13,6 +13,7 @@ from typing import Any
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.analysis.jobs import STAGE_ANALYSIS_JOB, generate_stage_analysis_job
+from app.analysis.rq_jobs import RQ_SYNTHESIS_JOB, generate_rq_synthesis_job
 from app.audit.service import record_audit
 from app.core.config import get_settings
 from app.core.logging import configure_logging
@@ -47,6 +48,7 @@ HANDLERS: dict[str, Handler] = {
     STAGE_ANALYSIS_JOB: generate_stage_analysis_job,
     TEXT_JOB: extract_document_text_job,
     **{job_type: run_llm_task_job for job_type in LLM_JOB_TYPES},
+    RQ_SYNTHESIS_JOB: generate_rq_synthesis_job,
     SEND_EMAIL_JOB: send_email_job,
     CHECK_LLM_STAGE_EMAIL_JOB: check_llm_stage_email_job,
 }

@@ -4,10 +4,12 @@ import { Link, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { ConfirmButton } from '../../components/ConfirmButton'
+import { DoiPill } from '../../components/DoiPill'
 import { HighlightedText } from '../../components/HighlightedText'
 import { IconAlertTriangle } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
 import { OutcomeBadge } from '../../components/OutcomeBadge'
+import { PublisherLinkPill } from '../../components/PublisherLinkPill'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { ScreeningLlmPanel } from '../llm/LlmTaskComponents'
@@ -237,19 +239,17 @@ function DecisionCard({
           </h2>
           {' — '}{publication.authors ?? 'Unknown authors'}
           {publication.publicationYear ? ` (${publication.publicationYear})` : ''}
-          {' '}
-          <OutcomeBadge
-            outcome={decision?.outcome ?? 'exclude'}
-            label={itemStatusLabel(item)}
-          />
-          {decision && decision.version > 1 ? <span className="muted"> (revised, v{decision.version})</span> : null}
-          {publication.doi ? (
-            <> <a href={`https://doi.org/${publication.doi}`} target="_blank" rel="noreferrer">DOI</a></>
-          ) : null}
-          {isSafeHttpUrl(publication.publisherUrl) ? (
-            <> <a href={publication.publisherUrl} target="_blank" rel="noreferrer">Publisher link</a></>
-          ) : null}
         </div>
+      </div>
+      <div className="publication-card__workflow">
+        <OutcomeBadge
+          outcome={decision?.outcome ?? 'exclude'}
+          label={decision && decision.version > 1 ? `${itemStatusLabel(item)} · v${decision.version}` : itemStatusLabel(item)}
+        />
+        <DoiPill doi={publication.doi} />
+        {isSafeHttpUrl(publication.publisherUrl) ? (
+          <PublisherLinkPill url={publication.publisherUrl!} />
+        ) : null}
       </div>
       <details className="publication-card__abstract">
         <summary>Publication details</summary>
@@ -341,6 +341,8 @@ export function MyDecisionsPage() {
               <h3>This stage has been completed</h3>
               <p>
                 You can still change a decision, but doing so may affect results that have already been finalized.
+                Background jobs will be run automatically, but you might have to complete tasks such as screening or
+                data extraction manually.
               </p>
             </InfoBox>
           ) : null}

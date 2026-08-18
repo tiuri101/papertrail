@@ -22,6 +22,9 @@ class LlmSettingsUpdate(ApiModel):
     extraction_validation_enabled: bool | None = Field(
         default=None, alias="extractionValidationEnabled"
     )
+    analysis_narrative_enabled: bool | None = Field(
+        default=None, alias="analysisNarrativeEnabled"
+    )
 
 
 class LlmInstallationSettingsUpdate(ApiModel):
@@ -48,6 +51,25 @@ class LlmInstallationSettingsUpdate(ApiModel):
         if not normalized:
             raise ValueError("Model is required")
         return normalized
+
+
+class LlmPromptFlowStatus(ApiModel):
+    key: str
+    label: str
+    default_prompt: str = Field(serialization_alias="defaultPrompt")
+    current_prompt: str = Field(serialization_alias="currentPrompt")
+    is_overridden: bool = Field(serialization_alias="isOverridden")
+
+
+class LlmPromptOverridesResponse(ApiModel):
+    flows: list[LlmPromptFlowStatus]
+
+
+class LlmPromptOverridesUpdate(ApiModel):
+    title_abstract_prompt: str | None = Field(default=None, alias="titleAbstractPrompt")
+    full_text_prompt: str | None = Field(default=None, alias="fullTextPrompt")
+    extraction_prompt: str | None = Field(default=None, alias="extractionPrompt")
+    validation_prompt: str | None = Field(default=None, alias="validationPrompt")
 
 
 class LlmFieldUpdate(ApiModel):

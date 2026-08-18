@@ -276,25 +276,17 @@ def _full_text_items(
 def _extraction_items(
     db: Session, project: Project, user_id: str | None
 ) -> list[dict[str, Any]]:
-    extraction_total = (
-        db.scalar(
-            select(func.count())
-            .select_from(ExtractionWorkItem)
-            .where(ExtractionWorkItem.project_id == project.id)
-        )
-        or 0
-    )
-    extraction_done = (
-        db.scalar(
-            select(func.count())
-            .select_from(ExtractionWorkItem)
-            .where(
-                ExtractionWorkItem.project_id == project.id,
-                ExtractionWorkItem.status == ExtractionStatus.COMPLETED,
-            )
-        )
-        or 0
-    )
+    from app.extraction.final import get_current_final_extractions
+    from app.extraction.service import included_publication_ids
+
+    publication_ids = included_publication_ids(db, project.id)
+    extraction_total = len(publication_ids)
+    # "Complete" means every included publication has an authoritative final
+    # extraction, not merely that every individual reviewer slot is
+    # COMPLETED -- in dual-extraction mode a publication whose two slots
+    # disagree stays open (in reconciliation) even though both slots are
+    # individually done.
+    extraction_done = len(get_current_final_extractions(db, publication_ids))
     my_open = _my_open_work_item_count(db, ExtractionWorkItem, project.id, user_id)
     items = [
         _item(

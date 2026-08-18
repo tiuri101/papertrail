@@ -11,7 +11,12 @@ from app.api.errors import NotFoundError
 from app.audit.service import record_audit
 from app.conflicts.service import valid_final_decision
 from app.db.session import get_db
+from app.extraction.final import get_current_final_extraction
 from app.extraction.models import ExtractionResponse, ExtractionWorkItem
+from app.extraction.service import (
+    extraction_required_reviewers,
+    slot_responses_visible,
+)
 from app.forms.models import FormField
 from app.fulltext.documents import active_document
 from app.fulltext.models import PublicationDocument
@@ -24,7 +29,7 @@ from app.imports.pdf_import import (
 from app.jobs.service import enqueue_job
 from app.projects.dependencies import require_project_member_csrf
 from app.projects.models import Criterion, ScreeningStage
-from app.projects.service import require_project_access
+from app.projects.service import is_project_manager, require_project_access
 from app.publications.models import MetadataConflict, Publication
 from app.publications.schemas import (
     BulkDeleteRequest,
@@ -101,16 +106,9 @@ def _screening_review_details(
     }
 
 
-def _extraction_review_details(
-    db: Session, publication_id: str
+def _extraction_slot_response_payload(
+    db: Session, item: ExtractionWorkItem
 ) -> dict[str, Any] | None:
-    item = db.scalar(
-        select(ExtractionWorkItem).where(
-            ExtractionWorkItem.publication_id == publication_id
-        )
-    )
-    if item is None:
-        return None
     response = db.scalar(
         select(ExtractionResponse)
         .where(
@@ -119,40 +117,79 @@ def _extraction_review_details(
         )
         .order_by(ExtractionResponse.created_at.desc())
     )
-    reviewer = db.get(User, response.reviewer_id) if response else None
-    fields = (
-        list(
-            db.scalars(
-                select(FormField)
-                .where(FormField.form_version_id == response.form_version_id)
-                .order_by(FormField.position)
-            )
+    if response is None:
+        return None
+    reviewer = db.get(User, response.reviewer_id)
+    fields = list(
+        db.scalars(
+            select(FormField)
+            .where(FormField.form_version_id == response.form_version_id)
+            .order_by(FormField.position)
         )
-        if response
-        else []
     )
     return {
-        "workItemId": item.id,
-        "status": item.status.value,
-        "completedAt": item.completed_at,
-        "response": (
+        "id": response.id,
+        "version": response.version,
+        "reviewerName": reviewer.display_name if reviewer else None,
+        "answers": response.answers,
+        "fields": [
             {
-                "id": response.id,
-                "version": response.version,
-                "reviewerName": reviewer.display_name if reviewer else None,
-                "answers": response.answers,
-                "fields": [
-                    {
-                        "stableKey": field.stable_key,
-                        "label": field.label,
-                        "fieldType": field.field_type.value,
-                        "required": field.required,
-                        "options": field.options,
-                    }
-                    for field in fields
-                ],
+                "stableKey": field.stable_key,
+                "label": field.label,
+                "fieldType": field.field_type.value,
+                "required": field.required,
+                "options": field.options,
             }
-            if response
+            for field in fields
+        ],
+    }
+
+
+def _extraction_review_details(
+    db: Session, publication_id: str, viewer_id: str, is_manager: bool
+) -> dict[str, Any] | None:
+    """Per-slot extraction status/response for a publication, respecting
+    independence: a non-manager viewer sees a sibling slot's response only
+    once slot_responses_visible allows it (their own slot complete)."""
+    items = list(
+        db.scalars(
+            select(ExtractionWorkItem)
+            .where(ExtractionWorkItem.publication_id == publication_id)
+            .order_by(ExtractionWorkItem.slot_number)
+        )
+    )
+    if not items:
+        return None
+    required = extraction_required_reviewers(db, items[0].project_id)
+    final = get_current_final_extraction(db, publication_id)
+    slots = []
+    for item in items:
+        visible = (
+            is_manager
+            or item.assigned_reviewer_id == viewer_id
+            or slot_responses_visible(db, item, viewer_id)
+        )
+        slots.append(
+            {
+                "slotNumber": item.slot_number,
+                "workItemId": item.id,
+                "status": item.status.value,
+                "completedAt": item.completed_at,
+                "response": (
+                    _extraction_slot_response_payload(db, item) if visible else None
+                ),
+            }
+        )
+    return {
+        "requiredReviewers": required,
+        "slots": slots,
+        "final": (
+            {
+                "answers": final.answers,
+                "resolutionMethod": final.resolution_method,
+                "resolvedAt": final.created_at,
+            }
+            if final is not None
             else None
         ),
     }
@@ -175,7 +212,7 @@ def list_publications(
                     PublicationDocument.uploaded_by
                 ),
                 selectinload(Publication.final_decisions),
-                selectinload(Publication.extraction_work_item),
+                selectinload(Publication.extraction_work_items),
                 selectinload(Publication.full_text_retrieval),
             )
             .where(
@@ -204,7 +241,7 @@ def get_publication(
                 PublicationDocument.uploaded_by
             ),
             selectinload(Publication.final_decisions),
-            selectinload(Publication.extraction_work_item),
+            selectinload(Publication.extraction_work_items),
             selectinload(Publication.full_text_retrieval),
         )
         .where(Publication.id == publication_id)
@@ -234,7 +271,9 @@ def get_publication_review_details(
                 db, publication_id, ScreeningStage.FULL_TEXT
             ),
         },
-        "extraction": _extraction_review_details(db, publication_id),
+        "extraction": _extraction_review_details(
+            db, publication_id, user.id, is_project_manager(db, project_id, user)
+        ),
     }
 
 

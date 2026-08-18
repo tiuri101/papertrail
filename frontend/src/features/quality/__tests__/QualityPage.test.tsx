@@ -32,7 +32,7 @@ describe('QualityPage', () => {
     renderWithProviders(<QualityPage />, { route: '/projects/p1/quality', path: '/projects/:projectId/quality' })
 
     expect(await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Open publisher page' })).toHaveAttribute('href', 'https://publisher.example/paper')
+    expect(screen.getByRole('link', { name: 'Publisher link' })).toHaveAttribute('href', 'https://publisher.example/paper')
     expect(fetchMock.mock.calls.filter(([input, init]) => String(input).endsWith('/next') && init?.method === 'POST')).toHaveLength(1)
   })
 

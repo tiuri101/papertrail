@@ -15,13 +15,14 @@
 2. Replace the PostgreSQL and administrator passwords.
 3. Set `PAPERTRAIL_IMAGE_TAG` to the backend/frontend image tag to deploy.
 4. For local HTTP, retain the default `PAPERTRAIL_FRONTEND_PORT=80`, `PAPERTRAIL_API_PORT=8000`, and `PAPERTRAIL_SESSION_COOKIE_SECURE=false`.
-5. For production, put an external reverse proxy in front of the frontend and API ports under the public hostname, include that hostname in `PAPERTRAIL_ALLOWED_HOSTS`, set the matching HTTPS origin, and enable secure cookies. Configuring that reverse proxy is outside the scope of this Compose file.
+5. For production, put an external reverse proxy in front of the frontend and API ports under the public hostname, include that hostname in `PAPERTRAIL_ALLOWED_HOSTS`, set the matching HTTPS origin, and enable secure cookies. Configuring that reverse proxy is outside the scope of this Compose file. The `frontend` and `api` ports are published to `127.0.0.1` only, so a reverse proxy on the same host can reach them but the internet cannot. If your reverse proxy instead runs on a different host or in a separate container network, set `PAPERTRAIL_FRONTEND_BIND`/`PAPERTRAIL_API_BIND` to an address it can reach and `PAPERTRAIL_TRUSTED_PROXY_IPS` to its source IP (the API trusts `X-Forwarded-For` only from that address, which login-throttle rate limiting relies on).
 6. Run `docker compose up -d`.
-7. Run `scripts/create_admin.sh`.
-8. Remove `PAPERTRAIL_ADMIN_PASSWORD` from `.env` after the account has been created.
-9. Open the configured Papertrail address and sign in.
+7. Keep `PAPERTRAIL_ADMIN_PASSWORD` in `.env`.
+8. Open the configured Papertrail address and sign in.
 
-The one-shot `migrate` container applies all Alembic migrations before the API and worker start.
+The one-shot `migrate` container applies all Alembic migrations and idempotently
+creates the administrator before the API and worker start. Existing administrator
+accounts are left unchanged, so restarting the deployment does not reset the password.
 
 Full-text binaries live in the dedicated `papertrail_pdf_data` Docker volume, mounted only in the API and worker containers. `PAPERTRAIL_MAX_PDF_SIZE_MB` controls the per-file server-side limit (50 MB by default in Compose). Host-based deployments must set `PAPERTRAIL_PDF_STORAGE_PATH` to a persistent writable directory. Back up PostgreSQL and this PDF volume together; the database alone is not a complete backup.
 
