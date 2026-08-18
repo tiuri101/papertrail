@@ -11,6 +11,11 @@ const connectionSettings = {
   endpoint: 'http://ollama.example:11434',
   model: 'qwen3:8b',
   contextLength: 32768,
+  apiKeySet: false,
+  requestTimeoutSeconds: 300,
+  maxConcurrentJobs: 1,
+  maxEvidenceItems: 3,
+  maxEvidenceQuoteChars: 500,
 }
 
 const promptSettings = {
@@ -46,16 +51,43 @@ const promptSettings = {
   ],
 }
 
+const instanceSettings = {
+  emailEnabled: true,
+  publicBaseUrl: 'https://papertrail.example.org',
+  smtpHost: 'smtp.example.org',
+  smtpPort: 587,
+  smtpUsername: 'notifications',
+  smtpPasswordSet: true,
+  smtpFromAddress: 'Papertrail <notifications@example.org>',
+  smtpStarttls: true,
+  smtpUseSsl: false,
+  smtpTimeoutSeconds: 30,
+  workerThreads: 4,
+  jobPollIntervalSeconds: 1,
+  jobLeaseSeconds: 300,
+  browserRetrievalLeaseSeconds: 300,
+  maxPdfSizeMb: 50,
+  passwordResetTtlMinutes: 60,
+  passwordResetMaxAttempts: 5,
+}
+
+function defaultRoutes(input: unknown, init?: RequestInit) {
+  const path = String(input)
+  if (path.endsWith('/llm/installation-settings')) return jsonResponse(connectionSettings)
+  if (path.endsWith('/llm/installation-settings/prompts')) return jsonResponse(promptSettings)
+  if (path.endsWith('/instance-settings')) return jsonResponse(instanceSettings)
+  void init
+  return jsonResponse({})
+}
+
 describe('InstanceSettingsPage', () => {
   it('shows the connection settings and saves changes', async () => {
     const fetchMock = mockFetch(async (input, init) => {
       const path = String(input)
       if (path.endsWith('/llm/installation-settings') && init?.method === 'PATCH') {
-        return jsonResponse({ ...connectionSettings, ...JSON.parse(String(init.body)) })
+        return jsonResponse({ ...connectionSettings, ...JSON.parse(String(init.body)), apiKeySet: false })
       }
-      if (path.endsWith('/llm/installation-settings')) return jsonResponse(connectionSettings)
-      if (path.endsWith('/llm/installation-settings/prompts')) return jsonResponse(promptSettings)
-      return jsonResponse({})
+      return defaultRoutes(input, init)
     })
     renderWithProviders(<InstanceSettingsPage />)
 
@@ -75,19 +107,22 @@ describe('InstanceSettingsPage', () => {
         endpoint: 'http://ollama.example:11434',
         model: 'gemma3:12b',
         contextLength: 32768,
+        apiKey: null,
+        requestTimeoutSeconds: 300,
+        maxConcurrentJobs: 1,
+        maxEvidenceItems: 3,
+        maxEvidenceQuoteChars: 500,
       })
     })
   })
 
   it('tests the connection', async () => {
-    mockFetch(async (input) => {
+    mockFetch(async (input, init) => {
       const path = String(input)
-      if (path.endsWith('/llm/installation-settings')) return jsonResponse(connectionSettings)
-      if (path.endsWith('/llm/installation-settings/prompts')) return jsonResponse(promptSettings)
       if (path.endsWith('/llm/installation-settings/test')) {
         return jsonResponse({ available: true, modelAvailable: true })
       }
-      return jsonResponse({})
+      return defaultRoutes(input, init)
     })
     renderWithProviders(<InstanceSettingsPage />)
 
@@ -98,7 +133,6 @@ describe('InstanceSettingsPage', () => {
   it('shows each prompt flow with its overridden state and saves edits', async () => {
     const fetchMock = mockFetch(async (input, init) => {
       const path = String(input)
-      if (path.endsWith('/llm/installation-settings')) return jsonResponse(connectionSettings)
       if (path.endsWith('/llm/installation-settings/prompts') && init?.method === 'PUT') {
         const body = JSON.parse(String(init.body))
         return jsonResponse({
@@ -109,8 +143,7 @@ describe('InstanceSettingsPage', () => {
           )),
         })
       }
-      if (path.endsWith('/llm/installation-settings/prompts')) return jsonResponse(promptSettings)
-      return jsonResponse({})
+      return defaultRoutes(input, init)
     })
     renderWithProviders(<InstanceSettingsPage />)
 
@@ -142,7 +175,6 @@ describe('InstanceSettingsPage', () => {
   it('resets an overridden prompt to its default', async () => {
     const fetchMock = mockFetch(async (input, init) => {
       const path = String(input)
-      if (path.endsWith('/llm/installation-settings')) return jsonResponse(connectionSettings)
       if (path.endsWith('/llm/installation-settings/prompts') && init?.method === 'PUT') {
         return jsonResponse({
           flows: promptSettings.flows.map((flow) => (
@@ -152,8 +184,7 @@ describe('InstanceSettingsPage', () => {
           )),
         })
       }
-      if (path.endsWith('/llm/installation-settings/prompts')) return jsonResponse(promptSettings)
-      return jsonResponse({})
+      return defaultRoutes(input, init)
     })
     renderWithProviders(<InstanceSettingsPage />)
 
@@ -165,6 +196,99 @@ describe('InstanceSettingsPage', () => {
         String(input).endsWith('/llm/installation-settings/prompts') && init?.method === 'PUT'
       ))
       expect(JSON.parse(String(call?.[1]?.body))).toEqual({ extractionPrompt: null })
+    })
+  })
+
+  it('shows the email settings and saves changes from the Email section', async () => {
+    const fetchMock = mockFetch(async (input, init) => {
+      const path = String(input)
+      if (path.endsWith('/instance-settings') && init?.method === 'PATCH') {
+        return jsonResponse({ ...instanceSettings, ...JSON.parse(String(init.body)), smtpPasswordSet: true })
+      }
+      return defaultRoutes(input, init)
+    })
+    renderWithProviders(<InstanceSettingsPage />)
+
+    expect(await screen.findByDisplayValue('smtp.example.org')).toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('SMTP port'), { target: { value: '2525' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save Email Settings' }))
+
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find(([input, init]) => (
+        String(input).endsWith('/instance-settings') && init?.method === 'PATCH'
+      ))
+      const body = JSON.parse(String(call?.[1]?.body))
+      expect(body.smtpPort).toBe(2525)
+      expect(body.smtpPassword).toBeNull()
+      expect(body.emailEnabled).toBe(true)
+    })
+  })
+
+  it('sends a test email and reports the result', async () => {
+    mockFetch(async (input, init) => {
+      const path = String(input)
+      if (path.endsWith('/instance-settings/test-email')) {
+        return jsonResponse({ sent: true, error: null })
+      }
+      return defaultRoutes(input, init)
+    })
+    renderWithProviders(<InstanceSettingsPage />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Send Test Email' }))
+    expect(await screen.findByText('Test email sent to your account address.')).toBeInTheDocument()
+  })
+
+  it('reports a failed test email without crashing', async () => {
+    mockFetch(async (input, init) => {
+      const path = String(input)
+      if (path.endsWith('/instance-settings/test-email')) {
+        return jsonResponse({ sent: false, error: 'SMTP server unreachable' })
+      }
+      return defaultRoutes(input, init)
+    })
+    renderWithProviders(<InstanceSettingsPage />)
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Send Test Email' }))
+    expect(await screen.findByText('SMTP server unreachable')).toBeInTheDocument()
+  })
+
+  it('saves account security, PDF, and background job settings', async () => {
+    const fetchMock = mockFetch(async (input, init) => {
+      const path = String(input)
+      if (path.endsWith('/instance-settings') && init?.method === 'PATCH') {
+        return jsonResponse({ ...instanceSettings, ...JSON.parse(String(init.body)), smtpPasswordSet: true })
+      }
+      return defaultRoutes(input, init)
+    })
+    renderWithProviders(<InstanceSettingsPage />)
+
+    fireEvent.change(await screen.findByLabelText('Password reset max attempts'), { target: { value: '7' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save Account Security Settings' }))
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find(([input, init]) => (
+        String(input).endsWith('/instance-settings') && init?.method === 'PATCH'
+      ))
+      expect(JSON.parse(String(call?.[1]?.body)).passwordResetMaxAttempts).toBe(7)
+    })
+
+    fireEvent.change(screen.getByLabelText('Max PDF size (MB)'), { target: { value: '75' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save PDF Settings' }))
+    await waitFor(() => {
+      const patchCalls = fetchMock.mock.calls.filter(([input, init]) => (
+        String(input).endsWith('/instance-settings') && init?.method === 'PATCH'
+      ))
+      const call = patchCalls[patchCalls.length - 1]
+      expect(JSON.parse(String(call?.[1]?.body)).maxPdfSizeMb).toBe(75)
+    })
+
+    fireEvent.change(screen.getByLabelText('Worker threads'), { target: { value: '6' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save Background Job Settings' }))
+    await waitFor(() => {
+      const patchCalls = fetchMock.mock.calls.filter(([input, init]) => (
+        String(input).endsWith('/instance-settings') && init?.method === 'PATCH'
+      ))
+      const call = patchCalls[patchCalls.length - 1]
+      expect(JSON.parse(String(call?.[1]?.body)).workerThreads).toBe(6)
     })
   })
 })

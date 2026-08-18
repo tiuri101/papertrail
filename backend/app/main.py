@@ -23,6 +23,7 @@ from app.forms.routes import router as forms_router
 from app.fulltext.document_routes import router as fulltext_document_router
 from app.fulltext.routes import router as fulltext_router
 from app.imports.routes import router as imports_router
+from app.instance_settings.routes import router as instance_settings_router
 from app.jobs.routes import router as jobs_router
 from app.llm.routes import router as llm_router
 from app.pdf_acquisition.routes import router as pdf_acquisition_router
@@ -84,6 +85,7 @@ def create_app() -> FastAPI:
     app.include_router(accounts_router, prefix=settings.api_prefix)
     app.include_router(projects_router, prefix=settings.api_prefix)
     app.include_router(imports_router, prefix=settings.api_prefix)
+    app.include_router(instance_settings_router, prefix=settings.api_prefix)
     app.include_router(jobs_router, prefix=settings.api_prefix)
     app.include_router(llm_router, prefix=settings.api_prefix)
     app.include_router(publications_router, prefix=settings.api_prefix)

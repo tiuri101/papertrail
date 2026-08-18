@@ -42,6 +42,11 @@ def effective_llm_settings(db: Session | None = None) -> Settings:
             "ollama_base_url": stored.endpoint,
             "ollama_model": stored.model,
             "llm_context_length": stored.context_length,
+            "ollama_api_key": stored.api_key,
+            "ollama_request_timeout_seconds": stored.request_timeout_seconds,
+            "llm_max_concurrent_jobs": stored.max_concurrent_jobs,
+            "llm_max_evidence_items": stored.max_evidence_items,
+            "llm_max_evidence_quote_chars": stored.max_evidence_quote_chars,
             "llm_title_abstract_base_prompt": stored.title_abstract_base_prompt,
             "llm_full_text_base_prompt": stored.full_text_base_prompt,
             "llm_extraction_base_prompt": stored.extraction_base_prompt,
@@ -57,6 +62,11 @@ def update_installation_settings(
     endpoint: str,
     model: str,
     context_length: int,
+    api_key: str | None,
+    request_timeout_seconds: int,
+    max_concurrent_jobs: int,
+    max_evidence_items: int,
+    max_evidence_quote_chars: int,
     updated_by_user_id: str,
 ) -> LlmInstallationSettings:
     stored = installation_settings(db)
@@ -66,6 +76,11 @@ def update_installation_settings(
             endpoint=endpoint,
             model=model,
             context_length=context_length,
+            api_key=api_key,
+            request_timeout_seconds=request_timeout_seconds,
+            max_concurrent_jobs=max_concurrent_jobs,
+            max_evidence_items=max_evidence_items,
+            max_evidence_quote_chars=max_evidence_quote_chars,
             updated_by_user_id=updated_by_user_id,
         )
         db.add(stored)
@@ -74,6 +89,14 @@ def update_installation_settings(
         stored.endpoint = endpoint
         stored.model = model
         stored.context_length = context_length
+        # A blank submission keeps the previously stored key -- the field is
+        # never echoed back to the client, so blank cannot mean "clear it".
+        if api_key is not None:
+            stored.api_key = api_key
+        stored.request_timeout_seconds = request_timeout_seconds
+        stored.max_concurrent_jobs = max_concurrent_jobs
+        stored.max_evidence_items = max_evidence_items
+        stored.max_evidence_quote_chars = max_evidence_quote_chars
         stored.updated_by_user_id = updated_by_user_id
     db.flush()
     return stored
@@ -100,6 +123,11 @@ def update_installation_prompts(
             endpoint=defaults.ollama_base_url,
             model=defaults.ollama_model,
             context_length=defaults.llm_context_length,
+            api_key=defaults.ollama_api_key,
+            request_timeout_seconds=defaults.ollama_request_timeout_seconds,
+            max_concurrent_jobs=defaults.llm_max_concurrent_jobs,
+            max_evidence_items=defaults.llm_max_evidence_items,
+            max_evidence_quote_chars=defaults.llm_max_evidence_quote_chars,
             updated_by_user_id=updated_by_user_id,
         )
         db.add(stored)

@@ -21,6 +21,7 @@ from app.fulltext.models import (
 from app.fulltext.schemas import DocumentResponse, FullTextDocumentResponse
 from app.fulltext.service import set_retrieval_status
 from app.fulltext.storage import discard_pdf, stage_pdf_upload, storage_path
+from app.instance_settings.service import effective_instance_settings
 from app.projects.dependencies import require_full_text_reviewer_csrf
 from app.projects.service import require_project_access
 from app.publications.models import Publication
@@ -74,7 +75,11 @@ async def upload_full_text_document(
     db: Session = Depends(get_db),
 ) -> dict[str, object]:
     _publication(db, project_id, publication_id)
-    staged = await stage_pdf_upload(file, import_batch_id=f"manual-{uuid4()}")
+    staged = await stage_pdf_upload(
+        file,
+        import_batch_id=f"manual-{uuid4()}",
+        settings=effective_instance_settings(db),
+    )
     document = None
     try:
         document = attach_staged_pdf(

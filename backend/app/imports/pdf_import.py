@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.api.errors import DomainError
 from app.audit.service import record_audit
-from app.core.config import Settings, get_settings
+from app.core.config import Settings
 from app.fulltext.documents import active_document, attach_staged_pdf
 from app.fulltext.models import DocumentSource
 from app.fulltext.storage import (
@@ -29,6 +29,7 @@ from app.imports.models import (
     PdfMatchStatus,
 )
 from app.imports.pdf_matching import match_pdf
+from app.instance_settings.service import effective_instance_settings
 from app.publications.models import Publication, PublicationSource
 
 
@@ -170,7 +171,7 @@ async def stage_bulk_uploads(
     pdfs: list[UploadFile],
     pdf_archives: list[UploadFile],
 ) -> int:
-    settings = get_settings()
+    settings = effective_instance_settings(db)
     if len(pdfs) + len(pdf_archives) > settings.max_pdf_batch_files:
         raise DomainError(
             f"A PDF batch may contain at most {settings.max_pdf_batch_files} uploads"

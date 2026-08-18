@@ -189,6 +189,11 @@ def get_llm_installation_settings(
         "endpoint": config.ollama_base_url,
         "model": config.ollama_model,
         "contextLength": config.llm_context_length,
+        "apiKeySet": bool(config.ollama_api_key),
+        "requestTimeoutSeconds": config.ollama_request_timeout_seconds,
+        "maxConcurrentJobs": config.llm_max_concurrent_jobs,
+        "maxEvidenceItems": config.llm_max_evidence_items,
+        "maxEvidenceQuoteChars": config.llm_max_evidence_quote_chars,
     }
 
 
@@ -274,6 +279,11 @@ def update_llm_installation_settings(
         endpoint=payload.endpoint,
         model=payload.model,
         context_length=payload.context_length,
+        api_key=payload.api_key,
+        request_timeout_seconds=payload.request_timeout_seconds,
+        max_concurrent_jobs=payload.max_concurrent_jobs,
+        max_evidence_items=payload.max_evidence_items,
+        max_evidence_quote_chars=payload.max_evidence_quote_chars,
         updated_by_user_id=admin.id,
     )
     changes: dict[str, Any] = {}
@@ -282,6 +292,27 @@ def update_llm_installation_settings(
         ("endpoint", _public_endpoint(previous.ollama_base_url), stored.endpoint),
         ("model", previous.ollama_model, stored.model),
         ("contextLength", previous.llm_context_length, stored.context_length),
+        ("apiKeySet", bool(previous.ollama_api_key), bool(stored.api_key)),
+        (
+            "requestTimeoutSeconds",
+            previous.ollama_request_timeout_seconds,
+            stored.request_timeout_seconds,
+        ),
+        (
+            "maxConcurrentJobs",
+            previous.llm_max_concurrent_jobs,
+            stored.max_concurrent_jobs,
+        ),
+        (
+            "maxEvidenceItems",
+            previous.llm_max_evidence_items,
+            stored.max_evidence_items,
+        ),
+        (
+            "maxEvidenceQuoteChars",
+            previous.llm_max_evidence_quote_chars,
+            stored.max_evidence_quote_chars,
+        ),
     ):
         if before != after:
             changes[key] = {"from": before, "to": after}
@@ -310,6 +341,11 @@ def update_llm_installation_settings(
         "endpoint": stored.endpoint,
         "model": stored.model,
         "contextLength": stored.context_length,
+        "apiKeySet": bool(stored.api_key),
+        "requestTimeoutSeconds": stored.request_timeout_seconds,
+        "maxConcurrentJobs": stored.max_concurrent_jobs,
+        "maxEvidenceItems": stored.max_evidence_items,
+        "maxEvidenceQuoteChars": stored.max_evidence_quote_chars,
     }
 
 
