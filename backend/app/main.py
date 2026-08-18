@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from uuid import uuid4
@@ -31,6 +32,8 @@ from app.quality.routes import router as quality_router
 from app.reporting.routes import router as reporting_router
 from app.screening.routes import router as screening_router
 
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -42,6 +45,9 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 def create_app() -> FastAPI:
     configure_logging()
     settings = get_settings()
+    logger.info(
+        "%s API starting (version=%s)", settings.app_name, settings.app_version
+    )
     app = FastAPI(
         title=settings.app_name, version=settings.app_version, lifespan=lifespan
     )

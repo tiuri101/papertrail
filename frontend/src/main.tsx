@@ -8,6 +8,8 @@ import { queryClient } from "./app/queryClient";
 import { initializeTheme } from "./app/theme";
 import "./index.css";
 
+console.info(`Papertrail frontend starting (version=${import.meta.env.VITE_APP_VERSION ?? "dev"})`);
+
 initializeTheme();
 
 createRoot(document.getElementById("root")!).render(
