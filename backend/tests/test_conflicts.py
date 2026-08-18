@@ -9,6 +9,8 @@ from app.conflicts.service import (
     transition_if_screening_complete,
 )
 from app.extraction.models import ExtractionStatus, ExtractionWorkItem, FinalExtraction
+from app.forms.models import FormKind
+from app.forms.service import create_form
 from app.fulltext.models import (
     FullTextRetrieval,
     PublicationDocument,
@@ -356,11 +358,12 @@ def test_late_addition_to_a_completed_project_reopens_it_until_it_finishes(db) -
     # FinalExtraction per included publication, not just a COMPLETED
     # work item -- normally produced by submit_extraction; this test
     # manufactures the completed state directly, so add it directly too.
+    form = create_form(db, "Extraction", FormKind.EXTRACTION, project_id=project.id)
     db.add(
         FinalExtraction(
             project_id=project.id,
             publication_id=included.id,
-            form_version_id="test-form-version",
+            form_version_id=form.active_version_id,
             answers={},
             resolution_method="single_reviewer",
             field_provenance={},
@@ -482,11 +485,12 @@ def test_late_addition_to_completed_project_records_audit_and_regenerates_analys
     # FinalExtraction per included publication, not just a COMPLETED
     # work item -- normally produced by submit_extraction; this test
     # manufactures the completed state directly, so add it directly too.
+    form = create_form(db, "Extraction", FormKind.EXTRACTION, project_id=project.id)
     db.add(
         FinalExtraction(
             project_id=project.id,
             publication_id=included.id,
-            form_version_id="test-form-version",
+            form_version_id=form.active_version_id,
             answers={},
             resolution_method="single_reviewer",
             field_provenance={},
