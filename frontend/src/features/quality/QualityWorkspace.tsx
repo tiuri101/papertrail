@@ -3,10 +3,14 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { DoiPill } from '../../components/DoiPill'
 import { IconArrowRight, IconCheckCircle } from '../../components/icons'
+import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
+import { PublisherLinkPill } from '../../components/PublisherLinkPill'
 import { isAnswered } from '../forms/answers'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { DynamicForm, type DynamicFormField } from '../forms/DynamicForm'
+import { fullTextDocumentEndpoint, useFullTextDocument } from '../fulltext/useFullTextDocument'
 
 interface PublicationSummary {
   title: string
@@ -57,6 +61,7 @@ export function QualityWorkspace({
   const [nextError, setNextError] = useState<string | null>(null)
   const [completedResponse, setCompletedResponse] = useState<QualityResponse | null>(null)
   const skippedItemIds = useRef<Set<string>>(new Set())
+  const fullTextDocument = useFullTextDocument(projectId, item?.publicationId ?? '')
 
   const next = useMutation({
     mutationFn: () => {
@@ -193,19 +198,19 @@ export function QualityWorkspace({
             {item.publication.authors ?? 'Unknown authors'}
             {item.publication.publicationYear ? ` (${item.publication.publicationYear})` : ''}
           </p>
-          {item.publication.doi ? (
-            <p>
-              <a href={`https://doi.org/${item.publication.doi}`} target="_blank" rel="noreferrer">
-                Open DOI
-              </a>
-            </p>
-          ) : isSafeHttpUrl(item.publication.publisherUrl) ? (
-            <p>
-              <a href={item.publication.publisherUrl} target="_blank" rel="noreferrer">
-                Open publisher page
-              </a>
-            </p>
-          ) : null}
+          <div className="toolbar">
+            {fullTextDocument.data ? (
+              <PdfAvailabilityPill
+                available={fullTextDocument.data.available}
+                href={`${fullTextDocumentEndpoint(projectId, item.publicationId)}/content`}
+                pageCount={fullTextDocument.data.document?.pageCount}
+              />
+            ) : null}
+            <DoiPill doi={item.publication.doi} />
+            {isSafeHttpUrl(item.publication.publisherUrl) ? (
+              <PublisherLinkPill url={item.publication.publisherUrl} />
+            ) : null}
+          </div>
         </>
       ) : null}
       <form onSubmit={(event) => { event.preventDefault(); submit.mutate() }}>

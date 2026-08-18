@@ -15,6 +15,7 @@ from app.db.session import get_db
 from app.jobs.service import enqueue_job
 from app.projects.dependencies import require_project_member_csrf
 from app.projects.service import require_project_access
+from app.reporting.evidence_matrix import build_evidence_matrix, evidence_cell_detail
 from app.reporting.models import ExportArtifact
 from app.reporting.service import (
     build_final_results,
@@ -30,6 +31,13 @@ class ExportRequest(BaseModel):
     scope: str = "included"
     statusFilter: dict[str, Any] | None = None
     publicationIds: list[str] | None = None
+
+
+class EvidenceMatrixRequest(BaseModel):
+    search: str | None = None
+    filters: dict[str, dict[str, Any]] = {}
+    page: int = 1
+    pageSize: int = 25
 
 
 @router.get("/projects/{project_id}/prisma")
@@ -65,6 +73,41 @@ def final_results(
 ) -> dict[str, Any]:
     require_project_access(db, project_id, user)
     return build_final_results(db, project_id)
+
+
+@router.post("/projects/{project_id}/evidence-matrix")
+def evidence_matrix(
+    project_id: str,
+    payload: EvidenceMatrixRequest,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    require_project_access(db, project_id, user)
+    page = max(payload.page, 1)
+    page_size = min(max(payload.pageSize, 1), 200)
+    return build_evidence_matrix(
+        db,
+        project_id,
+        search=payload.search,
+        filters=payload.filters,
+        page=page,
+        page_size=page_size,
+    )
+
+
+@router.get(
+    "/projects/{project_id}/evidence-matrix/cell/{publication_id}/{source_type}/{field_key}"
+)
+def evidence_matrix_cell(
+    project_id: str,
+    publication_id: str,
+    source_type: str,
+    field_key: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    require_project_access(db, project_id, user)
+    return evidence_cell_detail(db, project_id, publication_id, source_type, field_key)
 
 
 @router.post("/projects/{project_id}/exports", status_code=status.HTTP_202_ACCEPTED)
@@ -136,7 +179,17 @@ def download_export(
         or not Path(artifact.stored_path).is_file()
     ):
         raise NotFoundError("Export not found")
-    return FileResponse(artifact.stored_path, filename=artifact.filename)
+    media_types = {
+        ".parquet": "application/vnd.apache.parquet",
+        ".json": "application/json",
+        ".csv": "text/csv",
+    }
+    media_type = media_types.get(Path(artifact.filename).suffix.lower())
+    return FileResponse(
+        artifact.stored_path,
+        filename=artifact.filename,
+        media_type=media_type,
+    )
 
 
 @router.delete(

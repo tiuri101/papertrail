@@ -198,6 +198,8 @@ def _serialize_project_detail(
         can_extract=can_manage or bool(own_membership and own_membership.can_extract),
         can_assess_quality=can_manage
         or bool(own_membership and own_membership.can_assess_quality),
+        can_adjudicate=can_manage
+        or bool(own_membership and own_membership.can_adjudicate),
     )
 
 
@@ -642,35 +644,32 @@ def set_highlight_keywords(
     return HighlightKeywordsResponse(keywords=keywords)
 
 
-def _prompt_flows(project: Project) -> list[PromptFlowSettings]:
-    from app.llm.prompt import SYSTEM_PROMPT
-    from app.llm.task_prompt import SCREENING_SYSTEM_PROMPT, VALIDATION_SYSTEM_PROMPT
+def _prompt_flows(db: Session, project: Project) -> list[PromptFlowSettings]:
+    from app.llm.installation_settings import effective_llm_settings
+    from app.llm.prompt_flows import PROMPT_FLOW_DEFAULTS, PROMPT_FLOW_LABELS
+
+    config = effective_llm_settings(db)
+    base_prompts = {
+        "titleAbstract": config.llm_title_abstract_base_prompt,
+        "fullText": config.llm_full_text_base_prompt,
+        "extraction": config.llm_extraction_base_prompt,
+        "validation": config.llm_validation_base_prompt,
+    }
+    instructions = {
+        "titleAbstract": project.title_abstract_prompt_instructions,
+        "fullText": project.full_text_prompt_instructions,
+        "extraction": project.extraction_prompt_instructions,
+        "validation": project.validation_prompt_instructions,
+    }
 
     return [
         PromptFlowSettings(
-            key="titleAbstract",
-            label="Title/abstract screening",
-            base_prompt=SCREENING_SYSTEM_PROMPT,
-            custom_instructions=project.title_abstract_prompt_instructions,
-        ),
-        PromptFlowSettings(
-            key="fullText",
-            label="Full-text screening",
-            base_prompt=SCREENING_SYSTEM_PROMPT,
-            custom_instructions=project.full_text_prompt_instructions,
-        ),
-        PromptFlowSettings(
-            key="extraction",
-            label="Data extraction",
-            base_prompt=SYSTEM_PROMPT,
-            custom_instructions=project.extraction_prompt_instructions,
-        ),
-        PromptFlowSettings(
-            key="validation",
-            label="Extraction validation",
-            base_prompt=VALIDATION_SYSTEM_PROMPT,
-            custom_instructions=project.validation_prompt_instructions,
-        ),
+            key=key,
+            label=PROMPT_FLOW_LABELS[key],
+            base_prompt=base_prompts[key] or PROMPT_FLOW_DEFAULTS[key],
+            custom_instructions=instructions[key],
+        )
+        for key in PROMPT_FLOW_LABELS
     ]
 
 
@@ -681,7 +680,7 @@ def get_prompt_settings(
     db: Session = Depends(get_db),
 ) -> PromptSettingsResponse:
     project = get_project(db, project_id)
-    return PromptSettingsResponse(flows=_prompt_flows(project))
+    return PromptSettingsResponse(flows=_prompt_flows(db, project))
 
 
 @router.put("/{project_id}/prompt-settings", response_model=PromptSettingsResponse)
@@ -708,7 +707,7 @@ def set_prompt_settings(
         summary="Updated project LLM prompt instructions",
     )
     db.commit()
-    return PromptSettingsResponse(flows=_prompt_flows(project))
+    return PromptSettingsResponse(flows=_prompt_flows(db, project))
 
 
 @router.get("/{project_id}/jobs", response_model=list[JobResponse])

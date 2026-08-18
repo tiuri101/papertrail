@@ -1,17 +1,81 @@
 from __future__ import annotations
 
+import html
 import re
+import unicodedata
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.errors import DomainError
 from app.imports.models import ImportBatch, ImportedRecord
 from app.projects.models import Project, ProjectStage
 from app.publications.models import MetadataConflict, Publication, PublicationSource
 
 IMPORTANT_FIELDS = {"doi", "title", "authors", "publication_year", "abstract", "venue"}
+
+# Combining Unicode accents keyed by their classic LaTeX accent command,
+# e.g. {\"u} -> u + combining diaeresis -> normalized to u-umlaut.
+_LATEX_ACCENT_COMBINING = {
+    '"': "̈",
+    "'": "́",
+    "`": "̀",
+    "^": "̂",
+    "~": "̃",
+    "=": "̄",
+    ".": "̇",
+    "c": "̧",
+    "v": "̌",
+    "u": "̆",
+    "H": "̋",
+    "k": "̨",
+    "r": "̊",
+}
+_LATEX_ACCENT_RE = re.compile(
+    r'\{?\\(["\'`^~=.]|[cvuHkr])\s*\{?([A-Za-z])\}?\}?'
+)
+
+# LaTeX commands for characters with no separate base letter + accent.
+_LATEX_SPECIAL_CHARS = {
+    "ss": "ß", "o": "ø", "O": "Ø", "aa": "å", "AA": "Å",
+    "l": "ł", "L": "Ł", "ae": "æ", "AE": "Æ", "oe": "œ", "OE": "Œ",
+    "i": "ı", "j": "ȷ",
+}
+# Braces unambiguously delimit the command, so match those first; the bare form
+# needs a following-letter lookahead so "\oe" isn't misread as "\o" + "e".
+_LATEX_SPECIAL_BRACED_RE = re.compile(
+    r"\{\\(ss|AA|aa|AE|ae|OE|oe|L|l|O|o|i|j)\}"
+)
+_LATEX_SPECIAL_BARE_RE = re.compile(
+    r"\\(ss|AA|aa|AE|ae|OE|oe|L|l|O|o|i|j)(?![A-Za-z])"
+)
+
+# Bare braces BibTeX uses to protect capitalization of a single word/acronym,
+# e.g. "{COVID-19}" or "{PTSD}" -- left over once no accent command matched.
+_LATEX_BARE_BRACES_RE = re.compile(r"\{([^{}\s]+)\}")
+
+
+def _replace_special_char(match: re.Match[str]) -> str:
+    return _LATEX_SPECIAL_CHARS.get(match.group(1), match.group(0))
+
+
+def _decode_latex_accents(text: str) -> str:
+    text = _LATEX_SPECIAL_BRACED_RE.sub(_replace_special_char, text)
+    text = _LATEX_SPECIAL_BARE_RE.sub(_replace_special_char, text)
+
+    def _replace_accent(match: re.Match[str]) -> str:
+        combining = _LATEX_ACCENT_COMBINING.get(match.group(1))
+        if combining is None:
+            return match.group(0)
+        return unicodedata.normalize("NFC", match.group(2) + combining)
+
+    text = _LATEX_ACCENT_RE.sub(_replace_accent, text)
+    if "{" in text:
+        previous = None
+        while previous != text:
+            previous = text
+            text = _LATEX_BARE_BRACES_RE.sub(r"\1", text)
+    return text
 
 
 def sync_new_publications_with_stage(
@@ -24,34 +88,37 @@ def sync_new_publications_with_stage(
     advances. But `create_screening_work_items` for title/abstract only runs once,
     when duplicate review completes, so a publication added afterwards would
     otherwise sit invisible to reviewers with no screening work item at all.
-    Publications added once full-text retrieval has started aren't supported: those
-    later stages depend on a title/abstract decision a brand-new publication
-    doesn't have yet.
+
+    A publication added once the project has moved past title/abstract screening
+    -- including a completed project -- starts at title/abstract screening just
+    like any other, and its own decisions carry it through full-text and
+    extraction/quality via the late-inclusion backfill in
+    app.conflicts.service.record_final_decision, without disturbing publications
+    already past those stages or rewinding the project's own stage.
     """
     if not publication_ids:
         return
-    if project.stage == ProjectStage.TITLE_ABSTRACT:
+    if project.stage in (
+        ProjectStage.TITLE_ABSTRACT,
+        ProjectStage.FULL_TEXT,
+        ProjectStage.EXTRACTION,
+        ProjectStage.COMPLETED,
+    ):
         from app.projects.models import ScreeningStage
         from app.screening.service import create_screening_work_items
 
         create_screening_work_items(
             db, project, ScreeningStage.TITLE_ABSTRACT, publication_ids=publication_ids
         )
-    elif project.stage in (
-        ProjectStage.FULL_TEXT,
-        ProjectStage.EXTRACTION,
-        ProjectStage.COMPLETED,
-    ):
-        raise DomainError(
-            "Publications can't be added once full-text retrieval has started. "
-            "Move the project back to an earlier stage first."
-        )
 
 
 def clean_text(value: Any) -> str | None:
     if value is None:
         return None
-    text = re.sub(r"\s+", " ", str(value)).strip()
+    text = str(value)
+    text = html.unescape(text)
+    text = _decode_latex_accents(text)
+    text = re.sub(r"\s+", " ", text).strip()
     return text or None
 
 

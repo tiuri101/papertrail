@@ -5,8 +5,10 @@ import {
   IconArrowRight,
   IconCheckCircle,
   IconClock,
+  IconDownload,
   IconFolder,
   IconInfo,
+  IconKeyboard,
   IconLightbulb,
   IconPerson,
   IconPlus,
@@ -26,6 +28,7 @@ const helpSections = [
   { id: 'section-help-reviewer', label: 'Reviewer' },
   { id: 'section-help-owner', label: 'Project Owner' },
   { id: 'section-help-llm', label: 'LLM Assistance' },
+  { id: 'section-help-extension', label: 'Browser Extension' },
   { id: 'section-help-good-to-know', label: 'Good to Know' },
 ]
 
@@ -35,7 +38,7 @@ const stageDescriptions: Record<string, string> = {
   title_abstract_screening: 'Each reviewer checks every publication against the inclusion/exclusion criteria and decides include, exclude, uncertain, or duplicate.',
   full_text_screening: 'Retrieve and upload full-text PDFs, then make the final eligibility decision for each publication that passed title/abstract screening.',
   extraction_quality: 'Extract structured data from each included publication and, when enabled, assess its quality or risk of bias.',
-  completed: 'Review integrity warnings, generate PRISMA, Excel, and BibTeX exports, or reopen an earlier stage if corrections are still needed.',
+  completed: 'Review integrity warnings, generate PRISMA, Excel, Parquet, JSON, CSV, and BibTeX exports, or reopen an earlier stage if corrections are still needed.',
 }
 
 const llmStageDescriptions: Record<string, string> = {
@@ -43,24 +46,24 @@ const llmStageDescriptions: Record<string, string> = {
   duplicate_review: 'Duplicate review is entirely human-led. The LLM does not identify, merge, or dismiss duplicate records.',
   title_abstract_screening: 'The LLM can compare a publication\'s title and abstract with the project criteria. Its include, exclude, or uncertain suggestion is hidden until you submit your own decision, so it cannot influence an independent first assessment.',
   full_text_screening: 'For an included publication with a readable PDF, the LLM can assess each criterion and point to supporting passages and physical PDF pages. This assistance is visible during review, but the eligibility decision remains yours.',
-  extraction_quality: 'The LLM can suggest values for configured extraction fields and show source evidence. You choose whether to apply, edit, replace, or ignore each suggestion. If extraction validation is enabled, it can also flag submitted human values as supported, contradicted, uncertain, or not verifiable without changing them.',
-  completed: 'The LLM does not alter final results or exports. Exports contain reviewer-controlled values, while earlier suggestions and their provenance remain available for traceability.',
+  extraction_quality: 'The LLM can suggest values for configured extraction fields and show source evidence. You choose whether to apply, edit, replace, or ignore each suggestion. In addition, if extraction validation is enabled, it can also flag submitted human values as supported, contradicted, uncertain, or not verifiable without changing them.',
+  completed: 'Finally, the LLM can run a first analysis of the results generated during the review process, from importing to data extraction.',
 }
 
 const overviewPillars = [
   {
     title: 'A guided workflow',
-    description: 'Six connected stages take the project from setup and imported records through screening, extraction, and completion.',
+    description: 'Six connected review stages take the project from setup and record import through screening, extraction, and analysis.',
     icon: <IconArrowRight />,
   },
   {
     title: 'Independent teamwork',
-    description: 'Role-based queues, hidden independent decisions, and explicit conflict resolution keep collaboration organized.',
+    description: 'Role-based access rules, hidden reviewing decisions, and explicit conflict resolution keep collaboration organized.',
     icon: <IconUsers />,
   },
   {
     title: 'Traceable results',
-    description: 'An immutable audit trail supports PRISMA, Excel, and BibTeX outputs you can carry into analysis and reporting.',
+    description: 'An immutable audit trail supports PRISMA, Excel, Parquet, JSON, CSV, and BibTeX outputs you can carry into analysis and reporting.',
     icon: <IconCheckCircle />,
   },
 ]
@@ -70,10 +73,10 @@ function PapertrailOverview() {
     <div className="help-overview">
       <header className="help-overview__hero">
         <span className="eyebrow">Systematic review workspace</span>
-        <h3>One shared path from search results to review-ready exports</h3>
+        <h3>One path from search results to review-ready data</h3>
         <p>
           Papertrail keeps assignments, decisions, evidence, and revisions connected so
-          the whole team can follow—and defend—the review process.
+          the whole team can follow and defend the review process.
         </p>
       </header>
 
@@ -147,7 +150,7 @@ const stages: StageResponsibilities[] = [
       'Configure screening settings: how many reviewers are required per stage, and how disagreements or uncertain decisions get resolved.',
     ],
     reviewer: [
-      'Help define the research questions and inclusion/exclusion criteria. Any project member can edit these.',
+      'Help define the research questions and inclusion/exclusion criteria.',
       'Document each database search (database, search string, date, filters) and upload its export file. You can select multiple export files and/or ZIP archives of PDFs at once.',
     ],
   },
@@ -167,11 +170,11 @@ const stages: StageResponsibilities[] = [
     name: 'Title/Abstract Screening',
     owner: [
       'Monitor reviewer progress and adjust screening assignments as needed.',
-      'Choose how publications reach reviewers: Claim (default) lets reviewers pick up the next unclaimed publication themselves; Divided pre-assigns publications round-robin, weighted by each reviewer’s workload weight; Independent shows every publication to every reviewer.',
+      'Choose how publications reach reviewers: "Claim" (default) lets reviewers pick up the next unclaimed publication themselves, "Divided" pre-assigns publications round-robin, weighted by each reviewer’s workload weight, and "Independent" shows every publication to every reviewer.',
       'Resolve screening conflicts and uncertain decisions according to the configured resolution method.',
     ],
     reviewer: [
-      'Work the active screening queue: inspect each publication, check it against every inclusion/exclusion criterion, and decide include, exclude, uncertain, or duplicate. Notes are optional and drafts autosave.',
+      'Work the active screening queue: inspect each publication, check it against every inclusion/exclusion criterion, and decide include, exclude, uncertain, or duplicate.',
       'In independent screening, other reviewers’ answers stay hidden until all required decisions are submitted. A submitted decision can still be revised, which reopens any existing consensus.',
     ],
   },
@@ -179,12 +182,13 @@ const stages: StageResponsibilities[] = [
     id: 'full_text_screening',
     name: 'Full-Text Retrieval & Screening',
     owner: [
-      'Track manual full-text retrieval and, together with full-text reviewers and administrators, upload, replace, or remove PDFs.',
+      'Track manual full-text retrieval and, together with full-text reviewers, manage publication PDFs.',
       'Resolve full-text screening conflicts.',
     ],
     reviewer: [
-      'Retrieve the full text using the DOI/publisher link Papertrail provides, then upload the PDF directly from the screening page. Papertrail never downloads publisher content automatically.',
-      'Save the retrieval status first, then complete the eligibility decision. Page-aware LLM assistance, when enabled, stays visible during review and points to verified passages and physical PDF pages.',
+      'Retrieve the full text using the DOI/publisher link Papertrail provides, then upload the PDF directly from the screening page.',
+      'If you’ve paired the browser extension in Account Settings, it can fetch and upload missing PDFs in the background using your own network access. More information about this below.',
+      'Save the retrieval status, then complete the eligibility decision. LLM assistance, when enabled, stays visible during review and points to verified passages and physical PDF pages.',
     ],
   },
   {
@@ -192,11 +196,11 @@ const stages: StageResponsibilities[] = [
     name: 'Extraction & Quality Assessment',
     owner: [
       'Configure the project’s extraction and quality-assessment forms.',
-      'Choose how publications reach extractors and quality assessors: Claim (default) lets reviewers pick up the next unclaimed publication themselves; Pre-assigned splits publications round-robin, weighted by each reviewer’s workload weight.',
-      'Reopen a reviewer’s submitted extraction or quality assessment if it needs correction, and review LLM extraction-validation results when that’s enabled.',
+      'Choose how publications reach extractors and quality assessors: "Claim" (default) lets reviewers pick up the next unclaimed publication themselves, "Pre-assigned" splits publications round-robin, weighted by each reviewer’s workload weight.',
+      'Reopen a reviewer’s submitted extraction or quality assessment if it needs correction.',
     ],
     reviewer: [
-      'Complete every required field for each publication you’re assigned to extract or, when enabled, quality-assess. Submitted work can be revised.',
+      'Complete every required field for each publication to extract or, when enabled, quality-assess.',
       'Optional LLM suggestions appear beside each field with an explicit/inferred/ambiguous/missing status and page evidence. Apply a suggestion explicitly or enter your own data.',
     ],
   },
@@ -204,11 +208,11 @@ const stages: StageResponsibilities[] = [
     id: 'completed',
     name: 'Completed',
     owner: [
-      'Review integrity warnings, then generate the PRISMA flow diagram, Excel workbook, and BibTeX export.',
-      'Reopen the project at an earlier stage if corrections are needed later; downstream data is retained but excluded from active counts.',
+      'Review integrity warnings, then generate the PRISMA flow diagram, Excel workbook, Parquet dataset, JSON, CSV, and BibTeX exports.',
+      'Reopen the project at an earlier stage if corrections are needed later. Downstream data is retained but excluded from active counts.',
     ],
     reviewer: [
-      'Browse the sortable, paginated table of every finally included publication with its extraction answers and, when enabled, quality-assessment answers and score.',
+      'Browse the results table containing all finally included publication with its extraction answers and, when enabled, quality-assessment answers and score.',
     ],
   },
 ]
@@ -246,7 +250,7 @@ function StageList({ role }: { role: 'owner' | 'reviewer' }) {
 
 function OwnerDangerZoneGuide() {
   return (
-    <aside aria-label="Reset is a fresh start; delete is permanent removal">
+    <aside aria-label="Reset is a fresh start, delete is permanent removal">
       <CollapsibleSection
         title="Reset is a fresh start, delete is permanent removal"
         subtitle="Before using the Danger Zone"
@@ -302,13 +306,56 @@ const llmSetupSteps = [
   },
 ]
 
+const extensionSetupSteps = [
+  {
+    title: 'Pair the extension',
+    section: 'Account Settings → Browser Helpers',
+    description: 'Generate a pairing secret (valid for 10 minutes and usable once) then enter your server URL, the secret, and a device name on the extension\'s setup page.',
+  },
+  {
+    title: 'Allow publisher access',
+    section: 'One-time permission prompt',
+    description: 'The first time it retrieves a paper, the extension asks for a single broad HTTPS permission, since the publisher domain is only known after following each DOI. It never receives your login credentials or cookies.',
+  },
+  {
+    title: 'Let retrieval run',
+    section: 'Automatic or on demand',
+    description: 'Including a publication during title/abstract screening queues it automatically once you have a paired helper. Anyone with the full-text reviewer role can also start, retry, or cancel a batch from Publications → "Retrieve missing PDFs".',
+  },
+]
+
+const extensionPracticalNotes = [
+  {
+    title: 'Uses your own access',
+    description: 'Retrieval runs through your browser\'s own network connection and existing sign-in through university IP access, VPN, or an institutional login already open in Chrome. Papertrail never receives your publisher credentials or cookies, only the resulting PDF.',
+    icon: <IconInfo />,
+  },
+  {
+    title: 'Coverage varies by publisher',
+    description: 'Dedicated support for ACM, IEEE, Springer, and ScienceDirect, with a generic fallback for other sites. Requires Chrome 116 or later, and PDFs over 50 MB are rejected.',
+    icon: <IconCheckCircle />,
+  },
+  {
+    title: 'A miss still needs a human',
+    description: 'An automated failure such as an authentication wall, access denied, or not found is flagged. It surfaces under "Publications needing attention" so a reviewer can try another way.',
+    icon: <IconPerson />,
+  },
+]
+
 const goodToKnowItems = [
   {
     label: 'Full-text access',
     title: 'Upload with permission',
-    description: 'Papertrail never downloads or scrapes publisher PDFs. Only add files you are authorized to access and store.',
+    description: 'The Papertrail server never scrapes publisher PDFs itself. Only add files you are authorized to access and store, whether uploaded directly or retrieved through the optional browser extension.',
     icon: <IconUpload />,
     tone: 'primary',
+  },
+  {
+    label: 'Browser extension',
+    title: 'Retrieve PDFs through your own sign-in',
+    description: 'Pair the optional Papertrail Browser Helper Chrome extension in Account Settings to fetch publisher PDFs using your own computer\'s network access to databases like IEEE Xplore or ACM Digital Library.',
+    icon: <IconDownload />,
+    tone: 'success',
   },
   {
     label: 'Human judgement',
@@ -320,9 +367,16 @@ const goodToKnowItems = [
   {
     label: 'Work reservations',
     title: 'Claims expire automatically',
-    description: 'An opened screening item stays reserved to you for up to one hour unless you release it, so work cannot remain blocked indefinitely.',
+    description: 'An opened screening item stays reserved to you for up to one hour, so work cannot remain blocked indefinitely.',
     icon: <IconClock />,
     tone: 'warning',
+  },
+  {
+    label: 'Screening shortcuts',
+    title: 'Faster with a keyboard',
+    description: 'Arrow keys move between criteria and Left/Right answer them. Include, Exclude, Uncertain, Duplicate and Submit each have a keyboard shortcut. Reassign or clear the shortcuts under Account Settings → Screening Hotkeys.',
+    icon: <IconKeyboard />,
+    tone: 'success',
   },
   {
     label: 'Document history',
@@ -348,14 +402,14 @@ const goodToKnowItems = [
   {
     label: 'Adding publications',
     title: 'Import a collection or add one record',
-    description: 'Use Import Records for CSV, TSV, XLSX, RIS, or BibTeX database exports. For a single publication, enter it manually or upload or paste BibTeX to prefill the form; only the first BibTeX entry is used there.',
+    description: 'Use Import Records for CSV, TSV, XLSX, RIS, or BibTeX database exports. For a single publication, enter it manually or upload or paste BibTeX to prefill the form.',
     icon: <IconPlus />,
     tone: 'success',
   },
   {
     label: 'Uploading PDFs',
     title: 'Attach full text wherever it fits',
-    description: 'Add PDFs or ZIP archives with a record import, attach them to an earlier import batch, bulk-match them across Publications, attach one while adding or editing a publication, or upload directly during full-text screening. Uncertain matches are held for review.',
+    description: 'Add PDFs or ZIP archives with a record import, attach them to an earlier import batch, bulk-match them across Publications, attach one while adding or editing a publication, or upload directly during full-text screening.',
     icon: <IconUpload />,
     tone: 'primary',
   },
@@ -369,10 +423,9 @@ const goodToKnowItems = [
   {
     label: 'Revisiting decisions',
     title: 'The latest decision guides what happens next',
-    description: 'Revising a submitted screening decision creates a new version and re-evaluates consensus. A project that has moved on does not rewind: late inclusions receive any missing downstream work, while newly ineligible work stays traceable but drops out of the active workflow.',
+    description: 'Revising a submitted screening decision creates a new version and re-evaluates consensus. Late inclusions receive any missing downstream work, while newly ineligible work stays traceable but drops out of the active workflow.',
     icon: <IconSwap />,
     tone: 'warning',
-    featured: true,
   },
 ]
 
@@ -380,9 +433,9 @@ function LlmHelpSection() {
   return (
     <CollapsibleSection id="section-help-llm" title="LLM Assistance" icon={<IconSparkle />}>
       <p>
-        LLM assistance is optional and advisory. It must be enabled for the Papertrail
-        installation and then for the relevant capability in each project. A suggestion
-        never submits a screening decision, overwrites reviewer work, or blocks the normal
+        LLM assistance is optional and advisory. LLM tasks can be individually turned on
+        or off for the individual review stages. A suggestion is never automatically applied
+        as a screening decision, overwrites reviewer work, or blocks the normal
         workflow when processing is unavailable or fails.
       </p>
       <aside className="help-llm-background-note" aria-label="LLM background processing">
@@ -485,6 +538,53 @@ function LlmHelpSection() {
   )
 }
 
+function ExtensionHelpSection() {
+  return (
+    <CollapsibleSection id="section-help-extension" title="Browser Extension" icon={<IconDownload />}>
+      <p>
+        The Papertrail Browser Helper is an optional Chrome extension that retrieves publisher
+        PDFs using your own computer's network access and sign-in, then uploads them through the
+        same review pipeline as a manual upload. Papertrail itself never scrapes publisher sites.
+      </p>
+      <aside className="help-llm-background-note" aria-label="Browser extension background processing">
+        <span className="help-llm-background-note__icon" aria-hidden="true"><IconDownload /></span>
+        <div>
+          <h3>Runs quietly in the background</h3>
+          <p>
+            Once paired, a background service worker can claim queued retrieval jobs without
+            keeping any window open. Every result still goes through the same staged-upload
+            validation as a manually attached PDF before it counts as available, so an automated
+            upload never bypasses reviewer verification.
+          </p>
+        </div>
+      </aside>
+      <ol className="help-llm-setup-steps" aria-label="Browser extension setup steps">
+        {extensionSetupSteps.map((step, index) => (
+          <li key={step.section}>
+            <span className="help-llm-setup-steps__number" aria-hidden="true">{index + 1}</span>
+            <div>
+              <span className="help-llm-setup-steps__section">{step.section}</span>
+              <h4>{step.title}</h4>
+              <p>{step.description}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+      <aside className="help-llm-practical-notes" aria-label="Practical browser extension guidance">
+        {extensionPracticalNotes.map((note) => (
+          <div className="help-llm-practical-note" key={note.title}>
+            <span aria-hidden="true">{note.icon}</span>
+            <div>
+              <h4>{note.title}</h4>
+              <p>{note.description}</p>
+            </div>
+          </div>
+        ))}
+      </aside>
+    </CollapsibleSection>
+  )
+}
+
 export function HelpPage() {
   return (
     <SectionNavigationLayout items={helpSections} label="On this page">
@@ -500,7 +600,7 @@ export function HelpPage() {
         <CollapsibleSection id="section-help-reviewer" title="As a Reviewer" icon={<IconUsers />}>
           <p>
             A reviewer is any member added to a project. You only see the projects you belong to,
-            and only the actions within them you’re actually eligible for.
+            and only the actions you are assigned to.
           </p>
           <StageList role="reviewer" />
         </CollapsibleSection>
@@ -509,13 +609,13 @@ export function HelpPage() {
             The project owner is whoever created the project. Alongside the stage-by-stage
             responsibilities below, an owner can manage members and their eligibility, project
             details and highlighted keywords, LLM assistance settings, the audit log, and
-            lifecycle actions such as resetting or deleting the project — all scoped to that
-            one project. An installation administrator has the same rights on every project.
+            lifecycle actions such as resetting or deleting the project.
           </p>
           <StageList role="owner" />
           <OwnerDangerZoneGuide />
         </CollapsibleSection>
         <LlmHelpSection />
+        <ExtensionHelpSection />
         <CollapsibleSection id="section-help-good-to-know" title="Good to Know" icon={<IconLightbulb />}>
           <div className="help-good-to-know">
             <header className="help-good-to-know__intro">
@@ -535,7 +635,7 @@ export function HelpPage() {
             <ul className="help-good-to-know__grid" aria-label="Helpful things to know">
               {goodToKnowItems.map((item) => (
                 <li
-                  className={`help-good-to-know__card help-good-to-know__card--${item.tone}${item.featured ? ' help-good-to-know__card--featured' : ''}`}
+                  className={`help-good-to-know__card help-good-to-know__card--${item.tone}`}
                   key={item.title}
                 >
                   <span className="help-good-to-know__card-icon" aria-hidden="true">

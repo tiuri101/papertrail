@@ -15,7 +15,7 @@ describe('ReopenProjectPanel', () => {
 
     expect(await screen.findByRole('heading', { name: 'Reopen at an Earlier Stage' })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'Duplicate Review' })).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Move back to'), { target: { value: 'duplicate_review' } })
+    fireEvent.change(screen.getByLabelText('Reopen at'), { target: { value: 'duplicate_review' } })
     fireEvent.click(screen.getByRole('button', { name: 'Reopen Project' }))
     fireEvent.click(screen.getByRole('button', { name: 'Reopen' }))
 

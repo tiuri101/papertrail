@@ -3,6 +3,8 @@ import type { CSSProperties } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { IconInfo } from '../../components/icons'
+import { InfoBox } from '../../components/InfoBox'
 import { SectionNavigationLayout } from '../../components/SectionNavigationLayout'
 import { ProjectDashboard } from '../administration/ProjectDashboard'
 import { DuplicateDetectionAction } from '../duplicates/DuplicateDetectionAction'
@@ -21,6 +23,7 @@ interface ProjectDetail {
   canFullTextScreen: boolean
   canExtract: boolean
   canAssessQuality: boolean
+  canAdjudicate: boolean
 }
 
 interface WorkflowIntegrityIssue {
@@ -64,6 +67,7 @@ type ProjectCapability =
   | 'canFullTextScreen'
   | 'canExtract'
   | 'canAssessQuality'
+  | 'canAdjudicate'
 
 interface ProjectSectionLink {
   path: string
@@ -161,6 +165,11 @@ const projectSectionGroups: ProjectSectionGroup[] = [
         validationOnly: true,
         requiresCapability: 'canExtract',
       },
+      {
+        path: 'extraction/reconciliation',
+        label: 'Extraction Conflicts',
+        requiresCapability: 'canAdjudicate',
+      },
       { path: 'quality', label: 'Quality Assessment', requiresCapability: 'canAssessQuality' },
       {
         path: 'quality/mine',
@@ -175,7 +184,7 @@ const projectSectionGroups: ProjectSectionGroup[] = [
     stage: 'completed',
     links: [
       { path: 'results', label: 'Final Results' },
-      { path: 'analysis', label: 'Charts and Analysis' },
+      { path: 'analysis', label: 'Charts & Analysis' },
       { path: 'reporting', label: 'Reporting and Exports' },
     ],
     jobStages: ['Reporting and export'],
@@ -292,6 +301,12 @@ export function ProjectPage() {
         <ProjectChecklistPanel projectId={projectId} canManage={project.data.canManage} />
       <section id="section-project-actions" className="card">
         <h2>Actions</h2>
+        <InfoBox icon={<IconInfo />}>
+          <p>
+            Actions unlock review stage by review stage. Once the project reaches a new review stage,
+            its actions become available automatically.
+          </p>
+        </InfoBox>
         <nav aria-label="Project workflow">
           <ol className="workflow-nav">
             {projectSectionGroups.map((group, index) => {

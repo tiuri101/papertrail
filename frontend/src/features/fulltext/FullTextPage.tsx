@@ -1,14 +1,21 @@
 import { useMutation } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
-import { IconArrowRight } from '../../components/icons'
+import { DoiPill } from '../../components/DoiPill'
+import { InfoBox } from '../../components/InfoBox'
+import { IconAlertTriangle, IconArrowRight } from '../../components/icons'
+import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
+import { PublisherLinkPill } from '../../components/PublisherLinkPill'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { StageEyebrow } from '../projects/StageEyebrow'
+import { PreviousItemCard } from '../screening/PreviousItemCard'
 import { ScreeningItemCard } from '../screening/ScreeningItemCard'
 import { useScreeningQueue } from '../screening/useScreeningQueue'
+import { useBrowserPdfRetrieval } from './useBrowserPdfRetrieval'
+import { fullTextDocumentEndpoint, useFullTextDocument } from './useFullTextDocument'
 import type { Retrieval } from './useRetrievalQueue'
 import { useRetrievalQueue } from './useRetrievalQueue'
 import { FullTextDocumentPanel } from './FullTextDocumentPanel'
@@ -32,6 +39,19 @@ export function FullTextPage() {
   const highlightKeywords = useHighlightKeywords(projectId)
   const queue = useScreeningQueue(projectId, 'full_text')
   const retrievalQueue = useRetrievalQueue(projectId)
+  const browserRetrieval = useBrowserPdfRetrieval(projectId)
+
+  // A publication currently shown as a manual retrieval card can become
+  // available via the browser extension while the reviewer has it open --
+  // drop the now-stale card rather than risk submitting an outdated status.
+  const openPublicationId = retrievalQueue.item?.publication.id
+  const succeededElsewhere = browserRetrieval.latestBatch?.succeededPublicationIds
+  useEffect(() => {
+    if (openPublicationId && succeededElsewhere?.includes(openPublicationId)) {
+      retrievalQueue.advance()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openPublicationId, succeededElsewhere])
 
   const updateRetrieval = useMutation({
     mutationFn: ({ id, status, note }: {
@@ -58,26 +78,65 @@ export function FullTextPage() {
   const progress = retrievalQueue.progress
   const isLoading = retrievalQueue.loadingNext || queue.loadingNext || progress === undefined
 
-  const itemId = queue.item?.id
+  const visibleItemId = queue.previousItem?.id ?? queue.item?.id ?? retrievalQueue.item?.id
   useEffect(() => {
-    if (itemId) window.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [itemId])
+    if (visibleItemId) window.scrollTo({ top: 0, behavior: 'smooth' })
+  }, [visibleItemId])
 
   return (
     <main className="page">
       <StageEyebrow stage="full_text_screening" />
       <h1>Full-Text</h1>
+      {browserRetrieval.missingCount ? (
+        <InfoBox icon={<IconAlertTriangle />} tone="warning" alert>
+          <h3>
+            {browserRetrieval.missingCount} publication{browserRetrieval.missingCount === 1 ? '' : 's'} missing a PDF
+          </h3>
+          <p>
+            Retrieve missing PDFs automatically with a paired browser helper, or upload them manually,
+            from the <Link to={`/projects/${projectId}/publications`}>Publications</Link> page.
+          </p>
+        </InfoBox>
+      ) : null}
       {retrievalQueue.nextError ? <p className="error" role="alert">{retrievalQueue.nextError}</p> : null}
       {updateRetrieval.error ? <p className="error" role="alert">{updateRetrieval.error.message}</p> : null}
       {queue.nextError ? <p className="error" role="alert">{queue.nextError}</p> : null}
       {progress ? (
-        <p className="muted">{progress.addressed} of {progress.total} retrieval decisions made</p>
+        <p className="muted">Retrieval status recorded for {progress.addressed} of {progress.total} publications</p>
       ) : null}
-      {queue.item ? (
+      {queue.progress ? (
+        <p className="muted">
+          {queue.progress.remaining} paper{queue.progress.remaining === 1 ? '' : 's'} remaining for screening
+        </p>
+      ) : null}
+      {!queue.previousItem && queue.lastCompletedItem ? (
+        <div className="toolbar">
+          <button
+            type="button"
+            className="button-secondary"
+            onClick={() => queue.goBack.mutate()}
+            disabled={queue.goBack.isPending}
+          >
+            ← Go back to “{queue.lastCompletedItem.title}”
+          </button>
+        </div>
+      ) : null}
+      {queue.goBack.error ? <p className="error" role="alert">{queue.goBack.error.message}</p> : null}
+      {queue.previousItem ? (
+        <PreviousItemCard
+          projectId={projectId}
+          stage="full_text"
+          previousItem={queue.previousItem}
+          highlightKeywords={highlightKeywords}
+          onClose={queue.closePrevious}
+          save={queue.savePreviousDecision}
+        />
+      ) : queue.item ? (
         <>
           <FullTextDocumentPanel
             projectId={projectId}
             publicationId={queue.item.publication.id}
+            collapsible
           />
           <ScreeningItemCard {...queue} highlightKeywords={highlightKeywords} />
         </>
@@ -115,6 +174,7 @@ function RetrievalCard({ projectId, retrieval, saving, onSubmit, onSkip, skippin
   const [note, setNote] = useState(retrieval.note ?? '')
   const publication = retrieval.publication
   const isAvailable = status === 'available'
+  const fullTextDocument = useFullTextDocument(projectId, publication.id)
 
   const handleSubmit = () => {
     onSubmit(status, note || null)
@@ -128,21 +188,23 @@ function RetrievalCard({ projectId, retrieval, saving, onSubmit, onSkip, skippin
         {publication.publicationYear ? ` (${publication.publicationYear})` : ''}
       </p>
       <div className="toolbar">
-        {publication.doi ? (
-          <a href={`https://doi.org/${publication.doi}`} target="_blank" rel="noreferrer">
-            Open DOI
-          </a>
+        {fullTextDocument.data ? (
+          <PdfAvailabilityPill
+            available={fullTextDocument.data.available}
+            href={`${fullTextDocumentEndpoint(projectId, publication.id)}/content`}
+            pageCount={fullTextDocument.data.document?.pageCount}
+          />
         ) : null}
+        <DoiPill doi={publication.doi} />
         {isSafeHttpUrl(publication.publisherUrl) ? (
-          <a href={publication.publisherUrl!} target="_blank" rel="noreferrer">
-            Open publisher page
-          </a>
+          <PublisherLinkPill url={publication.publisherUrl} />
         ) : null}
       </div>
       <FullTextDocumentPanel
         projectId={projectId}
         publicationId={publication.id}
         onAvailable={() => setStatus('available')}
+        collapsible
       />
       <label>
         Retrieval status for {publication.title}

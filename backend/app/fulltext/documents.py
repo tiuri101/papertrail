@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.api.errors import ConflictError
 from app.audit.service import record_audit
 from app.fulltext.models import DocumentSource, PublicationDocument
-from app.fulltext.storage import StoredPdf, discard_pdf, promote_pdf
+from app.fulltext.storage import StoredPdf, count_pdf_pages, discard_pdf, promote_pdf
 
 
 def active_document(db: Session, publication_id: str) -> PublicationDocument | None:
@@ -40,6 +40,7 @@ def attach_staged_pdf(
         raise ConflictError("The publication already has an active PDF")
 
     document_id = str(uuid4())
+    page_count = count_pdf_pages(staged.storage_key)
     final_key = promote_pdf(staged.storage_key, project_id, publication_id, document_id)
     document = PublicationDocument(
         id=document_id,
@@ -49,6 +50,7 @@ def attach_staged_pdf(
         storage_key=final_key,
         mime_type="application/pdf",
         file_size=staged.file_size,
+        page_count=page_count,
         sha256=staged.sha256,
         uploaded_by_user_id=user_id,
         source=source,

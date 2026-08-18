@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { useState } from 'react'
+import { Button } from './Button'
 
 interface ConfirmButtonProps {
   label: string
@@ -7,27 +8,29 @@ interface ConfirmButtonProps {
   warning: string
   onConfirm: () => void
   disabled?: boolean
-  variant?: 'default' | 'danger'
+  variant?: 'default' | 'secondary' | 'danger'
   icon?: ReactNode
+  className?: string
 }
 
-export function ConfirmButton({ label, confirmLabel = 'Confirm', warning, onConfirm, disabled, variant = 'default', icon }: ConfirmButtonProps) {
+export function ConfirmButton({ label, confirmLabel = 'Confirm', warning, onConfirm, disabled, variant = 'default', icon, className }: ConfirmButtonProps) {
   const [confirming, setConfirming] = useState(false)
 
   if (!confirming) {
     return (
-      <button className={variant === 'danger' ? 'button-danger' : undefined} type="button" onClick={() => setConfirming(true)} disabled={disabled}>
+      <Button className={className} variant={variant === 'danger' ? 'destructive' : variant === 'secondary' ? 'secondary' : 'primary'} type="button" onClick={() => setConfirming(true)} disabled={disabled}>
         {icon}
         {label}
-      </button>
+      </Button>
     )
   }
 
   return (
     <span className="toolbar" role="alertdialog" aria-label={`Confirm: ${label}`}>
       <span className="error" role="alert">{warning}</span>
-      <button
-        className={variant === 'danger' ? 'button-danger' : undefined}
+      <Button
+        className={className}
+        variant={variant === 'danger' ? 'destructive' : variant === 'secondary' ? 'secondary' : 'primary'}
         type="button"
         onClick={() => {
           setConfirming(false)
@@ -37,10 +40,10 @@ export function ConfirmButton({ label, confirmLabel = 'Confirm', warning, onConf
       >
         {icon}
         {confirmLabel}
-      </button>
-      <button className="button-secondary" type="button" onClick={() => setConfirming(false)} disabled={disabled}>
+      </Button>
+      <Button className={className} variant="ghost" type="button" onClick={() => setConfirming(false)} disabled={disabled}>
         Cancel
-      </button>
+      </Button>
     </span>
   )
 }

@@ -73,3 +73,37 @@ def require_full_text_reviewer_csrf(
     if membership is None or not membership.can_full_text_screen:
         raise ForbiddenError("Full-text reviewer access required")
     return session.user
+
+
+def _is_manager_or_adjudicator(db: Session, project_id: str, user: User) -> bool:
+    if user.is_admin or is_project_manager(db, project_id, user):
+        return True
+    membership = db.scalar(
+        select(ProjectMembership).where(
+            ProjectMembership.project_id == project_id,
+            ProjectMembership.user_id == user.id,
+        )
+    )
+    return membership is not None and membership.can_adjudicate
+
+
+def require_can_adjudicate(
+    project_id: str,
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> User:
+    require_project_access(db, project_id, user)
+    if not _is_manager_or_adjudicator(db, project_id, user):
+        raise ForbiddenError("Project manager or adjudicator access required")
+    return user
+
+
+def require_can_adjudicate_csrf(
+    project_id: str,
+    session: UserSession = Depends(require_csrf),
+    db: Session = Depends(get_db),
+) -> User:
+    require_project_access(db, project_id, session.user)
+    if not _is_manager_or_adjudicator(db, project_id, session.user):
+        raise ForbiddenError("Project manager or adjudicator access required")
+    return session.user

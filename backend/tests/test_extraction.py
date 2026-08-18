@@ -51,7 +51,12 @@ def setup_extraction(db):
         name="Review",
         review_type=ReviewType.SYSTEMATIC_REVIEW,
         random_seed="seed",
-        stage=ProjectStage.EXTRACTION,
+        # Resolve full-text decisions while still in the full-text stage --
+        # matching how the project would actually reach extraction -- so
+        # record_final_decision's downstream backfill (for a decision that
+        # resolves after the project has *already* moved on) doesn't fire
+        # early and race the batch initialize_extraction() call below.
+        stage=ProjectStage.FULL_TEXT,
     )
     db.add(project)
     db.flush()
@@ -96,6 +101,7 @@ def setup_extraction(db):
         None,
         None,
     )
+    project.stage = ProjectStage.EXTRACTION
     db.commit()
     return project, form, required, optional, publications, r1, r2
 
@@ -168,10 +174,15 @@ def test_owner_can_view_and_override_extraction_with_audit_history(client, db) -
     )
     assert details.status_code == 200
     extraction = details.json()["extraction"]
-    assert extraction["workItemId"] == item.id
-    assert extraction["response"]["version"] == 1
-    assert extraction["response"]["reviewerName"] == "R1"
-    assert extraction["response"]["answers"][required.stable_key] == "Original finding"
+    assert extraction["requiredReviewers"] == 1
+    assert len(extraction["slots"]) == 1
+    slot = extraction["slots"][0]
+    assert slot["workItemId"] == item.id
+    assert slot["response"]["version"] == 1
+    assert slot["response"]["reviewerName"] == "R1"
+    assert slot["response"]["answers"][required.stable_key] == "Original finding"
+    assert extraction["final"]["answers"][required.stable_key] == "Original finding"
+    assert extraction["final"]["resolutionMethod"] == "single_reviewer"
 
     override = client.post(
         f"/api/v1/projects/{project.id}/extraction/{item.id}/override",

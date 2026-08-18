@@ -4,7 +4,9 @@ from app.accounts.service import create_user
 from app.audit.models import AuditEvent
 from app.conflicts.models import FinalDecision
 from app.conflicts.service import record_final_decision
-from app.extraction.models import ExtractionStatus, ExtractionWorkItem
+from app.extraction.models import ExtractionStatus, ExtractionWorkItem, FinalExtraction
+from app.forms.models import FormKind
+from app.forms.service import create_form
 from app.fulltext.models import PublicationDocument
 from app.llm.models import (
     DocumentTextExtraction,
@@ -46,17 +48,40 @@ def create_included_project(db):
     return admin, project, publication
 
 
-def test_project_completes_and_can_be_reopened_without_deleting_work(db) -> None:
-    admin, project, publication = create_included_project(db)
+def complete_extraction_directly(
+    db, project, publication, reviewer_id
+) -> ExtractionWorkItem:
+    """Manufacture a completed extraction outside the normal submit_extraction
+    flow, for tests that only care about downstream stage-completion/reopen
+    behavior. evaluate_project_completion requires both a COMPLETED work item
+    and an authoritative FinalExtraction, so both must be created together."""
     work_item = ExtractionWorkItem(
         project_id=project.id,
         publication_id=publication.id,
-        assigned_reviewer_id=admin.id,
+        assigned_reviewer_id=reviewer_id,
         random_rank="rank",
         status=ExtractionStatus.COMPLETED,
     )
     db.add(work_item)
+    form = create_form(db, "Extraction", FormKind.EXTRACTION, project_id=project.id)
+    db.add(
+        FinalExtraction(
+            project_id=project.id,
+            publication_id=publication.id,
+            form_version_id=form.active_version_id,
+            answers={},
+            resolution_method="single_reviewer",
+            field_provenance={},
+            contributing_response_ids=[],
+        )
+    )
     db.flush()
+    return work_item
+
+
+def test_project_completes_and_can_be_reopened_without_deleting_work(db) -> None:
+    admin, project, publication = create_included_project(db)
+    work_item = complete_extraction_directly(db, project, publication, admin.id)
 
     assert evaluate_project_completion(db, project) is True
     assert project.stage == ProjectStage.COMPLETED
@@ -75,15 +100,7 @@ def test_project_completes_and_can_be_reopened_without_deleting_work(db) -> None
 
 def test_project_waits_for_enabled_validation_cohort_but_not_unusable_text(db) -> None:
     admin, project, publication = create_included_project(db)
-    db.add(
-        ExtractionWorkItem(
-            project_id=project.id,
-            publication_id=publication.id,
-            assigned_reviewer_id=admin.id,
-            random_rank="rank",
-            status=ExtractionStatus.COMPLETED,
-        )
-    )
+    complete_extraction_directly(db, project, publication, admin.id)
     document = PublicationDocument(
         project_id=project.id,
         publication_id=publication.id,
@@ -122,15 +139,7 @@ def test_project_waits_for_enabled_validation_cohort_but_not_unusable_text(db) -
 
 def test_project_cannot_complete_while_late_full_text_work_is_outstanding(db) -> None:
     admin, project, included = create_included_project(db)
-    db.add(
-        ExtractionWorkItem(
-            project_id=project.id,
-            publication_id=included.id,
-            assigned_reviewer_id=admin.id,
-            random_rank="rank",
-            status=ExtractionStatus.COMPLETED,
-        )
-    )
+    complete_extraction_directly(db, project, included, admin.id)
     reconsidered = Publication(project_id=project.id, title="Reconsidered paper")
     db.add(reconsidered)
     db.flush()
@@ -150,14 +159,7 @@ def test_project_cannot_complete_while_late_full_text_work_is_outstanding(db) ->
 
 def test_move_project_back_deletes_downstream_data_and_resets_target_stage(db) -> None:
     admin, project, publication = create_included_project(db)
-    work_item = ExtractionWorkItem(
-        project_id=project.id,
-        publication_id=publication.id,
-        assigned_reviewer_id=admin.id,
-        random_rank="rank",
-        status=ExtractionStatus.COMPLETED,
-    )
-    db.add(work_item)
+    work_item = complete_extraction_directly(db, project, publication, admin.id)
     db.commit()
 
     move_project_back(db, project, ProjectStage.TITLE_ABSTRACT, admin.id)
@@ -166,6 +168,7 @@ def test_move_project_back_deletes_downstream_data_and_resets_target_stage(db) -
     assert project.stage == ProjectStage.TITLE_ABSTRACT
     # Downstream extraction work and the full-text final decision are wiped.
     assert db.get(ExtractionWorkItem, work_item.id) is None
+    assert db.query(FinalExtraction).count() == 0
     assert (
         db.query(FinalDecision)
         .filter(FinalDecision.stage == ScreeningStage.FULL_TEXT)

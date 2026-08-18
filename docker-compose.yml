@@ -15,6 +15,8 @@ x-backend-environment: &backend-environment
   PAPERTRAIL_WORKER_THREADS: ${PAPERTRAIL_WORKER_THREADS:-4}
   PAPERTRAIL_JOB_POLL_INTERVAL_SECONDS: ${PAPERTRAIL_JOB_POLL_INTERVAL_SECONDS:-1}
   PAPERTRAIL_JOB_LEASE_SECONDS: ${PAPERTRAIL_JOB_LEASE_SECONDS:-300}
+  PAPERTRAIL_BROWSER_AGENT_PAIRING_TTL_MINUTES: ${PAPERTRAIL_BROWSER_AGENT_PAIRING_TTL_MINUTES:-10}
+  PAPERTRAIL_BROWSER_RETRIEVAL_LEASE_SECONDS: ${PAPERTRAIL_BROWSER_RETRIEVAL_LEASE_SECONDS:-300}
   PAPERTRAIL_EMAIL_ENABLED: ${PAPERTRAIL_EMAIL_ENABLED:-false}
   PAPERTRAIL_PUBLIC_BASE_URL: ${PAPERTRAIL_PUBLIC_BASE_URL:-http://localhost}
   PAPERTRAIL_SMTP_HOST: ${PAPERTRAIL_SMTP_HOST:-}
@@ -34,6 +36,9 @@ x-backend-environment: &backend-environment
   PAPERTRAIL_LLM_CONTEXT_LENGTH: ${PAPERTRAIL_LLM_CONTEXT_LENGTH:-32768}
   PAPERTRAIL_LLM_MAX_EVIDENCE_ITEMS: ${PAPERTRAIL_LLM_MAX_EVIDENCE_ITEMS:-3}
   PAPERTRAIL_LLM_MAX_EVIDENCE_QUOTE_CHARS: ${PAPERTRAIL_LLM_MAX_EVIDENCE_QUOTE_CHARS:-500}
+  PAPERTRAIL_ADMIN_USERNAME: ${PAPERTRAIL_ADMIN_USERNAME:-admin}
+  PAPERTRAIL_ADMIN_DISPLAY_NAME: ${PAPERTRAIL_ADMIN_DISPLAY_NAME:-Papertrail Administrator}
+  PAPERTRAIL_ADMIN_PASSWORD: ${PAPERTRAIL_ADMIN_PASSWORD:?PAPERTRAIL_ADMIN_PASSWORD is required}
 
 services:
   postgres:
@@ -54,7 +59,8 @@ services:
   migrate:
     image: tiuri101/papertrail-backend:${PAPERTRAIL_IMAGE_TAG:?PAPERTRAIL_IMAGE_TAG is required}
     environment: *backend-environment
-    command: alembic upgrade head
+    command: >-
+      sh -c 'alembic upgrade head && python -m app.cli create-admin'
     volumes:
       - papertrail_files:/data
     depends_on:
@@ -74,9 +80,16 @@ services:
       - --port
       - "8000"
       - --proxy-headers
-      - --forwarded-allow-ips=*
+      - --forwarded-allow-ips=${PAPERTRAIL_TRUSTED_PROXY_IPS:-127.0.0.1}
     ports:
-      - "${PAPERTRAIL_API_PORT:-8000}:8000"
+      # Bound to loopback by default: only a reverse proxy running on this host
+      # can reach the API directly. Anyone who could reach a publicly exposed
+      # port here could also spoof X-Forwarded-For and bypass login-throttle
+      # IP tracking, since --forwarded-allow-ips trusts it. If your reverse
+      # proxy runs elsewhere (a different host or container network), set
+      # PAPERTRAIL_API_BIND to its reachable address/interface and
+      # PAPERTRAIL_TRUSTED_PROXY_IPS to its source IP.
+      - "${PAPERTRAIL_API_BIND:-127.0.0.1}:${PAPERTRAIL_API_PORT:-8000}:8000"
     volumes:
       - papertrail_files:/data
       - papertrail_pdf_data:/pdf-data
@@ -118,7 +131,8 @@ services:
     image: tiuri101/papertrail-frontend:${PAPERTRAIL_IMAGE_TAG:?PAPERTRAIL_IMAGE_TAG is required}
     restart: unless-stopped
     ports:
-      - "${PAPERTRAIL_FRONTEND_PORT:-80}:80"
+      # Bound to loopback by default — see the api service's port comment.
+      - "${PAPERTRAIL_FRONTEND_BIND:-127.0.0.1}:${PAPERTRAIL_FRONTEND_PORT:-80}:80"
     depends_on:
       api:
         condition: service_healthy

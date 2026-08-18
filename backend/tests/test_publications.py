@@ -24,7 +24,7 @@ from app.projects.models import (
     ScreeningStage,
 )
 from app.publications.models import MetadataConflict, Publication, PublicationSource
-from app.publications.service import apply_enrichment, normalize_imported_records
+from app.publications.service import apply_enrichment, clean_text, normalize_imported_records
 from app.screening.models import (
     ScreeningDecision,
     ScreeningOutcome,
@@ -421,6 +421,17 @@ def project_and_batch(db):
     return admin, project, batch
 
 
+def test_clean_text_decodes_latex_accents_and_html_entities() -> None:
+    assert clean_text(r'K{\"u}chenmeister') == "Küchenmeister"
+    assert clean_text(r'J{\"u}rgen') == "Jürgen"
+    assert clean_text(r"Jo{\~a}o") == "João"
+    assert clean_text(r"Pl{\'a}cido") == "Plácido"
+    assert clean_text("PTSD&nbsp;Patients") == "PTSD Patients"
+    assert clean_text(r"{COVID-19} outcomes") == "COVID-19 outcomes"
+    assert clean_text(r"Stra{\ss}e") == "Straße"
+    assert clean_text("a {b c} d") == "a {b c} d"
+
+
 def test_normalization_creates_publication_and_preserves_source(db) -> None:
     _, project, batch = project_and_batch(db)
     record = ImportedRecord(
@@ -591,6 +602,38 @@ def test_publication_added_manually_after_title_abstract_started_gets_screened(
     )
     assert work_item is not None
     assert work_item.assigned_reviewer_id == reviewer.id
+
+
+@pytest.mark.parametrize(
+    "stage",
+    [ProjectStage.FULL_TEXT, ProjectStage.EXTRACTION, ProjectStage.COMPLETED],
+)
+def test_publication_can_be_added_after_earlier_stages_have_finished(
+    client, db, stage
+) -> None:
+    _, reviewer, project = project_in_title_abstract(db, stage=stage)
+    csrf = login(client)
+
+    created = client.post(
+        f"/api/v1/projects/{project.id}/publications",
+        json={"title": "Added after other stages finished"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert created.status_code == 201
+    publication_id = created.json()["id"]
+
+    work_item = db.scalar(
+        select(ScreeningWorkItem).where(
+            ScreeningWorkItem.publication_id == publication_id,
+            ScreeningWorkItem.stage == ScreeningStage.TITLE_ABSTRACT,
+        )
+    )
+    assert work_item is not None
+    assert work_item.assigned_reviewer_id == reviewer.id
+    # Adding the publication must not move other, already-finished
+    # publications' project stage backwards.
+    db.refresh(project)
+    assert project.stage == stage
 
 
 def test_publication_import_after_title_abstract_started_gets_screened(db) -> None:
@@ -820,15 +863,3 @@ def test_publication_response_includes_screening_status_per_stage(client, db) ->
     assert audit.event_metadata["reason"] == "Incorrectly included during screening"
 
 
-def test_publication_creation_blocked_once_full_text_has_started(client, db) -> None:
-    _, _, project = project_in_title_abstract(db, stage=ProjectStage.FULL_TEXT)
-    csrf = login(client)
-
-    response = client.post(
-        f"/api/v1/projects/{project.id}/publications",
-        json={"title": "Too late"},
-        headers={"X-CSRF-Token": csrf},
-    )
-
-    assert response.status_code == 400
-    assert db.scalar(select(Publication).where(Publication.title == "Too late")) is None

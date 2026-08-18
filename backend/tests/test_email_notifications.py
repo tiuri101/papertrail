@@ -14,7 +14,9 @@ from app.deduplication.service import (
     detect_duplicates,
     transition_if_duplicate_review_complete,
 )
-from app.extraction.models import ExtractionStatus, ExtractionWorkItem
+from app.extraction.models import ExtractionStatus, ExtractionWorkItem, FinalExtraction
+from app.forms.models import FormKind
+from app.forms.service import create_form
 from app.jobs.models import BackgroundJob, JobStatus
 from app.jobs.worker import execute_next_job
 from app.llm.models import LlmExtractionRun, LlmTaskType, ProcessingStatus
@@ -343,6 +345,18 @@ def test_project_completion_email_is_sent_only_to_project_owner(
             assigned_reviewer_id=reviewer.id,
             random_rank="rank",
             status=ExtractionStatus.COMPLETED,
+        )
+    )
+    form = create_form(db, "Extraction", FormKind.EXTRACTION, project_id=project.id)
+    db.add(
+        FinalExtraction(
+            project_id=project.id,
+            publication_id=publication.id,
+            form_version_id=form.active_version_id,
+            answers={},
+            resolution_method="single_reviewer",
+            field_provenance={},
+            contributing_response_ids=[],
         )
     )
     db.flush()

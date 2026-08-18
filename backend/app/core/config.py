@@ -47,6 +47,8 @@ class Settings(BaseSettings):
     worker_threads: int = 4
     job_poll_interval_seconds: float = 1.0
     job_lease_seconds: int = 300
+    browser_agent_pairing_ttl_minutes: int = 10
+    browser_retrieval_lease_seconds: int = 300
     email_enabled: bool = False
     public_base_url: str = "http://localhost:5173"
     smtp_host: str | None = None
@@ -66,6 +68,10 @@ class Settings(BaseSettings):
     llm_context_length: int = 32768
     llm_max_evidence_items: int = 3
     llm_max_evidence_quote_chars: int = 500
+    llm_title_abstract_base_prompt: str | None = None
+    llm_full_text_base_prompt: str | None = None
+    llm_extraction_base_prompt: str | None = None
+    llm_validation_base_prompt: str | None = None
 
     @field_validator("cors_origins", "allowed_hosts", mode="before")
     @classmethod

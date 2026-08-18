@@ -73,7 +73,7 @@ export function ExtractionQualitySection({ projectId }: { projectId: string }) {
           {stats.fields.map((field) => <FieldBreakdown field={field} key={field.id} />)}
         </>
       ) : null}
-      {query.data ? (
+      {query.data?.narrativeEnabled ? (
         <StageNarrativePanel
           projectId={projectId}
           stage="extraction_quality"

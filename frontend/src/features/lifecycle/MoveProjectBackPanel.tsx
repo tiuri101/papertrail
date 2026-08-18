@@ -1,0 +1,73 @@
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
+
+import { api } from '../../api/client'
+import { CollapsibleSection } from '../../components/CollapsibleSection'
+import { ConfirmButton } from '../../components/ConfirmButton'
+import { IconAlertTriangle, IconRestart } from '../../components/icons'
+import { InfoBox } from '../../components/InfoBox'
+import { activeStages, humanizeStage, stageOrder, stages } from './lifecycleStages'
+
+export function MoveProjectBackPanel({ projectId }: { projectId: string }) {
+  const queryClient = useQueryClient()
+  const [moveBackTarget, setMoveBackTarget] = useState(stages[1])
+  const project = useQuery({
+    queryKey: ['project', projectId],
+    queryFn: () => api<{ stage: string }>(`/projects/${projectId}`),
+  })
+  const moveBack = useMutation({
+    mutationFn: () =>
+      api(`/projects/${projectId}/move-back`, {
+        method: 'POST',
+        body: JSON.stringify({ targetStage: moveBackTarget }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['project-dashboard', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['project-integrity', projectId] })
+    },
+  })
+  const currentStage = project.data?.stage
+  const currentIndex = currentStage ? stageOrder.indexOf(currentStage) : -1
+  const isActiveStage = currentStage
+    ? currentStage !== 'draft' && currentStage !== 'completed'
+    : false
+  const moveBackOptions = activeStages.filter(
+    (stage) => stageOrder.indexOf(stage) < currentIndex,
+  )
+
+  if (!isActiveStage || !moveBackOptions.length) return null
+
+  return (
+    <CollapsibleSection id="section-move-project-back" title="Move Project Back" className="danger-zone" icon={<IconRestart />}>
+      <InfoBox icon={<IconAlertTriangle />} tone="warning">
+        <p>
+          Move an in-progress project back to an earlier stage. Screening decisions, duplicate
+          merges, extraction responses, and quality-assessment data recorded in the target
+          stage and every stage after it are permanently deleted, and the target stage is then
+          regenerated fresh. Data from stages before the target, and project configuration
+          (criteria, forms, members), are left untouched.
+        </p>
+      </InfoBox>
+      {moveBack.error ? <p className="error" role="alert">{moveBack.error.message}</p> : null}
+      <label>
+        Move back to
+        <select
+          value={moveBackTarget}
+          onChange={(event) => setMoveBackTarget(event.target.value)}
+        >
+          {moveBackOptions.map((stage) => <option key={stage} value={stage}>{humanizeStage(stage)}</option>)}
+        </select>
+      </label>
+      <ConfirmButton
+        label="Move Project Back"
+        confirmLabel="Move Back"
+        warning="This permanently deletes screening decisions, extraction responses, and quality-assessment data recorded in the target stage and any stage after it. This cannot be undone."
+        onConfirm={() => moveBack.mutate()}
+        disabled={moveBack.isPending}
+        variant="danger"
+        icon={<IconRestart />}
+      />
+    </CollapsibleSection>
+  )
+}

@@ -1,9 +1,13 @@
 import { useState } from 'react'
 
+import { DoiPill } from '../../components/DoiPill'
 import { HighlightedText } from '../../components/HighlightedText'
+import { PublisherLinkPill } from '../../components/PublisherLinkPill'
+import { formatHotkey, loadScreeningHotkeys } from '../../lib/screeningHotkeys'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { ScreeningLlmPanel } from '../llm/LlmTaskComponents'
 import { CriteriaAnswerFields } from './CriteriaAnswerFields'
+import { useScreeningDecisionHotkeys } from './useScreeningDecisionHotkeys'
 import type { CriterionAnswer, PreviousScreeningItem, ScreeningQueue } from './useScreeningQueue'
 
 export function PreviousItemCard({
@@ -34,6 +38,16 @@ export function PreviousItemCard({
     (criterion) => answers[criterion.id] !== null && answers[criterion.id] !== undefined,
   )
 
+  useScreeningDecisionHotkeys({
+    enabled: Boolean(decision),
+    setOutcome,
+    onSubmit: () => {
+      if (save.isPending || !criteriaComplete) return
+      save.mutate({ outcome, criteriaAnswers: answers, notes: notes || null })
+    },
+  })
+  const submitHotkey = formatHotkey(loadScreeningHotkeys().submit)
+
   return (
     <article className="card">
       <p className="muted">You went back to the previous paper. Changes here update your existing decision.</p>
@@ -46,15 +60,9 @@ export function PreviousItemCard({
           : 'No abstract available.'}
       </p>
       <div className="toolbar">
-        {previousItem.publication.doi ? (
-          <a href={`https://doi.org/${previousItem.publication.doi}`} target="_blank" rel="noreferrer">
-            Open DOI
-          </a>
-        ) : null}
+        <DoiPill doi={previousItem.publication.doi} />
         {isSafeHttpUrl(previousItem.publication.publisherUrl) ? (
-          <a href={previousItem.publication.publisherUrl} target="_blank" rel="noreferrer">
-            Open publisher page
-          </a>
+          <PublisherLinkPill url={previousItem.publication.publisherUrl} />
         ) : null}
       </div>
       {decision ? (
@@ -85,6 +93,7 @@ export function PreviousItemCard({
               disabled={save.isPending || !criteriaComplete}
             >
               Save Changes
+              {submitHotkey ? <kbd className="submit-button__hotkey" aria-hidden="true">{submitHotkey}</kbd> : null}
             </button>
             <button type="button" className="button-secondary" onClick={onClose} disabled={save.isPending}>
               Continue to current paper

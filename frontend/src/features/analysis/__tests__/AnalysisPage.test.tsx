@@ -14,6 +14,7 @@ const duplicateReviewResponse = {
   },
   narrative: null,
   isStale: true,
+  narrativeEnabled: true,
 }
 
 const titleAbstractResponse = {
@@ -28,6 +29,7 @@ const titleAbstractResponse = {
   },
   narrative: { summary: 'Screening summary text.', generatedAt: '2026-08-10T00:00:00Z' },
   isStale: false,
+  narrativeEnabled: true,
 }
 
 const fullTextResponse = {
@@ -45,6 +47,7 @@ const fullTextResponse = {
   },
   narrative: null,
   isStale: true,
+  narrativeEnabled: true,
 }
 
 const extractionResponse = {
@@ -66,6 +69,69 @@ const extractionResponse = {
   },
   narrative: null,
   isStale: true,
+  narrativeEnabled: true,
+}
+
+const reviewerAnalysisResponse = {
+  stage: 'title_abstract',
+  overall: {
+    comparingReviewerCount: 2,
+    publicationsWithCompleteSet: 3,
+    totalOriginalDecisions: 6,
+    rawAgreementRate: 0.67,
+    publicationDisagreementRate: 0.33,
+    uncertainDecisionRate: 0,
+    nonAgreementResolutionCount: 1,
+    nonAgreementResolutionRate: 0.33,
+    revisionRate: 0,
+  },
+  pairwise: [
+    {
+      reviewerA: 'Reviewer A',
+      reviewerB: 'Reviewer B',
+      publicationsCompared: 3,
+      agreeing: 2,
+      rawAgreementRate: 0.67,
+      cohensKappa: null,
+      confusionMatrix: {
+        categories: ['include', 'exclude'],
+        rows: [
+          { actual: 'include', counts: { include: 2, exclude: 0 } },
+          { actual: 'exclude', counts: { include: 1, exclude: 0 } },
+        ],
+      },
+    },
+  ],
+  multiReviewer: { kappa: null, unavailableReason: 'No publication has more than two original reviewers' },
+  criteria: [],
+  disagreementTrend: [],
+  reviewerSummary: [
+    {
+      reviewer: 'Reviewer A',
+      originalDecisions: 3,
+      revisedDecisions: 0,
+      revisionRate: 0,
+      titleAbstractCount: 3,
+      fullTextCount: 0,
+    },
+    {
+      reviewer: 'Reviewer B',
+      originalDecisions: 3,
+      revisedDecisions: 0,
+      revisionRate: 0,
+      titleAbstractCount: 3,
+      fullTextCount: 0,
+    },
+  ],
+}
+
+const evidenceMatrixResponse = {
+  columns: [],
+  items: [],
+  total: 0,
+  page: 1,
+  pageSize: 25,
+  qualityEnabled: false,
 }
 
 function baseFetchHandler(input: RequestInfo | URL) {
@@ -74,6 +140,12 @@ function baseFetchHandler(input: RequestInfo | URL) {
   if (path.endsWith('/analysis/title_abstract_screening')) return jsonResponse(titleAbstractResponse)
   if (path.endsWith('/analysis/full_text_screening')) return jsonResponse(fullTextResponse)
   if (path.endsWith('/analysis/extraction_quality')) return jsonResponse(extractionResponse)
+  if (path.endsWith('/analysis/reviewer-analysis/title_abstract')) return jsonResponse(reviewerAnalysisResponse)
+  if (path.endsWith('/analysis/reviewer-analysis/full_text')) {
+    return jsonResponse({ ...reviewerAnalysisResponse, stage: 'full_text', pairwise: [], reviewerSummary: [] })
+  }
+  if (path.endsWith('/evidence-matrix')) return jsonResponse(evidenceMatrixResponse)
+  if (/\/api\/v1\/projects\/[^/]+$/.test(path)) return jsonResponse({ researchQuestions: [] })
   if (path.endsWith('/jobs')) return jsonResponse([])
   return jsonResponse({})
 }
@@ -90,7 +162,47 @@ describe('AnalysisPage', () => {
     expect(await screen.findByRole('heading', { name: 'Deduplication' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Title/Abstract Screening' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Full-Text Screening' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Reviewer Analysis' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Extraction & Quality' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Evidence Matrix' })).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Research Question Analysis' })).toBeInTheDocument()
+
+    // Sections must appear in the documented order.
+    const headingTexts = screen.getAllByRole('heading', { level: 2 }).map((el) => el.textContent)
+    expect(headingTexts).toEqual([
+      'Deduplication',
+      'Title/Abstract Screening',
+      'Full-Text Screening',
+      'Reviewer Analysis',
+      'Extraction & Quality',
+      'Evidence Matrix',
+      'Research Question Analysis',
+    ])
+  })
+
+  it('shows anonymized reviewer agreement with N/A (never 0) for undefined kappa, and expands a confusion matrix', async () => {
+    mockFetch(baseFetchHandler)
+
+    renderWithProviders(<AnalysisPage />, {
+      route: '/projects/p1/analysis',
+      path: '/projects/:projectId/analysis',
+    })
+
+    const reviewerSection = (
+      await screen.findByRole('heading', { name: 'Reviewer Analysis' })
+    ).closest('section') as HTMLElement
+    const withinReviewer = within(reviewerSection)
+
+    const pairwiseRow = (await withinReviewer.findByText('Reviewer A vs Reviewer B')).closest('tr') as HTMLElement
+    const withinPairwiseRow = within(pairwiseRow)
+    expect(withinPairwiseRow.getAllByText('N/A').length).toBeGreaterThan(0)
+    expect(withinPairwiseRow.queryByText(/^0(\.00)?$/)).not.toBeInTheDocument()
+
+    fireEvent.click(withinReviewer.getByRole('button', { name: 'Show confusion matrix' }))
+    expect(withinReviewer.getByText('Reviewer A (rows) vs Reviewer B (columns)')).toBeInTheDocument()
+
+    expect(withinReviewer.getByText('Reviewer A')).toBeInTheDocument()
+    expect(withinReviewer.getByText('Reviewer B')).toBeInTheDocument()
   })
 
   it('shows deduplication counts and why records were merged', async () => {
@@ -160,6 +272,31 @@ describe('AnalysisPage', () => {
     fireEvent.click(await withinFullText.findByRole('button', { name: 'Generate summary' }))
 
     await waitFor(() => expect(regenerated).toBe(true))
+  })
+
+  it('hides the interpretation panel entirely when narratives are disabled for the project', async () => {
+    mockFetch((input) => {
+      const path = String(input)
+      if (path.endsWith('/analysis/full_text_screening')) {
+        return jsonResponse({ ...fullTextResponse, narrativeEnabled: false })
+      }
+      return baseFetchHandler(input)
+    })
+
+    renderWithProviders(<AnalysisPage />, {
+      route: '/projects/p1/analysis',
+      path: '/projects/:projectId/analysis',
+    })
+
+    const fullTextSection = (
+      await screen.findByRole('heading', { name: 'Full-Text Screening' })
+    ).closest('section') as HTMLElement
+    const withinFullText = within(fullTextSection)
+    await waitFor(() => expect(withinFullText.getByRole('heading', { name: 'Outcomes' })).toBeInTheDocument())
+
+    expect(withinFullText.queryByRole('heading', { name: 'Interpretation' })).not.toBeInTheDocument()
+    expect(withinFullText.queryByText('No summary generated yet.')).not.toBeInTheDocument()
+    expect(withinFullText.queryByRole('button', { name: 'Generate summary' })).not.toBeInTheDocument()
   })
 
   it('shows extraction and quality field breakdowns', async () => {

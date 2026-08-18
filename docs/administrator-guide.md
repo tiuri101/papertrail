@@ -19,14 +19,20 @@ An administrator is not automatically a reviewer on a project — reviewer eligi
 5. Review metadata and run enrichment where required (owner or administrator).
 6. Resolve all duplicate candidates (any project member marks each as not a duplicate or merges it; the owner or administrator marks the project ready to enter duplicate review and can reverse a merge).
 7. Complete title/abstract screening and resolve disagreements.
-8. Track manual full-text retrieval and complete full-text screening.
+8. Track full-text retrieval (manual, or browser-assisted via a paired Chrome extension) and complete full-text screening.
 9. Configure extraction and quality-assessment forms.
 10. Complete extraction and quality assessment.
-11. Review integrity warnings and generate PRISMA, XLSX, and BibTeX exports.
+11. Review integrity warnings and generate PRISMA, XLSX, Parquet, JSON, CSV, and BibTeX exports.
 
 ## Accounts
 
 Only the administrator creates and disables user accounts. An email address is optional; when email support is enabled, creating an account with an address queues a welcome message containing the username and login link, but never the temporary password. Users may maintain their own address in Account Settings. Disable accounts rather than deleting them when historical decisions must remain attributable. Password resets replace the password while retaining the account identity.
+
+Deactivating a user or resetting their password (by an administrator, or the user's own emailed reset link) also revokes any browser helpers (paired Chrome extensions) they hold, in addition to their sessions -- a browser helper's bearer token authenticates independently of the password, so it must not remain usable once the account is disabled or considered compromised.
+
+## Browser-assisted PDF retrieval
+
+Reviewers can optionally pair a Chrome extension ("Browser Helper") from their own Account Settings so it retrieves publisher PDFs through their own computer's network access and sign-in state, then uploads them through the normal PDF pipeline -- see the [Reviewer guide](user-guide.md#browser-assisted-pdf-retrieval). The Papertrail server itself never scrapes publisher content or receives publisher credentials/cookies through this feature; it only issues short-lived retrieval jobs and validates whatever PDF the extension uploads, exactly as it would a manual upload. A user can revoke their own browser helpers at any time from Account Settings, which immediately prevents further use of that credential.
 
 ## Email notifications
 
@@ -42,10 +48,14 @@ Each stage that assigns publications to individual reviewers (title/abstract scr
 
 Workload weight only affects stages using Divided/Pre-assigned allocation; it has no effect on a stage using Claim or Independent allocation, since nothing is being pre-divided in those modes.
 
+## Data extraction: one or two extractors
+
+Extraction Settings (Project Administration) lets you choose one extractor per publication (default) or two independent extractors with reconciliation of disagreements — see [Review Workflow](review-workflow.md) for the full mechanics. This choice is locked once any extraction response exists in the project, so decide before extraction work begins. In two-extractor projects, grant the **Adjudication** permission to specific members from Project Members if you want reviewers other than yourself or an administrator to resolve disagreements; project owners and administrators can always reconcile regardless of this flag.
+
 ## Lifecycle changes
 
 Papertrail advances stages automatically when their completion rules are satisfied. A completed project may be reopened at a selected earlier stage. Reopening retains downstream data but excludes data that is no longer applicable from active counts.
 
 ## Background jobs
 
-Imports, enrichment, duplicate detection, exports, and email delivery are durable PostgreSQL jobs processed by the threaded worker. Inspect failed jobs before retrying. Restarting the API does not lose queued jobs.
+Imports, enrichment, duplicate detection, exports, and email delivery are durable PostgreSQL jobs processed by the threaded worker. Screening/extraction/validation LLM inference and research-question synthesis are claimed only by the separate, resource-limited LLM worker (`python -m app.jobs.worker --llm`), so a busy Ollama backend never starves ordinary workflow jobs. Inspect failed jobs before retrying. Restarting the API does not lose queued jobs.

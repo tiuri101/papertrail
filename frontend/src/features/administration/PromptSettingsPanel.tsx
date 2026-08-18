@@ -70,11 +70,9 @@ export function PromptSettingsPanel({ projectId }: { projectId: string }) {
     <CollapsibleSection id="section-prompt-settings" title="AI Prompts" icon={<IconLightbulb />}>
       <InfoBox icon={<IconLightbulb />}>
         <p>
-          Papertrail sends a fixed base prompt to the LLM for each AI-assisted task, shown
-          below for reference. Add project-specific instructions -- domain context,
-          terminology, or emphasis -- to append to it. Custom instructions are guidance
-          only: they cannot relax the base prompt&apos;s output-format or evidence rules.
-          Changes save automatically when you leave a field.
+          Papertrail sends fixed base prompts to the LLM for each AI-assisted task, shown
+          below for reference. Add project-specific instructions such as domain context,
+          terminology, or emphasis to append to the base prompts.
         </p>
       </InfoBox>
       {settings.error ? <p className="error" role="alert">{settings.error.message}</p> : null}
@@ -94,7 +92,7 @@ export function PromptSettingsPanel({ projectId }: { projectId: string }) {
               }))}
               onBlur={saveIfChanged}
               rows={4}
-              placeholder="Optional -- e.g. domain-specific terminology or emphasis for this project"
+              placeholder="Optional, e.g. domain-specific terminology or emphasis for this project"
             />
           </label>
         </div>

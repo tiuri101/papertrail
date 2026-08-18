@@ -8,8 +8,16 @@ from sqlalchemy import select
 from app.accounts.service import create_user
 from app.core.config import get_settings
 from app.imports.adapters import parse_bibtex, parse_csv, parse_ris, parse_xlsx
-from app.imports.models import ImportBatch, ImportedRecord
+from app.imports.models import ImportBatch, ImportedRecord, SearchSource
 from app.jobs.worker import execute_next_job
+from app.publications.models import Publication, PublicationSource
+from app.publications.service import normalize_imported_records
+from app.screening.models import (
+    ScreeningDecision,
+    ScreeningOutcome,
+    ScreeningWorkItem,
+    WorkItemStatus,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -315,3 +323,241 @@ def test_csv_import_runs_through_persistent_job(
     job = client.get(f"/api/v1/jobs/{job_id}")
     assert job.status_code == 200
     assert job.json()["status"] == "completed"
+
+
+def _make_batch(
+    db, project_id: str, created_by_id: str, search_id: str, tmp_path, name: str
+) -> ImportBatch:
+    batch = ImportBatch(
+        project_id=project_id,
+        search_source_id=search_id,
+        original_filename=name,
+        stored_path=str(tmp_path / name),
+        file_type="csv",
+        status="completed",
+        created_by_id=created_by_id,
+    )
+    db.add(batch)
+    db.flush()
+    return batch
+
+
+def test_deleting_a_search_removes_its_exclusive_papers_but_keeps_shared_ones(
+    client, db, tmp_path
+) -> None:
+    admin = create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    db.commit()
+    csrf = login(client)
+    project_id = create_project(client, csrf)
+
+    search_a = client.post(
+        f"/api/v1/projects/{project_id}/searches",
+        json={
+            "sourceName": "IEEE Xplore",
+            "query": "virtual reality",
+            "searchDate": "2026-07-30",
+            "exportedResultCount": 2,
+        },
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+    search_b = client.post(
+        f"/api/v1/projects/{project_id}/searches",
+        json={
+            "sourceName": "PubMed",
+            "query": "virtual reality",
+            "searchDate": "2026-07-31",
+            "exportedResultCount": 1,
+        },
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+
+    batch_a = _make_batch(db, project_id, admin.id, search_a["id"], tmp_path, "a.csv")
+    batch_b = _make_batch(db, project_id, admin.id, search_b["id"], tmp_path, "b.csv")
+
+    record_exclusive = ImportedRecord(
+        import_batch_id=batch_a.id,
+        source_row=1,
+        raw_data={"title": "Exclusive paper"},
+        parsed_data={"title": "Exclusive paper"},
+        validation_state="valid",
+        warnings=[],
+    )
+    record_shared_a = ImportedRecord(
+        import_batch_id=batch_a.id,
+        source_row=2,
+        raw_data={"title": "Shared paper"},
+        parsed_data={"title": "Shared paper"},
+        validation_state="valid",
+        warnings=[],
+    )
+    record_shared_b = ImportedRecord(
+        import_batch_id=batch_b.id,
+        source_row=1,
+        raw_data={"title": "Shared paper"},
+        parsed_data={"title": "Shared paper"},
+        validation_state="valid",
+        warnings=[],
+    )
+    db.add_all([record_exclusive, record_shared_a, record_shared_b])
+    db.commit()
+
+    normalize_imported_records(db, batch_a.id)
+    normalize_imported_records(db, batch_b.id)
+    db.commit()
+
+    # Simulate what a duplicate merge does: the two "Shared paper" imports
+    # collapse onto one canonical publication with sources from both batches.
+    source_a = db.scalar(
+        select(PublicationSource).where(
+            PublicationSource.imported_record_id == record_shared_a.id
+        )
+    )
+    source_b = db.scalar(
+        select(PublicationSource).where(
+            PublicationSource.imported_record_id == record_shared_b.id
+        )
+    )
+    canonical = db.get(Publication, source_a.publication_id)
+    duplicate = db.get(Publication, source_b.publication_id)
+    source_b.publication_id = canonical.id
+    duplicate.is_active = False
+    duplicate.merged_into_id = canonical.id
+    db.commit()
+
+    canonical_id = canonical.id
+    batch_a_id = batch_a.id
+    batch_b_id = batch_b.id
+    record_shared_b_id = record_shared_b.id
+    exclusive_pub_id = db.scalar(
+        select(Publication.id).where(Publication.title == "Exclusive paper")
+    )
+
+    preview = client.delete(
+        f"/api/v1/projects/{project_id}/searches/{search_a['id']}",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert preview.status_code == 200
+    preview_body = preview.json()
+    assert preview_body["deleted"] is False
+    assert preview_body["requiresConfirmation"] is True
+    assert preview_body["publicationCount"] == 1
+    assert preview_body["screenedPublicationCount"] == 0
+
+    response = client.delete(
+        f"/api/v1/projects/{project_id}/searches/{search_a['id']}",
+        params={"force": "true"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["deleted"] is True
+    assert body["publicationCount"] == 1
+    assert body["screenedPublicationCount"] == 0
+
+    db.expire_all()
+    assert db.get(Publication, exclusive_pub_id).is_active is False
+    assert db.get(Publication, canonical_id).is_active is True
+    remaining_sources = list(
+        db.scalars(
+            select(PublicationSource).where(
+                PublicationSource.publication_id == canonical_id
+            )
+        )
+    )
+    assert len(remaining_sources) == 1
+    assert remaining_sources[0].imported_record_id == record_shared_b_id
+
+    assert db.get(SearchSource, search_a["id"]) is None
+    assert db.get(ImportBatch, batch_a_id) is None
+    assert db.get(SearchSource, search_b["id"]) is not None
+    assert db.get(ImportBatch, batch_b_id) is not None
+
+
+def test_deleting_a_search_with_screened_papers_requires_confirmation(
+    client, db, tmp_path
+) -> None:
+    admin = create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    db.commit()
+    csrf = login(client)
+    project_id = create_project(client, csrf)
+
+    search = client.post(
+        f"/api/v1/projects/{project_id}/searches",
+        json={
+            "sourceName": "IEEE Xplore",
+            "query": "virtual reality",
+            "searchDate": "2026-07-30",
+            "exportedResultCount": 1,
+        },
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+    batch = _make_batch(db, project_id, admin.id, search["id"], tmp_path, "a.csv")
+    record = ImportedRecord(
+        import_batch_id=batch.id,
+        source_row=1,
+        raw_data={"title": "Screened paper"},
+        parsed_data={"title": "Screened paper"},
+        validation_state="valid",
+        warnings=[],
+    )
+    db.add(record)
+    db.commit()
+    normalize_imported_records(db, batch.id)
+    db.commit()
+
+    publication_id = db.scalar(
+        select(Publication.id).where(Publication.title == "Screened paper")
+    )
+    work_item = ScreeningWorkItem(
+        project_id=project_id,
+        publication_id=publication_id,
+        stage="title_abstract",
+        slot_number=1,
+        assigned_reviewer_id=admin.id,
+        random_rank="rank",
+        status=WorkItemStatus.SUBMITTED,
+    )
+    db.add(work_item)
+    db.flush()
+    db.add(
+        ScreeningDecision(
+            work_item_id=work_item.id,
+            reviewer_id=admin.id,
+            outcome=ScreeningOutcome.INCLUDE,
+            criteria_answers={},
+            version=1,
+            is_current=True,
+        )
+    )
+    db.commit()
+
+    preview = client.delete(
+        f"/api/v1/projects/{project_id}/searches/{search['id']}",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert preview.status_code == 200
+    preview_body = preview.json()
+    assert preview_body["deleted"] is False
+    assert preview_body["requiresConfirmation"] is True
+    assert preview_body["publicationCount"] == 1
+    assert preview_body["screenedPublicationCount"] == 1
+    assert preview_body["screenedPublicationTitles"] == ["Screened paper"]
+
+    db.expire_all()
+    assert db.get(Publication, publication_id).is_active is True
+    assert db.get(SearchSource, search["id"]) is not None
+
+    forced = client.delete(
+        f"/api/v1/projects/{project_id}/searches/{search['id']}",
+        params={"force": "true"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert forced.status_code == 200
+    forced_body = forced.json()
+    assert forced_body["deleted"] is True
+    assert forced_body["publicationCount"] == 1
+    assert forced_body["screenedPublicationCount"] == 1
+
+    db.expire_all()
+    assert db.get(Publication, publication_id).is_active is False
+    assert db.get(SearchSource, search["id"]) is None

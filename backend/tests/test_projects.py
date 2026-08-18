@@ -574,14 +574,14 @@ def test_owner_sets_prompt_instructions_and_they_reach_the_llm_messages(
     )
 
     messages = extraction_messages(
-        [], "paper text", project.extraction_prompt_instructions
+        [], [], "paper text", project.extraction_prompt_instructions
     )
     system_message = messages[0]["content"]
     assert SYSTEM_PROMPT in system_message
     assert "Treat 'RQ' as shorthand for research question." in system_message
     assert system_message.index(SYSTEM_PROMPT) < system_message.index("Treat 'RQ'")
 
-    plain = extraction_messages([], "paper text")
+    plain = extraction_messages([], [], "paper text")
     assert plain[0]["content"] == SYSTEM_PROMPT
 
     client.cookies.clear()

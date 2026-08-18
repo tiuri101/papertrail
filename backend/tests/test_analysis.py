@@ -15,6 +15,7 @@ from app.analysis.service import (
     compute_title_abstract_stats,
 )
 from app.conflicts.service import record_final_decision
+from app.core.config import get_settings
 from app.deduplication.models import DuplicateCandidate, PublicationMerge
 from app.extraction.service import (
     claim_next_extraction,
@@ -24,7 +25,8 @@ from app.extraction.service import (
 from app.forms.models import FormKind
 from app.forms.service import add_field, create_form
 from app.fulltext.models import FullTextRetrieval, RetrievalStatus
-from app.jobs.models import BackgroundJob
+from app.jobs.models import BackgroundJob, JobStatus
+from app.llm.schema_service import project_settings
 from app.projects.models import (
     Criterion,
     CriterionKind,
@@ -37,6 +39,13 @@ from app.publications.models import Publication
 from app.quality.models import QualityConfig
 from app.quality.service import claim_next_quality, initialize_quality, submit_quality
 from app.screening.models import ScreeningDecision, ScreeningOutcome, ScreeningWorkItem
+
+
+def _enable_installation_llm(monkeypatch) -> None:
+    settings = get_settings()
+    monkeypatch.setattr(settings, "llm_enabled", True)
+    monkeypatch.setattr(settings, "ollama_base_url", "http://ollama.example:11434")
+    monkeypatch.setattr(settings, "ollama_model", "test-model:latest")
 
 
 def login(client, username: str, password: str) -> str:
@@ -161,6 +170,76 @@ def test_compute_extraction_stats_counts_options_and_numeric_fields(db) -> None:
     risk = fields_by_label["Risk of bias"]
     assert risk["source"] == "quality"
     assert risk["answeredCount"] == 2
+
+
+def test_compute_extraction_stats_uses_consensus_not_an_unresolved_response(db) -> None:
+    """Dual-extraction mode: stats must aggregate over the authoritative
+    FinalExtraction, never an individual reviewer's response -- a
+    publication still awaiting reconciliation must not be counted as
+    answered at all."""
+    from app.extraction.models import ExtractionConfig
+    from app.extraction.service import extraction_required_reviewers
+
+    admin = create_user(db, "admin", "Admin", "secret-password", is_admin=True)
+    r1 = create_user(db, "r1", "R1", "password-1")
+    r2 = create_user(db, "r2", "R2", "password-2")
+    project = Project(
+        name="Dual",
+        review_type="systematic_review",
+        random_seed="seed",
+        stage=ProjectStage.FULL_TEXT,
+    )
+    db.add(project)
+    db.flush()
+    for reviewer in (r1, r2):
+        db.add(
+            ProjectMembership(project_id=project.id, user_id=reviewer.id, can_extract=True)
+        )
+    db.add(ExtractionConfig(project_id=project.id, required_reviewers=2))
+    form = create_form(db, "Extraction", FormKind.EXTRACTION, project_id=project.id)
+    field = add_field(
+        db, form, "Outcome", "single_select", required=True, options=["Positive", "Negative"]
+    )
+    publication = Publication(project_id=project.id, title="Disagreeing paper")
+    db.add(publication)
+    db.flush()
+    record_final_decision(
+        db, publication.id, ScreeningStage.FULL_TEXT, "include", "agreement", None, None
+    )
+    project.stage = ProjectStage.EXTRACTION
+    db.commit()
+    initialize_extraction(db, project)
+    db.commit()
+    assert extraction_required_reviewers(db, project.id) == 2
+
+    item_r1 = claim_next_extraction(db, project.id, r1.id)
+    assert item_r1 is not None
+    submit_extraction(db, item_r1, r1.id, {field.stable_key: "Positive"})
+    item_r2 = claim_next_extraction(db, project.id, r2.id)
+    assert item_r2 is not None
+    submit_extraction(db, item_r2, r2.id, {field.stable_key: "Negative"})
+    db.commit()
+
+    stats = compute_extraction_stats(db, project.id)
+    fields_by_label = {field["label"]: field for field in stats["fields"]}
+    outcome = fields_by_label["Outcome"]
+    assert outcome["answeredCount"] == 0
+    assert outcome["totalCount"] == 1
+
+    from app.extraction.reconciliation import submit_reconciliation
+
+    submit_reconciliation(
+        db,
+        publication.id,
+        admin.id,
+        {field.stable_key: {"choice": "response_a"}},
+        "Resolved",
+    )
+    db.commit()
+
+    stats_after = compute_extraction_stats(db, project.id)
+    outcome_after = {f["label"]: f for f in stats_after["fields"]}["Outcome"]
+    assert outcome_after["answeredCount"] == 1
 
 
 def _project(db) -> Project:
@@ -379,7 +458,10 @@ def test_compute_stats_fingerprint_changes_when_stats_change() -> None:
     assert compute_stats_fingerprint(stats_a) != compute_stats_fingerprint(stats_b)
 
 
-def test_project_stage_analysis_endpoint_reports_staleness(client, db) -> None:
+def test_project_stage_analysis_endpoint_reports_staleness(
+    client, db, monkeypatch
+) -> None:
+    _enable_installation_llm(monkeypatch)
     project = _seed_extraction_project(db)
     create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
     db.commit()
@@ -410,6 +492,100 @@ def test_project_stage_analysis_endpoint_reports_staleness(client, db) -> None:
     assert current_body["isStale"] is False
 
 
+def test_project_stage_analysis_hides_narrative_when_disabled(client, db) -> None:
+    project = _seed_extraction_project(db)
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    db.commit()
+    login(client, "admin", "secret-password")
+
+    settings = project_settings(db, project.id, create=True)
+    settings.analysis_narrative_enabled = False
+    db.commit()
+
+    stats = compute_extraction_stats(db, project.id)
+    db.add(
+        StageAnalysis(
+            project_id=project.id,
+            stage="extraction_quality",
+            summary="Looks fine.",
+            stats_fingerprint=compute_stats_fingerprint(stats),
+            generated_at=datetime.now(UTC),
+        )
+    )
+    db.commit()
+
+    response = client.get(f"/api/v1/projects/{project.id}/analysis/extraction_quality")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["narrativeEnabled"] is False
+    assert body["narrative"] is None
+
+
+def test_regenerate_stage_analysis_rejected_when_narrative_disabled(
+    client, db, monkeypatch
+) -> None:
+    _enable_installation_llm(monkeypatch)
+    project = _seed_extraction_project(db)
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    db.commit()
+    csrf = login(client, "admin", "secret-password")
+
+    settings = project_settings(db, project.id, create=True)
+    settings.analysis_narrative_enabled = False
+    db.commit()
+
+    response = client.post(
+        f"/api/v1/projects/{project.id}/analysis/extraction_quality/regenerate",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 400
+
+
+def test_regenerate_stage_analysis_rejected_when_installation_llm_disabled(
+    client, db
+) -> None:
+    """The project-level toggle defaults to enabled, so with the
+    installation-wide "LLM enabled" checkbox off, regeneration must still be
+    rejected -- the project setting alone is not enough to bypass it."""
+    project = _seed_extraction_project(db)
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    db.commit()
+    csrf = login(client, "admin", "secret-password")
+
+    response = client.post(
+        f"/api/v1/projects/{project.id}/analysis/extraction_quality/regenerate",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 400
+
+
+def test_project_stage_analysis_hides_narrative_when_installation_llm_disabled(
+    client, db
+) -> None:
+    project = _seed_extraction_project(db)
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    db.commit()
+    login(client, "admin", "secret-password")
+
+    stats = compute_extraction_stats(db, project.id)
+    db.add(
+        StageAnalysis(
+            project_id=project.id,
+            stage="extraction_quality",
+            summary="Looks fine.",
+            stats_fingerprint=compute_stats_fingerprint(stats),
+            generated_at=datetime.now(UTC),
+        )
+    )
+    db.commit()
+
+    response = client.get(f"/api/v1/projects/{project.id}/analysis/extraction_quality")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["narrativeEnabled"] is False
+    assert body["narrative"] is None
+
+
 def test_project_stage_analysis_endpoint_rejects_unknown_stage(client, db) -> None:
     project = _seed_extraction_project(db)
     create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
@@ -420,7 +596,10 @@ def test_project_stage_analysis_endpoint_rejects_unknown_stage(client, db) -> No
     assert response.status_code == 404
 
 
-def test_regenerate_stage_analysis_endpoint_enqueues_job(client, db) -> None:
+def test_regenerate_stage_analysis_endpoint_enqueues_job(
+    client, db, monkeypatch
+) -> None:
+    _enable_installation_llm(monkeypatch)
     project = _seed_extraction_project(db)
     create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
     db.commit()
@@ -440,6 +619,7 @@ def test_regenerate_stage_analysis_endpoint_enqueues_job(client, db) -> None:
 
 
 def test_generate_stage_analysis_job_persists_narrative(db, monkeypatch) -> None:
+    _enable_installation_llm(monkeypatch)
     project = _seed_extraction_project(db)
     monkeypatch.setattr(
         "app.analysis.jobs.generate_narrative",
@@ -483,3 +663,74 @@ def test_generate_stage_analysis_job_persists_narrative(db, monkeypatch) -> None
     )
     assert len(rows) == 1
     assert rows[0].summary == "Updated summary."
+
+
+def test_generate_stage_analysis_job_skips_when_installation_llm_disabled(
+    db, monkeypatch
+) -> None:
+    """Guards the race where a job is claimed just as the installation
+    toggle flips off between enqueue and execution: it must not call
+    Ollama or write a narrative."""
+    project = _seed_extraction_project(db)
+    called = False
+
+    def _fail_if_called(stage, stats):
+        nonlocal called
+        called = True
+        raise AssertionError("generate_narrative should not be called")
+
+    monkeypatch.setattr("app.analysis.jobs.generate_narrative", _fail_if_called)
+    job = BackgroundJob(
+        job_type="generate_stage_analysis",
+        payload={"stage": "extraction_quality"},
+        project_id=project.id,
+    )
+    db.add(job)
+    db.flush()
+
+    result = generate_stage_analysis_job(db, job)
+    db.commit()
+
+    assert called is False
+    assert result["status"] == "skipped"
+    assert (
+        db.scalar(
+            select(StageAnalysis).where(
+                StageAnalysis.project_id == project.id,
+                StageAnalysis.stage == "extraction_quality",
+            )
+        )
+        is None
+    )
+
+
+def test_disabling_installation_llm_cancels_queued_stage_analysis_job(
+    client, db, monkeypatch
+) -> None:
+    _enable_installation_llm(monkeypatch)
+    project = _seed_extraction_project(db)
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    db.commit()
+    csrf = login(client, "admin", "secret-password")
+
+    enqueued = client.post(
+        f"/api/v1/projects/{project.id}/analysis/extraction_quality/regenerate",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert enqueued.status_code == 200
+    job = db.get(BackgroundJob, enqueued.json()["jobId"])
+    assert job.status == JobStatus.QUEUED
+
+    disabled = client.patch(
+        "/api/v1/llm/installation-settings",
+        json={
+            "enabled": False,
+            "endpoint": "http://ollama.example:11434",
+            "model": "test-model:latest",
+            "contextLength": 8192,
+        },
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert disabled.status_code == 200
+    db.refresh(job)
+    assert job.status == JobStatus.CANCELLED

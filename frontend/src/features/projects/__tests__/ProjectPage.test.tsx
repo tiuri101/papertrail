@@ -50,6 +50,7 @@ describe('ProjectPage', () => {
     expect(screen.queryByRole('heading', { name: 'Reporting' })).not.toBeInTheDocument()
     const completedGroup = screen.getByRole('heading', { name: 'Completed' }).closest('.nav-group') as HTMLElement
     expect(within(completedGroup).getByText('Reporting and Exports')).toHaveAttribute('aria-disabled', 'true')
+    expect(screen.getByText(/Actions unlock review stage by review stage/)).toBeInTheDocument()
 
     const currentStage = screen.getByRole('listitem', { current: 'step' })
     expect(currentStage).toHaveTextContent('Title/Abstract Screening')

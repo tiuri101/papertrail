@@ -46,9 +46,19 @@ const publications = [
   },
 ]
 
+// PublicationsPage now embeds BrowserPdfRetrievalPanel, which polls its own
+// endpoints regardless of what a given test cares about -- keep them
+// answered so unrelated tests don't have to know about PDF retrieval.
+function pdfRetrievalDefault(url: string) {
+  if (url.endsWith('/browser-agents')) return jsonResponse([])
+  if (url.endsWith('/pdf-retrieval-batches/missing-count')) return jsonResponse({ missingCount: 0 })
+  if (url.endsWith('/pdf-retrieval-batches')) return jsonResponse([])
+  return undefined
+}
+
 describe('PublicationsPage', () => {
   it('renders normalized bibliographic metadata and opens external links in a new tab', async () => {
-    mockFetch(() => jsonResponse(publications))
+    mockFetch((input) => pdfRetrievalDefault(String(input)) ?? jsonResponse(publications))
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
 
     expect(await screen.findByText('Urban Data in VR')).toBeInTheDocument()
@@ -82,6 +92,8 @@ describe('PublicationsPage', () => {
   it('shows management controls to regular project members, not just owners', async () => {
     mockFetch((input) => {
       const url = String(input)
+      const pdfRetrieval = pdfRetrievalDefault(url)
+      if (pdfRetrieval) return pdfRetrieval
       if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: false, canManagePublications: true })
       if (url.endsWith('/metadata-conflicts')) return jsonResponse([])
       return jsonResponse(publications)
@@ -98,6 +110,8 @@ describe('PublicationsPage', () => {
   it('hides the multi-select checkbox and management controls when publication management is unavailable', async () => {
     mockFetch((input) => {
       const url = String(input)
+      const pdfRetrieval = pdfRetrievalDefault(url)
+      if (pdfRetrieval) return pdfRetrieval
       if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: false, canManagePublications: false })
       return jsonResponse(publications)
     })
@@ -129,6 +143,8 @@ describe('PublicationsPage', () => {
     }
     mockFetch((input) => {
       const url = String(input)
+      const pdfRetrieval = pdfRetrievalDefault(url)
+      if (pdfRetrieval) return pdfRetrieval
       if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: false, canManagePublications: true })
       if (url.endsWith('/metadata-conflicts')) return jsonResponse([])
       if (url.endsWith('/review-details')) return jsonResponse(reviewDetails)
@@ -144,7 +160,7 @@ describe('PublicationsPage', () => {
   })
 
   it('shows singular count for a single publication', async () => {
-    mockFetch(() => jsonResponse([publications[0]]))
+    mockFetch((input) => pdfRetrievalDefault(String(input)) ?? jsonResponse([publications[0]]))
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
 
     expect(await screen.findByText('1 publication in this project')).toBeInTheDocument()
@@ -152,7 +168,7 @@ describe('PublicationsPage', () => {
   })
 
   it('shows when every publication has an attached PDF', async () => {
-    mockFetch(() => jsonResponse([
+    mockFetch((input) => pdfRetrievalDefault(String(input)) ?? jsonResponse([
       { ...publications[0], fullText: { available: true } },
     ]))
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
@@ -163,6 +179,8 @@ describe('PublicationsPage', () => {
   it('clicking a publication opens an edit form that saves metadata', async () => {
     const fetchMock = mockFetch((input) => {
       const url = String(input)
+      const pdfRetrieval = pdfRetrievalDefault(url)
+      if (pdfRetrieval) return pdfRetrieval
       if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
       if (url.includes('/publications/publication-1')) {
         return jsonResponse({ ...publications[0], title: 'Urban Data in Virtual Reality' })
@@ -187,6 +205,8 @@ describe('PublicationsPage', () => {
   it('deleting a publication requires confirming a warning first', async () => {
     const fetchMock = mockFetch((input, init) => {
       const url = String(input)
+      const pdfRetrieval = pdfRetrievalDefault(url)
+      if (pdfRetrieval) return pdfRetrieval
       if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
       if (init?.method === 'DELETE') return emptyResponse(204)
       return jsonResponse(publications)
@@ -209,6 +229,8 @@ describe('PublicationsPage', () => {
   it('triggers enrichment for a single publication with a DOI', async () => {
     const fetchMock = mockFetch((input, init) => {
       const url = String(input)
+      const pdfRetrieval = pdfRetrievalDefault(url)
+      if (pdfRetrieval) return pdfRetrieval
       if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
       if (url.endsWith('/publications/publication-1/enrich') && init?.method === 'POST') {
         return jsonResponse({ jobId: 'job-1' }, 202)
@@ -233,6 +255,8 @@ describe('PublicationsPage', () => {
   it('enriches selected publications and all publications missing metadata', async () => {
     const fetchMock = mockFetch((input, init) => {
       const url = String(input)
+      const pdfRetrieval = pdfRetrievalDefault(url)
+      if (pdfRetrieval) return pdfRetrieval
       if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
       if (url.endsWith('/publications/enrich') && init?.method === 'POST') {
         return jsonResponse({ jobIds: ['job-1'] }, 202)
@@ -282,6 +306,8 @@ describe('PublicationsPage', () => {
     ]
     const fetchMock = mockFetch((input, init) => {
       const url = String(input)
+      const pdfRetrieval = pdfRetrievalDefault(url)
+      if (pdfRetrieval) return pdfRetrieval
       if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
       if (url.endsWith('/metadata-conflicts')) return jsonResponse(conflicts)
       if (url.endsWith('/metadata-conflicts/conflict-1/resolve') && init?.method === 'POST') {
@@ -308,7 +334,7 @@ describe('PublicationsPage', () => {
   })
 
   it('shows the screening stage status for each publication and filters by it', async () => {
-    mockFetch(() => jsonResponse(publications))
+    mockFetch((input) => pdfRetrievalDefault(String(input)) ?? jsonResponse(publications))
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
 
     const includedCard = await screen.findByText('Urban Data in VR').then((el) => el.closest('li') as HTMLElement)
@@ -337,7 +363,7 @@ describe('PublicationsPage', () => {
       fullText: { available: false, retrievalStatus: 'not_found' },
       screeningStatus: { titleAbstract: 'include', fullText: null },
     }
-    mockFetch(() => jsonResponse([unretrievable]))
+    mockFetch((input) => pdfRetrievalDefault(String(input)) ?? jsonResponse([unretrievable]))
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
 
     const card = await screen.findByText('Unreachable Paper').then((el) => el.closest('li') as HTMLElement)
@@ -396,6 +422,8 @@ describe('PublicationsPage', () => {
     }
     const fetchMock = mockFetch((input, init) => {
       const url = String(input)
+      const pdfRetrieval = pdfRetrievalDefault(url)
+      if (pdfRetrieval) return pdfRetrieval
       if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
       if (url.endsWith('/metadata-conflicts')) return jsonResponse([])
       if (url.endsWith('/review-details')) return jsonResponse(reviewDetails)
@@ -500,7 +528,7 @@ describe('PublicationsPage', () => {
   })
 
   it('searches across publication metadata', async () => {
-    mockFetch(() => jsonResponse(publications))
+    mockFetch((input) => pdfRetrievalDefault(String(input)) ?? jsonResponse(publications))
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
 
     await screen.findByText('Urban Data in VR')
@@ -512,7 +540,7 @@ describe('PublicationsPage', () => {
   })
 
   it('filters publications by PDF status', async () => {
-    mockFetch(() => jsonResponse([
+    mockFetch((input) => pdfRetrievalDefault(String(input)) ?? jsonResponse([
       { ...publications[0], fullText: { available: true } },
       { ...publications[1], fullText: { available: false } },
     ]))
@@ -554,6 +582,8 @@ describe('PublicationsPage', () => {
   it('bulk-deletes the selected publications after confirming', async () => {
     const fetchMock = mockFetch((input, init) => {
       const url = String(input)
+      const pdfRetrieval = pdfRetrievalDefault(url)
+      if (pdfRetrieval) return pdfRetrieval
       if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
       if (url.endsWith('/metadata-conflicts')) return jsonResponse([])
       if (url.endsWith('/publications/delete') && init?.method === 'POST') {
@@ -582,6 +612,8 @@ describe('PublicationsPage', () => {
   it('selects and deselects all filtered publications with Select All', async () => {
     mockFetch((input) => {
       const url = String(input)
+      const pdfRetrieval = pdfRetrievalDefault(url)
+      if (pdfRetrieval) return pdfRetrieval
       if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
       if (url.endsWith('/metadata-conflicts')) return jsonResponse([])
       return jsonResponse(publications)
@@ -609,6 +641,8 @@ describe('PublicationsPage', () => {
   it('bulk-uploads and auto-matches PDFs against the whole project without any selection', async () => {
     const fetchMock = mockFetch((input, init) => {
       const url = String(input)
+      const pdfRetrieval = pdfRetrievalDefault(url)
+      if (pdfRetrieval) return pdfRetrieval
       if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
       if (url.endsWith('/metadata-conflicts')) return jsonResponse([])
       if (url.endsWith('/publications/pdfs') && init?.method === 'POST') {
@@ -654,10 +688,12 @@ describe('PublicationsPage', () => {
   it('shows per-publication export links, gating PDF export on availability', async () => {
     mockFetch((input) => {
       const url = String(input)
+      const pdfRetrieval = pdfRetrievalDefault(url)
+      if (pdfRetrieval) return pdfRetrieval
       if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
       if (url.endsWith('/metadata-conflicts')) return jsonResponse([])
       return jsonResponse([
-        { ...publications[0], fullText: { available: true } },
+        { ...publications[0], fullText: { available: true, document: { pageCount: 12 } } },
         publications[1],
       ])
     })
@@ -670,16 +706,22 @@ describe('PublicationsPage', () => {
     expect(within(withPdfCard).getByRole('link', { name: /Export PDF/ })).toHaveAttribute(
       'href', '/api/v1/projects/p1/publications/publication-1/export/pdf',
     )
+    expect(within(withPdfCard).getByRole('link', { name: 'PDF (12 pages)' })).toHaveAttribute(
+      'href', '/api/v1/projects/p1/publications/publication-1/full-text/content',
+    )
 
     const withoutPdfCard = screen.getByText('Paper without DOI').closest('li') as HTMLElement
     expect(within(withoutPdfCard).getByRole('link', { name: /Export BibTeX/ })).toBeInTheDocument()
     expect(within(withoutPdfCard).queryByRole('link', { name: /Export PDF/ })).not.toBeInTheDocument()
+    expect(within(withoutPdfCard).getByText('No PDF')).toBeInTheDocument()
   })
 
   it('bulk-exports selected publications as a PDF+BibTeX bundle and links the finished download', async () => {
     let jobStatus = 'queued'
     const fetchMock = mockFetch((input, init) => {
       const url = String(input)
+      const pdfRetrieval = pdfRetrievalDefault(url)
+      if (pdfRetrieval) return pdfRetrieval
       if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
       if (url.endsWith('/metadata-conflicts')) return jsonResponse([])
       if (url.endsWith('/exports') && init?.method === 'POST') {
@@ -729,6 +771,8 @@ describe('PublicationsPage', () => {
   it('lets a manager attach a PDF from the publications page', async () => {
     const fetchMock = mockFetch((input, init) => {
       const url = String(input)
+      const pdfRetrieval = pdfRetrievalDefault(url)
+      if (pdfRetrieval) return pdfRetrieval
       if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
       if (url.endsWith('/metadata-conflicts')) return jsonResponse([])
       if (url.endsWith('/publications/publication-1/full-text') && init?.method === 'POST') {
