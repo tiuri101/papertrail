@@ -211,6 +211,16 @@ export function QualityWorkspace({
               <PublisherLinkPill url={item.publication.publisherUrl} />
             ) : null}
           </div>
+          {fullTextDocument.data?.available ? (
+            <a
+              className="button-secondary button-sm"
+              href={`${fullTextDocumentEndpoint(projectId, item.publicationId)}/content`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Open PDF
+            </a>
+          ) : null}
         </>
       ) : null}
       <form onSubmit={(event) => { event.preventDefault(); submit.mutate() }}>

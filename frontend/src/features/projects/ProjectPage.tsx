@@ -1,9 +1,10 @@
-import { useQuery } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { CSSProperties } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
-import { IconInfo } from '../../components/icons'
+import { ConfirmButton } from '../../components/ConfirmButton'
+import { IconInfo, IconRestart } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
 import { SectionNavigationLayout } from '../../components/SectionNavigationLayout'
 import { ProjectDashboard } from '../administration/ProjectDashboard'
@@ -34,6 +35,32 @@ interface WorkflowIntegrityIssue {
 
 interface WorkflowIntegrityResponse {
   issues: WorkflowIntegrityIssue[]
+}
+
+interface WorkflowIntegrityRepairResult {
+  removedFullTextWorkItems: number
+  removedFullTextRetrievals: number
+  advancedToExtraction: boolean
+  createdExtractionItems: number
+  createdQualityItems: number
+}
+
+function repairSummaryText(result: WorkflowIntegrityRepairResult): string {
+  const parts: string[] = []
+  if (result.removedFullTextWorkItems || result.removedFullTextRetrievals) {
+    parts.push('cleared stray full-text screening work left over from a reversed decision')
+  }
+  if (result.advancedToExtraction) {
+    parts.push('advanced the project into extraction')
+  }
+  if (result.createdExtractionItems) {
+    parts.push(`created ${result.createdExtractionItems} extraction work item${result.createdExtractionItems === 1 ? '' : 's'}`)
+  }
+  if (result.createdQualityItems) {
+    parts.push(`created ${result.createdQualityItems} quality-assessment work item${result.createdQualityItems === 1 ? '' : 's'}`)
+  }
+  if (parts.length === 0) return 'Nothing needed to be repaired.'
+  return `Repaired: ${parts.join('; ')}.`
 }
 
 interface JobStageSummary {
@@ -213,6 +240,7 @@ function groupColorStyle(group: ProjectSectionGroup): CSSProperties {
 
 export function ProjectPage() {
   const { projectId = '' } = useParams()
+  const queryClient = useQueryClient()
   const project = useQuery({
     queryKey: ['project', projectId],
     queryFn: () => apiRequest<ProjectDetail>(`/api/v1/projects/${projectId}`),
@@ -248,6 +276,17 @@ export function ProjectPage() {
     queryFn: () => apiRequest<{ summary: PdfSummary }>(`/api/v1/projects/${projectId}/pdf-matches`),
     enabled: Boolean(projectId),
   })
+  const repair = useMutation({
+    mutationFn: () => apiRequest<WorkflowIntegrityRepairResult>(
+      `/api/v1/projects/${projectId}/integrity/repair`,
+      { method: 'POST' },
+    ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['project-integrity', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['project', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['project-dashboard', projectId] })
+    },
+  })
   const pdfMatchSummary = pdfMatches.data?.summary
   const pdfMatchesNeedingReview = pdfMatchSummary
     ? (pdfMatchSummary.ambiguous ?? 0)
@@ -276,6 +315,23 @@ export function ProjectPage() {
                 </li>
               ))}
             </ul>
+            {project.data.canManage ? (
+              <>
+                <ConfirmButton
+                  label="Repair Workflow Integrity"
+                  confirmLabel="Repair"
+                  warning="This clears stray full-text screening work left over from a reversed decision and backfills any missing extraction/quality work items. This cannot be undone."
+                  onConfirm={() => repair.mutate()}
+                  disabled={repair.isPending}
+                  variant="secondary"
+                  icon={<IconRestart />}
+                />
+                {repair.error ? <p className="error" role="alert">{repair.error.message}</p> : null}
+                {repair.isSuccess ? (
+                  <p className="success" role="status">{repairSummaryText(repair.data)}</p>
+                ) : null}
+              </>
+            ) : null}
           </section>
         ) : null}
         {metadataConflicts.data?.length ? (

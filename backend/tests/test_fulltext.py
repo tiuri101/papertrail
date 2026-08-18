@@ -317,6 +317,131 @@ def test_available_full_text_creates_screening_item_and_unavailable_report_compl
     assert project.stage == ProjectStage.EXTRACTION
 
 
+def test_full_text_work_completed_ignores_stray_retrieval_for_excluded_publication(
+    db,
+) -> None:
+    # Simulates drift left over from before reversed decisions retracted
+    # their own downstream work: a FullTextRetrieval row for a publication
+    # that isn't (or is no longer) title/abstract-included must not block
+    # completeness forever.
+    _, _, project, included, excluded = setup_fulltext(db)
+    db.add(
+        FullTextRetrieval(
+            project_id=project.id,
+            publication_id=excluded.id,
+            status=RetrievalStatus.NOT_YET_SOUGHT,
+        )
+    )
+    db.commit()
+
+    retrieval = db.scalar(
+        select(FullTextRetrieval).where(FullTextRetrieval.publication_id == included.id)
+    )
+    set_retrieval_status(db, retrieval, RetrievalStatus.NOT_FOUND)
+    assert transition_if_full_text_complete(db, project) is True
+    assert project.stage == ProjectStage.EXTRACTION
+
+
+def test_reversed_title_abstract_inclusion_retracts_stray_full_text_work(db) -> None:
+    admin, _, project, _included, _excluded = setup_fulltext(db)
+    reversed_pub = Publication(project_id=project.id, title="Reversed")
+    db.add(reversed_pub)
+    db.flush()
+    record_final_decision(
+        db,
+        reversed_pub.id,
+        ScreeningStage.TITLE_ABSTRACT,
+        "include",
+        "agreement",
+        None,
+        None,
+    )
+    db.commit()
+    retrieval = db.scalar(
+        select(FullTextRetrieval).where(
+            FullTextRetrieval.publication_id == reversed_pub.id
+        )
+    )
+    assert retrieval is not None
+    set_retrieval_status(db, retrieval, RetrievalStatus.AVAILABLE)
+    db.commit()
+    assert (
+        db.scalar(
+            select(ScreeningWorkItem).where(
+                ScreeningWorkItem.publication_id == reversed_pub.id,
+                ScreeningWorkItem.stage == ScreeningStage.FULL_TEXT,
+            )
+        )
+        is not None
+    )
+
+    # The title/abstract decision is revised away from INCLUDE.
+    record_final_decision(
+        db,
+        reversed_pub.id,
+        ScreeningStage.TITLE_ABSTRACT,
+        "exclude",
+        "admin_override",
+        admin.id,
+        "was miscategorized",
+    )
+    db.commit()
+
+    assert (
+        db.scalar(
+            select(FullTextRetrieval).where(
+                FullTextRetrieval.publication_id == reversed_pub.id
+            )
+        )
+        is None
+    )
+    assert (
+        db.scalar(
+            select(ScreeningWorkItem).where(
+                ScreeningWorkItem.publication_id == reversed_pub.id,
+                ScreeningWorkItem.stage == ScreeningStage.FULL_TEXT,
+            )
+        )
+        is None
+    )
+
+
+def test_reversed_inclusion_no_longer_permanently_blocks_extraction_transition(
+    db,
+) -> None:
+    admin, _, project, included, _excluded = setup_fulltext(db)
+    reversed_pub = Publication(project_id=project.id, title="Reversed")
+    db.add(reversed_pub)
+    db.flush()
+    record_final_decision(
+        db,
+        reversed_pub.id,
+        ScreeningStage.TITLE_ABSTRACT,
+        "include",
+        "agreement",
+        None,
+        None,
+    )
+    db.commit()
+    record_final_decision(
+        db,
+        reversed_pub.id,
+        ScreeningStage.TITLE_ABSTRACT,
+        "exclude",
+        "admin_override",
+        admin.id,
+        "was miscategorized",
+    )
+    db.commit()
+
+    retrieval = db.scalar(
+        select(FullTextRetrieval).where(FullTextRetrieval.publication_id == included.id)
+    )
+    set_retrieval_status(db, retrieval, RetrievalStatus.NOT_FOUND)
+    assert transition_if_full_text_complete(db, project) is True
+    assert project.stage == ProjectStage.EXTRACTION
+
+
 def test_transition_blocked_without_extraction_form(db) -> None:
     _, _, project, included, _ = setup_fulltext(db, with_extraction_form=False)
     initialize_full_text_stage(db, project)

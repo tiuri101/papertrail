@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import { ProjectPage } from '../ProjectPage'
@@ -149,6 +149,89 @@ describe('ProjectPage', () => {
     const alert = await screen.findByRole('alert')
     expect(alert).toHaveTextContent('Workflow integrity issue')
     expect(alert).toHaveTextContent('Included publication has no extraction work item.')
+  })
+
+  it('lets the project owner repair a workflow integrity issue', async () => {
+    const fetchMock = mockFetch((input, init) => {
+      const url = String(input)
+      if (url.endsWith('/integrity/repair') && init?.method === 'POST') {
+        return jsonResponse({
+          removedFullTextWorkItems: 0,
+          removedFullTextRetrievals: 1,
+          advancedToExtraction: false,
+          createdExtractionItems: 1,
+          createdQualityItems: 0,
+        })
+      }
+      if (url.endsWith('/integrity')) {
+        return jsonResponse({
+          issues: [
+            {
+              code: 'missing_extraction_item',
+              entityId: 'publication-1',
+              message: 'Included publication has no extraction work item.',
+            },
+          ],
+        })
+      }
+      if (url.endsWith('/checklist')) {
+        return jsonResponse({ stage: 'extraction_quality', stages: [] })
+      }
+      if (url.endsWith('/dashboard')) {
+        return jsonResponse({ stage: 'extraction_quality' })
+      }
+      if (url.endsWith('/jobs/summary')) return jsonResponse([])
+      return jsonResponse({
+        id: 'p1',
+        name: 'Review',
+        stage: 'extraction_quality',
+        canManage: true,
+        extractionValidationEnabled: false,
+        canTitleAbstractScreen: true,
+        canFullTextScreen: true,
+        canExtract: true,
+        canAssessQuality: true,
+      })
+    })
+    renderWithProviders(<ProjectPage />, { route: '/projects/p1', path: '/projects/:projectId' })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Repair Workflow Integrity' }))
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('This cannot be undone.')
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(false)
+
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Repair' }))
+
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')
+      expect(String(call?.[0])).toBe('/api/v1/projects/p1/integrity/repair')
+    })
+    expect(await screen.findByText(/Repaired:/)).toHaveTextContent(
+      'Repaired: cleared stray full-text screening work left over from a reversed decision; created 1 extraction work item.',
+    )
+  })
+
+  it('does not show a repair action for a reviewer without manage access', async () => {
+    mockFetch((input) => {
+      const url = String(input)
+      if (url.endsWith('/checklist')) return jsonResponse({ stage: 'extraction_quality', stages: [] })
+      if (url.endsWith('/dashboard')) return jsonResponse({ stage: 'extraction_quality' })
+      if (url.endsWith('/jobs/summary')) return jsonResponse([])
+      return jsonResponse({
+        id: 'p1',
+        name: 'Review',
+        stage: 'extraction_quality',
+        canManage: false,
+        extractionValidationEnabled: false,
+        canTitleAbstractScreen: true,
+        canFullTextScreen: true,
+        canExtract: true,
+        canAssessQuality: true,
+      })
+    })
+    renderWithProviders(<ProjectPage />, { route: '/projects/p1', path: '/projects/:projectId' })
+
+    await screen.findByRole('heading', { name: 'Review' })
+    expect(screen.queryByRole('button', { name: 'Repair Workflow Integrity' })).not.toBeInTheDocument()
   })
 
   it('renders no workflow-integrity status when the project is valid', async () => {

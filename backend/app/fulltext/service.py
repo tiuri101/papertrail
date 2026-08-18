@@ -274,13 +274,23 @@ def resolve_retrieval(
 
 
 def full_text_work_completed(db: Session, project: Project) -> bool:
-    """Read-only check for all retrieval and full-text screening work."""
+    """Read-only check for all retrieval and full-text screening work.
+
+    Scoped to publications *currently* included at title/abstract. A
+    publication's inclusion can be reversed after its FullTextRetrieval row
+    was already created; that stray row must not block completeness forever
+    -- it simply stops being relevant once the publication is no longer
+    title/abstract-included.
+    """
+    expected = set(title_abstract_included_ids(db, project.id))
     retrievals = list(
         db.scalars(
-            select(FullTextRetrieval).where(FullTextRetrieval.project_id == project.id)
+            select(FullTextRetrieval).where(
+                FullTextRetrieval.project_id == project.id,
+                FullTextRetrieval.publication_id.in_(expected),
+            )
         )
     )
-    expected = set(title_abstract_included_ids(db, project.id))
     if {item.publication_id for item in retrievals} != expected:
         return False
     for retrieval in retrievals:
