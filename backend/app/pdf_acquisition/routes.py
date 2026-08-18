@@ -8,8 +8,8 @@ from sqlalchemy.orm import Session
 from app.accounts.dependencies import require_csrf
 from app.accounts.models import User, UserSession
 from app.api.errors import DomainError
-from app.core.config import get_settings
 from app.db.session import get_db
+from app.instance_settings.service import effective_instance_settings
 from app.pdf_acquisition import service
 from app.pdf_acquisition.dependencies import get_current_browser_agent
 from app.pdf_acquisition.models import BrowserAgent, PdfRetrievalBatch
@@ -62,7 +62,7 @@ def create_pairing_secret(
     session: UserSession = Depends(require_csrf),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
-    settings = get_settings()
+    settings = effective_instance_settings(db)
     _pairing, raw_secret = service.create_pairing_secret(db, session.user)
     db.commit()
     return {
@@ -145,7 +145,7 @@ def claim_retrieval_job(
     agent: BrowserAgent = Depends(get_current_browser_agent),
     db: Session = Depends(get_db),
 ) -> dict[str, Any] | None:
-    settings = get_settings()
+    settings = effective_instance_settings(db)
     job = service.claim_next_job(db, agent)
     db.commit()
     if job is None:

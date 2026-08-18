@@ -18,6 +18,7 @@ from app.fulltext.models import DocumentSource, FullTextRetrieval, PublicationDo
 from app.fulltext.models import RetrievalStatus as HumanRetrievalStatus
 from app.fulltext.service import CLAIMABLE_STATUSES, set_retrieval_status
 from app.fulltext.storage import discard_pdf, stage_pdf_upload
+from app.instance_settings.service import effective_instance_settings
 from app.pdf_acquisition.models import (
     ACTIVE_JOB_STATUSES,
     RETRYABLE_JOB_STATUSES,
@@ -657,7 +658,7 @@ def count_claimable_jobs(db: Session, agent: BrowserAgent) -> int:
 
 
 def claim_next_job(db: Session, agent: BrowserAgent) -> PdfRetrievalJob | None:
-    settings = get_settings()
+    settings = effective_instance_settings(db)
     now = utcnow()
     query = (
         select(PdfRetrievalJob)
@@ -828,7 +829,11 @@ async def upload_job_pdf(
     db.flush()
 
     try:
-        staged = await stage_pdf_upload(file, import_batch_id=f"browser-{job.id}")
+        staged = await stage_pdf_upload(
+            file,
+            import_batch_id=f"browser-{job.id}",
+            settings=effective_instance_settings(db),
+        )
     except Exception:
         db.rollback()
         raise

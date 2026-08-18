@@ -32,6 +32,22 @@ class LlmInstallationSettingsUpdate(ApiModel):
     endpoint: str
     model: str
     context_length: int = Field(alias="contextLength", ge=4096)
+    api_key: str | None = Field(default=None, alias="apiKey")
+    request_timeout_seconds: int = Field(
+        alias="requestTimeoutSeconds", ge=1
+    )
+    max_concurrent_jobs: int = Field(alias="maxConcurrentJobs", ge=1)
+    max_evidence_items: int = Field(alias="maxEvidenceItems", ge=1, le=10)
+    max_evidence_quote_chars: int = Field(
+        alias="maxEvidenceQuoteChars", ge=50, le=2000
+    )
+
+    @field_validator("api_key")
+    @classmethod
+    def validate_api_key(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return None
+        return value.strip()
 
     @field_validator("endpoint")
     @classmethod

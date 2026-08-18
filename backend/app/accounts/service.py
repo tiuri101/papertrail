@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.accounts.models import PasswordResetToken, User, UserSession
 from app.api.errors import ConflictError, DomainError, NotFoundError
 from app.core.config import get_settings
+from app.instance_settings.service import effective_instance_settings
 
 password_hasher = PasswordHasher()
 
@@ -170,7 +171,7 @@ class CreatedPasswordResetToken:
 
 
 def create_password_reset_token(db: Session, user: User) -> CreatedPasswordResetToken:
-    settings = get_settings()
+    settings = effective_instance_settings(db)
     now = utcnow()
     outstanding = db.scalars(
         select(PasswordResetToken).where(
@@ -236,7 +237,7 @@ def ensure_password_reset_allowed(db: Session, email: str, client_address: str) 
 def record_password_reset_attempt(db: Session, email: str, client_address: str) -> None:
     from app.accounts.models import LoginThrottle
 
-    settings = get_settings()
+    settings = effective_instance_settings(db)
     now = utcnow()
     identity = login_identity_hash(f"pwreset:{email}", client_address)
     throttle = db.scalar(

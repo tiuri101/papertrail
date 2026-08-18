@@ -9,7 +9,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.accounts.models import User
-from app.core.config import get_settings
+from app.instance_settings.service import effective_instance_settings
 from app.jobs.models import BackgroundJob, JobStatus
 from app.jobs.service import enqueue_job
 from app.llm.models import LlmExtractionRun, LlmTaskType, ProcessingStatus
@@ -42,7 +42,7 @@ def queue_email_notification(
     context: dict[str, Any],
     project_id: str | None = None,
 ) -> EmailNotification | None:
-    settings = get_settings()
+    settings = effective_instance_settings(db)
     if not settings.email_enabled or not recipient.email or not recipient.is_active:
         return None
 
@@ -91,7 +91,7 @@ def queue_email_notification(
 
 
 def queue_account_created_email(db: Session, user: User) -> EmailNotification | None:
-    settings = get_settings()
+    settings = effective_instance_settings(db)
     return queue_email_notification(
         db,
         recipient=user,
@@ -108,7 +108,7 @@ def queue_account_created_email(db: Session, user: User) -> EmailNotification | 
 def queue_password_reset_email(
     db: Session, user: User, raw_token: str
 ) -> EmailNotification | None:
-    settings = get_settings()
+    settings = effective_instance_settings(db)
     return queue_email_notification(
         db,
         recipient=user,
@@ -137,7 +137,7 @@ def queue_project_created_emails(
             .order_by(User.id)
         )
     )
-    settings = get_settings()
+    settings = effective_instance_settings(db)
     notifications: list[EmailNotification] = []
     for administrator in administrators:
         notification = queue_email_notification(
@@ -166,7 +166,7 @@ def queue_membership_email(
     user: User,
     added: bool,
 ) -> EmailNotification | None:
-    settings = get_settings()
+    settings = effective_instance_settings(db)
     template = "project_membership_added" if added else "project_membership_removed"
     context = {
         "recipient_name": user.display_name,
@@ -198,7 +198,7 @@ def queue_project_completed_emails(
             )
         )
     )
-    settings = get_settings()
+    settings = effective_instance_settings(db)
     notifications: list[EmailNotification] = []
     completion_key = completed_at.isoformat()
     for owner in owners:
@@ -242,7 +242,7 @@ def queue_project_stage_completed_emails(
             )
         )
     )
-    settings = get_settings()
+    settings = effective_instance_settings(db)
     notifications: list[EmailNotification] = []
     stage_key = completed_stage.value
     completion_key = completed_at.isoformat()
@@ -332,7 +332,7 @@ def queue_llm_bulk_completion_emails(
         )
         or "LLM processing"
     )
-    settings = get_settings()
+    settings = effective_instance_settings(db)
     notifications: list[EmailNotification] = []
     for owner in owners:
         notification = queue_email_notification(
@@ -369,7 +369,7 @@ def queue_llm_stage_completion_emails(
 def queue_llm_bulk_completion_check(
     db: Session, *, project_id: str, bulk_id: str
 ) -> BackgroundJob | None:
-    if not get_settings().email_enabled:
+    if not effective_instance_settings(db).email_enabled:
         return None
     existing = db.scalars(
         select(BackgroundJob).where(
@@ -423,7 +423,7 @@ def send_email_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
     notification.error_message = None
     rendered = render_email(notification.template, notification.context)
     send_smtp_email(
-        get_settings(), recipient=notification.recipient_email, rendered=rendered
+        effective_instance_settings(db), recipient=notification.recipient_email, rendered=rendered
     )
     notification.status = EmailDeliveryStatus.SENT
     notification.sent_at = datetime.now(UTC)

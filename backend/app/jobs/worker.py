@@ -21,6 +21,7 @@ from app.db import models as _models  # noqa: F401  # registers all SQLAlchemy m
 from app.db.session import SessionFactory
 from app.deduplication.jobs import detect_duplicates_job
 from app.imports.service import process_import_job
+from app.instance_settings.service import effective_instance_settings
 from app.jobs.models import BackgroundJob, JobStatus
 from app.jobs.service import claim_job, renew_job_lease
 from app.llm.service import LLM_JOB_TYPES, TEXT_JOB
@@ -78,9 +79,9 @@ def execute_next_job(
     allowed_job_types: set[str] | None = None,
     excluded_job_types: set[str] | None = None,
 ) -> bool:
-    settings = get_settings()
     try:
         with session_factory() as claim_session:
+            settings = effective_instance_settings(claim_session)
             job = claim_job(
                 claim_session,
                 worker_id,
@@ -266,8 +267,9 @@ def run_worker(*, llm_only: bool = False) -> None:
     allowed_job_types = LLM_JOB_TYPES if llm_only else None
     excluded_job_types = None if llm_only else LLM_JOB_TYPES
     logger.info(
-        "Papertrail worker starting (worker_id=%s, threads=%d, poll_interval=%ss)",
+        "Papertrail worker starting (worker_id=%s, version=%s, threads=%d, poll_interval=%ss)",
         worker_id,
+        settings.app_version,
         thread_count,
         settings.job_poll_interval_seconds,
     )

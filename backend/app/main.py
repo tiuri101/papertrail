@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager
 from uuid import uuid4
@@ -22,6 +23,7 @@ from app.forms.routes import router as forms_router
 from app.fulltext.document_routes import router as fulltext_document_router
 from app.fulltext.routes import router as fulltext_router
 from app.imports.routes import router as imports_router
+from app.instance_settings.routes import router as instance_settings_router
 from app.jobs.routes import router as jobs_router
 from app.llm.routes import router as llm_router
 from app.pdf_acquisition.routes import router as pdf_acquisition_router
@@ -30,6 +32,8 @@ from app.publications.routes import router as publications_router
 from app.quality.routes import router as quality_router
 from app.reporting.routes import router as reporting_router
 from app.screening.routes import router as screening_router
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
@@ -42,6 +46,9 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 def create_app() -> FastAPI:
     configure_logging()
     settings = get_settings()
+    logger.info(
+        "%s API starting (version=%s)", settings.app_name, settings.app_version
+    )
     app = FastAPI(
         title=settings.app_name, version=settings.app_version, lifespan=lifespan
     )
@@ -78,6 +85,7 @@ def create_app() -> FastAPI:
     app.include_router(accounts_router, prefix=settings.api_prefix)
     app.include_router(projects_router, prefix=settings.api_prefix)
     app.include_router(imports_router, prefix=settings.api_prefix)
+    app.include_router(instance_settings_router, prefix=settings.api_prefix)
     app.include_router(jobs_router, prefix=settings.api_prefix)
     app.include_router(llm_router, prefix=settings.api_prefix)
     app.include_router(publications_router, prefix=settings.api_prefix)
