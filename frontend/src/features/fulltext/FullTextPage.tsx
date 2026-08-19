@@ -114,7 +114,7 @@ export function FullTextPage() {
         <div className="toolbar">
           <button
             type="button"
-            className="button-secondary"
+            className="button-secondary go-back-button"
             onClick={() => queue.goBack.mutate()}
             disabled={queue.goBack.isPending}
           >

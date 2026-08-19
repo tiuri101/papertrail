@@ -362,6 +362,37 @@ describe('PublicationsPage', () => {
     })
   })
 
+  it('opens directly on the metadata tab when linked with ?tab=metadata', async () => {
+    const conflicts = [
+      {
+        id: 'conflict-1',
+        publicationId: 'publication-1',
+        fieldName: 'title',
+        currentValue: 'Urban Data in VR',
+        proposedValue: 'Urban Data in Virtual Reality',
+        sourceName: 'crossref',
+        status: 'open',
+        publication: publications[0],
+      },
+    ]
+    mockFetch((input) => {
+      const url = String(input)
+      const pdfRetrieval = pdfRetrievalDefault(url)
+      if (pdfRetrieval) return pdfRetrieval
+      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
+      if (url.endsWith('/metadata-conflicts')) return jsonResponse(conflicts)
+      return jsonResponse(publications)
+    })
+    renderWithProviders(<PublicationsPage />, {
+      route: '/projects/p1/publications?tab=metadata#metadata-conflicts',
+      path: '/projects/:projectId/publications',
+    })
+
+    expect(await screen.findByRole('tab', { name: 'Metadata Tools', selected: true })).toBeInTheDocument()
+    const heading = await screen.findByRole('heading', { name: 'Metadata Conflicts' })
+    expect(heading.closest('section')).toHaveAttribute('id', 'metadata-conflicts')
+  })
+
   it('shows the screening stage status for each publication and filters by it', async () => {
     mockFetch((input) => pdfRetrievalDefault(String(input)) ?? jsonResponse(publications))
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })

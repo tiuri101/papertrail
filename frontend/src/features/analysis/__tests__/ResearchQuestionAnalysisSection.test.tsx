@@ -90,6 +90,17 @@ describe('ResearchQuestionAnalysisSection', () => {
     expect(await screen.findByRole('status')).toHaveTextContent(/may be outdated/)
   })
 
+  it('hides the stale banner when synthesis is disabled, even if the server reports stale', async () => {
+    mockFetch(baseHandler(analysisResponse({ synthesisEnabled: false, isStale: true })))
+    renderWithProviders(<ResearchQuestionAnalysisSection projectId="p1" />)
+
+    expect(
+      await screen.findByText('AI-generated interpretive analysis is disabled for this project.'),
+    ).toBeInTheDocument()
+    expect(screen.getByText('Most included studies used a randomized design.')).toBeInTheDocument()
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
   it('shows a message and disabled controls when no synthesis has been generated yet', async () => {
     mockFetch(baseHandler(analysisResponse({ latestRun: null })))
     renderWithProviders(<ResearchQuestionAnalysisSection projectId="p1" />)
