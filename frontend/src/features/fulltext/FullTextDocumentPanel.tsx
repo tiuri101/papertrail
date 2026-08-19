@@ -117,10 +117,19 @@ export function FullTextDocumentPanel({ projectId, publicationId, onAvailable, o
       ) : document.data ? (
         <>
           <p className="muted">No PDF attached</p>
-          <button type="button" className="button-sm" onClick={openFilePicker} disabled={upload.isPending}>
-            <IconUpload />
-            Upload PDF
-          </button>
+          <div className="toolbar">
+            <button type="button" className="button-sm" onClick={openFilePicker} disabled={upload.isPending}>
+              <IconUpload />
+              Upload PDF
+            </button>
+            <button
+              type="button"
+              className="button-secondary button-sm full-text-history-toggle"
+              onClick={() => setShowHistory(!showHistory)}
+            >
+              {showHistory ? 'Hide document history' : 'Document history'}
+            </button>
+          </div>
         </>
       ) : null}
       <input
@@ -132,15 +141,6 @@ export function FullTextDocumentPanel({ projectId, publicationId, onAvailable, o
         onChange={(event) => handleFile(event.target.files?.[0])}
       />
       {upload.isPending ? <p role="status">Uploading…</p> : null}
-      {!active ? (
-        <button
-          type="button"
-          className="button-secondary button-sm full-text-history-toggle"
-          onClick={() => setShowHistory(!showHistory)}
-        >
-          {showHistory ? 'Hide document history' : 'Document history'}
-        </button>
-      ) : null}
       {showHistory ? (
         <ul className="compact-list">
           {history.data?.map((item) => (

@@ -339,7 +339,7 @@ export function ProjectPage() {
             <h2 id="metadata-conflict-heading">Metadata conflicts need review</h2>
             <p>
               {metadataConflicts.data.length} open metadata conflict{metadataConflicts.data.length === 1 ? '' : 's'} found.{' '}
-              <Link to={`/projects/${projectId}/publications`}>Review metadata conflicts</Link>
+              <Link to={`/projects/${projectId}/publications?tab=metadata#metadata-conflicts`}>Review metadata conflicts</Link>
             </p>
           </section>
         ) : null}

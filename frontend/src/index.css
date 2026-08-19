@@ -1815,6 +1815,7 @@ form .toolbar,
 
 .section-navigation__mobile-bar {
   display: flex;
+  min-width: 0;
   align-items: center;
   gap: var(--space-2);
 }
@@ -1947,15 +1948,18 @@ form .toolbar,
 
 .section-navigation__header-back-link {
   display: inline-flex;
+  min-width: 0;
   align-items: center;
   min-height: 40px;
   padding: 0 var(--space-3);
   border-radius: var(--radius-sm);
+  overflow: hidden;
   color: var(--color-text-secondary);
   font-size: 0.92rem;
   font-weight: 650;
   text-decoration: none;
   white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .section-navigation__header-back-link:hover {
@@ -2074,6 +2078,13 @@ form .toolbar,
 
 .publication-card__summary > div {
   min-width: 0;
+}
+
+.publication-card__title-button {
+  height: auto;
+  min-height: auto;
+  white-space: normal;
+  text-align: left;
 }
 
 .publication-card__workflow {
@@ -2313,6 +2324,15 @@ form .toolbar,
   height: 40px;
   padding: 0 16px;
   font-size: 14px;
+}
+
+.go-back-button {
+  height: auto;
+  min-height: var(--button-height);
+  padding-top: var(--space-2);
+  padding-bottom: var(--space-2);
+  white-space: normal;
+  text-align: center;
 }
 
 .publication-card--manageable .publication-card__abstract {
@@ -3432,6 +3452,10 @@ button:focus-visible {
 .info-box__content p {
   max-width: 640px;
   margin: 0;
+}
+
+.info-box + .muted {
+  margin-top: var(--space-5);
 }
 
 .project-status__groups {
@@ -5222,10 +5246,6 @@ kbd {
   font-size: 0.82rem;
 }
 
-.full-text-history-toggle {
-  margin-top: var(--space-4);
-}
-
 .nested-card {
   padding: var(--space-4);
   border: 1px solid var(--color-border);
@@ -5621,7 +5641,12 @@ kbd {
   }
 
   .search-history__card-header {
+    flex-wrap: wrap;
     align-items: flex-start;
+  }
+
+  .search-history__database {
+    flex: 1 1 100%;
   }
 
   .search-history__metadata {
@@ -5678,8 +5703,13 @@ kbd {
 
   .section-navigation__header-back-link {
     min-height: 38px;
+    max-width: 34vw;
     padding: 0 var(--space-2);
     font-size: 0.86rem;
+  }
+
+  .hotkey-hint {
+    display: none;
   }
 
   .page {
@@ -5841,11 +5871,16 @@ kbd {
   background: var(--color-primary-container);
 }
 
+.llm-task-panel .toolbar {
+  margin: var(--space-4) 0;
+}
+
 .llm-task-panel__heading {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
+  gap: 0.5rem 1rem;
 }
 
 .llm-task-panel__heading h3 {
@@ -5876,6 +5911,7 @@ kbd {
 .llm-criterion > summary {
   display: flex;
   align-items: baseline;
+  flex-wrap: wrap;
   gap: var(--space-1);
   list-style: none;
   cursor: pointer;

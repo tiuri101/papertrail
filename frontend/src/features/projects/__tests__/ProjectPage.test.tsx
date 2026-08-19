@@ -62,7 +62,7 @@ describe('ProjectPage', () => {
 
     expect(await screen.findByRole('heading', { name: 'Project Status' })).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('1 open metadata conflict found')
-    expect(screen.getByRole('link', { name: 'Review metadata conflicts' })).toHaveAttribute('href', '/projects/p1/publications')
+    expect(screen.getByRole('link', { name: 'Review metadata conflicts' })).toHaveAttribute('href', '/projects/p1/publications?tab=metadata#metadata-conflicts')
     expect(screen.getByRole('rowheader', { name: 'Unresolved duplicates' })).toBeInTheDocument()
 
     const currentGroupHeading = screen
