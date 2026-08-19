@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { ConfirmButton } from '../../components/ConfirmButton'
@@ -266,7 +266,7 @@ function PublicationRow({
         ) : null}
         <div>
           {canManage ? (
-            <button type="button" className="link-button" onClick={() => setEditing(true)}>
+            <button type="button" className="link-button publication-card__title-button" onClick={() => setEditing(true)}>
               <strong><HighlightedText text={publication.title} keywords={highlightKeywords} /></strong>
             </button>
           ) : (
@@ -390,10 +390,15 @@ function MetadataConflictsPanel({ projectId }: { projectId: string }) {
     },
   })
 
+  useEffect(() => {
+    if (!conflicts.data?.length || window.location.hash !== '#metadata-conflicts') return
+    document.getElementById('metadata-conflicts')?.scrollIntoView({ block: 'start' })
+  }, [conflicts.data])
+
   if (!conflicts.error && (!conflicts.data || conflicts.data.length === 0)) return null
 
   return (
-    <section className="card">
+    <section className="card" id="metadata-conflicts">
       <h2>Metadata Conflicts</h2>
       <p className="muted">Enrichment or a duplicate merge proposed a different value for a field that already had one. Review each side by side and choose which value to keep.</p>
       {conflicts.error ? <p className="error" role="alert">{conflicts.error.message}</p> : null}
@@ -475,11 +480,15 @@ const publicationsTabs: PublicationsTab[] = [
 
 export function PublicationsPage() {
   const { projectId = '' } = useParams()
+  const [searchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const canManage = useCanManagePublications(projectId)
   const canOverride = useCanManageProject(projectId)
   const highlightKeywords = useHighlightKeywords(projectId)
-  const [activeTab, setActiveTab] = useState<PublicationsTabId>('publications')
+  const requestedTab = searchParams.get('tab')
+  const [activeTab, setActiveTab] = useState<PublicationsTabId>(
+    requestedTab === 'metadata' ? 'metadata' : 'publications',
+  )
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [pendingExportJobId, setPendingExportJobId] = useState<string | null>(null)
   const [titleAbstractFilter, setTitleAbstractFilter] = useState('')
