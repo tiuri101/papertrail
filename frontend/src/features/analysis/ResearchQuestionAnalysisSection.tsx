@@ -160,7 +160,7 @@ function ResearchQuestionCard({
       ) : null}
       {run ? (
         <>
-          {data.isStale ? (
+          {data.synthesisEnabled && data.isStale ? (
             <p className="stale-banner" role="status">
               This synthesis may be outdated — the underlying results have changed since it was
               generated.

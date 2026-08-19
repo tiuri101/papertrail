@@ -22,7 +22,7 @@ from app.imports.models import ImportBatch, ImportedRecord, SearchSource
 from app.jobs.models import BackgroundJob
 from app.jobs.service import enqueue_job
 from app.llm.models import ExtractionSuggestionReview
-from app.projects.models import Project, ProjectStage, ScreeningStage
+from app.projects.models import Project, ProjectStage, ResearchQuestion, ScreeningStage
 from app.publications.models import MetadataConflict, Publication, PublicationSource
 from app.quality.models import (
     QualityConfig,
@@ -136,6 +136,22 @@ def evaluate_project_completion(db: Session, project: Project) -> bool:
         created_by_id=None,
         priority=5,
     )
+
+    from app.llm.installation_settings import effective_llm_settings
+
+    narrative_enabled = llm_settings.analysis_narrative_enabled if llm_settings else True
+    config = effective_llm_settings(db)
+    if config.llm_enabled and config.ollama_model and narrative_enabled:
+        from app.analysis.rq_jobs import queue_rq_synthesis
+
+        research_questions = db.scalars(
+            select(ResearchQuestion).where(ResearchQuestion.project_id == project.id)
+        )
+        for research_question in research_questions:
+            queue_rq_synthesis(
+                db, project.id, research_question, created_by_id=None, priority=5
+            )
+
     db.flush()
     return True
 

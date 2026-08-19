@@ -159,7 +159,7 @@ def research_question_analysis(
     research_question = _research_question_or_404(db, project_id, research_question_id)
     synthesis_enabled = _narrative_enabled(db, project_id)
     latest = latest_successful_run(db, research_question_id)
-    is_stale = True
+    is_stale = False
     if latest is not None and synthesis_enabled:
         current_fingerprint = compute_rq_fingerprint(db, project_id, research_question)
         is_stale = latest.input_fingerprint != current_fingerprint

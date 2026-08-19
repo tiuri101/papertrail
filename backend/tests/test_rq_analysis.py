@@ -577,3 +577,39 @@ def test_regenerate_rejected_when_project_narrative_disabled(client, db, monkeyp
         headers={"X-CSRF-Token": csrf},
     )
     assert response.status_code == 400
+
+
+def test_analysis_not_stale_when_synthesis_disabled_after_prior_run(client, db, monkeypatch):
+    from app.llm.schema_service import project_settings
+
+    _enable_installation_llm(monkeypatch)
+    project, reviewer, *_ = setup_matrix_project(db)
+    rq = _add_research_question(db, project)
+    dataset = build_evidence_dataset(db, project.id)
+    source_id = assign_source_ids(dataset)[0].id
+    monkeypatch.setattr(
+        "app.llm.rq_synthesis.create_ollama_client",
+        lambda: FakeOllama(
+            [{"statements": [{"claim": "Finding.", "sourceIds": [source_id]}], "limitations": []}]
+        ),
+    )
+    run = queue_rq_synthesis(db, project.id, rq, created_by_id=None)
+    db.commit()
+    job = db.get(BackgroundJob, run.background_job_id)
+    generate_rq_synthesis_job(db, job)
+    db.commit()
+
+    settings = project_settings(db, project.id, create=True)
+    settings.analysis_narrative_enabled = False
+    db.commit()
+
+    csrf = login(client, reviewer.username, "reviewer-password")
+    response = client.get(
+        f"/api/v1/projects/{project.id}/research-questions/{rq.id}/analysis",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 200
+    body = response.json()
+    assert body["synthesisEnabled"] is False
+    assert body["latestRun"] is not None
+    assert body["isStale"] is False
