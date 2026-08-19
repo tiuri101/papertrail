@@ -157,7 +157,7 @@ export function ExtractionWorkspace({
       setLoadingNext(false)
     },
   })
-  // See ScreeningPage.tsx for why loading/error state is tracked locally
+  // See TitleAbstractScreeningPage.tsx for why loading/error state is tracked locally
   // instead of read off next.isPending/next.error.
   const fetchNext = () => {
     setLoadingNext(true)
@@ -193,9 +193,10 @@ export function ExtractionWorkspace({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projectId, itemId])
 
+  const titleRef = useRef<HTMLHeadingElement>(null)
   const visibleItemId = item?.id
   useEffect(() => {
-    if (variant !== 'inline' && visibleItemId) window.scrollTo({ top: 0, behavior: 'smooth' })
+    if (variant !== 'inline' && visibleItemId) titleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [variant, visibleItemId])
 
   const submit = useMutation({
@@ -375,7 +376,7 @@ export function ExtractionWorkspace({
     <>
       {variant !== 'inline' ? (
         <>
-          <h2>{item.publication.title}</h2>
+          <h2 ref={titleRef} className="publication-title">{item.publication.title}</h2>
           <p className="muted">
             {item.publication.authors ?? 'Unknown authors'}
             {item.publication.publicationYear ? ` (${item.publication.publicationYear})` : ''}

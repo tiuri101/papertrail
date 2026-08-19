@@ -152,6 +152,7 @@ function DecisionEditForm({
         humanDecision={outcome}
         criteriaAnswers={answers}
         criteria={criteria}
+        setCriteriaAnswers={setAnswers}
       />
       {!criteriaComplete ? (
         <p className="muted">Answer every criterion before saving.</p>
@@ -332,7 +333,11 @@ export function MyDecisionsPage() {
       <p className="muted">
         Decisions you have already submitted for this stage. Open one to review or revise it.
       </p>
-      <p><Link to={`/projects/${projectId}/screening/${stage}`}>← Back to screening queue</Link></p>
+      <p>
+        <Link to={stage === 'full_text' ? `/projects/${projectId}/full-text` : `/projects/${projectId}/screening/${stage}`}>
+          ← Back to screening queue
+        </Link>
+      </p>
       {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
       {query.isLoading ? <p>Loading…</p> : null}
       {query.data ? (

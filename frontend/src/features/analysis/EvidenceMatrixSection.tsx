@@ -201,7 +201,7 @@ function CellDetailPanel({
   const detail = query.data
 
   return (
-    <aside className="evidence-matrix__detail card" aria-label="Field evidence detail">
+    <aside className="evidence-matrix__detail nested-card" aria-label="Field evidence detail">
       <div className="toolbar">
         <h3>{selection.publicationTitle}</h3>
         <button type="button" className="button-secondary" onClick={onClose}>Close</button>
@@ -213,12 +213,26 @@ function CellDetailPanel({
           <p className="muted">
             {detail.label} · {detail.sourceType === 'quality' ? 'Quality assessment' : 'Extraction'}
           </p>
-          <p><strong>Value:</strong> {formatCellValue(detail.value, detail.fieldType)}</p>
-          <p><strong>State:</strong> {STATE_LABELS[detail.state]}</p>
-          <p><strong>Resolution:</strong> {resolutionMethodLabel(detail.resolutionMethod)}</p>
-          {detail.resolvedAt ? (
-            <p className="muted">Resolved {new Date(detail.resolvedAt).toLocaleString()}</p>
-          ) : null}
+          <dl className="evidence-matrix__detail-meta">
+            <div>
+              <dt>Value</dt>
+              <dd>{formatCellValue(detail.value, detail.fieldType)}</dd>
+            </div>
+            <div>
+              <dt>State</dt>
+              <dd>{STATE_LABELS[detail.state]}</dd>
+            </div>
+            <div>
+              <dt>Resolution</dt>
+              <dd>{resolutionMethodLabel(detail.resolutionMethod)}</dd>
+            </div>
+            {detail.resolvedAt ? (
+              <div>
+                <dt>Resolved</dt>
+                <dd>{new Date(detail.resolvedAt).toLocaleString()}</dd>
+              </div>
+            ) : null}
+          </dl>
           {detail.state === 'answered' ? (
             detail.evidence.length ? (
               <LlmEvidence
@@ -281,7 +295,8 @@ export function EvidenceMatrixSection({ projectId }: { projectId: string }) {
       <h2>Evidence Matrix</h2>
       <p className="muted">
         Every included publication against every extraction and quality field, with the
-        authoritative value and, where traceable, the source quotation behind it.
+        authoritative value and, where traceable, the source quotation behind it. A value
+        marked <span aria-hidden="true">✦</span> has a traceable source quotation — click it to view the evidence.
       </p>
       {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
       <div className="toolbar">
@@ -385,7 +400,9 @@ export function EvidenceMatrixSection({ projectId }: { projectId: string }) {
                             {state === 'pending_reconciliation'
                               ? 'Pending reconciliation'
                               : formatCellValue(cell?.value, column.fieldType)}
-                            {cell?.hasEvidence ? <span aria-hidden="true"> ✦</span> : null}
+                            {cell?.hasEvidence ? (
+                              <span aria-hidden="true" title="Has a traceable source quotation"> ✦</span>
+                            ) : null}
                           </button>
                         ) : (
                           '—'

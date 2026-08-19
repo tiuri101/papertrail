@@ -5,6 +5,7 @@ import { afterEach } from 'vitest'
 import { setCsrfToken } from '../features/auth/session'
 
 window.scrollTo = () => {}
+Element.prototype.scrollIntoView = Element.prototype.scrollIntoView ?? (() => {})
 
 // jsdom has no ResizeObserver; recharts' ResponsiveContainer requires one.
 class ResizeObserverStub {

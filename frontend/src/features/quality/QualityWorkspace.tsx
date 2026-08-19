@@ -91,7 +91,7 @@ export function QualityWorkspace({
       setLoadingNext(false)
     },
   })
-  // See ScreeningPage.tsx for why loading/error state is tracked locally
+  // See TitleAbstractScreeningPage.tsx for why loading/error state is tracked locally
   // instead of read off next.isPending/next.error.
   const fetchNext = () => {
     setLoadingNext(true)
@@ -170,6 +170,12 @@ export function QualityWorkspace({
     (field) => field.required && !isAnswered(answers[field.stableKey]),
   ) ?? false
 
+  const titleRef = useRef<HTMLHeadingElement>(null)
+  const visibleItemId = item?.id
+  useEffect(() => {
+    if (variant !== 'inline' && visibleItemId) titleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [variant, visibleItemId])
+
   if (!item) {
     return (
       <>
@@ -193,7 +199,7 @@ export function QualityWorkspace({
     <>
       {variant !== 'inline' ? (
         <>
-          <h2>{item.publication.title}</h2>
+          <h2 ref={titleRef} className="publication-title">{item.publication.title}</h2>
           <p className="muted">
             {item.publication.authors ?? 'Unknown authors'}
             {item.publication.publicationYear ? ` (${item.publication.publicationYear})` : ''}
