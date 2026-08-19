@@ -1,6 +1,6 @@
 import { useMutation } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { DoiPill } from '../../components/DoiPill'
@@ -36,6 +36,7 @@ const retrievalStatusOptions = Object.keys(statusLabels)
 
 export function FullTextPage() {
   const { projectId = '' } = useParams()
+  const navigate = useNavigate()
   const highlightKeywords = useHighlightKeywords(projectId)
   const queue = useScreeningQueue(projectId, 'full_text')
   const retrievalQueue = useRetrievalQueue(projectId)
@@ -155,7 +156,12 @@ export function FullTextPage() {
           skipError={retrievalQueue.skip.error?.message ?? null}
         />
       ) : (
-        <p className="muted">No full-text work is currently available for you.</p>
+        <>
+          <p className="muted">No full-text work is currently available for you.</p>
+          <button type="button" className="button-secondary" onClick={() => navigate(`/projects/${projectId}`)}>
+            Back to project
+          </button>
+        </>
       )}
     </main>
   )

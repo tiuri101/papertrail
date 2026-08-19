@@ -4,14 +4,37 @@ import { describe, expect, it } from 'vitest'
 import { HelpPage } from '../HelpPage'
 import { renderWithProviders } from '../../../test/render'
 
+function goToTab(name: string) {
+  fireEvent.click(screen.getByRole('tab', { name }))
+}
+
 describe('HelpPage', () => {
-  it('describes the app and both roles for every project stage', () => {
+  it('presents Getting Started, Roles & Responsibilities, AI & Automation, and Good to Know as tabs', () => {
     renderWithProviders(<HelpPage />)
 
     expect(screen.getByRole('heading', { name: 'Help' })).toBeInTheDocument()
+    const tabs = screen.getAllByRole('tab')
+    expect(tabs.map((tab) => tab.textContent)).toEqual([
+      'Getting Started',
+      'Roles & Responsibilities',
+      'AI & Automation',
+      'Good to Know',
+    ])
+    expect(screen.getByRole('tab', { name: 'Getting Started' })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  it('shows the overview and review stages under Getting Started by default', () => {
+    renderWithProviders(<HelpPage />)
+
     expect(screen.getByRole('button', { name: 'What Papertrail Does' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'The Review Stages' })).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'LLM Assistance' })).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'As a Reviewer' })).not.toBeInTheDocument()
+  })
+
+  it('describes both roles for every project stage under Roles & Responsibilities', () => {
+    renderWithProviders(<HelpPage />)
+    goToTab('Roles & Responsibilities')
+
     expect(screen.getByRole('button', { name: 'As a Project Owner' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'As a Reviewer' })).toBeInTheDocument()
 
@@ -34,6 +57,7 @@ describe('HelpPage', () => {
 
   it('explains mid-project reviewer allocation under Good to Know', () => {
     renderWithProviders(<HelpPage />)
+    goToTab('Good to Know')
 
     const card = screen.getByRole('heading', { name: 'New reviewers share the remaining work' }).closest('li')
     expect(document.querySelector('#section-help-good-to-know')).toContainElement(card)
@@ -44,6 +68,7 @@ describe('HelpPage', () => {
 
   it('contrasts resetting and deleting a project after the owner stage guidance', () => {
     renderWithProviders(<HelpPage />)
+    goToTab('Roles & Responsibilities')
 
     const ownerTimeline = screen.getByRole('list', { name: 'Project owner responsibilities by stage' })
     const dangerGuide = screen.getByRole('complementary', { name: 'Reset is a fresh start, delete is permanent removal' })
@@ -64,6 +89,7 @@ describe('HelpPage', () => {
 
   it('explains LLM support by stage and how project prompts are configured', () => {
     renderWithProviders(<HelpPage />)
+    goToTab('AI & Automation')
 
     const timeline = screen.getByRole('list', { name: 'LLM assistance by review stage' })
     expect(timeline).toHaveClass('help-stage-timeline--centered')
@@ -92,17 +118,17 @@ describe('HelpPage', () => {
     )
   })
 
-  it('places the Browser Extension section between LLM Assistance and Good to Know', () => {
+  it('places the Browser Extension section right after LLM Assistance under AI & Automation', () => {
     renderWithProviders(<HelpPage />)
+    goToTab('AI & Automation')
 
     const llmSection = document.querySelector('#section-help-llm')
-    const extensionSection = document.querySelector('#section-help-extension')
     expect(llmSection?.nextElementSibling).toHaveAttribute('id', 'section-help-extension')
-    expect(extensionSection?.nextElementSibling).toHaveAttribute('id', 'section-help-good-to-know')
   })
 
   it('describes the browser extension: what it does, how it works, and requirements', () => {
     renderWithProviders(<HelpPage />)
+    goToTab('AI & Automation')
 
     expect(screen.getByRole('button', { name: 'Browser Extension' })).toBeInTheDocument()
 
@@ -124,6 +150,7 @@ describe('HelpPage', () => {
 
   it('presents practical guidance as a scannable set of cards', () => {
     renderWithProviders(<HelpPage />)
+    goToTab('Good to Know')
 
     const guidance = screen.getByRole('list', { name: 'Helpful things to know' })
     expect(guidance.querySelectorAll('.help-good-to-know__card')).toHaveLength(12)
@@ -158,6 +185,7 @@ describe('HelpPage', () => {
 
   it('styles reviewer and project owner guidance as matching stage timelines', () => {
     renderWithProviders(<HelpPage />)
+    goToTab('Roles & Responsibilities')
 
     for (const label of ['Reviewer responsibilities by stage', 'Project owner responsibilities by stage']) {
       const timeline = screen.getByRole('list', { name: label })

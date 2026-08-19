@@ -51,7 +51,7 @@ import { QualityPage } from '../features/quality/QualityPage'
 import { ReportingPage } from '../features/reporting/ReportingPage'
 import { FinalResultsPage } from '../features/results/FinalResultsPage'
 import { MyDecisionsPage } from '../features/screening/MyDecisionsPage'
-import { ScreeningPage } from '../features/screening/ScreeningPage'
+import { TitleAbstractScreeningPage } from '../features/screening/TitleAbstractScreeningPage'
 import { UsersPage } from '../features/users/UsersPage'
 import { useProjectManageState } from '../hooks/useCanManageProject'
 
@@ -164,7 +164,7 @@ function ProjectAdministrationPage() {
       <p className="muted">
         Configure this project's details, membership, workflow rules, and AI assistance.
       </p>
-      <div className="admin-tabs" role="tablist" aria-label="Project administration sections">
+      <div className="page-tabs" role="tablist" aria-label="Project administration sections">
         {adminTabs.map((tab) => (
           <button
             key={tab.id}
@@ -174,8 +174,8 @@ function ProjectAdministrationPage() {
             aria-selected={tab.id === activeTab}
             aria-controls={`admin-tabpanel-${tab.id}`}
             className={
-              `admin-tab${tab.id === 'danger' ? ' admin-tab--danger' : ''}`
-              + (tab.id === activeTab ? ' admin-tab--active' : '')
+              `page-tab${tab.id === 'danger' ? ' page-tab--danger' : ''}`
+              + (tab.id === activeTab ? ' page-tab--active' : '')
             }
             onClick={() => setActiveTab(tab.id)}
           >
@@ -186,7 +186,7 @@ function ProjectAdministrationPage() {
       </div>
       <div
         id={`admin-tabpanel-${activeTab}`}
-        className="admin-tabpanel"
+        className="page-tabpanel"
         role="tabpanel"
         aria-labelledby={`admin-tab-${activeTab}`}
       >
@@ -297,7 +297,7 @@ export function App() {
             <Route path="/projects/:projectId/publications" element={<PublicationsPage />} />
             <Route path="/projects/:projectId/publications/add" element={<AddPublicationPage />} />
             <Route path="/projects/:projectId/duplicates" element={<DuplicateReviewPage />} />
-            <Route path="/projects/:projectId/screening/:stage" element={<ScreeningPage />} />
+            <Route path="/projects/:projectId/screening/title_abstract" element={<TitleAbstractScreeningPage />} />
             <Route path="/projects/:projectId/screening/:stage/my-decisions" element={<MyDecisionsPage />} />
             <Route path="/projects/:projectId/conflicts/:stage" element={<ConflictResolutionPage />} />
             <Route path="/projects/:projectId/full-text" element={<FullTextPage />} />

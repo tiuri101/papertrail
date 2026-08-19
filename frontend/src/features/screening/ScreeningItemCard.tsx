@@ -1,3 +1,5 @@
+import { useEffect, useRef } from 'react'
+
 import { DoiPill } from '../../components/DoiPill'
 import { Button } from '../../components/Button'
 import { HighlightedText } from '../../components/HighlightedText'
@@ -21,6 +23,11 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
     queue.projectId,
     isFullTextStage ? (item?.publication.id ?? '') : '',
   )
+  const titleRef = useRef<HTMLHeadingElement>(null)
+  const visibleItemId = item?.id
+  useEffect(() => {
+    if (visibleItemId) titleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [visibleItemId])
 
   useScreeningDecisionHotkeys({
     enabled: Boolean(item),
@@ -41,7 +48,7 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
 
   return (
     <article className="card">
-      <h2><HighlightedText text={item.publication.title} keywords={highlightKeywords} /></h2>
+      <h2 ref={titleRef} className="publication-title"><HighlightedText text={item.publication.title} keywords={highlightKeywords} /></h2>
       <p>{item.publication.authors ?? 'Unknown authors'}</p>
       {item.publication.venue ? <p className="muted">{item.publication.venue}</p> : null}
       {isFullTextStage ? (
@@ -84,6 +91,7 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
         humanDecision={awaitingConfirmation ? outcome : undefined}
         criteriaAnswers={answers}
         criteria={item.criteria}
+        setCriteriaAnswers={setAnswers}
       />
       {!criteriaComplete ? (
         <p className="muted">Answer every criterion before {awaitingConfirmation ? 'confirming' : 'submitting'}.</p>

@@ -155,6 +155,80 @@ def test_revision_invalidates_existing_consensus(db) -> None:
     assert final.invalidated_at is not None
 
 
+def test_inclusion_with_preexisting_pdf_creates_full_text_work_item(db) -> None:
+    """A publication that already has a PDF attached (e.g. from bulk import)
+    when its title/abstract decision resolves to INCLUDE must get a
+    full-text screening work item immediately, exactly like a publication
+    whose PDF is retrieved later via set_retrieval_status."""
+    admin = create_user(db, "fi-admin", "Admin", "secret-password", is_admin=True)
+    reviewer = create_user(db, "fi-reviewer", "Reviewer", "password-1")
+    project = Project(
+        name="Bulk import review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.TITLE_ABSTRACT,
+    )
+    db.add(project)
+    db.flush()
+    db.add(
+        ProjectMembership(
+            project_id=project.id,
+            user_id=reviewer.id,
+            can_full_text_screen=True,
+        )
+    )
+    db.add(
+        ScreeningConfig(
+            project_id=project.id,
+            stage=ScreeningStage.FULL_TEXT,
+            required_reviewers=1,
+            allocation_mode=AllocationMode.CLAIM,
+        )
+    )
+    publication = Publication(project_id=project.id, title="Bulk-imported paper")
+    db.add(publication)
+    db.flush()
+    document = PublicationDocument(
+        project_id=project.id,
+        publication_id=publication.id,
+        original_filename="bulk.pdf",
+        storage_key=f"projects/{project.id}/bulk.pdf",
+        mime_type="application/pdf",
+        file_size=100,
+        sha256="b" * 64,
+        uploaded_by_user_id=admin.id,
+    )
+    db.add(document)
+    db.flush()
+
+    record_final_decision(
+        db,
+        publication.id,
+        ScreeningStage.TITLE_ABSTRACT,
+        "include",
+        "agreement",
+        None,
+        None,
+    )
+    db.commit()
+
+    retrieval = db.scalar(
+        select(FullTextRetrieval).where(
+            FullTextRetrieval.publication_id == publication.id
+        )
+    )
+    assert retrieval is not None
+    assert retrieval.status == RetrievalStatus.AVAILABLE
+
+    item = db.scalar(
+        select(ScreeningWorkItem).where(
+            ScreeningWorkItem.publication_id == publication.id,
+            ScreeningWorkItem.stage == ScreeningStage.FULL_TEXT,
+        )
+    )
+    assert item is not None
+
+
 def test_late_title_abstract_inclusion_backfills_review_and_background_work(
     db, monkeypatch
 ) -> None:

@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { ScreeningPage } from '../ScreeningPage'
+import { TitleAbstractScreeningPage } from '../TitleAbstractScreeningPage'
 import { jsonResponse, mockFetch } from '../../../test/http'
 import { renderWithProviders } from '../../../test/render'
 import { lastScreeningKey, saveLastCompletedItem } from '../../../lib/lastCompletedItem'
@@ -23,16 +23,16 @@ const workItem = {
   llmAssistanceEnabled: true,
 }
 
-function renderScreening(handler: Parameters<typeof mockFetch>[0], stage = 'title_abstract') {
+function renderScreening(handler: Parameters<typeof mockFetch>[0]) {
   const fetchMock = mockFetch(handler)
-  renderWithProviders(<ScreeningPage />, {
-    route: `/projects/project-1/screening/${stage}`,
-    path: '/projects/:projectId/screening/:stage',
+  renderWithProviders(<TitleAbstractScreeningPage />, {
+    route: '/projects/project-1/screening/title_abstract',
+    path: '/projects/:projectId/screening/title_abstract',
   })
   return fetchMock
 }
 
-describe('ScreeningPage', () => {
+describe('TitleAbstractScreeningPage', () => {
   beforeEach(() => {
     localStorage.clear()
   })
@@ -225,12 +225,6 @@ describe('ScreeningPage', () => {
     expect(screen.getByRole('button', { name: 'Back to project' })).toBeInTheDocument()
   })
 
-  it('reports that the full-text queue has no available work', async () => {
-    renderScreening(async (input) => String(input).endsWith('/next') ? jsonResponse(null) : jsonResponse({}), 'full_text')
-    expect(await screen.findByText('You have completed all of your assigned screening work.')).toBeInTheDocument()
-    expect(screen.queryByText('Loading the next publication…')).not.toBeInTheDocument()
-  })
-
   it('reveals assistance after a decision and continues when the reviewer is ready', async () => {
     let submitted = false
     let decisionPosts = 0
@@ -407,9 +401,9 @@ describe('ScreeningPage', () => {
       if (path.endsWith('/release') && init?.method === 'POST') return jsonResponse({ status: 'released' })
       return jsonResponse({})
     })
-    const { unmount } = renderWithProviders(<ScreeningPage />, {
+    const { unmount } = renderWithProviders(<TitleAbstractScreeningPage />, {
       route: '/projects/project-1/screening/title_abstract',
-      path: '/projects/:projectId/screening/:stage',
+      path: '/projects/:projectId/screening/title_abstract',
     })
 
     await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
@@ -420,64 +414,6 @@ describe('ScreeningPage', () => {
         String(input) === '/api/v1/projects/project-1/screening/work-items/work-1/release'
         && init?.method === 'POST')).toBe(true)
     })
-  })
-
-  it('submits an exclude decision at the full-text stage without requiring a reason', async () => {
-    const fetchMock = renderScreening(async (input, init) => {
-      const path = String(input)
-      if (path.endsWith('/next')) return jsonResponse(workItem)
-      if (path.endsWith('/decision') && init?.method === 'POST') return jsonResponse({ id: 'decision-1' }, 201)
-      return jsonResponse({})
-    }, 'full_text')
-
-    expect(screen.getByRole('heading', { name: 'Full-Text Screening' })).toBeInTheDocument()
-    await screen.findByText(workItem.publication.abstract)
-    fireEvent.click(screen.getByRole('radio', { name: 'Exclude' }))
-
-    expect(screen.getByRole('button', { name: 'Submit Decision' })).toBeEnabled()
-    expect(screen.queryByLabelText('Exclusion reason')).not.toBeInTheDocument()
-
-    fireEvent.change(screen.getByLabelText('Notes'), { target: { value: 'Outside the review scope.' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Submit Decision' }))
-
-    await waitFor(() => expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith('/decision'))).toBe(true))
-    const decisionCall = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/decision'))
-    expect(JSON.parse(String(decisionCall?.[1]?.body))).toEqual({
-      outcome: 'exclude',
-      criteriaAnswers: { 'criterion-1': true, 'criterion-2': false },
-      notes: 'Outside the review scope.',
-    })
-  })
-
-  it('advances to the next full-text item after a single Submit click, without a confirmation step', async () => {
-    let decisionPosts = 0
-    const fetchMock = renderScreening(async (input, init) => {
-      const path = String(input)
-      if (path.endsWith('/next') && init?.method === 'POST') return jsonResponse(workItem)
-      if (path.endsWith('/decision') && init?.method === 'POST') {
-        decisionPosts += 1
-        return jsonResponse({ id: 'decision-1' }, 201)
-      }
-      if (path.endsWith('/llm-full-text')) {
-        return jsonResponse({
-          state: 'ready', hidden: false, stale: false,
-          suggestedDecision: 'include', confidence: 'high',
-          reasoningSummary: 'The paper meets the criteria.', criteria: [],
-        })
-      }
-      return jsonResponse({})
-    }, 'full_text')
-
-    await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
-    expect(await screen.findByText(/LLM suggestion:/)).toBeInTheDocument()
-
-    fireEvent.click(screen.getByRole('button', { name: 'Submit Decision' }))
-
-    await waitFor(() => {
-      const nextCalls = fetchMock.mock.calls.filter(([input, init]) => String(input).endsWith('/next') && init?.method === 'POST')
-      expect(nextCalls).toHaveLength(2)
-    })
-    expect(decisionPosts).toBe(1)
   })
 
   it('advances to the next title/abstract item after a single Submit click when LLM assistance is off', async () => {
@@ -688,19 +624,4 @@ describe('ScreeningPage', () => {
     })
   })
 
-  it('offers a "Go back" affordance in full-text screening too, scoped to its own last-completed item', async () => {
-    saveLastCompletedItem(lastScreeningKey('project-1', 'full_text'), { id: 'work-1', title: previousWorkItem.publication.title })
-    const fetchMock = renderScreening(async (input, init) => {
-      const path = String(input)
-      if (path.endsWith('/next') && init?.method === 'POST') return jsonResponse(null)
-      if (path.endsWith('/work-items/work-1') && !init?.method) return jsonResponse(previousWorkItem)
-      return jsonResponse({})
-    }, 'full_text')
-
-    const button = await screen.findByRole('button', { name: /Go back to/ })
-    fireEvent.click(button)
-
-    await screen.findByText('You went back to the previous paper. Changes here update your existing decision.')
-    expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith('/screening/work-items/work-1'))).toBe(true)
-  })
 })

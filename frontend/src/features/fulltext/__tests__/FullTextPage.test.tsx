@@ -134,6 +134,7 @@ describe('FullTextPage', () => {
 
     expect(await screen.findByText('No full-text work is currently available for you.')).toBeInTheDocument()
     expect(screen.getByText('Retrieval status recorded for 2 of 2 publications')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Back to project' })).toBeInTheDocument()
   })
 
   it('prioritizes an already-claimed screening item over a pending retrieval action', async () => {
@@ -142,6 +143,39 @@ describe('FullTextPage', () => {
 
     expect(await screen.findByRole('button', { name: 'Submit Decision' })).toBeInTheDocument()
     expect(screen.queryByLabelText('Retrieval status for Urban Data in VR')).not.toBeInTheDocument()
+  })
+
+  it('submits an exclude decision and advances to the next item without a confirmation step', async () => {
+    const item = {
+      ...workItem,
+      criteria: [
+        ...criteria,
+        { id: 'criterion-2', kind: 'exclusion', text: 'Is an editorial' },
+      ],
+    }
+    const fetchMock = render({
+      fulltextNext: [null],
+      progress: { total: 0, addressed: 0 },
+      screeningNext: [item, null],
+    })
+
+    await screen.findByText(workItem.publication.abstract)
+    fireEvent.click(screen.getByRole('radio', { name: 'Exclude' }))
+    fireEvent.change(screen.getByLabelText('Notes'), { target: { value: 'Outside the review scope.' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Submit Decision' }))
+
+    await waitFor(() => expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith('/decision'))).toBe(true))
+    const decisionCall = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/decision'))
+    expect(JSON.parse(String(decisionCall?.[1]?.body))).toEqual({
+      outcome: 'exclude',
+      criteriaAnswers: { 'criterion-1': true, 'criterion-2': false },
+      notes: 'Outside the review scope.',
+    })
+    expect(screen.queryByRole('button', { name: 'Confirm Decision' })).not.toBeInTheDocument()
+    await waitFor(() => {
+      const screeningNextCalls = fetchMock.mock.calls.filter(([input, init]) => String(input).endsWith('/screening/full_text/next') && init?.method === 'POST')
+      expect(screeningNextCalls).toHaveLength(2)
+    })
   })
 
   it('hands an available report to screening instead of deciding during retrieval', async () => {

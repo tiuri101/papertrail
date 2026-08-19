@@ -102,6 +102,7 @@ export function ScreeningLlmPanel({
   humanDecision,
   criteriaAnswers,
   criteria = [],
+  setCriteriaAnswers,
 }: {
   projectId: string
   publicationId: string
@@ -110,6 +111,7 @@ export function ScreeningLlmPanel({
   humanDecision?: string
   criteriaAnswers?: Record<string, CriterionAnswer>
   criteria?: ScreeningCriterion[]
+  setCriteriaAnswers?: (updater: (current: Record<string, CriterionAnswer>) => Record<string, CriterionAnswer>) => void
 }) {
   const numbers = criterionNumbers(criteria)
   const orderIndex = criterionOrderIndex(criteria)
@@ -274,6 +276,21 @@ export function ScreeningLlmPanel({
               ) : null}
             </summary>
             <p>{criterion.explanation}</p>
+            {comparison === 'mismatch' && setCriteriaAnswers && criterion.criterionId ? (
+              <div className="toolbar">
+                <button
+                  type="button"
+                  className="button-secondary"
+                  onClick={() => {
+                    const criterionId = criterion.criterionId!
+                    const met = criterion.assessment === 'met'
+                    setCriteriaAnswers((current) => ({ ...current, [criterionId]: met }))
+                  }}
+                >
+                  Apply suggestion
+                </button>
+              </div>
+            ) : null}
             {stage === 'full_text' ? (
               <LlmEvidence
                 evidence={criterion.evidence}

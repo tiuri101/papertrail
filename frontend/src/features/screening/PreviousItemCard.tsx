@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { DoiPill } from '../../components/DoiPill'
 import { HighlightedText } from '../../components/HighlightedText'
@@ -47,11 +47,15 @@ export function PreviousItemCard({
     },
   })
   const submitHotkey = formatHotkey(loadScreeningHotkeys().submit)
+  const titleRef = useRef<HTMLHeadingElement>(null)
+  useEffect(() => {
+    titleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [previousItem.id])
 
   return (
     <article className="card">
       <p className="muted">You went back to the previous paper. Changes here update your existing decision.</p>
-      <h2><HighlightedText text={previousItem.publication.title} keywords={highlightKeywords} /></h2>
+      <h2 ref={titleRef} className="publication-title"><HighlightedText text={previousItem.publication.title} keywords={highlightKeywords} /></h2>
       <p>{previousItem.publication.authors ?? 'Unknown authors'}</p>
       {previousItem.publication.venue ? <p className="muted">{previousItem.publication.venue}</p> : null}
       <p>
@@ -84,6 +88,7 @@ export function PreviousItemCard({
             humanDecision={outcome}
             criteriaAnswers={answers}
             criteria={previousItem.criteria}
+            setCriteriaAnswers={setAnswers}
           />
           {!criteriaComplete ? <p className="muted">Answer every criterion before saving.</p> : null}
           {save.error ? <p className="error" role="alert">{save.error.message}</p> : null}

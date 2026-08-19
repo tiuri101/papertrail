@@ -1,4 +1,3 @@
-import { useEffect } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
@@ -7,27 +6,21 @@ import { PreviousItemCard } from './PreviousItemCard'
 import { ScreeningItemCard } from './ScreeningItemCard'
 import { useScreeningQueue } from './useScreeningQueue'
 
-export function ScreeningPage() {
-  const { projectId = '', stage = 'title_abstract' } = useParams()
+const STAGE = 'title_abstract'
+
+// The counterpart page for the full-text stage is FullTextPage, which
+// combines PDF retrieval triage with full-text screening rather than
+// reusing this page — see FullTextPage.tsx.
+export function TitleAbstractScreeningPage() {
+  const { projectId = '' } = useParams()
   const navigate = useNavigate()
   const highlightKeywords = useHighlightKeywords(projectId)
-  const queue = useScreeningQueue(projectId, stage)
-
-  const visibleItemId = queue.previousItem?.id ?? queue.item?.id
-  useEffect(() => {
-    if (visibleItemId) window.scrollTo({ top: 0, behavior: 'smooth' })
-  }, [visibleItemId])
+  const queue = useScreeningQueue(projectId, STAGE)
 
   return (
     <main className="page">
-      <StageEyebrow
-        stage={stage === 'full_text' ? 'full_text_screening' : 'title_abstract_screening'}
-      />
-      <h1>
-        {stage === 'full_text'
-          ? 'Full-Text Screening'
-          : 'Title and Abstract Screening'}
-      </h1>
+      <StageEyebrow stage="title_abstract_screening" />
+      <h1>Title and Abstract Screening</h1>
       {queue.progress ? (
         <p className="muted">
           {queue.progress.claimMode
@@ -35,7 +28,7 @@ export function ScreeningPage() {
             : `${queue.progress.completed} of ${queue.progress.assigned} assigned papers screened`}
         </p>
       ) : null}
-      <p><Link to={`/projects/${projectId}/screening/${stage}/my-decisions`}>Review or change my past decisions</Link></p>
+      <p><Link to={`/projects/${projectId}/screening/${STAGE}/my-decisions`}>Review or change my past decisions</Link></p>
       {!queue.previousItem && queue.lastCompletedItem ? (
         <div className="toolbar">
           <button
@@ -52,7 +45,7 @@ export function ScreeningPage() {
       {queue.previousItem ? (
         <PreviousItemCard
           projectId={projectId}
-          stage={stage}
+          stage={STAGE}
           previousItem={queue.previousItem}
           highlightKeywords={highlightKeywords}
           onClose={queue.closePrevious}
