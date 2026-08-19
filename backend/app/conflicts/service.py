@@ -167,18 +167,32 @@ def _queue_retrieval_on_inclusion(
     has a FullTextRetrieval row and, if nobody has already attached a PDF, an
     automatic browser retrieval job -- independent of whether the project as
     a whole has reached the full-text stage yet (that still only happens
-    once every title/abstract decision is resolved)."""
+    once every title/abstract decision is resolved). If a PDF was already
+    attached (e.g. bulk import), the retrieval is seeded straight to
+    AVAILABLE -- that publication still needs its full-text screening work
+    item created now, the same as when a retrieval later turns AVAILABLE via
+    set_retrieval_status."""
     from app.fulltext.models import RetrievalStatus
     from app.fulltext.service import ensure_full_text_retrieval
     from app.pdf_acquisition.service import auto_queue_publication_for_retrieval
+    from app.screening.service import create_screening_work_items
 
     project = db.get(Project, publication.project_id)
     if project is None:
         return
     retrieval = ensure_full_text_retrieval(db, project, publication.id)
-    if retrieval is not None and retrieval.status == RetrievalStatus.NOT_YET_SOUGHT:
+    if retrieval is None:
+        return
+    if retrieval.status == RetrievalStatus.NOT_YET_SOUGHT:
         auto_queue_publication_for_retrieval(
             db, project, publication.id, preferred_user_id=resolved_by_id
+        )
+    elif retrieval.status == RetrievalStatus.AVAILABLE:
+        create_screening_work_items(
+            db,
+            project,
+            ScreeningStage.FULL_TEXT,
+            publication_ids=[publication.id],
         )
 
 

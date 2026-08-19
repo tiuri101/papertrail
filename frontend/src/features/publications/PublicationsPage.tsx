@@ -1,15 +1,15 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useState } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Link, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
-import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { HighlightedText } from '../../components/HighlightedText'
 import {
   IconCheckCircle,
   IconClock,
   IconDownload,
+  IconFolder,
   IconPlus,
   IconSparkle,
   IconTrash,
@@ -28,6 +28,7 @@ import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 import { BackgroundJob, findJob, hasActiveJob, isJobActive } from '../jobs/jobStatus'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { BrowserPdfRetrievalPanel } from '../fulltext/BrowserPdfRetrievalPanel'
+import { AddPublicationForm } from './AddPublicationPage'
 import { BulkPdfUploadPanel } from './BulkPdfUploadPanel'
 import { PublicationReviewDetails } from './PublicationReviewDetails'
 import { PublicationFieldInputs } from './publicationFields'
@@ -457,13 +458,28 @@ function MetadataConflictsPanel({ projectId }: { projectId: string }) {
   )
 }
 
+type PublicationsTabId = 'publications' | 'add' | 'metadata' | 'pdf_retrieval'
+
+interface PublicationsTab {
+  id: PublicationsTabId
+  label: string
+  icon: ReactNode
+}
+
+const publicationsTabs: PublicationsTab[] = [
+  { id: 'publications', label: 'Publications', icon: <IconFolder /> },
+  { id: 'add', label: 'Add Publication', icon: <IconPlus /> },
+  { id: 'metadata', label: 'Metadata Tools', icon: <IconSparkle /> },
+  { id: 'pdf_retrieval', label: 'PDF Retrieval', icon: <IconUpload /> },
+]
+
 export function PublicationsPage() {
   const { projectId = '' } = useParams()
-  const navigate = useNavigate()
   const queryClient = useQueryClient()
   const canManage = useCanManagePublications(projectId)
   const canOverride = useCanManageProject(projectId)
   const highlightKeywords = useHighlightKeywords(projectId)
+  const [activeTab, setActiveTab] = useState<PublicationsTabId>('publications')
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [pendingExportJobId, setPendingExportJobId] = useState<string | null>(null)
   const [titleAbstractFilter, setTitleAbstractFilter] = useState('')
@@ -581,6 +597,8 @@ export function PublicationsPage() {
     return next
   })
 
+  const visibleTabs = publicationsTabs.filter((tab) => tab.id !== 'metadata' || canManage)
+
   return (
     <main className="page">
       <AdministrationEyebrow />
@@ -588,178 +606,205 @@ export function PublicationsPage() {
       <p className="muted">
         Want to import a database export? Go to <Link to={`/projects/${projectId}/imports`}>Searches and Imports</Link>.
       </p>
-      {query.data && (search || titleAbstractFilter || fullTextFilter || pdfStatusFilter) ? (
-        <p className="muted">
-          {filteredPublications.length} of {query.data.length} publication{query.data.length === 1 ? '' : 's'} match your filters
-        </p>
-      ) : query.data ? (
-        <p className="muted">{query.data.length} publication{query.data.length === 1 ? '' : 's'} in this project</p>
-      ) : null}
-      <div className="toolbar publications-page__actions">
-        <button
-          type="button"
-          onClick={() => navigate(`/projects/${projectId}/publications/add`)}
-        >
-          <IconPlus />
-          Add a Publication
-        </button>
-      </div>
-      {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
-      {canManage ? (
-        <CollapsibleSection
-          id="section-metadata-enrichment"
-          title="Metadata Enrichment"
-          defaultExpanded={false}
-        >
-          <p className="muted">
-            Fill in missing metadata from Crossref and Semantic Scholar for one record, a selection, or every record missing metadata.
-            <InfoTooltip text="Crossref and Semantic Scholar are free external scholarly databases. This looks up each publication there by DOI or title and fills in fields like abstract, venue, or citation count that are missing here — it doesn't overwrite fields you've already filled in." />
-          </p>
-          {bulkEnrich.error ? <p className="error" role="alert">{bulkEnrich.error.message}</p> : null}
-          {bulkEnrich.isSuccess ? <p>Enrichment queued for {bulkEnrich.data.jobIds.length} publication{bulkEnrich.data.jobIds.length === 1 ? '' : 's'}.</p> : null}
-          <div className="toolbar">
-            <button
-              type="button"
-              className="button-secondary button-md"
-              disabled={bulkEnrich.isPending || selectedIds.size === 0}
-              onClick={() => bulkEnrich.mutate({ publicationIds: Array.from(selectedIds), missingOnly: false })}
-            >
-              <IconSparkle />
-              Enrich Selected ({selectedIds.size})
-            </button>
-            <button
-              type="button"
-              className="button-secondary button-md"
-              disabled={bulkEnrich.isPending}
-              onClick={() => bulkEnrich.mutate({ missingOnly: true })}
-            >
-              <IconSparkle />
-              Enrich All Records with Missing Metadata
-            </button>
-          </div>
-        </CollapsibleSection>
-      ) : null}
-      <BrowserPdfRetrievalPanel projectId={projectId} />
-      {canManage ? <MetadataConflictsPanel projectId={projectId} /> : null}
-      {canManage ? <BulkPdfUploadPanel projectId={projectId} /> : null}
-      {query.data ? (
-        <div className="toolbar publications-page__filters">
-          <label className="paper-search-field">
-            Search publications
-            <input
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Title, author, DOI, keyword…"
-            />
-          </label>
-          <label>
-            Title/Abstract stage
-            <select value={titleAbstractFilter} onChange={(event) => setTitleAbstractFilter(event.target.value)}>
-              {SCREENING_FILTER_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            Full-text stage
-            <select value={fullTextFilter} onChange={(event) => setFullTextFilter(event.target.value)}>
-              {SCREENING_FILTER_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
-          </label>
-          <label>
-            PDF status
-            <select value={pdfStatusFilter} onChange={(event) => setPdfStatusFilter(event.target.value)}>
-              {PDF_STATUS_FILTER_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>{option.label}</option>
-              ))}
-            </select>
-          </label>
+      <div className="page-tabs" role="tablist" aria-label="Publications sections">
+        {visibleTabs.map((tab) => (
           <button
+            key={tab.id}
             type="button"
-            className={`publications-page__pdf-indicator${missingPdfCount ? ' publications-page__pdf-indicator--missing' : ''}${pdfStatusFilter === 'unavailable' ? ' publications-page__pdf-indicator--active' : ''}`}
-            aria-pressed={pdfStatusFilter === 'unavailable'}
-            disabled={missingPdfCount === 0}
-            onClick={() => setPdfStatusFilter((current) => (
-              current === 'unavailable' ? '' : 'unavailable'
-            ))}
+            role="tab"
+            id={`publications-tab-${tab.id}`}
+            aria-selected={tab.id === activeTab}
+            aria-controls={`publications-tabpanel-${tab.id}`}
+            className={`page-tab${tab.id === activeTab ? ' page-tab--active' : ''}`}
+            onClick={() => setActiveTab(tab.id)}
           >
-            <IconUpload />
-            {missingPdfCount
-              ? `${missingPdfCount} paper${missingPdfCount === 1 ? '' : 's'} missing a PDF`
-              : 'All papers have a PDF'}
+            {tab.icon}
+            {tab.label}
           </button>
-        </div>
-      ) : null}
-      {canManage && filteredPublications.length > 0 ? (
-        <div className="toolbar publication-list__bulk-actions">
-          <label>
-            <input
-              type="checkbox"
-              checked={allFilteredSelected}
-              onChange={toggleSelectAll}
-            />
-            {' '}Select All ({filteredPublications.length})
-          </label>
-          {selectedIds.size > 0 ? (
-            <>
-              <span className="muted">{selectedIds.size} selected</span>
-              <button
-                type="button"
-                className="button-secondary button-sm"
-                disabled={bulkExport.isPending || (pendingExportJob ? isJobActive(pendingExportJob.status) : false)}
-                onClick={() => bulkExport.mutate(Array.from(selectedIds))}
-              >
-                <IconDownload />
-                Export Selected ({selectedIds.size})
-              </button>
-              <ConfirmButton
-                className="button-sm"
-                label={`Delete Selected (${selectedIds.size})`}
-                variant="danger"
-                warning={`Delete ${selectedIds.size} selected publication${selectedIds.size === 1 ? '' : 's'}? This cannot be undone.`}
-                onConfirm={() => bulkDelete.mutate(Array.from(selectedIds))}
-                disabled={bulkDelete.isPending}
-                icon={<IconTrash />}
-              />
-            </>
-          ) : null}
-        </div>
-      ) : null}
-      {bulkDelete.error ? <p className="error" role="alert">{bulkDelete.error.message}</p> : null}
-      {bulkExport.error ? <p className="error" role="alert">{bulkExport.error.message}</p> : null}
-      {pendingExportJob && isJobActive(pendingExportJob.status) ? (
-        <p className="muted" role="status">Preparing export bundle (metadata.bib + PDFs)…</p>
-      ) : null}
-      {pendingExportJob && pendingExportJob.status === 'failed' ? (
-        <p className="error" role="alert">
-          Export failed{pendingExportJob.errorMessage ? `: ${pendingExportJob.errorMessage}` : ''}
-        </p>
-      ) : null}
-      {pendingExportJob && pendingExportJob.status === 'completed' && typeof exportArtifactId === 'string' ? (
-        <p>
-          Export ready:{' '}
-          <a href={`/api/v1/projects/${projectId}/exports/${exportArtifactId}/download`}>
-            Download bundle
-          </a>
-        </p>
-      ) : null}
-      <ul className="card-list stacked publication-list">
-        {filteredPublications.map((publication) => (
-          <PublicationRow
-            key={publication.id}
-            publication={publication}
-            projectId={projectId}
-            selected={selectedIds.has(publication.id)}
-            onToggleSelected={() => toggleSelected(publication.id)}
-            highlightKeywords={highlightKeywords}
-            canManage={canManage}
-            canOverride={canOverride}
-          />
         ))}
-      </ul>
+      </div>
+      <div
+        id={`publications-tabpanel-${activeTab}`}
+        className="page-tabpanel"
+        role="tabpanel"
+        aria-labelledby={`publications-tab-${activeTab}`}
+      >
+        {activeTab === 'publications' ? (
+          <>
+            {query.data && (search || titleAbstractFilter || fullTextFilter || pdfStatusFilter) ? (
+              <p className="muted">
+                {filteredPublications.length} of {query.data.length} publication{query.data.length === 1 ? '' : 's'} match your filters
+              </p>
+            ) : query.data ? (
+              <p className="muted">{query.data.length} publication{query.data.length === 1 ? '' : 's'} in this project</p>
+            ) : null}
+            {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
+            {query.data ? (
+              <div className="toolbar publications-page__filters">
+                <label className="paper-search-field">
+                  Search publications
+                  <input
+                    type="search"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Title, author, DOI, keyword…"
+                  />
+                </label>
+                <label>
+                  Title/Abstract stage
+                  <select value={titleAbstractFilter} onChange={(event) => setTitleAbstractFilter(event.target.value)}>
+                    {SCREENING_FILTER_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Full-text stage
+                  <select value={fullTextFilter} onChange={(event) => setFullTextFilter(event.target.value)}>
+                    {SCREENING_FILTER_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  PDF status
+                  <select value={pdfStatusFilter} onChange={(event) => setPdfStatusFilter(event.target.value)}>
+                    {PDF_STATUS_FILTER_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  className={`publications-page__pdf-indicator${missingPdfCount ? ' publications-page__pdf-indicator--missing' : ''}${pdfStatusFilter === 'unavailable' ? ' publications-page__pdf-indicator--active' : ''}`}
+                  aria-pressed={pdfStatusFilter === 'unavailable'}
+                  disabled={missingPdfCount === 0}
+                  onClick={() => setPdfStatusFilter((current) => (
+                    current === 'unavailable' ? '' : 'unavailable'
+                  ))}
+                >
+                  <IconUpload />
+                  {missingPdfCount
+                    ? `${missingPdfCount} paper${missingPdfCount === 1 ? '' : 's'} missing a PDF`
+                    : 'All papers have a PDF'}
+                </button>
+              </div>
+            ) : null}
+            {canManage && filteredPublications.length > 0 ? (
+              <div className="toolbar publication-list__bulk-actions">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={allFilteredSelected}
+                    onChange={toggleSelectAll}
+                  />
+                  {' '}Select All ({filteredPublications.length})
+                </label>
+                {selectedIds.size > 0 ? (
+                  <>
+                    <span className="muted">{selectedIds.size} selected</span>
+                    <button
+                      type="button"
+                      className="button-secondary button-sm"
+                      disabled={bulkEnrich.isPending}
+                      onClick={() => bulkEnrich.mutate({ publicationIds: Array.from(selectedIds), missingOnly: false })}
+                    >
+                      <IconSparkle />
+                      Enrich Selected Metadata ({selectedIds.size})
+                    </button>
+                    <button
+                      type="button"
+                      className="button-secondary button-sm"
+                      disabled={bulkExport.isPending || (pendingExportJob ? isJobActive(pendingExportJob.status) : false)}
+                      onClick={() => bulkExport.mutate(Array.from(selectedIds))}
+                    >
+                      <IconDownload />
+                      Export Selected ({selectedIds.size})
+                    </button>
+                    <ConfirmButton
+                      className="button-sm"
+                      label={`Delete Selected (${selectedIds.size})`}
+                      variant="danger"
+                      warning={`Delete ${selectedIds.size} selected publication${selectedIds.size === 1 ? '' : 's'}? This cannot be undone.`}
+                      onConfirm={() => bulkDelete.mutate(Array.from(selectedIds))}
+                      disabled={bulkDelete.isPending}
+                      icon={<IconTrash />}
+                    />
+                  </>
+                ) : null}
+              </div>
+            ) : null}
+            {bulkEnrich.error ? <p className="error" role="alert">{bulkEnrich.error.message}</p> : null}
+            {bulkEnrich.isSuccess ? <p>Enrichment queued for {bulkEnrich.data.jobIds.length} publication{bulkEnrich.data.jobIds.length === 1 ? '' : 's'}.</p> : null}
+            {bulkDelete.error ? <p className="error" role="alert">{bulkDelete.error.message}</p> : null}
+            {bulkExport.error ? <p className="error" role="alert">{bulkExport.error.message}</p> : null}
+            {pendingExportJob && isJobActive(pendingExportJob.status) ? (
+              <p className="muted" role="status">Preparing export bundle (metadata.bib + PDFs)…</p>
+            ) : null}
+            {pendingExportJob && pendingExportJob.status === 'failed' ? (
+              <p className="error" role="alert">
+                Export failed{pendingExportJob.errorMessage ? `: ${pendingExportJob.errorMessage}` : ''}
+              </p>
+            ) : null}
+            {pendingExportJob && pendingExportJob.status === 'completed' && typeof exportArtifactId === 'string' ? (
+              <p>
+                Export ready:{' '}
+                <a href={`/api/v1/projects/${projectId}/exports/${exportArtifactId}/download`}>
+                  Download bundle
+                </a>
+              </p>
+            ) : null}
+            <ul className="card-list stacked publication-list">
+              {filteredPublications.map((publication) => (
+                <PublicationRow
+                  key={publication.id}
+                  publication={publication}
+                  projectId={projectId}
+                  selected={selectedIds.has(publication.id)}
+                  onToggleSelected={() => toggleSelected(publication.id)}
+                  highlightKeywords={highlightKeywords}
+                  canManage={canManage}
+                  canOverride={canOverride}
+                />
+              ))}
+            </ul>
+          </>
+        ) : null}
+        {activeTab === 'add' ? (
+          <AddPublicationForm projectId={projectId} />
+        ) : null}
+        {activeTab === 'metadata' && canManage ? (
+          <>
+            <section className="card" id="section-metadata-enrichment">
+              <h2>Metadata Enrichment</h2>
+              <p className="muted">
+                Fill in missing metadata from Crossref and Semantic Scholar for every record missing metadata.
+                <InfoTooltip text="Crossref and Semantic Scholar are free external scholarly databases. This looks up each publication there by DOI or title and fills in fields like abstract, venue, or citation count that are missing here — it doesn't overwrite fields you've already filled in." />
+              </p>
+              {bulkEnrich.error ? <p className="error" role="alert">{bulkEnrich.error.message}</p> : null}
+              {bulkEnrich.isSuccess ? <p>Enrichment queued for {bulkEnrich.data.jobIds.length} publication{bulkEnrich.data.jobIds.length === 1 ? '' : 's'}.</p> : null}
+              <div className="toolbar">
+                <button
+                  type="button"
+                  className="button-secondary button-md"
+                  disabled={bulkEnrich.isPending}
+                  onClick={() => bulkEnrich.mutate({ missingOnly: true })}
+                >
+                  <IconSparkle />
+                  Enrich All Records with Missing Metadata
+                </button>
+              </div>
+            </section>
+            <MetadataConflictsPanel projectId={projectId} />
+          </>
+        ) : null}
+        {activeTab === 'pdf_retrieval' ? (
+          <>
+            <BrowserPdfRetrievalPanel projectId={projectId} />
+            {canManage ? <BulkPdfUploadPanel projectId={projectId} /> : null}
+          </>
+        ) : null}
+      </div>
     </main>
   )
 }

@@ -151,7 +151,7 @@ function baseFetchHandler(input: RequestInfo | URL) {
 }
 
 describe('AnalysisPage', () => {
-  it('renders a heading for each pipeline stage', async () => {
+  it('groups sections into tabs, each showing its own headings in order', async () => {
     mockFetch(baseFetchHandler)
 
     renderWithProviders(<AnalysisPage />, {
@@ -159,25 +159,27 @@ describe('AnalysisPage', () => {
       path: '/projects/:projectId/analysis',
     })
 
+    // Deduplication tab is active by default.
     expect(await screen.findByRole('heading', { name: 'Deduplication' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Title/Abstract Screening' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Title/Abstract Screening' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('tab', { name: /Screening/ }))
+    expect(await screen.findByRole('heading', { name: 'Title/Abstract Screening' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Full-Text Screening' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Reviewer Analysis' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Extraction & Quality' })).toBeInTheDocument()
-    expect(screen.getByRole('heading', { name: 'Evidence Matrix' })).toBeInTheDocument()
-    expect(await screen.findByRole('heading', { name: 'Research Question Analysis' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Deduplication' })).not.toBeInTheDocument()
+    expect(
+      screen.getAllByRole('heading', { level: 2 }).map((el) => el.textContent),
+    ).toEqual(['Title/Abstract Screening', 'Full-Text Screening', 'Reviewer Analysis'])
 
-    // Sections must appear in the documented order.
-    const headingTexts = screen.getAllByRole('heading', { level: 2 }).map((el) => el.textContent)
-    expect(headingTexts).toEqual([
-      'Deduplication',
-      'Title/Abstract Screening',
-      'Full-Text Screening',
-      'Reviewer Analysis',
-      'Extraction & Quality',
-      'Evidence Matrix',
-      'Research Question Analysis',
-    ])
+    fireEvent.click(screen.getByRole('tab', { name: 'Extraction & Quality' }))
+    expect(await screen.findByRole('heading', { name: 'Extraction & Quality' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Evidence Matrix' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Reviewer Analysis' })).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Research Questions' }))
+    expect(await screen.findByRole('heading', { name: 'Research Question Analysis' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Evidence Matrix' })).not.toBeInTheDocument()
   })
 
   it('shows anonymized reviewer agreement with N/A (never 0) for undefined kappa, and expands a confusion matrix', async () => {
@@ -188,6 +190,7 @@ describe('AnalysisPage', () => {
       path: '/projects/:projectId/analysis',
     })
 
+    fireEvent.click(await screen.findByRole('tab', { name: /Screening/ }))
     const reviewerSection = (
       await screen.findByRole('heading', { name: 'Reviewer Analysis' })
     ).closest('section') as HTMLElement
@@ -228,6 +231,7 @@ describe('AnalysisPage', () => {
       path: '/projects/:projectId/analysis',
     })
 
+    fireEvent.click(await screen.findByRole('tab', { name: /Screening/ }))
     expect(await screen.findByText('Screening summary text.')).toBeInTheDocument()
     expect(screen.queryByText(/may be outdated/)).not.toBeInTheDocument()
   })
@@ -263,6 +267,7 @@ describe('AnalysisPage', () => {
       path: '/projects/:projectId/analysis',
     })
 
+    fireEvent.click(await screen.findByRole('tab', { name: /Screening/ }))
     const fullTextSection = (
       await screen.findByRole('heading', { name: 'Full-Text Screening' })
     ).closest('section') as HTMLElement
@@ -288,6 +293,7 @@ describe('AnalysisPage', () => {
       path: '/projects/:projectId/analysis',
     })
 
+    fireEvent.click(await screen.findByRole('tab', { name: /Screening/ }))
     const fullTextSection = (
       await screen.findByRole('heading', { name: 'Full-Text Screening' })
     ).closest('section') as HTMLElement
@@ -307,6 +313,7 @@ describe('AnalysisPage', () => {
       path: '/projects/:projectId/analysis',
     })
 
+    fireEvent.click(await screen.findByRole('tab', { name: 'Extraction & Quality' }))
     expect(await screen.findByText('3 included publications.')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Study design' })).toBeInTheDocument()
     expect(screen.getByText('2 of 3 answered (67%)')).toBeInTheDocument()

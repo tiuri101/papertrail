@@ -177,6 +177,53 @@ describe('ScreeningLlmPanel', () => {
     expect(unansweredRow).not.toHaveClass('llm-criterion--mismatch')
   })
 
+  it('offers an Apply suggestion button only for mismatched criteria when setCriteriaAnswers is provided', async () => {
+    mockFetch(async () => jsonResponse({
+      state: 'ready', hidden: false, stale: false, suggestedDecision: 'include',
+      confidence: 'medium', reasoningSummary: 'Mixed criteria results.',
+      criteria: [
+        {
+          criterionId: 'criterion-match', criterionText: 'Reviewer agrees it is met',
+          criterionKind: 'inclusion', assessment: 'met',
+          explanation: 'Explanation A', evidence: [], evidenceValidationStatus: 'not_required',
+        },
+        {
+          criterionId: 'criterion-mismatch', criterionText: 'Reviewer disagrees',
+          criterionKind: 'inclusion', assessment: 'not_met',
+          explanation: 'Explanation B', evidence: [], evidenceValidationStatus: 'not_required',
+        },
+      ],
+    }))
+    const setCriteriaAnswers = vi.fn()
+    renderWithProviders(
+      <ScreeningLlmPanel
+        projectId="project-1"
+        publicationId="publication-1"
+        itemId="item-1"
+        stage="full_text"
+        criteriaAnswers={{ 'criterion-match': true, 'criterion-mismatch': true }}
+        criteria={[
+          { id: 'criterion-match', kind: 'inclusion', text: 'Reviewer agrees it is met' },
+          { id: 'criterion-mismatch', kind: 'inclusion', text: 'Reviewer disagrees' },
+        ]}
+        setCriteriaAnswers={setCriteriaAnswers}
+      />,
+    )
+
+    const matchRow = (await screen.findByText(/Reviewer agrees it is met/)).closest('details') as HTMLElement
+    expect(within(matchRow).queryByRole('button', { name: 'Apply suggestion' })).not.toBeInTheDocument()
+
+    const mismatchRow = screen.getByText(/Reviewer disagrees/).closest('details') as HTMLElement
+    fireEvent.click(within(mismatchRow).getByRole('button', { name: 'Apply suggestion' }))
+
+    expect(setCriteriaAnswers).toHaveBeenCalledTimes(1)
+    const updater = setCriteriaAnswers.mock.calls[0][0]
+    expect(updater({ 'criterion-match': true, 'criterion-mismatch': true })).toEqual({
+      'criterion-match': true,
+      'criterion-mismatch': false,
+    })
+  })
+
   it('offers retry without blocking the screen when inference fails', async () => {
     const fetchMock = mockFetch(async (input, init) => (
       init?.method === 'POST'
