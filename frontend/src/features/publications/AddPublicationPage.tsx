@@ -14,8 +14,7 @@ interface CreatedPublication {
   id: string
 }
 
-export function AddPublicationPage() {
-  const { projectId = '' } = useParams()
+export function AddPublicationForm({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient()
   const [draft, setDraft] = useState<PublicationDraft>(emptyPublicationDraft)
   const [pdfFile, setPdfFile] = useState<File[]>([])
@@ -63,8 +62,7 @@ export function AddPublicationPage() {
   })
 
   return (
-    <main className="page add-publication-page">
-      <h1>Add a Publication</h1>
+    <>
       <BibtexPrefillPanel projectId={projectId} onPrefill={setDraft} />
       <section className="card">
         <p className="muted">Add a single record by hand, without importing an export file from a database.</p>
@@ -92,6 +90,16 @@ export function AddPublicationPage() {
           </button>
         </form>
       </section>
+    </>
+  )
+}
+
+export function AddPublicationPage() {
+  const { projectId = '' } = useParams()
+  return (
+    <main className="page add-publication-page">
+      <h1>Add a Publication</h1>
+      <AddPublicationForm projectId={projectId} />
     </main>
   )
 }

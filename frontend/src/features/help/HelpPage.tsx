@@ -1,4 +1,4 @@
-import type { CSSProperties } from 'react'
+import { type CSSProperties, type ReactNode, useState } from 'react'
 
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import {
@@ -19,17 +19,54 @@ import {
   IconUpload,
   IconUsers,
 } from '../../components/icons'
-import { SectionNavigationLayout } from '../../components/SectionNavigationLayout'
+import { SectionNavigationLayout, type SectionNavigationItem } from '../../components/SectionNavigationLayout'
 import { STAGES } from '../projects/StageProgress'
 
-const helpSections = [
-  { id: 'section-help-overview', label: 'Overview' },
-  { id: 'section-help-stages', label: 'Review Stages' },
-  { id: 'section-help-reviewer', label: 'Reviewer' },
-  { id: 'section-help-owner', label: 'Project Owner' },
-  { id: 'section-help-llm', label: 'LLM Assistance' },
-  { id: 'section-help-extension', label: 'Browser Extension' },
-  { id: 'section-help-good-to-know', label: 'Good to Know' },
+type HelpTabId = 'getting-started' | 'roles' | 'ai-automation' | 'good-to-know'
+
+interface HelpTab {
+  id: HelpTabId
+  label: string
+  icon: ReactNode
+  sections: SectionNavigationItem[]
+}
+
+const helpTabs: HelpTab[] = [
+  {
+    id: 'getting-started',
+    label: 'Getting Started',
+    icon: <IconInfo />,
+    sections: [
+      { id: 'section-help-overview', label: 'Overview' },
+      { id: 'section-help-stages', label: 'Review Stages' },
+    ],
+  },
+  {
+    id: 'roles',
+    label: 'Roles & Responsibilities',
+    icon: <IconUsers />,
+    sections: [
+      { id: 'section-help-reviewer', label: 'Reviewer' },
+      { id: 'section-help-owner', label: 'Project Owner' },
+    ],
+  },
+  {
+    id: 'ai-automation',
+    label: 'AI & Automation',
+    icon: <IconSparkle />,
+    sections: [
+      { id: 'section-help-llm', label: 'LLM Assistance' },
+      { id: 'section-help-extension', label: 'Browser Extension' },
+    ],
+  },
+  {
+    id: 'good-to-know',
+    label: 'Good to Know',
+    icon: <IconLightbulb />,
+    sections: [
+      { id: 'section-help-good-to-know', label: 'Good to Know' },
+    ],
+  },
 ]
 
 const stageDescriptions: Record<string, string> = {
@@ -586,71 +623,112 @@ function ExtensionHelpSection() {
 }
 
 export function HelpPage() {
+  const [activeTab, setActiveTab] = useState<HelpTabId>('getting-started')
+  const currentTab = helpTabs.find((tab) => tab.id === activeTab) ?? helpTabs[0]
+
   return (
-    <SectionNavigationLayout items={helpSections} label="On this page">
+    <SectionNavigationLayout items={currentTab.sections} label="On this page">
       <main className="page">
         <h1>Help</h1>
         <p className="muted">Documentation and guidance for using Papertrail.</p>
-        <CollapsibleSection id="section-help-overview" title="What Papertrail Does" icon={<IconInfo />}>
-          <PapertrailOverview />
-        </CollapsibleSection>
-        <CollapsibleSection id="section-help-stages" title="The Review Stages" icon={<IconArrowRight />}>
-          <StageTimeline />
-        </CollapsibleSection>
-        <CollapsibleSection id="section-help-reviewer" title="As a Reviewer" icon={<IconUsers />}>
-          <p>
-            A reviewer is any member added to a project. You only see the projects you belong to,
-            and only the actions you are assigned to.
-          </p>
-          <StageList role="reviewer" />
-        </CollapsibleSection>
-        <CollapsibleSection id="section-help-owner" title="As a Project Owner" icon={<IconFolder />}>
-          <p>
-            The project owner is whoever created the project. Alongside the stage-by-stage
-            responsibilities below, an owner can manage members and their eligibility, project
-            details and highlighted keywords, LLM assistance settings, the audit log, and
-            lifecycle actions such as resetting or deleting the project.
-          </p>
-          <StageList role="owner" />
-          <OwnerDangerZoneGuide />
-        </CollapsibleSection>
-        <LlmHelpSection />
-        <ExtensionHelpSection />
-        <CollapsibleSection id="section-help-good-to-know" title="Good to Know" icon={<IconLightbulb />}>
-          <div className="help-good-to-know">
-            <header className="help-good-to-know__intro">
-              <span className="help-good-to-know__intro-icon" aria-hidden="true">
-                <IconLightbulb />
-              </span>
-              <div>
-                <span className="eyebrow">Practical details</span>
-                <h3>Small things that keep a review moving</h3>
+        <div className="page-tabs" role="tablist" aria-label="Help sections">
+          {helpTabs.map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              id={`help-tab-${tab.id}`}
+              aria-selected={tab.id === activeTab}
+              aria-controls={`help-tabpanel-${tab.id}`}
+              className={`page-tab${tab.id === activeTab ? ' page-tab--active' : ''}`}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              {tab.icon}
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        <div
+          id={`help-tabpanel-${activeTab}`}
+          className="page-tabpanel"
+          role="tabpanel"
+          aria-labelledby={`help-tab-${activeTab}`}
+        >
+          {activeTab === 'getting-started' ? (
+            <>
+              <CollapsibleSection id="section-help-overview" title="What Papertrail Does" icon={<IconInfo />}>
+                <PapertrailOverview />
+              </CollapsibleSection>
+              <CollapsibleSection id="section-help-stages" title="The Review Stages" icon={<IconArrowRight />}>
+                <StageTimeline />
+              </CollapsibleSection>
+            </>
+          ) : null}
+          {activeTab === 'roles' ? (
+            <>
+              <CollapsibleSection id="section-help-reviewer" title="As a Reviewer" icon={<IconUsers />}>
                 <p>
-                  Keep these safeguards and workflow details in mind as your project moves
-                  from imported records to final results.
+                  A reviewer is any member added to a project. You only see the projects you belong to,
+                  and only the actions you are assigned to.
                 </p>
-              </div>
-            </header>
-
-            <ul className="help-good-to-know__grid" aria-label="Helpful things to know">
-              {goodToKnowItems.map((item) => (
-                <li
-                  className={`help-good-to-know__card help-good-to-know__card--${item.tone}`}
-                  key={item.title}
-                >
-                  <span className="help-good-to-know__card-icon" aria-hidden="true">
-                    {item.icon}
+                <StageList role="reviewer" />
+              </CollapsibleSection>
+              <CollapsibleSection id="section-help-owner" title="As a Project Owner" icon={<IconFolder />}>
+                <p>
+                  The project owner is whoever created the project. Alongside the stage-by-stage
+                  responsibilities below, an owner can manage members and their eligibility, project
+                  details and highlighted keywords, LLM assistance settings, the audit log, and
+                  lifecycle actions such as resetting or deleting the project.
+                </p>
+                <StageList role="owner" />
+                <OwnerDangerZoneGuide />
+              </CollapsibleSection>
+            </>
+          ) : null}
+          {activeTab === 'ai-automation' ? (
+            <>
+              <LlmHelpSection />
+              <ExtensionHelpSection />
+            </>
+          ) : null}
+          {activeTab === 'good-to-know' ? (
+            <CollapsibleSection id="section-help-good-to-know" title="Good to Know" icon={<IconLightbulb />}>
+              <div className="help-good-to-know">
+                <header className="help-good-to-know__intro">
+                  <span className="help-good-to-know__intro-icon" aria-hidden="true">
+                    <IconLightbulb />
                   </span>
                   <div>
-                    <span className="help-good-to-know__label">{item.label}</span>
-                    <h4>{item.title}</h4>
-                    <p>{item.description}</p>
+                    <span className="eyebrow">Practical details</span>
+                    <h3>Small things that keep a review moving</h3>
+                    <p>
+                      Keep these safeguards and workflow details in mind as your project moves
+                      from imported records to final results.
+                    </p>
                   </div>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </CollapsibleSection>
+                </header>
+
+                <ul className="help-good-to-know__grid" aria-label="Helpful things to know">
+                  {goodToKnowItems.map((item) => (
+                    <li
+                      className={`help-good-to-know__card help-good-to-know__card--${item.tone}`}
+                      key={item.title}
+                    >
+                      <span className="help-good-to-know__card-icon" aria-hidden="true">
+                        {item.icon}
+                      </span>
+                      <div>
+                        <span className="help-good-to-know__label">{item.label}</span>
+                        <h4>{item.title}</h4>
+                        <p>{item.description}</p>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </CollapsibleSection>
+          ) : null}
+        </div>
       </main>
     </SectionNavigationLayout>
   )

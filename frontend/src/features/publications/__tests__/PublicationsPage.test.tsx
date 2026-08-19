@@ -75,7 +75,7 @@ describe('PublicationsPage', () => {
     expect(noDoiCard).toHaveTextContent('Unknown authors')
 
     expect(screen.getByText('2 publications in this project')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: 'Add a Publication' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Add Publication' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: '2 papers missing a PDF' })).toBeInTheDocument()
 
     const publicationCard = screen.getByText('Urban Data in VR').closest('li') as HTMLElement
@@ -104,7 +104,9 @@ describe('PublicationsPage', () => {
     expect(screen.getByLabelText('Select Urban Data in VR')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Urban Data in VR' })).toBeInTheDocument()
     expect(screen.getAllByRole('button', { name: 'Edit' }).length).toBeGreaterThan(0)
-    expect(screen.getByText('Metadata Enrichment')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Metadata Tools' }))
+    expect(await screen.findByText('Metadata Enrichment')).toBeInTheDocument()
   })
 
   it('hides the multi-select checkbox and management controls when publication management is unavailable', async () => {
@@ -157,6 +159,32 @@ describe('PublicationsPage', () => {
 
     expect(await within(card).findByText('Reviewer One')).toBeInTheDocument()
     expect(within(card).queryByRole('button', { name: 'Override Title/Abstract' })).not.toBeInTheDocument()
+  })
+
+  it('adds a publication from the Add Publication tab', async () => {
+    const fetchMock = mockFetch((input, init) => {
+      const url = String(input)
+      const pdfRetrieval = pdfRetrievalDefault(url)
+      if (pdfRetrieval) return pdfRetrieval
+      if (url.endsWith('/publications') && init?.method === 'POST') {
+        return jsonResponse({ id: 'publication-3', title: 'A Manually Added Paper' }, 201)
+      }
+      return jsonResponse(publications)
+    })
+    renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
+
+    await screen.findByText('Urban Data in VR')
+    fireEvent.click(screen.getByRole('tab', { name: 'Add Publication' }))
+
+    fireEvent.change(await screen.findByLabelText('Title'), { target: { value: 'A Manually Added Paper' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Add Publication' }))
+
+    await waitFor(() => {
+      const postCall = fetchMock.mock.calls.find(([callInput, callInit]) => String(callInput).endsWith('/publications') && callInit?.method === 'POST')
+      expect(postCall).toBeTruthy()
+      expect(JSON.parse(String(postCall?.[1]?.body)).title).toBe('A Manually Added Paper')
+    })
+    expect(await screen.findByText('Publication added.')).toBeInTheDocument()
   })
 
   it('shows singular count for a single publication', async () => {
@@ -267,15 +295,14 @@ describe('PublicationsPage', () => {
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
 
     await screen.findByText('Urban Data in VR')
-    fireEvent.click(screen.getByRole('button', { name: 'Metadata Enrichment' }))
-    expect(screen.getByRole('button', { name: 'Enrich Selected (0)' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: /Enrich Selected Metadata/ })).not.toBeInTheDocument()
 
     const checkbox = screen.getByLabelText('Select Urban Data in VR')
     const card = screen.getByText('Urban Data in VR').closest('li') as HTMLElement
     expect(checkbox.compareDocumentPosition(screen.getByText('Urban Data in VR')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     fireEvent.click(checkbox)
     expect(card).toHaveClass('publication-card--selected')
-    fireEvent.click(screen.getByRole('button', { name: 'Enrich Selected (1)' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Enrich Selected Metadata (1)' }))
 
     await waitFor(() => {
       const call = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/publications/enrich') && init?.method === 'POST')
@@ -283,7 +310,8 @@ describe('PublicationsPage', () => {
       expect(JSON.parse(String(call?.[1]?.body))).toEqual({ publicationIds: ['publication-1'], missingOnly: false })
     })
 
-    fireEvent.click(screen.getByRole('button', { name: 'Enrich All Records with Missing Metadata' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'Metadata Tools' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Enrich All Records with Missing Metadata' }))
     await waitFor(() => {
       const calls = fetchMock.mock.calls.filter(([input, init]) => String(input).endsWith('/publications/enrich') && init?.method === 'POST')
       expect(calls).toHaveLength(2)
@@ -317,6 +345,7 @@ describe('PublicationsPage', () => {
     })
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
 
+    fireEvent.click(await screen.findByRole('tab', { name: 'Metadata Tools' }))
     const heading = await screen.findByRole('heading', { name: 'Metadata Conflicts' })
     const panel = heading.closest('section') as HTMLElement
     await within(panel).findByText('title')
@@ -621,17 +650,17 @@ describe('PublicationsPage', () => {
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
 
     await screen.findByText('Urban Data in VR')
-    fireEvent.click(screen.getByRole('button', { name: 'Metadata Enrichment' }))
-    expect(screen.getByRole('button', { name: 'Enrich Selected (0)' })).toBeDisabled()
+    expect(screen.queryByRole('button', { name: /Enrich Selected Metadata/ })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByLabelText('Select All (2)'))
     expect(screen.getByLabelText('Select Urban Data in VR')).toBeChecked()
     expect(screen.getByLabelText('Select Paper without DOI')).toBeChecked()
-    expect(screen.getByRole('button', { name: 'Enrich Selected (2)' })).not.toBeDisabled()
+    expect(screen.getByRole('button', { name: 'Enrich Selected Metadata (2)' })).not.toBeDisabled()
 
     fireEvent.click(screen.getByLabelText('Select All (2)'))
     expect(screen.getByLabelText('Select Urban Data in VR')).not.toBeChecked()
     expect(screen.getByLabelText('Select Paper without DOI')).not.toBeChecked()
+    expect(screen.queryByRole('button', { name: /Enrich Selected Metadata/ })).not.toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('Title/Abstract stage'), { target: { value: 'include' } })
     fireEvent.click(screen.getByLabelText('Select All (1)'))
@@ -664,7 +693,8 @@ describe('PublicationsPage', () => {
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
 
     await screen.findByText('Urban Data in VR')
-    fireEvent.click(screen.getByRole('button', { name: 'Bulk Attach PDFs' }))
+    fireEvent.click(screen.getByRole('tab', { name: 'PDF Retrieval' }))
+    fireEvent.click(await screen.findByRole('button', { name: 'Bulk Attach PDFs' }))
 
     const files = [
       new File(['pdf-1'], 'paper-1.pdf', { type: 'application/pdf' }),
