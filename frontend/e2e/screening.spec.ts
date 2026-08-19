@@ -105,8 +105,101 @@ test(
           },
       )
 
+      await page.route(
+          '**/api/v1/projects/project-1/screening/full_text/progress',
+          async (route) => {
+            await route.fulfill({
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify({
+                assigned: 1,
+                completed: decisionSubmitted ? 1 : 0,
+                remaining: decisionSubmitted ? 0 : 1,
+                claimMode: false,
+              }),
+            })
+          },
+      )
+
+      await page.route(
+          '**/api/v1/projects/project-1/full-text/progress',
+          async (route) => {
+            await route.fulfill({
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify({ total: 1, addressed: 1 }),
+            })
+          },
+      )
+
+      await page.route(
+          '**/api/v1/projects/project-1/full-text/next',
+          async (route) => {
+            await route.fulfill({
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify(null),
+            })
+          },
+      )
+
+      await page.route(
+          '**/api/v1/browser-agents',
+          async (route) => {
+            await route.fulfill({
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify([]),
+            })
+          },
+      )
+
+      await page.route(
+          '**/api/v1/projects/project-1/pdf-retrieval-batches/missing-count',
+          async (route) => {
+            await route.fulfill({
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify({ missingCount: 0 }),
+            })
+          },
+      )
+
+      await page.route(
+          '**/api/v1/projects/project-1/pdf-retrieval-batches',
+          async (route) => {
+            await route.fulfill({
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify([]),
+            })
+          },
+      )
+
+      await page.route(
+          '**/api/v1/projects/project-1/publications/publication-1/full-text',
+          async (route) => {
+            await route.fulfill({
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify({ available: false, document: null }),
+            })
+          },
+      )
+
+      await page.route(
+          '**/api/v1/projects/project-1/highlight-keywords',
+          async (route) => {
+            await route.fulfill({
+              status: 200,
+              contentType: 'application/json',
+              body: JSON.stringify({ keywords: [] }),
+            })
+          },
+      )
+
       await page.goto(
-          '/projects/project-1/screening/full_text',
+          '/projects/project-1/full-text',
       )
 
       await expect(
@@ -140,7 +233,7 @@ test(
       await expect.poll(() => decisionSubmitted).toBe(true)
 
       await expect(
-          page.getByText('You have completed all of your assigned screening work.'),
+          page.getByText('No full-text work is currently available for you.'),
       ).toBeVisible()
 
       expect(submittedDecision).toEqual({
