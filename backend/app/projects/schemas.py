@@ -42,11 +42,18 @@ class ProjectOwnerSummary(ApiModel):
 
 class ProjectListItem(ProjectSummary):
     created_at: datetime = Field(serialization_alias="createdAt")
+    updated_at: datetime = Field(serialization_alias="updatedAt")
     owner: ProjectOwnerSummary | None
     my_role: Literal["owner", "administrator", "reviewer"] = Field(
         serialization_alias="myRole"
     )
     open_task_count: int = Field(serialization_alias="openTaskCount", ge=0)
+    primary_label: str = Field(serialization_alias="primaryLabel")
+    primary_count: int = Field(serialization_alias="primaryCount", ge=0)
+    secondary_label: str = Field(serialization_alias="secondaryLabel")
+    secondary_count: int = Field(serialization_alias="secondaryCount", ge=0)
+    reviewer_count: int = Field(serialization_alias="reviewerCount", ge=0)
+    percent_complete: int = Field(serialization_alias="percentComplete", ge=0, le=100)
 
 
 class MembershipCreate(ApiModel):

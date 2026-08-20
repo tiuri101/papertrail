@@ -63,7 +63,7 @@ test('unauthenticated users can sign in and see administrator navigation', async
   await expect(page).toHaveURL(/\/login$/)
 
   await page.getByLabel('Username').fill('admin')
-  await page.getByLabel('Password').fill('secret-password')
+  await page.getByLabel('Password', { exact: true }).fill('secret-password')
   await page.getByRole('button', { name: 'Sign In' }).click()
 
   await expect(page).toHaveURL(/\/$/)

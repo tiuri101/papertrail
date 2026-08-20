@@ -48,8 +48,10 @@ def _scalar(value: Any) -> Any:
 
 
 def _answer_columns(prefix: str, answers: dict[str, Any]) -> dict[str, str]:
-    return {f"{prefix}_{key}": json.dumps(value, ensure_ascii=False, default=str)
-            for key, value in answers.items()}
+    return {
+        f"{prefix}_{key}": json.dumps(value, ensure_ascii=False, default=str)
+        for key, value in answers.items()
+    }
 
 
 def build_analysis_rows(db: Session, project_id: str) -> list[dict[str, Any]]:
@@ -101,13 +103,11 @@ def build_parquet(db: Session, project_id: str) -> bytes:
     rows = build_analysis_rows(db, project_id)
     columns = _analysis_columns(rows)
     types = dict(_BASE_COLUMNS)
-    schema = pa.schema([
-        pa.field(name, types.get(name, pa.string()))
-        for name in columns
-    ])
+    schema = pa.schema(
+        [pa.field(name, types.get(name, pa.string())) for name in columns]
+    )
     normalized_rows = [
-        {name: _scalar(row.get(name)) for name in columns}
-        for row in rows
+        {name: _scalar(row.get(name)) for name in columns} for row in rows
     ]
     table = pa.Table.from_pylist(normalized_rows, schema=schema)
     buffer = BytesIO()
@@ -130,8 +130,7 @@ def build_csv(db: Session, project_id: str) -> bytes:
     writer = csv.DictWriter(output, fieldnames=columns, extrasaction="ignore")
     writer.writeheader()
     writer.writerows(
-        {name: csv_value(row.get(name)) for name in columns}
-        for row in rows
+        {name: csv_value(row.get(name)) for name in columns} for row in rows
     )
     return output.getvalue().encode("utf-8-sig")
 

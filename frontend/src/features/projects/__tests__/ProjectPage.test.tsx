@@ -49,6 +49,9 @@ describe('ProjectPage', () => {
     expect(screen.getByRole('link', { name: 'Title/Abstract Screening' })).toHaveAttribute('href', '/projects/p1/screening/title_abstract')
     expect(screen.queryByRole('heading', { name: 'Reporting' })).not.toBeInTheDocument()
     const completedGroup = screen.getByRole('heading', { name: 'Completed' }).closest('.nav-group') as HTMLElement
+    expect(within(completedGroup).getByRole('link', { name: 'Charts & Analysis' }))
+      .toHaveAttribute('href', '/projects/p1/analysis')
+    expect(within(completedGroup).getByText('Final Results')).toHaveAttribute('aria-disabled', 'true')
     expect(within(completedGroup).getByText('Reporting and Exports')).toHaveAttribute('aria-disabled', 'true')
     expect(screen.getByText(/Actions unlock review stage by review stage/)).toBeInTheDocument()
 

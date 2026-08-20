@@ -3,6 +3,7 @@ import { useState } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { ConfirmButton } from '../../components/ConfirmButton'
+import { CountPill } from '../../components/CountPill'
 import { IconFile, IconUpload } from '../../components/icons'
 
 interface MatchCandidate {
@@ -148,6 +149,13 @@ export function PdfMatchReview({ projectId, importBatchId }: {
           <option value="all">All{counts ? ` (${counts.total ?? 0})` : ''}</option>
         </select>
       </label>
+      {review.data ? (
+        <CountPill count={items.length}>
+          {filter === 'all'
+            ? `PDF file${items.length === 1 ? '' : 's'}`
+            : `of ${counts?.total ?? review.data.items.length} PDF files match the current filter`}
+        </CountPill>
+      ) : null}
       <div className="card-list stacked">
         {items.map((item) => {
           const selected = selections[item.id]

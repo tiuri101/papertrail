@@ -31,7 +31,11 @@ from app.extraction.models import ExtractionStatus, ExtractionWorkItem, FinalExt
 from app.extraction.service import active_fields as extraction_active_fields
 from app.extraction.service import project_form as extraction_project_form
 from app.forms.models import FormField
-from app.llm.models import ExtractionSuggestionReview, LlmFieldSuggestion, SuggestionDisposition
+from app.llm.models import (
+    ExtractionSuggestionReview,
+    LlmFieldSuggestion,
+    SuggestionDisposition,
+)
 from app.llm.value_compare import values_equal
 from app.projects.lifecycle import included_publication_ids
 from app.publications.models import Publication
@@ -148,7 +152,9 @@ def build_evidence_dataset(
     scope = included if publication_ids is None else (set(publication_ids) & included)
     publications = list(
         db.scalars(
-            select(Publication).where(Publication.id.in_(scope)).order_by(Publication.title)
+            select(Publication)
+            .where(Publication.id.in_(scope))
+            .order_by(Publication.title)
         )
     )
     pub_ids = [publication.id for publication in publications]

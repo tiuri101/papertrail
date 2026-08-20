@@ -65,6 +65,7 @@ from app.projects.service import (
     next_position,
     open_task_counts_for_user,
     parse_highlight_keywords,
+    project_progress_stats,
     remove_membership,
     require_project_access,
     serialize_highlight_keywords,
@@ -84,6 +85,7 @@ def list_projects(
 
     project_ids = [project.id for project in projects]
     open_task_counts = open_task_counts_for_user(db, project_ids, user.id)
+    progress_stats = project_progress_stats(db, projects)
     relevant_memberships = db.execute(
         select(ProjectMembership, User)
         .join(User, User.id == ProjectMembership.user_id)
@@ -117,6 +119,7 @@ def list_projects(
             role = "administrator"
         else:
             role = "reviewer"
+        stats = progress_stats.get(project.id, {})
         results.append(
             ProjectListItem(
                 id=project.id,
@@ -125,9 +128,16 @@ def list_projects(
                 review_type=project.review_type,
                 stage=project.stage,
                 created_at=project.created_at,
+                updated_at=project.updated_at,
                 owner=owners.get(project.id),
                 my_role=role,
                 open_task_count=open_task_counts.get(project.id, 0),
+                primary_label=stats.get("primary_label", "Imported"),
+                primary_count=stats.get("primary_count", 0),
+                secondary_label=stats.get("secondary_label", "Screened"),
+                secondary_count=stats.get("secondary_count", 0),
+                reviewer_count=stats.get("reviewer_count", 0),
+                percent_complete=stats.get("percent_complete", 0),
             )
         )
     return results

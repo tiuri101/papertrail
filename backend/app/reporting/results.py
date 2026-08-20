@@ -7,7 +7,11 @@ from sqlalchemy.orm import Session
 
 from app.accounts.models import User
 from app.extraction.final import get_current_final_extractions
-from app.extraction.models import ExtractionResponse, ExtractionStatus, ExtractionWorkItem
+from app.extraction.models import (
+    ExtractionResponse,
+    ExtractionStatus,
+    ExtractionWorkItem,
+)
 from app.extraction.service import active_fields as extraction_active_fields
 from app.extraction.service import project_form
 from app.forms.models import FormField
@@ -116,9 +120,14 @@ def build_final_results(db: Session, project_id: str) -> dict[str, Any]:
             reviewer_name = None
             if final.resolved_by_id:
                 reviewer_name = user_names.get(final.resolved_by_id)
-            elif final.resolution_method == "single_reviewer" and final.contributing_response_ids:
+            elif (
+                final.resolution_method == "single_reviewer"
+                and final.contributing_response_ids
+            ):
                 response = responses_by_id.get(final.contributing_response_ids[0])
-                reviewer_name = user_names.get(response.reviewer_id) if response else None
+                reviewer_name = (
+                    user_names.get(response.reviewer_id) if response else None
+                )
             extraction_payload = {
                 "status": "completed",
                 "resolutionMethod": final.resolution_method,

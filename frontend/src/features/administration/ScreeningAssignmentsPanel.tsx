@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
+import { CountPill } from '../../components/CountPill'
 import { InfoBox } from '../../components/InfoBox'
 import { IconSwap } from '../../components/icons'
 import type { User } from '../auth/types'
@@ -336,6 +337,11 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
           </select>
         </label>
       </div>
+      {assignments.data ? (
+        <CountPill count={total}>
+          assignment{total === 1 ? ' matches' : 's match'} the current filters
+        </CountPill>
+      ) : null}
       {assignments.data && reassignableTotal > 0 ? (
         <div className="bulk-selection-panel">
           <label className="bulk-selection-panel__all">

@@ -121,7 +121,9 @@ def _initialize_downstream_work_for_late_inclusion(
         # newly enrolled at this stage -- not just this one -- has a decision;
         # otherwise a batch of late arrivals would trigger a regeneration per
         # publication instead of once the picture is stable again.
-        if not unresolved_publication_ids(db, project.id, ScreeningStage.TITLE_ABSTRACT):
+        if not unresolved_publication_ids(
+            db, project.id, ScreeningStage.TITLE_ABSTRACT
+        ):
             enqueue_job(
                 db,
                 "generate_stage_analysis",

@@ -71,9 +71,7 @@ class CompletedExtractionSummary(ApiModel):
 
 
 class FieldProvenanceEntry(ApiModel):
-    from_: Literal["response_a", "response_b", "agreed", "manual"] = Field(
-        alias="from"
-    )
+    from_: Literal["response_a", "response_b", "agreed", "manual"] = Field(alias="from")
     response_id: str | None = Field(alias="responseId")
 
 

@@ -48,9 +48,7 @@ class ExtractionConfig(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 class ExtractionWorkItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "extraction_work_items"
     __table_args__ = (
-        UniqueConstraint(
-            "publication_id", "slot_number", name="uq_extraction_slot"
-        ),
+        UniqueConstraint("publication_id", "slot_number", name="uq_extraction_slot"),
     )
 
     project_id: Mapped[str] = mapped_column(

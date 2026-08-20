@@ -62,7 +62,7 @@ def _seed_extraction_project(db):
         name="Review",
         review_type="systematic_review",
         random_seed="seed",
-        stage=ProjectStage.EXTRACTION,
+        stage=ProjectStage.COMPLETED,
     )
     db.add(project)
     db.flush()
@@ -144,6 +144,7 @@ def _seed_extraction_project(db):
     for answer in quality_answers:
         item = claim_next_quality(db, project.id, reviewer.id)
         submit_quality(db, item, reviewer.id, answer)
+    project.stage = ProjectStage.COMPLETED
     db.commit()
 
     return project
@@ -155,6 +156,7 @@ def test_compute_extraction_stats_counts_options_and_numeric_fields(db) -> None:
     stats = compute_extraction_stats(db, project.id)
 
     assert stats["totalPublications"] == 3
+    assert stats["completedExtractions"] == 3
     fields_by_label = {field["label"]: field for field in stats["fields"]}
 
     design = fields_by_label["Study design"]
@@ -193,12 +195,19 @@ def test_compute_extraction_stats_uses_consensus_not_an_unresolved_response(db) 
     db.flush()
     for reviewer in (r1, r2):
         db.add(
-            ProjectMembership(project_id=project.id, user_id=reviewer.id, can_extract=True)
+            ProjectMembership(
+                project_id=project.id, user_id=reviewer.id, can_extract=True
+            )
         )
     db.add(ExtractionConfig(project_id=project.id, required_reviewers=2))
     form = create_form(db, "Extraction", FormKind.EXTRACTION, project_id=project.id)
     field = add_field(
-        db, form, "Outcome", "single_select", required=True, options=["Positive", "Negative"]
+        db,
+        form,
+        "Outcome",
+        "single_select",
+        required=True,
+        options=["Positive", "Negative"],
     )
     publication = Publication(project_id=project.id, title="Disagreeing paper")
     db.add(publication)
@@ -221,6 +230,7 @@ def test_compute_extraction_stats_uses_consensus_not_an_unresolved_response(db) 
     db.commit()
 
     stats = compute_extraction_stats(db, project.id)
+    assert stats["completedExtractions"] == 0
     fields_by_label = {field["label"]: field for field in stats["fields"]}
     outcome = fields_by_label["Outcome"]
     assert outcome["answeredCount"] == 0
@@ -238,6 +248,7 @@ def test_compute_extraction_stats_uses_consensus_not_an_unresolved_response(db) 
     db.commit()
 
     stats_after = compute_extraction_stats(db, project.id)
+    assert stats_after["completedExtractions"] == 1
     outcome_after = {f["label"]: f for f in stats_after["fields"]}["Outcome"]
     assert outcome_after["answeredCount"] == 1
 
@@ -594,6 +605,25 @@ def test_project_stage_analysis_endpoint_rejects_unknown_stage(client, db) -> No
 
     response = client.get(f"/api/v1/projects/{project.id}/analysis/not-a-stage")
     assert response.status_code == 404
+
+
+def test_project_stage_analysis_exposes_only_completed_stages(client, db) -> None:
+    project = _seed_extraction_project(db)
+    project.stage = ProjectStage.EXTRACTION
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    db.commit()
+    login(client, "admin", "secret-password")
+
+    completed_stage = client.get(
+        f"/api/v1/projects/{project.id}/analysis/full_text_screening"
+    )
+    active_stage = client.get(
+        f"/api/v1/projects/{project.id}/analysis/extraction_quality"
+    )
+
+    assert completed_stage.status_code == 200
+    assert active_stage.status_code == 400
+    assert "only after" in active_stage.json()["error"]["message"]
 
 
 def test_regenerate_stage_analysis_endpoint_enqueues_job(

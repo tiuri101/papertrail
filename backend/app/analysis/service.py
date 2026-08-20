@@ -206,6 +206,7 @@ def compute_extraction_stats(db: Session, project_id: str) -> dict[str, Any]:
 
     return {
         "totalPublications": total_publications,
+        "completedExtractions": len(extraction_answers),
         "fields": fields_stats,
         "qualityTotalScore": _numeric_stats(quality_scores) if quality_scores else None,
     }

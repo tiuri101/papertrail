@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react'
 
+import { CountPill } from '../../components/CountPill'
 import { LlmEvidence } from '../llm/LlmTaskComponents'
 import {
   useEvidenceCellDetail,
@@ -345,9 +346,7 @@ export function EvidenceMatrixSection({ projectId }: { projectId: string }) {
         </details>
       ) : null}
       {data ? (
-        <p className="muted">
-          {data.total} publication{data.total === 1 ? '' : 's'}
-        </p>
+        <CountPill count={data.total}>publication{data.total === 1 ? '' : 's'}</CountPill>
       ) : null}
       {data && data.items.length === 0 ? <p>No publications match your search and filters.</p> : null}
       {data && data.items.length > 0 ? (
