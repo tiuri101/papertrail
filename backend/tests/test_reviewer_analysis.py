@@ -3,7 +3,10 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 from app.accounts.service import create_user
-from app.analysis.reviewer_service import compute_reviewer_analysis, compute_reviewer_summary
+from app.analysis.reviewer_service import (
+    compute_reviewer_analysis,
+    compute_reviewer_summary,
+)
 from app.analysis.reviewer_stats import (
     cohens_kappa,
     confusion_matrix,
@@ -62,7 +65,12 @@ def test_raw_agreement_rate_empty_returns_none():
 
 def test_cohens_kappa_hand_calculated_example():
     # Classic textbook confusion matrix: 20/5/10/15 over Yes/No -> kappa = 0.4
-    pairs = [("yes", "yes")] * 20 + [("yes", "no")] * 5 + [("no", "yes")] * 10 + [("no", "no")] * 15
+    pairs = (
+        [("yes", "yes")] * 20
+        + [("yes", "no")] * 5
+        + [("no", "yes")] * 10
+        + [("no", "no")] * 15
+    )
     kappa = cohens_kappa(pairs, ["yes", "no"])
     assert kappa is not None
     assert round(kappa, 4) == 0.4
@@ -149,7 +157,9 @@ def test_pseudonymize_differs_across_projects():
 # ---------------------------------------------------------------------------
 
 
-def make_project(db, *, required_reviewers=2, allocation_mode=AllocationMode.INDEPENDENT):
+def make_project(
+    db, *, required_reviewers=2, allocation_mode=AllocationMode.INDEPENDENT
+):
     project = Project(
         name="Review",
         review_type=ReviewType.SYSTEMATIC_REVIEW,
@@ -308,7 +318,13 @@ def test_reviewer_analysis_uncertain_decisions_counted_separately(db) -> None:
         slot_number=1,
     )
     make_decision(
-        db, project, pub, ScreeningStage.TITLE_ABSTRACT, r2, ScreeningOutcome.INCLUDE, slot_number=2
+        db,
+        project,
+        pub,
+        ScreeningStage.TITLE_ABSTRACT,
+        r2,
+        ScreeningOutcome.INCLUDE,
+        slot_number=2,
     )
     db.commit()
 
@@ -370,6 +386,43 @@ def test_reviewer_analysis_excludes_incomplete_reviewer_sets(db) -> None:
     assert result["overall"]["publicationsWithCompleteSet"] == 1
 
 
+def test_reviewer_analysis_does_not_treat_single_reviewer_as_agreement(db) -> None:
+    project = make_project(db, required_reviewers=1)
+    reviewer = create_user(db, "r1", "R1", "password-1")
+    db.add(
+        ProjectMembership(
+            project_id=project.id,
+            user_id=reviewer.id,
+            can_title_abstract_screen=True,
+        )
+    )
+    publication = Publication(project_id=project.id, title="Single review")
+    db.add(publication)
+    db.flush()
+    make_decision(
+        db,
+        project,
+        publication,
+        ScreeningStage.TITLE_ABSTRACT,
+        reviewer,
+        ScreeningOutcome.INCLUDE,
+        slot_number=1,
+    )
+    db.commit()
+
+    result = compute_reviewer_analysis(db, project.id, ScreeningStage.TITLE_ABSTRACT)
+
+    assert result["configuredReviewerCount"] == 1
+    assert result["eligibleReviewerCount"] == 1
+    assert result["overall"]["maximumReviewerCount"] == 0
+    assert result["overall"]["publicationsWithCompleteSet"] == 0
+    assert result["overall"]["rawAgreementRate"] is None
+    assert result["overall"]["publicationDisagreementRate"] is None
+    assert result["pairwise"] == []
+    assert result["criteria"] == []
+    assert result["disagreementTrend"] == []
+
+
 def test_reviewer_analysis_excludes_additional_resolution_slots(db) -> None:
     project = make_project(db)
     r1 = create_user(db, "r1", "R1", "password-1")
@@ -379,10 +432,22 @@ def test_reviewer_analysis_excludes_additional_resolution_slots(db) -> None:
     db.add(pub)
     db.flush()
     make_decision(
-        db, project, pub, ScreeningStage.TITLE_ABSTRACT, r1, ScreeningOutcome.INCLUDE, slot_number=1
+        db,
+        project,
+        pub,
+        ScreeningStage.TITLE_ABSTRACT,
+        r1,
+        ScreeningOutcome.INCLUDE,
+        slot_number=1,
     )
     make_decision(
-        db, project, pub, ScreeningStage.TITLE_ABSTRACT, r2, ScreeningOutcome.EXCLUDE, slot_number=2
+        db,
+        project,
+        pub,
+        ScreeningStage.TITLE_ABSTRACT,
+        r2,
+        ScreeningOutcome.EXCLUDE,
+        slot_number=2,
     )
     # A tie-break slot added via add_resolution_reviewer -- must not count
     # as an original reviewer decision.
@@ -401,7 +466,10 @@ def test_reviewer_analysis_excludes_additional_resolution_slots(db) -> None:
     result = compute_reviewer_analysis(db, project.id, ScreeningStage.TITLE_ABSTRACT)
     assert result["overall"]["totalOriginalDecisions"] == 2
     assert len(result["pairwise"]) == 1
-    reviewer_labels = {result["pairwise"][0]["reviewerA"], result["pairwise"][0]["reviewerB"]}
+    reviewer_labels = {
+        result["pairwise"][0]["reviewerA"],
+        result["pairwise"][0]["reviewerB"],
+    }
     assert len(reviewer_labels) == 2
 
 
@@ -416,10 +484,22 @@ def test_reviewer_analysis_excludes_final_decision_consensus_from_pairwise(db) -
     db.add(pub)
     db.flush()
     make_decision(
-        db, project, pub, ScreeningStage.TITLE_ABSTRACT, r1, ScreeningOutcome.INCLUDE, slot_number=1
+        db,
+        project,
+        pub,
+        ScreeningStage.TITLE_ABSTRACT,
+        r1,
+        ScreeningOutcome.INCLUDE,
+        slot_number=1,
     )
     make_decision(
-        db, project, pub, ScreeningStage.TITLE_ABSTRACT, r2, ScreeningOutcome.INCLUDE, slot_number=2
+        db,
+        project,
+        pub,
+        ScreeningStage.TITLE_ABSTRACT,
+        r2,
+        ScreeningOutcome.INCLUDE,
+        slot_number=2,
     )
     record_final_decision(
         db, pub.id, ScreeningStage.TITLE_ABSTRACT, "include", "agreement", None, None
@@ -439,10 +519,22 @@ def test_reviewer_analysis_flags_non_agreement_resolution(db) -> None:
     db.add(pub)
     db.flush()
     make_decision(
-        db, project, pub, ScreeningStage.TITLE_ABSTRACT, r1, ScreeningOutcome.INCLUDE, slot_number=1
+        db,
+        project,
+        pub,
+        ScreeningStage.TITLE_ABSTRACT,
+        r1,
+        ScreeningOutcome.INCLUDE,
+        slot_number=1,
     )
     make_decision(
-        db, project, pub, ScreeningStage.TITLE_ABSTRACT, r2, ScreeningOutcome.EXCLUDE, slot_number=2
+        db,
+        project,
+        pub,
+        ScreeningStage.TITLE_ABSTRACT,
+        r2,
+        ScreeningOutcome.EXCLUDE,
+        slot_number=2,
     )
     record_final_decision(
         db,
@@ -468,14 +560,28 @@ def test_reviewer_analysis_title_abstract_and_full_text_kept_separate(db) -> Non
     db.add(pub)
     db.flush()
     make_decision(
-        db, project, pub, ScreeningStage.TITLE_ABSTRACT, r1, ScreeningOutcome.INCLUDE, slot_number=1
+        db,
+        project,
+        pub,
+        ScreeningStage.TITLE_ABSTRACT,
+        r1,
+        ScreeningOutcome.INCLUDE,
+        slot_number=1,
     )
     make_decision(
-        db, project, pub, ScreeningStage.TITLE_ABSTRACT, r2, ScreeningOutcome.INCLUDE, slot_number=2
+        db,
+        project,
+        pub,
+        ScreeningStage.TITLE_ABSTRACT,
+        r2,
+        ScreeningOutcome.INCLUDE,
+        slot_number=2,
     )
     db.commit()
 
-    title_abstract = compute_reviewer_analysis(db, project.id, ScreeningStage.TITLE_ABSTRACT)
+    title_abstract = compute_reviewer_analysis(
+        db, project.id, ScreeningStage.TITLE_ABSTRACT
+    )
     full_text = compute_reviewer_analysis(db, project.id, ScreeningStage.FULL_TEXT)
     assert title_abstract["overall"]["publicationsWithCompleteSet"] == 1
     assert full_text["overall"]["publicationsWithCompleteSet"] == 0
@@ -494,9 +600,17 @@ def test_reviewer_analysis_three_reviewers_computes_fleiss_kappa(db) -> None:
         pub = Publication(project_id=project.id, title=f"P{index}")
         db.add(pub)
         db.flush()
-        for slot, (reviewer, outcome) in enumerate(zip(reviewers, outcomes, strict=True), start=1):
+        for slot, (reviewer, outcome) in enumerate(
+            zip(reviewers, outcomes, strict=True), start=1
+        ):
             make_decision(
-                db, project, pub, ScreeningStage.TITLE_ABSTRACT, reviewer, outcome, slot_number=slot
+                db,
+                project,
+                pub,
+                ScreeningStage.TITLE_ABSTRACT,
+                reviewer,
+                outcome,
+                slot_number=slot,
             )
     db.commit()
 
@@ -515,10 +629,22 @@ def test_reviewer_analysis_multi_reviewer_unavailable_for_two_reviewers(db) -> N
     db.add(pub)
     db.flush()
     make_decision(
-        db, project, pub, ScreeningStage.TITLE_ABSTRACT, r1, ScreeningOutcome.INCLUDE, slot_number=1
+        db,
+        project,
+        pub,
+        ScreeningStage.TITLE_ABSTRACT,
+        r1,
+        ScreeningOutcome.INCLUDE,
+        slot_number=1,
     )
     make_decision(
-        db, project, pub, ScreeningStage.TITLE_ABSTRACT, r2, ScreeningOutcome.INCLUDE, slot_number=2
+        db,
+        project,
+        pub,
+        ScreeningStage.TITLE_ABSTRACT,
+        r2,
+        ScreeningOutcome.INCLUDE,
+        slot_number=2,
     )
     db.commit()
 
@@ -706,7 +832,13 @@ def test_reviewer_summary_has_no_identifying_fields(db) -> None:
         version=2,
     )
     make_decision(
-        db, project, pub, ScreeningStage.TITLE_ABSTRACT, r2, ScreeningOutcome.INCLUDE, slot_number=2
+        db,
+        project,
+        pub,
+        ScreeningStage.TITLE_ABSTRACT,
+        r2,
+        ScreeningOutcome.INCLUDE,
+        slot_number=2,
     )
     db.commit()
 
@@ -730,9 +862,12 @@ def test_reviewer_summary_has_no_identifying_fields(db) -> None:
         }
 
 
-def test_reviewer_analysis_api_response_contains_no_identifying_fields(client, db) -> None:
+def test_reviewer_analysis_api_response_contains_no_identifying_fields(
+    client, db
+) -> None:
     admin = create_user(db, "admin", "Admin", "secret-password", is_admin=True)
     project = make_project(db)
+    project.stage = ProjectStage.FULL_TEXT
     r1 = create_user(db, "r1", "R1", "password-1", email="r1@example.org")
     r2 = create_user(db, "r2", "R2", "password-2", email="r2@example.org")
     db.add_all(
@@ -744,10 +879,22 @@ def test_reviewer_analysis_api_response_contains_no_identifying_fields(client, d
     db.add(pub)
     db.flush()
     make_decision(
-        db, project, pub, ScreeningStage.TITLE_ABSTRACT, r1, ScreeningOutcome.INCLUDE, slot_number=1
+        db,
+        project,
+        pub,
+        ScreeningStage.TITLE_ABSTRACT,
+        r1,
+        ScreeningOutcome.INCLUDE,
+        slot_number=1,
     )
     make_decision(
-        db, project, pub, ScreeningStage.TITLE_ABSTRACT, r2, ScreeningOutcome.EXCLUDE, slot_number=2
+        db,
+        project,
+        pub,
+        ScreeningStage.TITLE_ABSTRACT,
+        r2,
+        ScreeningOutcome.EXCLUDE,
+        slot_number=2,
     )
     db.commit()
 

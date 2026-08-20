@@ -112,9 +112,7 @@ def test_dashboard_reports_screening_remaining_for_publications_added_late(
     assert dashboard["titleAbstractScreeningRemaining"] == 0
     assert dashboard["fullTextScreeningRemaining"] == 0
 
-    pending_title_abstract = Publication(
-        project_id=project.id, title="Needs screening"
-    )
+    pending_title_abstract = Publication(project_id=project.id, title="Needs screening")
     db.add(pending_title_abstract)
     db.flush()
     sync_new_publications_with_stage(db, project, [pending_title_abstract.id])

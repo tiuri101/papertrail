@@ -40,6 +40,11 @@ describe('MyQualityPage', () => {
 
     expect(await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })).toBeInTheDocument()
     expect(screen.getByText(/Total score 8/)).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Immersive Urban Analytics' })).toHaveAttribute(
+      'href',
+      '/projects/p1/publications/publication-1',
+    )
+    expect(document.querySelector('time')).toHaveAttribute('datetime', baseEntry.completedAt)
     expect(screen.getByRole('button', { name: 'Edit Quality Assessment' })).toBeInTheDocument()
   })
 
@@ -65,6 +70,13 @@ describe('MyQualityPage', () => {
     expect(screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)).toEqual([
       'Alpha Study',
       'Immersive Urban Analytics',
+    ])
+
+    expect(document.querySelector('.publication-list__header')).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Sort by'), { target: { value: 'title:desc' } })
+    expect(screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)).toEqual([
+      'Immersive Urban Analytics',
+      'Alpha Study',
     ])
 
     fireEvent.change(screen.getByLabelText('Search papers'), { target: { value: 'Z. Reviewer' } })

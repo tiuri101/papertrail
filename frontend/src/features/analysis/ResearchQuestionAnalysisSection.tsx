@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { IconFile } from '../../components/icons'
 import { LlmEvidence } from '../llm/LlmTaskComponents'
 import { type BackgroundJob, findJob, hasActiveJob, isJobActive } from '../jobs/jobStatus'
 import {
@@ -20,56 +21,46 @@ function formatSourceValue(value: unknown): string {
 function SourceBadge({
   sourceId,
   sourceRef,
-  projectId,
+  evidenceId,
+  expanded,
+  onSelect,
 }: {
   sourceId: string
   sourceRef: RqSourceRef | undefined
-  projectId: string
+  evidenceId: string
+  expanded: boolean
+  onSelect: (sourceId: string) => void
 }) {
-  const [expanded, setExpanded] = useState(false)
   if (!sourceRef) {
     return <span className="rq-source-badge rq-source-badge--unknown">{sourceId}</span>
   }
+  const traceable = sourceRef.evidence.some((item) => item.quote.trim().length > 0)
   return (
-    <span className="rq-source-badge-wrapper">
-      <button
-        type="button"
-        className="rq-source-badge"
-        aria-expanded={expanded}
-        onClick={() => setExpanded((current) => !current)}
-      >
-        {sourceId}
-      </button>
-      {expanded ? (
-        <div className="rq-source-detail">
-          <p className="muted">
-            {sourceRef.publicationTitle} · {sourceRef.label}
-            {' '}({sourceRef.sourceType === 'quality' ? 'Quality assessment' : 'Extraction'})
-          </p>
-          <p><strong>Value:</strong> {formatSourceValue(sourceRef.value)}</p>
-          {sourceRef.evidence.length ? (
-            <LlmEvidence
-              evidence={sourceRef.evidence}
-              projectId={projectId}
-              publicationId={sourceRef.publicationId}
-            />
-          ) : (
-            <p className="muted">No traceable source quotation for this value.</p>
-          )}
-        </div>
-      ) : null}
-    </span>
+    <button
+      type="button"
+      className={`rq-source-badge${traceable ? '' : ' rq-source-badge--untraceable'}`}
+      aria-controls={evidenceId}
+      aria-expanded={expanded}
+      title={traceable ? undefined : 'No traceable source quotation for this value'}
+      onClick={() => onSelect(sourceId)}
+    >
+      {sourceId}
+    </button>
   )
 }
 
 function StatementRow({
   statement,
   sourceRefs,
-  projectId,
+  questionNumber,
+  expandedSourceId,
+  onSourceSelect,
 }: {
   statement: RqStatement
   sourceRefs: Record<string, RqSourceRef>
-  projectId: string
+  questionNumber: number
+  expandedSourceId: string | null
+  onSourceSelect: (sourceId: string) => void
 }) {
   return (
     <li className="rq-statement">
@@ -80,7 +71,9 @@ function StatementRow({
             key={sourceId}
             sourceId={sourceId}
             sourceRef={sourceRefs[sourceId]}
-            projectId={projectId}
+            evidenceId={`rq-${questionNumber}-evidence-${sourceId}`}
+            expanded={expandedSourceId === sourceId}
+            onSelect={onSourceSelect}
           />
         ))}
       </div>
@@ -88,15 +81,75 @@ function StatementRow({
   )
 }
 
+function SourceEvidenceCard({
+  sourceId,
+  sourceRef,
+  evidenceId,
+  onClose,
+  projectId,
+}: {
+  sourceId: string
+  sourceRef: RqSourceRef
+  evidenceId: string
+  onClose: () => void
+  projectId: string
+}) {
+  const sourceTypeLabel = sourceRef.sourceType === 'quality' ? 'Quality assessment' : 'Extraction'
+  const traceableEvidence = sourceRef.evidence.filter((item) => item.quote.trim().length > 0)
+
+  return (
+    <article
+      id={evidenceId}
+      className="rq-evidence-card rq-evidence-card--expanded"
+    >
+      <header className="rq-evidence-card__header">
+        <span className="rq-evidence-card__icon" aria-hidden="true"><IconFile /></span>
+        <div>
+          <strong>{sourceId}</strong>
+          <span>{sourceRef.publicationTitle}</span>
+        </div>
+      </header>
+      <div className="rq-evidence-card__details">
+        <p><strong>Recorded value:</strong> {formatSourceValue(sourceRef.value)}</p>
+        {traceableEvidence.length ? (
+          <LlmEvidence
+            evidence={traceableEvidence}
+            projectId={projectId}
+            publicationId={sourceRef.publicationId}
+          />
+        ) : (
+          <p className="muted">No traceable source quotation for this value.</p>
+        )}
+      </div>
+      <div className="rq-evidence-card__footer">
+        <span className={`rq-evidence-tag rq-evidence-tag--${sourceRef.sourceType}`}>
+          {sourceRef.label}
+        </span>
+        <span>{sourceTypeLabel}</span>
+      </div>
+      <button
+        type="button"
+        className="link-button rq-evidence-card__toggle"
+        onClick={onClose}
+      >
+        Close evidence
+      </button>
+    </article>
+  )
+}
+
 function ResearchQuestionCard({
   projectId,
   researchQuestionId,
+  questionNumber,
 }: {
   projectId: string
   researchQuestionId: string
+  questionNumber: number
 }) {
   const queryClient = useQueryClient()
   const [pendingJobId, setPendingJobId] = useState<string | null>(null)
+  const [expandedSourceId, setExpandedSourceId] = useState<string | null>(null)
   const analysis = useRqAnalysis(projectId, researchQuestionId)
 
   const jobs = useQuery({
@@ -135,11 +188,19 @@ function ResearchQuestionCard({
 
   const data = analysis.data
   const run = data.latestRun
+  const questionLabel = `RQ${questionNumber}`
+  const sourceEntries = run ? Object.entries(run.sourceRefs) : []
+  const selectedSourceEntry = expandedSourceId
+    ? sourceEntries.find(([sourceId]) => sourceId === expandedSourceId)
+    : undefined
 
   return (
     <div className="rq-card">
       <div className="rq-card__header">
-        <h3>{data.researchQuestionText}</h3>
+        <div className="rq-card__question">
+          <span className="rq-card__number">{questionLabel}</span>
+          <h3>{data.researchQuestionText}</h3>
+        </div>
         <button
           type="button"
           className="button-secondary"
@@ -169,31 +230,56 @@ function ResearchQuestionCard({
           {run.status === 'failed' && run.error ? (
             <p className="error" role="alert">{run.error}</p>
           ) : null}
-          {run.statements.length === 0 ? (
-            <p className="muted">No supported statements could be generated from the current data.</p>
-          ) : (
-            <ul className="rq-statement-list">
-              {run.statements.map((statement, index) => (
-                <StatementRow
-                  key={index}
-                  statement={statement}
-                  sourceRefs={run.sourceRefs}
+          <div className={`rq-card__layout${selectedSourceEntry ? '' : ' rq-card__layout--single'}`}>
+            <section className="rq-synthesis" aria-label={`Synthesis for ${questionLabel}`}>
+              <h4>Synthesis</h4>
+              <p className="rq-synthesis__intro">
+                Evidence-supported findings generated from the project&apos;s authoritative results.
+              </p>
+              <h5>Key findings</h5>
+              {run.statements.length === 0 ? (
+                <p className="muted">No supported statements could be generated from the current data.</p>
+              ) : (
+                <ul className="rq-statement-list">
+                  {run.statements.map((statement, index) => (
+                    <StatementRow
+                      key={index}
+                      statement={statement}
+                      sourceRefs={run.sourceRefs}
+                      questionNumber={questionNumber}
+                      expandedSourceId={expandedSourceId}
+                      onSourceSelect={(sourceId) => setExpandedSourceId((current) => (
+                        current === sourceId ? null : sourceId
+                      ))}
+                    />
+                  ))}
+                </ul>
+              )}
+              {run.limitations.length > 0 ? (
+                <div className="rq-limitations">
+                  <h5>Limitations</h5>
+                  <ul>
+                    {run.limitations.map((limitation, index) => <li key={index}>{limitation}</li>)}
+                  </ul>
+                </div>
+              ) : null}
+              {run.generatedAt ? (
+                <p className="rq-card__generated">Generated {new Date(run.generatedAt).toLocaleDateString()}</p>
+              ) : null}
+            </section>
+            {selectedSourceEntry ? (
+              <aside className="rq-evidence-panel" aria-label={`Selected evidence ${selectedSourceEntry[0]}`}>
+                <h4>Selected Evidence</h4>
+                <SourceEvidenceCard
+                  sourceId={selectedSourceEntry[0]}
+                  sourceRef={selectedSourceEntry[1]}
+                  evidenceId={`rq-${questionNumber}-evidence-${selectedSourceEntry[0]}`}
+                  onClose={() => setExpandedSourceId(null)}
                   projectId={projectId}
                 />
-              ))}
-            </ul>
-          )}
-          {run.limitations.length > 0 ? (
-            <div className="rq-limitations">
-              <h4>Limitations</h4>
-              <ul>
-                {run.limitations.map((limitation, index) => <li key={index}>{limitation}</li>)}
-              </ul>
-            </div>
-          ) : null}
-          {run.generatedAt ? (
-            <p className="muted">Generated {new Date(run.generatedAt).toLocaleDateString()}</p>
-          ) : null}
+              </aside>
+            ) : null}
+          </div>
         </>
       ) : (
         <p className="muted">No synthesis generated yet.</p>
@@ -217,11 +303,12 @@ export function ResearchQuestionAnalysisSection({ projectId }: { projectId: stri
       {questions.data && researchQuestions.length === 0 ? (
         <p>No research questions have been defined for this project.</p>
       ) : null}
-      {researchQuestions.map((question) => (
+      {researchQuestions.map((question, index) => (
         <ResearchQuestionCard
           key={question.id}
           projectId={projectId}
           researchQuestionId={question.id}
+          questionNumber={index + 1}
         />
       ))}
     </section>

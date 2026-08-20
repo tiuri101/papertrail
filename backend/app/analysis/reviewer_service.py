@@ -19,6 +19,7 @@ from itertools import combinations
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.accounts.models import User
 from app.analysis.reviewer_stats import (
     ConfusionMatrix,
     FleissResult,
@@ -29,7 +30,7 @@ from app.analysis.reviewer_stats import (
     raw_agreement_rate,
 )
 from app.conflicts.models import FinalDecision
-from app.projects.models import Criterion, Project
+from app.projects.models import Criterion, Project, ProjectMembership, ScreeningConfig
 from app.projects.models import ScreeningStage as ProjectScreeningStage
 from app.screening.models import ScreeningDecision, ScreeningOutcome, ScreeningWorkItem
 
@@ -95,13 +96,18 @@ def _gather_complete_publication_sets(
             decisions[matched_decision.reviewer_id] = matched_decision
         if complete and decisions:
             sets.append(
-                PublicationDecisionSet(publication_id=publication_id, decisions=decisions)
+                PublicationDecisionSet(
+                    publication_id=publication_id, decisions=decisions
+                )
             )
     return sets
 
 
 def _final_decision_by_publication(
-    db: Session, project_id: str, stage: ProjectScreeningStage, publication_ids: list[str]
+    db: Session,
+    project_id: str,
+    stage: ProjectScreeningStage,
+    publication_ids: list[str],
 ) -> dict[str, FinalDecision]:
     if not publication_ids:
         return {}
@@ -152,10 +158,44 @@ def _all_flattened_pairs(sets: list[PublicationDecisionSet]) -> list[tuple[str, 
     return flattened
 
 
+def _eligible_reviewer_count(
+    db: Session, project_id: str, stage: ProjectScreeningStage
+) -> int:
+    membership_flag = (
+        ProjectMembership.can_title_abstract_screen
+        if stage == ProjectScreeningStage.TITLE_ABSTRACT
+        else ProjectMembership.can_full_text_screen
+    )
+    return len(
+        list(
+            db.scalars(
+                select(ProjectMembership.id)
+                .join(User, User.id == ProjectMembership.user_id)
+                .where(
+                    ProjectMembership.project_id == project_id,
+                    membership_flag.is_(True),
+                    User.is_active.is_(True),
+                )
+            )
+        )
+    )
+
+
 def compute_reviewer_analysis(
     db: Session, project_id: str, stage: ProjectScreeningStage
 ) -> dict[str, object]:
-    sets = _gather_complete_publication_sets(db, project_id, stage)
+    config = db.scalar(
+        select(ScreeningConfig).where(
+            ScreeningConfig.project_id == project_id,
+            ScreeningConfig.stage == stage,
+        )
+    )
+    configured_reviewer_count = config.required_reviewers if config is not None else 1
+    complete_sets = _gather_complete_publication_sets(db, project_id, stage)
+    # A single decision is useful screening activity, but it is not reviewer
+    # agreement. Keep singleton publications out of every comparison metric so
+    # they cannot appear as artificial unanimous decisions or 100% trends.
+    sets = [pub_set for pub_set in complete_sets if len(pub_set.decisions) > 1]
     reviewer_ids = _all_reviewer_ids(sets)
     pseudonyms = pseudonymize(_pseudonym_salt(db, project_id), project_id, reviewer_ids)
 
@@ -168,9 +208,7 @@ def compute_reviewer_analysis(
         for pub_set in sets
         if len({d.outcome for d in pub_set.decisions.values()}) == 1
     )
-    publication_disagreement_rate = (
-        1 - (unanimous_count / len(sets)) if sets else None
-    )
+    publication_disagreement_rate = 1 - (unanimous_count / len(sets)) if sets else None
 
     uncertain_count = sum(
         1
@@ -179,9 +217,7 @@ def compute_reviewer_analysis(
         if decision.outcome == ScreeningOutcome.UNCERTAIN
     )
     uncertain_rate = (
-        uncertain_count / total_original_decisions
-        if total_original_decisions
-        else None
+        uncertain_count / total_original_decisions if total_original_decisions else None
     )
 
     publication_ids = [s.publication_id for s in sets]
@@ -234,8 +270,13 @@ def compute_reviewer_analysis(
 
     return {
         "stage": stage.value,
+        "configuredReviewerCount": configured_reviewer_count,
+        "eligibleReviewerCount": _eligible_reviewer_count(db, project_id, stage),
         "overall": {
             "comparingReviewerCount": len(reviewer_ids),
+            "maximumReviewerCount": max(
+                (len(pub_set.decisions) for pub_set in sets), default=0
+            ),
             "publicationsWithCompleteSet": len(sets),
             "totalOriginalDecisions": total_original_decisions,
             "rawAgreementRate": overall_raw_agreement,
@@ -292,9 +333,9 @@ def _criterion_level_results(
 ) -> list[dict[str, object]]:
     criteria = list(
         db.scalars(
-            select(Criterion).where(
-                Criterion.project_id == project_id, Criterion.is_active.is_(True)
-            ).order_by(Criterion.position)
+            select(Criterion)
+            .where(Criterion.project_id == project_id, Criterion.is_active.is_(True))
+            .order_by(Criterion.position)
         )
     )
     results = []
@@ -306,7 +347,9 @@ def _criterion_level_results(
                 answers_a = pub_set.decisions[a].criteria_answers
                 answers_b = pub_set.decisions[b].criteria_answers
                 if criterion.id in answers_a and criterion.id in answers_b:
-                    pairs.append((str(answers_a[criterion.id]), str(answers_b[criterion.id])))
+                    pairs.append(
+                        (str(answers_a[criterion.id]), str(answers_b[criterion.id]))
+                    )
         if not pairs:
             continue
         disagreement_count = sum(1 for a, b in pairs if a != b)
@@ -361,7 +404,9 @@ def compute_reviewer_summary(db: Session, project_id: str) -> list[dict[str, obj
     reviewer_ids: set[str] = set()
     for sets in stage_sets.values():
         reviewer_ids.update(_all_reviewer_ids(sets))
-    pseudonyms = pseudonymize(_pseudonym_salt(db, project_id), project_id, sorted(reviewer_ids))
+    pseudonyms = pseudonymize(
+        _pseudonym_salt(db, project_id), project_id, sorted(reviewer_ids)
+    )
 
     summary: dict[str, dict[str, int]] = {
         reviewer_id: {

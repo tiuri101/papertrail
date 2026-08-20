@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 
 import { ImportPage } from '../ImportPage'
 import { setCsrfToken } from '../../auth/session'
@@ -52,7 +52,7 @@ describe('ImportPage', () => {
 
     await screen.findByLabelText('Bibliographic export')
     expect(screen.getByRole('heading', { name: 'Searches and Imports' })).toBeInTheDocument()
-    const importToggle = screen.getByRole('button', { name: 'Import an Export File' })
+    const importToggle = screen.getByRole('button', { name: 'Import a Database Export' })
     expect(importToggle).toHaveAttribute('aria-expanded', 'false')
     expect(document.querySelector('#section-import-records')?.nextElementSibling).toHaveAttribute(
       'id',
@@ -70,7 +70,7 @@ describe('ImportPage', () => {
     mockFetch(() => jsonResponse([]))
     renderWithProviders(<ImportPage />, { route: '/projects/project-1/imports', path: '/projects/:projectId/imports' })
 
-    const importToggle = await screen.findByRole('button', { name: 'Import an Export File' })
+    const importToggle = await screen.findByRole('button', { name: 'Import a Database Export' })
     expect(importToggle).toHaveAttribute('aria-expanded', 'true')
     expect(screen.getByText('No searches have been documented for this project yet.')).toBeInTheDocument()
   })
@@ -167,6 +167,7 @@ describe('ImportPage', () => {
   it('updates from "queued" to "complete" once the import job finishes', async () => {
     setCsrfToken('csrf-import')
     let jobStatus = 'queued'
+    const scrollIntoView = vi.spyOn(Element.prototype, 'scrollIntoView').mockImplementation(() => {})
     mockFetch((input, init) => {
       const url = String(input)
       if (url.endsWith('/projects/project-1')) return jsonResponse({ id: 'project-1', canManage: true })
@@ -204,6 +205,23 @@ describe('ImportPage', () => {
           },
         ])
       }
+      if (url.endsWith('/pdf-matches')) {
+        const needsReview = jobStatus === 'completed'
+        return jsonResponse({
+          summary: {
+            total: needsReview ? 2 : 0,
+            matched: 0,
+            ambiguous: needsReview ? 1 : 0,
+            unmatched: needsReview ? 1 : 0,
+            conflict_existing_pdf: 0,
+            duplicate: 0,
+            invalid: 0,
+            skipped: 0,
+          },
+          items: [],
+          publications: [],
+        })
+      }
       return jsonResponse([])
     })
     const { queryClient } = renderWithProviders(<ImportPage />, { route: '/projects/project-1/imports', path: '/projects/:projectId/imports' })
@@ -222,6 +240,10 @@ describe('ImportPage', () => {
     expect(await screen.findByText('Import complete.')).toBeInTheDocument()
     expect(screen.getByText(/5 files processed · 2 matched · 2 need review/)).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Review PDF matches' })).toBeInTheDocument()
+    await waitFor(() => {
+      expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' })
+    })
+    scrollIntoView.mockRestore()
   })
 
   it('lists previously documented searches for reference', async () => {

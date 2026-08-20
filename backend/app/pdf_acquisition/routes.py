@@ -90,7 +90,9 @@ def revoke_browser_agent(
     db.commit()
 
 
-@user_router.post("/pair", response_model=PairResponse, status_code=status.HTTP_201_CREATED)
+@user_router.post(
+    "/pair", response_model=PairResponse, status_code=status.HTTP_201_CREATED
+)
 def pair_browser_agent(
     payload: PairRequest,
     db: Session = Depends(get_db),
@@ -127,7 +129,9 @@ def agent_me(
     return agent
 
 
-@agent_router.get("/retrieval-jobs/pending-count", response_model=PendingJobsCountResponse)
+@agent_router.get(
+    "/retrieval-jobs/pending-count", response_model=PendingJobsCountResponse
+)
 def pending_retrieval_jobs_count(
     agent: BrowserAgent = Depends(get_current_browser_agent),
     db: Session = Depends(get_db),
@@ -166,9 +170,7 @@ def claim_retrieval_job(
     }
 
 
-@agent_router.post(
-    "/retrieval-jobs/{job_id}/state", response_model=JobResponse
-)
+@agent_router.post("/retrieval-jobs/{job_id}/state", response_model=JobResponse)
 def update_retrieval_job_state(
     job_id: str,
     payload: JobStateUpdate,
@@ -262,7 +264,10 @@ def create_retrieval_batch(
     batch = service.create_batch(db, project, reviewer, payload.publication_ids)
     response = _batch_response(db, batch)
     db.commit()
-    return {"batch": response, "eligible_publication_count": response["progress"]["total"]}
+    return {
+        "batch": response,
+        "eligible_publication_count": response["progress"]["total"],
+    }
 
 
 @batch_router.get(

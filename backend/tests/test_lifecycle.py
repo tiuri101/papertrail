@@ -124,17 +124,19 @@ def test_project_completion_queues_rq_synthesis_for_each_research_question(
     _enable_installation_llm(monkeypatch)
     admin, project, publication = create_included_project(db)
     complete_extraction_directly(db, project, publication, admin.id)
-    rq1 = ResearchQuestion(project_id=project.id, text="What designs were used?", position=0)
-    rq2 = ResearchQuestion(project_id=project.id, text="What outcomes were measured?", position=1)
+    rq1 = ResearchQuestion(
+        project_id=project.id, text="What designs were used?", position=0
+    )
+    rq2 = ResearchQuestion(
+        project_id=project.id, text="What outcomes were measured?", position=1
+    )
     db.add_all([rq1, rq2])
     db.flush()
 
     assert evaluate_project_completion(db, project) is True
 
     jobs = (
-        db.query(BackgroundJob)
-        .filter(BackgroundJob.job_type == RQ_SYNTHESIS_JOB)
-        .all()
+        db.query(BackgroundJob).filter(BackgroundJob.job_type == RQ_SYNTHESIS_JOB).all()
     )
     assert {job.project_id for job in jobs} == {project.id}
     assert len(jobs) == 2
@@ -143,12 +145,18 @@ def test_project_completion_queues_rq_synthesis_for_each_research_question(
 def test_project_completion_skips_rq_synthesis_when_llm_disabled(db) -> None:
     admin, project, publication = create_included_project(db)
     complete_extraction_directly(db, project, publication, admin.id)
-    db.add(ResearchQuestion(project_id=project.id, text="What designs were used?", position=0))
+    db.add(
+        ResearchQuestion(
+            project_id=project.id, text="What designs were used?", position=0
+        )
+    )
     db.flush()
 
     assert evaluate_project_completion(db, project) is True
 
-    jobs = db.query(BackgroundJob).filter(BackgroundJob.job_type == RQ_SYNTHESIS_JOB).all()
+    jobs = (
+        db.query(BackgroundJob).filter(BackgroundJob.job_type == RQ_SYNTHESIS_JOB).all()
+    )
     assert jobs == []
 
 
@@ -158,14 +166,20 @@ def test_project_completion_skips_rq_synthesis_when_narrative_disabled(
     _enable_installation_llm(monkeypatch)
     admin, project, publication = create_included_project(db)
     complete_extraction_directly(db, project, publication, admin.id)
-    db.add(ResearchQuestion(project_id=project.id, text="What designs were used?", position=0))
+    db.add(
+        ResearchQuestion(
+            project_id=project.id, text="What designs were used?", position=0
+        )
+    )
     settings = project_settings(db, project.id, create=True)
     settings.analysis_narrative_enabled = False
     db.flush()
 
     assert evaluate_project_completion(db, project) is True
 
-    jobs = db.query(BackgroundJob).filter(BackgroundJob.job_type == RQ_SYNTHESIS_JOB).all()
+    jobs = (
+        db.query(BackgroundJob).filter(BackgroundJob.job_type == RQ_SYNTHESIS_JOB).all()
+    )
     assert jobs == []
 
 
@@ -279,6 +293,50 @@ def test_integrity_check_detects_missing_downstream_work(db) -> None:
     }
 
 
+def test_integrity_check_ignores_downstream_items_until_full_text_stage_finishes(
+    db,
+) -> None:
+    project = Project(
+        name="Retrievals still open",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.FULL_TEXT,
+    )
+    db.add(project)
+    db.flush()
+    screened = Publication(project_id=project.id, title="Screened full text")
+    awaiting_retrieval = Publication(project_id=project.id, title="Awaiting retrieval")
+    db.add_all([screened, awaiting_retrieval])
+    db.flush()
+
+    for publication in (screened, awaiting_retrieval):
+        record_final_decision(
+            db,
+            publication.id,
+            ScreeningStage.TITLE_ABSTRACT,
+            "include",
+            "agreement",
+            None,
+            None,
+        )
+    record_final_decision(
+        db,
+        screened.id,
+        ScreeningStage.FULL_TEXT,
+        "include",
+        "agreement",
+        None,
+        None,
+    )
+    db.flush()
+
+    issue_codes = {issue["code"] for issue in project_integrity_issues(db, project)}
+
+    assert "missing_extraction_item" not in issue_codes
+    assert "missing_quality_item" not in issue_codes
+    assert db.query(ExtractionWorkItem).count() == 0
+
+
 def test_reconcile_workflow_integrity_backfills_missing_extraction_item(db) -> None:
     admin, project, publication = create_included_project(db)
     create_form(db, "Extraction", FormKind.EXTRACTION, project_id=project.id)
@@ -292,7 +350,10 @@ def test_reconcile_workflow_integrity_backfills_missing_extraction_item(db) -> N
     assert "missing_extraction_item" not in {
         issue["code"] for issue in project_integrity_issues(db, project)
     }
-    assert db.query(ExtractionWorkItem).filter_by(publication_id=publication.id).count() == 1
+    assert (
+        db.query(ExtractionWorkItem).filter_by(publication_id=publication.id).count()
+        == 1
+    )
     assert "project.workflow_integrity_repaired" in {
         event.action for event in db.query(AuditEvent)
     }

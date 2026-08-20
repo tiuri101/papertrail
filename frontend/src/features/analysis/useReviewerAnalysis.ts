@@ -50,8 +50,11 @@ export interface ReviewerSummaryEntry {
 
 export interface ReviewerAnalysisResponse {
   stage: string
+  configuredReviewerCount: number
+  eligibleReviewerCount: number
   overall: {
     comparingReviewerCount: number
+    maximumReviewerCount: number
     publicationsWithCompleteSet: number
     totalOriginalDecisions: number
     rawAgreementRate: number | null
@@ -71,12 +74,16 @@ export interface ReviewerAnalysisResponse {
   reviewerSummary: ReviewerSummaryEntry[]
 }
 
-export function useReviewerAnalysis(projectId: string, stage: 'title_abstract' | 'full_text') {
+export function useReviewerAnalysis(
+  projectId: string,
+  stage: 'title_abstract' | 'full_text',
+  enabled = true,
+) {
   return useQuery({
     queryKey: ['reviewer-analysis', projectId, stage],
     queryFn: () => apiRequest<ReviewerAnalysisResponse>(
       `/api/v1/projects/${projectId}/analysis/reviewer-analysis/${stage}`,
     ),
-    enabled: Boolean(projectId),
+    enabled: Boolean(projectId && enabled),
   })
 }

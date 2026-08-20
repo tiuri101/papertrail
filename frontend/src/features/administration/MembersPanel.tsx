@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { ConfirmButton } from '../../components/ConfirmButton'
+import { CountPill } from '../../components/CountPill'
 import { IconCheckCircle, IconPlus, IconTrash, IconUsers } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
 import type { User } from '../auth/types'
@@ -249,6 +250,9 @@ export function MembersPanel({
       </InfoBox>
       {users.error ? <p className="error" role="alert">{users.error.message}</p> : null}
       {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
+      <CountPill count={project.data.memberships.length}>
+        project member{project.data.memberships.length === 1 ? '' : 's'}
+      </CountPill>
       <table className="table-compact">
         <thead>
           <tr>

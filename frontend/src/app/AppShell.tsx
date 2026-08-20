@@ -3,6 +3,7 @@ import { useEffect, useId, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 
 import { apiRequest } from '../api/client'
+import { DecorativeDocTrail } from '../components/DecorativeDocTrail'
 import { IconFolder, IconHelpCircle, IconPerson, IconSettings, IconUsers } from '../components/icons'
 import { MOBILE_MENU_SECTION_SLOT_ID, MobileMenuContext } from '../components/mobileMenu'
 import { ThemeToggle } from '../components/ThemeToggle'
@@ -35,6 +36,7 @@ export function AppShell() {
 
   return (
     <>
+      <DecorativeDocTrail className="app-background-illustration" />
       <header className="app-header">
         <div className="app-header__content">
           <NavLink className="brand" to="/" aria-label="Papertrail home">

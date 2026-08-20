@@ -1,4 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { Fragment, useEffect, useRef, type CSSProperties } from 'react'
+
+import { IconCheck } from '../../components/icons'
 
 export const STAGES = [
   { value: 'draft', label: 'Draft', color: '#2a78d6' },
@@ -31,6 +33,41 @@ export function StageProgress({ stage }: { stage: string }) {
           </li>
         ))}
       </ol>
+    </div>
+  )
+}
+
+/** A compact dot-and-connector summary of stage progress, for use on project cards. */
+export function ProjectProgressDots({ stage }: { stage: string }) {
+  const currentIndex = STAGES.findIndex((step) => step.value === stage)
+  const accentColor = STAGES[currentIndex]?.color ?? STAGES[STAGES.length - 1].color
+  const accentStyle = { '--progress-accent': accentColor } as CSSProperties
+
+  return (
+    <div className="progress-dots" aria-hidden="true">
+      {STAGES.map((step, index) => (
+        <Fragment key={step.value}>
+          {index > 0 ? (
+            <span
+              className={`progress-connector ${index <= currentIndex ? 'progress-connector--done' : ''}`}
+              style={index <= currentIndex ? accentStyle : undefined}
+            />
+          ) : null}
+          <span
+            className={
+              index < currentIndex
+                ? 'progress-dot progress-dot--done'
+                : index === currentIndex
+                  ? 'progress-dot progress-dot--current'
+                  : 'progress-dot progress-dot--pending'
+            }
+            style={index <= currentIndex ? accentStyle : undefined}
+            title={step.label}
+          >
+            {index < currentIndex ? <IconCheck /> : null}
+          </span>
+        </Fragment>
+      ))}
     </div>
   )
 }

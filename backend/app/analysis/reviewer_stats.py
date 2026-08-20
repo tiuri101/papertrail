@@ -44,7 +44,9 @@ def raw_agreement_rate(pairs: list[tuple[str, str]]) -> float | None:
     return agreeing / len(pairs)
 
 
-def confusion_matrix(pairs: list[tuple[str, str]], categories: list[str]) -> ConfusionMatrix:
+def confusion_matrix(
+    pairs: list[tuple[str, str]], categories: list[str]
+) -> ConfusionMatrix:
     """Only includes categories actually present in `categories` -- callers
     should pass the set of outcomes actually used by the stage (e.g.
     include/exclude/uncertain/duplicate), not a fixed universal list."""

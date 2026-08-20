@@ -5,6 +5,11 @@ import { FormBuilderPage } from '../FormBuilderPage'
 import { jsonResponse, mockFetch } from '../../../test/http'
 import { renderWithProviders } from '../../../test/render'
 
+function openNewFieldDraft() {
+  fireEvent.click(screen.getByRole('button', { name: 'Add form field' }))
+  return screen.getByLabelText('Label')
+}
+
 describe('FormBuilderPage', () => {
   it('creates a project form and adds a required typed field', async () => {
     const forms: Array<{ id: string; name: string; kind: string; activeVersionId: string | null }> = []
@@ -35,15 +40,20 @@ describe('FormBuilderPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Create Form' }))
 
     await waitFor(() => expect(screen.getByLabelText('Form to edit')).toHaveValue('form-1'))
-    fireEvent.change(screen.getByLabelText('Label'), { target: { value: 'Main finding' } })
+    expect(screen.queryByRole('heading', { name: 'Add Field' })).not.toBeInTheDocument()
+    fireEvent.change(openNewFieldDraft(), { target: { value: 'Main finding' } })
     fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'long_text' } })
     fireEvent.click(screen.getByLabelText('Required'))
-    fireEvent.click(screen.getByRole('button', { name: 'Add Field' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save Field' }))
 
-    const fieldCard = (await screen.findByText('Main finding', { selector: 'strong' })).closest('details')!
+    const fieldCard = (await screen.findByText('Main finding', { selector: 'details strong' })).closest('details')!
     expect(fieldCard).toHaveClass('llm-schema-field', 'form-editor-field')
     expect(within(fieldCard).getByText('Long text')).toBeInTheDocument()
     expect(within(fieldCard).getByText('Required')).toBeInTheDocument()
+    const addButton = screen.getByRole('button', { name: 'Add form field' })
+    expect(Array.from(fieldCard.parentElement!.children).indexOf(addButton)).toBeGreaterThan(
+      Array.from(fieldCard.parentElement!.children).indexOf(fieldCard),
+    )
     const fieldCall = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/forms/form-1/fields') && init?.method === 'POST')
     expect(JSON.parse(String(fieldCall?.[1]?.body))).toEqual({
       label: 'Main finding',
@@ -73,10 +83,10 @@ describe('FormBuilderPage', () => {
 
     await screen.findByRole('option', { name: 'Extraction (extraction)' })
     fireEvent.change(screen.getByLabelText('Form to edit'), { target: { value: 'form-1' } })
-    fireEvent.change(await screen.findByLabelText('Label'), { target: { value: 'Study design' } })
+    fireEvent.change(openNewFieldDraft(), { target: { value: 'Study design' } })
     fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'single_select' } })
     fireEvent.change(screen.getByLabelText('Options (one per line)'), { target: { value: 'Experimental\nObservational' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Add Field' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save Field' }))
 
     await waitFor(() => {
       const fieldCall = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/forms/form-1/fields') && init?.method === 'POST')
@@ -110,12 +120,12 @@ describe('FormBuilderPage', () => {
 
     await screen.findByRole('option', { name: 'Quality (quality)' })
     fireEvent.change(screen.getByLabelText('Form to edit'), { target: { value: 'form-1' } })
-    fireEvent.change(await screen.findByLabelText('Label'), { target: { value: 'Study design' } })
+    fireEvent.change(openNewFieldDraft(), { target: { value: 'Study design' } })
     fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'single_select' } })
     fireEvent.change(screen.getByLabelText('Options (one per line)'), { target: { value: 'Strong\nWeak' } })
     fireEvent.change(screen.getByLabelText('Strong'), { target: { value: '2' } })
     fireEvent.change(screen.getByLabelText('Weak'), { target: { value: '0' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Add Field' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save Field' }))
 
     await waitFor(() => {
       const fieldCall = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/forms/form-1/fields') && init?.method === 'POST')
@@ -149,11 +159,11 @@ describe('FormBuilderPage', () => {
 
     await screen.findByRole('option', { name: 'Extraction (extraction)' })
     fireEvent.change(screen.getByLabelText('Form to edit'), { target: { value: 'form-1' } })
-    fireEvent.change(await screen.findByLabelText('Label'), { target: { value: 'Overall rank' } })
+    fireEvent.change(openNewFieldDraft(), { target: { value: 'Overall rank' } })
     fireEvent.change(screen.getByLabelText('Type'), { target: { value: 'rating' } })
     fireEvent.change(screen.getByLabelText('Scale minimum'), { target: { value: '0' } })
     fireEvent.change(screen.getByLabelText('Scale maximum'), { target: { value: '10' } })
-    fireEvent.click(screen.getByRole('button', { name: 'Add Field' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Save Field' }))
 
     await waitFor(() => {
       const fieldCall = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/forms/form-1/fields') && init?.method === 'POST')
@@ -271,7 +281,7 @@ describe('FormBuilderPage', () => {
     })
   })
 
-  it('opens a field card directly for full editing and saves options and order', async () => {
+  it('drags a field card into a new order and saves its edited options', async () => {
     const fields = [
       {
         id: 'field-1', stableKey: 'stable-1', label: 'Study designs', fieldType: 'multiple_select',
@@ -286,7 +296,12 @@ describe('FormBuilderPage', () => {
       const path = String(input)
       if (path.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
       if (path.endsWith('/forms/form-1/fields/stable-1') && init?.method === 'PATCH') {
-        return jsonResponse({ ...fields[0], ...JSON.parse(String(init.body)) })
+        const body = JSON.parse(String(init.body))
+        if (Object.keys(body).length === 1 && body.position === 1) {
+          const [moved] = fields.splice(0, 1)
+          fields.splice(1, 0, moved)
+        }
+        return jsonResponse({ ...fields.find((field) => field.stableKey === 'stable-1'), ...body })
       }
       if (path.endsWith('/forms/form-1/fields')) return jsonResponse(fields)
       if (path.endsWith('/quality-config')) return jsonResponse({ enabled: false, mode: 'both', aggregation: 'sum' })
@@ -296,19 +311,50 @@ describe('FormBuilderPage', () => {
 
     await screen.findByRole('option', { name: 'Extraction (extraction)' })
     fireEvent.change(screen.getByLabelText('Form to edit'), { target: { value: 'form-1' } })
-    fireEvent.click((await screen.findByText('Study designs', { selector: 'strong' })).closest('summary')!)
+    const fieldSummary = (await screen.findByText('Study designs', { selector: 'strong' })).closest('summary')!
+    const fieldCard = fieldSummary.closest('details')!
+    fireEvent.click(fieldSummary)
+    expect(fieldCard).toHaveAttribute('open')
+    fireEvent.click(fieldSummary)
+    expect(fieldCard).not.toHaveAttribute('open')
+    fireEvent.click(fieldSummary)
 
     expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument()
     const optionsInput = screen.getByLabelText('Edit options for Study designs')
     expect(optionsInput).toHaveValue('Experimental\nObservational')
     fireEvent.change(optionsInput, { target: { value: 'Experimental\nQuasi-experimental' } })
-    expect(screen.getByRole('button', { name: 'Move Up' })).toBeDisabled()
-    fireEvent.click(screen.getByRole('button', { name: 'Move Down' }))
+
+    const transferred: Record<string, string> = {}
+    const dataTransfer = {
+      effectAllowed: 'none',
+      dropEffect: 'none',
+      setData: (type: string, value: string) => { transferred[type] = value },
+      getData: (type: string) => transferred[type] ?? '',
+    } as unknown as DataTransfer
+    const studyHandle = screen.getByRole('button', { name: 'Reorder Study designs' })
+    const notesCard = screen.getByText('Notes', { selector: 'details strong' }).closest('details')!
+    expect(screen.queryByRole('button', { name: 'Move Up' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Move Down' })).not.toBeInTheDocument()
+    fireEvent.dragStart(studyHandle, { dataTransfer })
+    fireEvent.dragOver(notesCard, { dataTransfer })
+    fireEvent.drop(notesCard, { dataTransfer })
+
+    await waitFor(() => {
+      const reorderCall = fetchMock.mock.calls.find(([input, init]) => (
+        String(input).endsWith('/forms/form-1/fields/stable-1')
+          && init?.method === 'PATCH'
+          && JSON.parse(String(init.body)).position === 1
+          && Object.keys(JSON.parse(String(init.body))).length === 1
+      ))
+      expect(reorderCall).toBeTruthy()
+    })
     fireEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => {
       const updateCall = fetchMock.mock.calls.find(([input, init]) => (
-        String(input).endsWith('/forms/form-1/fields/stable-1') && init?.method === 'PATCH'
+        String(input).endsWith('/forms/form-1/fields/stable-1')
+          && init?.method === 'PATCH'
+          && 'options' in JSON.parse(String(init.body))
       ))
       expect(updateCall).toBeTruthy()
       expect(JSON.parse(String(updateCall?.[1]?.body))).toEqual({

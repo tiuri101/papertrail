@@ -11,6 +11,7 @@ interface FinalDecision {
   resolutionMethod: string
   note: string | null
   resolvedBy: string | null
+  resolvedAt: string | null
 }
 
 interface ReviewerDecision {
@@ -20,6 +21,7 @@ interface ReviewerDecision {
   criteriaAnswers: Record<string, boolean>
   notes: string | null
   version: number
+  createdAt: string
 }
 
 interface ScreeningCriterion {
@@ -69,6 +71,11 @@ function outcomeLabel(outcome: string): string {
   return OUTCOME_LABELS[outcome] ?? outcome.replaceAll('_', ' ')
 }
 
+function formatDate(value: string | null | undefined): string | null {
+  if (!value) return null
+  return new Date(value).toLocaleString()
+}
+
 function valueLabel(value: unknown): string {
   if (value === null || value === undefined || value === '') return '—'
   if (typeof value === 'boolean') return value ? 'Yes' : 'No'
@@ -110,6 +117,9 @@ function ScreeningResponseForm({
         <strong>{decision.reviewerName} <span className="muted">(v{decision.version})</span></strong>
         <OutcomeBadge outcome={decision.outcome} label={outcomeLabel(decision.outcome)} />
       </div>
+      {formatDate(decision.createdAt) ? (
+        <p className="muted publication-review-details__meta">Decided {formatDate(decision.createdAt)}</p>
+      ) : null}
       <table className="criteria-table publication-review-details__criteria">
         <thead>
           <tr>
@@ -148,7 +158,7 @@ function ScreeningResponseForm({
         <strong>Notes:</strong> {decision.notes || 'None'}
       </p>
       {canManage ? (
-        <button type="button" className="link-button" onClick={onOverride}>
+        <button type="button" className="button-secondary button-sm" onClick={onOverride}>
           Override {label}
         </button>
       ) : null}
@@ -166,7 +176,6 @@ export function PublicationReviewDetails({
   canManage: boolean
 }) {
   const queryClient = useQueryClient()
-  const [open, setOpen] = useState(false)
   const [responseOverride, setResponseOverride] = useState<{
     stageLabel: string
     workItemId: string
@@ -185,7 +194,7 @@ export function PublicationReviewDetails({
     queryFn: () => apiRequest<ReviewDetails>(
       `/api/v1/projects/${projectId}/publications/${publicationId}/review-details`,
     ),
-    enabled: open,
+    enabled: Boolean(projectId && publicationId),
   })
 
   const refresh = async () => {
@@ -242,6 +251,8 @@ export function PublicationReviewDetails({
   ) => {
     if (!stageDetails) return null
     const final = stageDetails.finalDecision
+    const criteria = stageDetails.criteria ?? []
+    const reviewerDecisions = stageDetails.reviewerDecisions ?? []
     return (
       <section className="publication-review-details__stage" key={stage}>
         <div className="publication-review-details__heading">
@@ -252,15 +263,16 @@ export function PublicationReviewDetails({
           <p className="muted publication-review-details__meta">
             Final via {final.resolutionMethod.replaceAll('_', ' ')}
             {final.resolvedBy ? ` by ${final.resolvedBy}` : ''}
+            {formatDate(final.resolvedAt) ? ` on ${formatDate(final.resolvedAt)}` : ''}
             {final.note ? ` — ${final.note}` : ''}
           </p>
         ) : <p className="muted">No final decision yet.</p>}
-        {stageDetails.reviewerDecisions.length ? (
+        {reviewerDecisions.length ? (
           <div className="publication-review-details__responses">
-            {stageDetails.reviewerDecisions.map((decision, index) => (
+            {reviewerDecisions.map((decision, index) => (
               <ScreeningResponseForm
                 key={`${decision.reviewerName}-${index}`}
-                criteria={stageDetails.criteria}
+                criteria={criteria}
                 decision={decision}
                 label={label}
                 canManage={canManage}
@@ -268,7 +280,7 @@ export function PublicationReviewDetails({
                   stageLabel: label,
                   workItemId: decision.workItemId,
                   reviewerName: decision.reviewerName,
-                  criteria: stageDetails.criteria.filter(
+                  criteria: criteria.filter(
                     (criterion) => criterion.id in decision.criteriaAnswers,
                   ),
                   criteriaAnswers: { ...decision.criteriaAnswers },
@@ -288,11 +300,7 @@ export function PublicationReviewDetails({
   const response = extraction?.response
 
   return (
-    <details
-      className="publication-review-details"
-      onToggle={(event) => setOpen(event.currentTarget.open)}
-    >
-      <summary>Review details</summary>
+    <div className="publication-review-details">
       <div className="publication-review-details__content">
         {details.isLoading ? <p className="muted">Loading review details…</p> : null}
         {details.error ? <p className="error" role="alert">{details.error.message}</p> : null}
@@ -319,6 +327,7 @@ export function PublicationReviewDetails({
                 <>
                   <p className="muted publication-review-details__meta">
                     Version {response.version}{response.reviewerName ? ` by ${response.reviewerName}` : ''}
+                    {formatDate(extraction?.completedAt) ? ` on ${formatDate(extraction?.completedAt)}` : ''}
                   </p>
                   <dl className="publication-review-details__values">
                     {response.fields.map((field) => (
@@ -331,7 +340,7 @@ export function PublicationReviewDetails({
                   {canManage ? (
                     <button
                       type="button"
-                      className="link-button"
+                      className="button-secondary button-sm"
                       onClick={() => {
                         setExtractionAnswers({ ...response.answers })
                         setExtractionReason('')
@@ -506,6 +515,6 @@ export function PublicationReviewDetails({
           </>
         ) : null}
       </div>
-    </details>
+    </div>
   )
 }

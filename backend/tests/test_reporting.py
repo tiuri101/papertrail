@@ -561,26 +561,38 @@ def test_final_results_use_reconciled_value_not_an_arbitrary_response(db) -> Non
     consensus value, and must never present an unresolved disagreement as
     though it were final."""
     from app.conflicts.service import record_final_decision
-    from app.extraction.service import claim_next_extraction, extraction_required_reviewers
+    from app.extraction.service import (
+        claim_next_extraction,
+        extraction_required_reviewers,
+    )
     from app.projects.models import ProjectStage
 
     admin = create_user(db, "admin", "Admin", "secret-password", is_admin=True)
     r1 = create_user(db, "r1", "R1", "password-1")
     r2 = create_user(db, "r2", "R2", "password-2")
     project = Project(
-        name="Dual", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed",
+        name="Dual",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
         stage=ProjectStage.FULL_TEXT,
     )
     db.add(project)
     db.flush()
     for reviewer in (r1, r2):
         db.add(
-            ProjectMembership(project_id=project.id, user_id=reviewer.id, can_extract=True)
+            ProjectMembership(
+                project_id=project.id, user_id=reviewer.id, can_extract=True
+            )
         )
     db.add(ExtractionConfig(project_id=project.id, required_reviewers=2))
     form = create_form(db, "Extraction", FormKind.EXTRACTION, project_id=project.id)
     field = add_field(
-        db, form, "Outcome", "single_select", required=True, options=["Positive", "Negative"]
+        db,
+        form,
+        "Outcome",
+        "single_select",
+        required=True,
+        options=["Positive", "Negative"],
     )
     resolved_pub = Publication(project_id=project.id, title="Resolved paper")
     pending_pub = Publication(project_id=project.id, title="Still disagreeing paper")

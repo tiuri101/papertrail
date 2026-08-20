@@ -4,8 +4,10 @@ import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
+import { DragHandle } from '../../components/DragHandle'
 import { InfoBox } from '../../components/InfoBox'
 import { IconCheckCircle, IconChart, IconSettings, IconSparkle, IconTrash } from '../../components/icons'
+import { InfoTooltip } from '../../components/Tooltip'
 import { STAGES } from '../projects/StageProgress'
 
 const stageColors = Object.fromEntries(STAGES.map((stage) => [stage.value, stage.color]))
@@ -110,6 +112,8 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
     enabled: showProcessingStatus,
   })
   const [fields, setFields] = useState<LlmSchemaField[]>([])
+  const [draggedFieldKey, setDraggedFieldKey] = useState<string | null>(null)
+  const [dragOverFieldKey, setDragOverFieldKey] = useState<string | null>(null)
   const [connection, setConnection] = useState<{ message: string; ok: boolean } | null>(null)
 
   useEffect(() => setFields(schema.data?.schema?.fields ?? []), [schema.data?.schema])
@@ -206,6 +210,15 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
   const edit = (index: number, patch: Partial<LlmSchemaField>) => setFields((current) => (
     current.map((field, fieldIndex) => fieldIndex === index ? { ...field, ...patch } : field)
   ))
+  const moveFieldTo = (stableKey: string, targetStableKey: string) => setFields((current) => {
+    const sourceIndex = current.findIndex((field) => field.stableKey === stableKey)
+    const targetIndex = current.findIndex((field) => field.stableKey === targetStableKey)
+    if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return current
+    const next = [...current]
+    const [movedField] = next.splice(sourceIndex, 1)
+    next.splice(targetIndex, 0, movedField)
+    return next.map((field, position) => ({ ...field, position }))
+  })
   const addHelper = () => setFields((current) => [...current, {
     stableKey: crypto.randomUUID(),
     label: 'Paper summary',
@@ -340,7 +353,24 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
               (item) => item.stableKey === field.mappedExtractionFieldKey,
             )
             return (
-            <details className="llm-schema-field" key={field.stableKey}>
+            <details
+              className={`llm-schema-field${draggedFieldKey === field.stableKey ? ' llm-schema-field--dragging' : ''}${dragOverFieldKey === field.stableKey ? ' llm-schema-field--drag-over' : ''}`}
+              key={field.stableKey}
+              data-field-sort-key={field.stableKey}
+              onDragOver={(event) => {
+                if (!draggedFieldKey) return
+                event.preventDefault()
+                event.dataTransfer.dropEffect = 'move'
+                setDragOverFieldKey(field.stableKey)
+              }}
+              onDrop={(event) => {
+                event.preventDefault()
+                const sourceKey = draggedFieldKey || event.dataTransfer.getData('text/plain')
+                if (sourceKey) moveFieldTo(sourceKey, field.stableKey)
+                setDraggedFieldKey(null)
+                setDragOverFieldKey(null)
+              }}
+            >
               <summary className="llm-schema-field__summary">
                 <span className="llm-schema-field__title">
                   <strong>{field.label || `Field ${index + 1}`}</strong>
@@ -353,6 +383,38 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
                 <span className="llm-schema-field__preview">
                   {field.instruction || 'No extraction instruction provided.'}
                 </span>
+                <DragHandle
+                  label={field.label || `Field ${index + 1}`}
+                  index={index}
+                  itemCount={fields.length}
+                  disabled={fields.length < 2}
+                  onMove={(targetIndex) => moveFieldTo(
+                    field.stableKey,
+                    fields[targetIndex].stableKey,
+                  )}
+                  onDragStart={(event) => {
+                    event.dataTransfer.effectAllowed = 'move'
+                    event.dataTransfer.setData('text/plain', field.stableKey)
+                    setDraggedFieldKey(field.stableKey)
+                  }}
+                  onDragEnd={() => {
+                    setDraggedFieldKey(null)
+                    setDragOverFieldKey(null)
+                  }}
+                  onPointerDragStart={() => setDraggedFieldKey(field.stableKey)}
+                  onPointerDragOver={(targetKey) => setDragOverFieldKey(
+                    targetKey === field.stableKey ? null : targetKey,
+                  )}
+                  onPointerDrop={(targetKey) => {
+                    if (targetKey) moveFieldTo(field.stableKey, targetKey)
+                    setDraggedFieldKey(null)
+                    setDragOverFieldKey(null)
+                  }}
+                  onPointerDragCancel={() => {
+                    setDraggedFieldKey(null)
+                    setDragOverFieldKey(null)
+                  }}
+                />
               </summary>
               <div className="llm-schema-field__content">
               <label>Label
@@ -397,21 +459,35 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
               {field.mappingState && !['active', 'helper'].includes(field.mappingState) ? (
                 <p className="error">Mapping is {field.mappingState}; resolve it before publishing.</p>
               ) : null}
-              <label><input type="checkbox" checked={field.evidenceRequired} onChange={(event) => edit(index, { evidenceRequired: event.target.checked })} /> Require evidence</label>
-              <label><input type="checkbox" checked={field.allowInferred} onChange={(event) => edit(index, { allowInferred: event.target.checked })} /> Allow inferred values</label>
-              <label><input type="checkbox" checked={field.enabled} onChange={(event) => edit(index, { enabled: event.target.checked })} /> Enabled</label>
-              <div className="toolbar">
-                <button type="button" className="button-secondary" disabled={index === 0} onClick={() => setFields((current) => {
-                  const next = [...current]
-                  ;[next[index - 1], next[index]] = [next[index], next[index - 1]]
-                  return next
-                })}>Move up</button>
-                <button type="button" className="button-secondary" disabled={index === fields.length - 1} onClick={() => setFields((current) => {
-                  const next = [...current]
-                  ;[next[index], next[index + 1]] = [next[index + 1], next[index]]
-                  return next
-                })}>Move down</button>
+              <div className="llm-schema-field__toggle-setting">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={field.evidenceRequired}
+                    onChange={(event) => edit(index, { evidenceRequired: event.target.checked })}
+                  />
+                  Require evidence
+                </label>
+                <InfoTooltip
+                  label="About requiring evidence"
+                  text="Require the LLM to support a returned value with a quote from the publication. Papertrail verifies the quote against the cited PDF page and flags missing or unverifiable evidence."
+                />
               </div>
+              <div className="llm-schema-field__toggle-setting">
+                <label>
+                  <input
+                    type="checkbox"
+                    checked={field.allowInferred}
+                    onChange={(event) => edit(index, { allowInferred: event.target.checked })}
+                  />
+                  Allow inferred values
+                </label>
+                <InfoTooltip
+                  label="About inferred values"
+                  text="Allow the LLM to derive a value from information in the paper when it is not stated directly. Inferred results are rejected when this is turned off."
+                />
+              </div>
+              <label><input type="checkbox" checked={field.enabled} onChange={(event) => edit(index, { enabled: event.target.checked })} /> Enabled</label>
               <button type="button" className="button-danger" onClick={() => setFields((current) => current.filter((_, i) => i !== index))}>
                 <IconTrash />
                 Remove field

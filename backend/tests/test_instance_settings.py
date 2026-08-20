@@ -56,9 +56,7 @@ def test_anonymous_and_non_admin_cannot_access_instance_settings(client, db) -> 
 
 
 def test_administrator_can_read_and_update_instance_settings(client, db) -> None:
-    admin = create_user(
-        db, "admin", "Administrator", "secret-password", is_admin=True
-    )
+    admin = create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
     db.commit()
     csrf = login(client, "admin", "secret-password")
 

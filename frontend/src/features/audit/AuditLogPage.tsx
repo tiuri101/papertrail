@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { CountPill } from '../../components/CountPill'
 import { InfoTooltip } from '../../components/Tooltip'
 import { useProjectManageState } from '../../hooks/useCanManageProject'
 
@@ -160,6 +161,13 @@ export function AuditLogPage() {
             />
           </label>
         </div>
+      ) : null}
+      {events.data && events.data.length > 0 ? (
+        <CountPill count={sortedEvents.length}>
+          {sortedEvents.length === events.data.length
+            ? `audit event${events.data.length === 1 ? '' : 's'}`
+            : `of ${events.data.length} audit events match your filters`}
+        </CountPill>
       ) : null}
       {sortedEvents.length ? (
         <div className="table-scroll">

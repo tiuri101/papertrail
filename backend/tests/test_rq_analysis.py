@@ -67,7 +67,9 @@ def _add_research_question(db, project, text="What study designs were used?"):
 
 
 def login(client, username: str, password: str) -> str:
-    response = client.post("/api/v1/auth/login", json={"username": username, "password": password})
+    response = client.post(
+        "/api/v1/auth/login", json={"username": username, "password": password}
+    )
     assert response.status_code == 200
     return response.json()["csrfToken"]
 
@@ -163,7 +165,9 @@ def test_run_rq_synthesis_single_chunk_skips_consolidation(db):
     fake = FakeOllama(
         [
             {
-                "statements": [{"claim": "RCT design was used.", "sourceIds": [source_id]}],
+                "statements": [
+                    {"claim": "RCT design was used.", "sourceIds": [source_id]}
+                ],
                 "limitations": ["Small sample"],
             }
         ]
@@ -172,15 +176,25 @@ def test_run_rq_synthesis_single_chunk_skips_consolidation(db):
     result, _metrics = run_rq_synthesis(db, project.id, "What designs?", client=fake)
 
     assert len(fake.calls) == 1
-    assert result["statements"] == [{"claim": "RCT design was used.", "sourceIds": [source_id]}]
+    assert result["statements"] == [
+        {"claim": "RCT design was used.", "sourceIds": [source_id]}
+    ]
     assert result["limitations"] == ["Small sample"]
-    assert result["sourceRefs"][source_id]["publicationTitle"] == entries[0].publication_title
+    assert (
+        result["sourceRefs"][source_id]["publicationTitle"]
+        == entries[0].publication_title
+    )
 
 
 def test_run_rq_synthesis_drops_statements_with_only_hallucinated_sources(db):
     project, *_ = setup_matrix_project(db)
     fake = FakeOllama(
-        [{"statements": [{"claim": "Invented.", "sourceIds": ["SRC-9999"]}], "limitations": []}]
+        [
+            {
+                "statements": [{"claim": "Invented.", "sourceIds": ["SRC-9999"]}],
+                "limitations": [],
+            }
+        ]
     )
 
     result, _ = run_rq_synthesis(db, project.id, "RQ", client=fake)
@@ -196,7 +210,9 @@ def test_run_rq_synthesis_keeps_valid_and_drops_invalid_ids_from_mixed_statement
     fake = FakeOllama(
         [
             {
-                "statements": [{"claim": "Mixed.", "sourceIds": [valid_id, "SRC-9999"]}],
+                "statements": [
+                    {"claim": "Mixed.", "sourceIds": [valid_id, "SRC-9999"]}
+                ],
                 "limitations": [],
             }
         ]
@@ -208,7 +224,9 @@ def test_run_rq_synthesis_keeps_valid_and_drops_invalid_ids_from_mixed_statement
 
 
 def test_run_rq_synthesis_with_no_facts_short_circuits_without_calling_ollama(db):
-    project = Project(name="Empty", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="s")
+    project = Project(
+        name="Empty", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="s"
+    )
     db.add(project)
     db.commit()
     fake = FakeOllama([])
@@ -220,7 +238,9 @@ def test_run_rq_synthesis_with_no_facts_short_circuits_without_calling_ollama(db
     assert fake.calls == []
 
 
-def test_run_rq_synthesis_consolidates_and_revalidates_when_multiple_chunks(db, monkeypatch):
+def test_run_rq_synthesis_consolidates_and_revalidates_when_multiple_chunks(
+    db, monkeypatch
+):
     project, *_ = setup_matrix_project(db)
     dataset = build_evidence_dataset(db, project.id)
     entries = assign_source_ids(dataset)
@@ -234,8 +254,14 @@ def test_run_rq_synthesis_consolidates_and_revalidates_when_multiple_chunks(db, 
     id_a, id_b = entries[0].id, entries[-1].id
     fake = FakeOllama(
         [
-            {"statements": [{"claim": "From chunk 1.", "sourceIds": [id_a]}], "limitations": []},
-            {"statements": [{"claim": "From chunk 2.", "sourceIds": [id_b]}], "limitations": []},
+            {
+                "statements": [{"claim": "From chunk 1.", "sourceIds": [id_a]}],
+                "limitations": [],
+            },
+            {
+                "statements": [{"claim": "From chunk 2.", "sourceIds": [id_b]}],
+                "limitations": [],
+            },
             {
                 "statements": [{"claim": "Consolidated.", "sourceIds": [id_a, id_b]}],
                 "limitations": ["Overall limitation"],
@@ -246,7 +272,9 @@ def test_run_rq_synthesis_consolidates_and_revalidates_when_multiple_chunks(db, 
     result, _ = run_rq_synthesis(db, project.id, "RQ", client=fake)
 
     assert len(fake.calls) == 3
-    assert result["statements"] == [{"claim": "Consolidated.", "sourceIds": [id_a, id_b]}]
+    assert result["statements"] == [
+        {"claim": "Consolidated.", "sourceIds": [id_a, id_b]}
+    ]
     assert result["limitations"] == ["Overall limitation"]
 
 
@@ -285,11 +313,15 @@ def test_fingerprint_changes_when_cohort_changes(db):
 
 
 def test_fingerprint_changes_when_extraction_value_changes(db):
-    project, reviewer, fields, _quality_field, complete_pub, *_ = setup_matrix_project(db)
+    project, reviewer, fields, _quality_field, complete_pub, *_ = setup_matrix_project(
+        db
+    )
     rq = _add_research_question(db, project)
     fp1 = compute_rq_fingerprint(db, project.id, rq)
     item = db.scalar(
-        select(ExtractionWorkItem).where(ExtractionWorkItem.publication_id == complete_pub.id)
+        select(ExtractionWorkItem).where(
+            ExtractionWorkItem.publication_id == complete_pub.id
+        )
     )
     submit_extraction(
         db,
@@ -308,7 +340,9 @@ def test_fingerprint_changes_when_extraction_value_changes(db):
 
 
 def test_fingerprint_changes_when_quality_data_changes(db):
-    project, reviewer, _fields, quality_field, complete_pub, *_ = setup_matrix_project(db)
+    project, reviewer, _fields, quality_field, complete_pub, *_ = setup_matrix_project(
+        db
+    )
     rq = _add_research_question(db, project)
     fp1 = compute_rq_fingerprint(db, project.id, rq)
     quality_item = db.scalar(
@@ -337,7 +371,9 @@ def test_fingerprint_changes_when_prompt_version_changes(db, monkeypatch):
     project, *_ = setup_matrix_project(db)
     rq = _add_research_question(db, project)
     fp1 = compute_rq_fingerprint(db, project.id, rq)
-    monkeypatch.setattr("app.analysis.rq_jobs.RQ_SYNTHESIS_PROMPT_VERSION", "rq_synthesis_v2")
+    monkeypatch.setattr(
+        "app.analysis.rq_jobs.RQ_SYNTHESIS_PROMPT_VERSION", "rq_synthesis_v2"
+    )
     fp2 = compute_rq_fingerprint(db, project.id, rq)
     assert fp1 != fp2
 
@@ -364,7 +400,12 @@ def test_job_handler_completes_and_persists_result(db, monkeypatch):
     dataset = build_evidence_dataset(db, project.id)
     source_id = assign_source_ids(dataset)[0].id
     fake = FakeOllama(
-        [{"statements": [{"claim": "Finding.", "sourceIds": [source_id]}], "limitations": []}]
+        [
+            {
+                "statements": [{"claim": "Finding.", "sourceIds": [source_id]}],
+                "limitations": [],
+            }
+        ]
     )
     monkeypatch.setattr("app.llm.rq_synthesis.create_ollama_client", lambda: fake)
 
@@ -383,7 +424,9 @@ def test_job_handler_completes_and_persists_result(db, monkeypatch):
 
 def test_job_handler_marks_stale_when_data_changed_since_queued(db, monkeypatch):
     _enable_installation_llm(monkeypatch)
-    project, reviewer, fields, _quality_field, complete_pub, *_ = setup_matrix_project(db)
+    project, reviewer, fields, _quality_field, complete_pub, *_ = setup_matrix_project(
+        db
+    )
     rq = _add_research_question(db, project)
     monkeypatch.setattr(
         "app.llm.rq_synthesis.create_ollama_client",
@@ -393,7 +436,9 @@ def test_job_handler_marks_stale_when_data_changed_since_queued(db, monkeypatch)
     db.commit()
 
     item = db.scalar(
-        select(ExtractionWorkItem).where(ExtractionWorkItem.publication_id == complete_pub.id)
+        select(ExtractionWorkItem).where(
+            ExtractionWorkItem.publication_id == complete_pub.id
+        )
     )
     submit_extraction(
         db,
@@ -446,7 +491,12 @@ def test_failed_job_marks_run_failed_and_leaves_prior_success_intact(db, monkeyp
     monkeypatch.setattr(
         "app.llm.rq_synthesis.create_ollama_client",
         lambda: FakeOllama(
-            [{"statements": [{"claim": "Good.", "sourceIds": [source_id]}], "limitations": []}]
+            [
+                {
+                    "statements": [{"claim": "Good.", "sourceIds": [source_id]}],
+                    "limitations": [],
+                }
+            ]
         ),
     )
     run1 = queue_rq_synthesis(db, project.id, rq, created_by_id=None)
@@ -524,7 +574,9 @@ def test_analysis_route_requires_project_membership(client, db, monkeypatch):
     db.commit()
 
     csrf = login(client, reviewer.username, "reviewer-password")
-    ok = client.get(f"/api/v1/projects/{project.id}/research-questions/{rq.id}/analysis")
+    ok = client.get(
+        f"/api/v1/projects/{project.id}/research-questions/{rq.id}/analysis"
+    )
     assert ok.status_code == 200
     body = ok.json()
     assert body["researchQuestionId"] == rq.id
@@ -545,7 +597,9 @@ def test_analysis_route_requires_project_membership(client, db, monkeypatch):
 
     client.post("/api/v1/auth/logout", headers={"X-CSRF-Token": csrf})
     login(client, outsider.username, "outsider-password")
-    forbidden = client.get(f"/api/v1/projects/{project.id}/research-questions/{rq.id}/analysis")
+    forbidden = client.get(
+        f"/api/v1/projects/{project.id}/research-questions/{rq.id}/analysis"
+    )
     assert forbidden.status_code == 403
 
 
@@ -579,7 +633,9 @@ def test_regenerate_rejected_when_project_narrative_disabled(client, db, monkeyp
     assert response.status_code == 400
 
 
-def test_analysis_not_stale_when_synthesis_disabled_after_prior_run(client, db, monkeypatch):
+def test_analysis_not_stale_when_synthesis_disabled_after_prior_run(
+    client, db, monkeypatch
+):
     from app.llm.schema_service import project_settings
 
     _enable_installation_llm(monkeypatch)
@@ -590,7 +646,12 @@ def test_analysis_not_stale_when_synthesis_disabled_after_prior_run(client, db, 
     monkeypatch.setattr(
         "app.llm.rq_synthesis.create_ollama_client",
         lambda: FakeOllama(
-            [{"statements": [{"claim": "Finding.", "sourceIds": [source_id]}], "limitations": []}]
+            [
+                {
+                    "statements": [{"claim": "Finding.", "sourceIds": [source_id]}],
+                    "limitations": [],
+                }
+            ]
         ),
     )
     run = queue_rq_synthesis(db, project.id, rq, created_by_id=None)

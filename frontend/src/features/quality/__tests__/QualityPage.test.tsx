@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { QualityPage } from '../QualityPage'
@@ -194,7 +194,9 @@ describe('QualityPage', () => {
       fireEvent.change(screen.getByLabelText('Study design *'), { target: { value: 'Strong' } })
 
       expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith('/quality-1/draft'))).toBe(false)
-      await vi.advanceTimersByTimeAsync(1000)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(1000)
+      })
 
       await waitFor(() => {
         const draftCall = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/quality-1/draft'))

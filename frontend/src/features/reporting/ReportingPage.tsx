@@ -4,6 +4,7 @@ import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { CountPill } from '../../components/CountPill'
 import { IconDownload, IconTrash } from '../../components/icons'
 import { useCanManagePublications } from '../../hooks/useCanManageProject'
 import { BackgroundJob, findJob, hasActiveJob, isJobActive } from '../jobs/jobStatus'
@@ -233,7 +234,7 @@ export function ReportingPage() {
             <span className="eyebrow">Download library</span>
             <h2 id="available-exports-heading">Available Exports</h2>
           </div>
-          <span className="status-badge">{artifacts.length} ready</span>
+          <CountPill count={artifacts.length}>ready</CountPill>
         </header>
         {exportsQuery.isLoading ? <p>Loading exports…</p> : null}
         {!exportsQuery.isLoading && artifacts.length === 0 ? (

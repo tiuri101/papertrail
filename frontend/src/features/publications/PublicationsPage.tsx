@@ -4,71 +4,38 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { ConfirmButton } from '../../components/ConfirmButton'
+import { CountPill } from '../../components/CountPill'
 import { HighlightedText } from '../../components/HighlightedText'
 import {
   IconCheckCircle,
-  IconClock,
   IconDownload,
+  IconEye,
   IconFolder,
   IconPlus,
   IconSparkle,
   IconTrash,
   IconUpload,
-  IconXCircle,
 } from '../../components/icons'
-import { DoiPill } from '../../components/DoiPill'
-import { OutcomeBadge } from '../../components/OutcomeBadge'
 import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
-import { PublisherLinkPill } from '../../components/PublisherLinkPill'
+import { RowActionsMenu } from '../../components/RowActionsMenu'
 import { InfoTooltip } from '../../components/Tooltip'
 import { FullTextDocumentPanel } from '../fulltext/FullTextDocumentPanel'
 import { AdministrationEyebrow } from '../projects/StageEyebrow'
-import { useCanManageProject, useCanManagePublications } from '../../hooks/useCanManageProject'
+import { useCanManagePublications } from '../../hooks/useCanManageProject'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 import { BackgroundJob, findJob, hasActiveJob, isJobActive } from '../jobs/jobStatus'
-import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { BrowserPdfRetrievalPanel } from '../fulltext/BrowserPdfRetrievalPanel'
 import { AddPublicationForm } from './AddPublicationPage'
 import { BulkPdfUploadPanel } from './BulkPdfUploadPanel'
-import { PublicationReviewDetails } from './PublicationReviewDetails'
 import { PublicationFieldInputs } from './publicationFields'
 import { PublicationDraft, toPayload } from './publicationFieldsData'
-
-interface ScreeningStatus {
-  titleAbstract: string | null
-  fullText: string | null
-}
-
-interface Publication {
-  id: string
-  title: string
-  authors: string | null
-  abstract: string | null
-  publicationYear: number | null
-  venue: string | null
-  publicationType: string | null
-  doi: string | null
-  publisherUrl: string | null
-  keywords: string | null
-  isbn: string | null
-  issn: string | null
-  pubmedId: string | null
-  arxivId: string | null
-  fullText: {
-    available: boolean
-    retrievalStatus?: string | null
-    document?: { pageCount: number | null } | null
-  }
-  screeningStatus?: ScreeningStatus
-  extractionStatus?: string | null
-}
-
-const SCREENING_OUTCOME_LABELS: Record<string, string> = {
-  include: 'Included',
-  exclude: 'Excluded',
-  uncertain: 'Uncertain',
-  duplicate: 'Duplicate',
-}
+import {
+  primaryStage,
+  sortPublications,
+  type Publication,
+  type PublicationSortKey,
+  type SortDirection,
+} from './publicationShared'
 
 const SCREENING_FILTER_OPTIONS = [
   { value: '', label: 'All' },
@@ -83,24 +50,6 @@ const PDF_STATUS_FILTER_OPTIONS = [
   { value: 'available', label: 'PDF available' },
   { value: 'unavailable', label: 'No PDF' },
 ]
-
-function screeningLabel(outcome: string | null | undefined): string {
-  if (!outcome) return 'Pending'
-  return SCREENING_OUTCOME_LABELS[outcome] ?? outcome
-}
-
-// Full-text screening is skipped entirely when retrieval definitively fails
-// (see backend/app/screening/routes.py), so those publications never get a
-// screening decision and would otherwise be mislabeled "Pending" forever.
-const FULL_TEXT_RETRIEVAL_FAILURE_LABELS: Record<string, string> = {
-  not_found: 'Not found',
-  inaccessible: 'Inaccessible',
-}
-
-function fullTextRetrievalFailureLabel(retrievalStatus: string | null | undefined): string | null {
-  if (!retrievalStatus) return null
-  return FULL_TEXT_RETRIEVAL_FAILURE_LABELS[retrievalStatus] ?? null
-}
 
 function matchesScreeningFilter(outcome: string | null | undefined, filter: string): boolean {
   if (!filter) return true
@@ -130,7 +79,7 @@ function toDraft(publication: Publication): PublicationDraft {
   }
 }
 
-function PublicationEditForm({
+export function PublicationEditForm({
   publication,
   projectId,
   onDone,
@@ -150,8 +99,11 @@ function PublicationEditForm({
       method: 'PATCH',
       body: JSON.stringify(toPayload(draft)),
     }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['publications', projectId] })
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ['publications', projectId] }),
+        queryClient.invalidateQueries({ queryKey: ['audit', projectId] }),
+      ])
       onDone()
     },
   })
@@ -179,19 +131,6 @@ interface MetadataConflict {
   publication?: Publication
 }
 
-function extractionLabel(status: string): string {
-  if (status === 'completed') return 'Completed'
-  if (status === 'reserved') return 'In progress'
-  if (status === 'available') return 'Pending'
-  return status.replaceAll('_', ' ')
-}
-
-function extractionBadgeClass(status: string): string {
-  if (status === 'completed') return 'status-badge--success'
-  if (status === 'reserved') return 'status-badge--warning'
-  return 'status-badge--pending'
-}
-
 const PUBLICATION_METADATA_FIELDS: Array<{ label: string; value: (publication: Publication) => string | number | null }> = [
   { label: 'Title', value: (publication) => publication.title },
   { label: 'Authors', value: (publication) => publication.authors },
@@ -208,6 +147,29 @@ const PUBLICATION_METADATA_FIELDS: Array<{ label: string; value: (publication: P
   { label: 'Abstract', value: (publication) => publication.abstract },
 ]
 
+function humanizeMetadataField(fieldName: string): string {
+  const value = fieldName.replace(/_/g, ' ')
+  return value.charAt(0).toUpperCase() + value.slice(1)
+}
+
+function metadataSourceLabel(sourceName: string): string {
+  if (sourceName === 'crossref') return 'Crossref'
+  if (sourceName === 'semantic_scholar') return 'Semantic Scholar'
+  if (sourceName === 'merge') return 'Duplicate merge'
+  return sourceName.replace(/_/g, ' ')
+}
+
+function metadataConflictExplanation(conflict: MetadataConflict): string {
+  const field = humanizeMetadataField(conflict.fieldName).toLowerCase()
+  if (conflict.sourceName === 'merge') {
+    return `The other record in a duplicate merge contained a different non-empty ${field}. Papertrail kept the canonical record's current value and queued this alternative for review.`
+  }
+  if (conflict.sourceName === 'crossref' || conflict.sourceName === 'semantic_scholar') {
+    return `${metadataSourceLabel(conflict.sourceName)} returned a different ${field} while enriching this publication. Papertrail does not overwrite an existing important field automatically, so the returned value was queued for review.`
+  }
+  return `${metadataSourceLabel(conflict.sourceName)} supplied a different ${field}. Because this field already had a value, Papertrail queued the alternative for review instead of overwriting it.`
+}
+
 function PublicationRow({
   publication,
   projectId,
@@ -215,7 +177,6 @@ function PublicationRow({
   onToggleSelected,
   highlightKeywords,
   canManage,
-  canOverride,
 }: {
   publication: Publication
   projectId: string
@@ -223,10 +184,8 @@ function PublicationRow({
   onToggleSelected: () => void
   highlightKeywords: string[]
   canManage: boolean
-  canOverride: boolean
 }) {
   const queryClient = useQueryClient()
-  const [editing, setEditing] = useState(false)
   const [showFullText, setShowFullText] = useState(false)
 
   const refreshPublications = () => queryClient.invalidateQueries({ queryKey: ['publications', projectId] })
@@ -244,117 +203,92 @@ function PublicationRow({
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['jobs', projectId] }),
   })
 
-  if (editing && canManage) {
-    return (
-      <li className="card">
-        <PublicationEditForm publication={publication} projectId={projectId} onDone={() => setEditing(false)} />
-      </li>
-    )
-  }
+  const stage = primaryStage(publication)
+  const detailHref = `/projects/${projectId}/publications/${publication.id}`
 
   return (
     <li className={`card publication-card${canManage ? ' publication-card--manageable' : ''}${selected ? ' publication-card--selected' : ''}`}>
-      <div className="publication-card__summary">
-        {canManage ? (
-          <input
-            className="publication-card__checkbox"
-            type="checkbox"
-            checked={selected}
-            onChange={onToggleSelected}
-            aria-label={`Select ${publication.title}`}
-          />
-        ) : null}
-        <div>
+      <div className="publication-card__summary publication-row-grid">
+        <span className="publication-row-grid__checkbox">
           {canManage ? (
-            <button type="button" className="link-button publication-card__title-button" onClick={() => setEditing(true)}>
-              <strong><HighlightedText text={publication.title} keywords={highlightKeywords} /></strong>
-            </button>
-          ) : (
-            <strong><HighlightedText text={publication.title} keywords={highlightKeywords} /></strong>
-          )}
-          {' — '}{publication.authors ?? 'Unknown authors'}
-          {publication.publicationYear ? ` (${publication.publicationYear})` : ''}
-        </div>
-      </div>
-      <div className="publication-card__workflow" aria-label="Review decisions">
-        <DoiPill doi={publication.doi} />
-        {isSafeHttpUrl(publication.publisherUrl) ? (
-          <PublisherLinkPill url={publication.publisherUrl!} />
-        ) : null}
-        <PdfAvailabilityPill
-          available={Boolean(publication.fullText?.available)}
-          href={`/api/v1/projects/${projectId}/publications/${publication.id}/full-text/content`}
-          pageCount={publication.fullText?.document?.pageCount}
-        />
-        <OutcomeBadge
-          outcome={publication.screeningStatus?.titleAbstract}
-          label={`Title/Abstract: ${screeningLabel(publication.screeningStatus?.titleAbstract)}`}
-        />
-        {publication.screeningStatus?.fullText ? (
-          <OutcomeBadge
-            outcome={publication.screeningStatus.fullText}
-            label={`Full text: ${screeningLabel(publication.screeningStatus.fullText)}`}
-          />
-        ) : publication.screeningStatus?.titleAbstract === 'include' ? (
-          fullTextRetrievalFailureLabel(publication.fullText?.retrievalStatus) ? (
-            <span className="status-badge status-badge--danger">
-              <IconXCircle />
-              Full text: {fullTextRetrievalFailureLabel(publication.fullText?.retrievalStatus)}
-            </span>
-          ) : (
-            <OutcomeBadge outcome={null} label="Full text: Pending" />
-          )
-        ) : null}
-        {publication.extractionStatus ? (
-          <span className={`status-badge ${extractionBadgeClass(publication.extractionStatus)}`}>
-            {publication.extractionStatus === 'completed' ? <IconCheckCircle /> : <IconClock />}
-            Data extraction: {extractionLabel(publication.extractionStatus)}
-          </span>
-        ) : null}
-      </div>
-      <details className="publication-card__abstract">
-        <summary>Abstract</summary>
-        <p>{publication.abstract?.trim() || 'No abstract available.'}</p>
-      </details>
-      <PublicationReviewDetails
-        projectId={projectId}
-        publicationId={publication.id}
-        canManage={canOverride}
-      />
-      {canManage ? (
-        <div className="toolbar publication-card__actions">
-          <button type="button" className="button-secondary button-sm" onClick={() => setEditing(true)}>Edit</button>
-          <button type="button" className="button-secondary button-sm" onClick={() => enrich.mutate()} disabled={enrich.isPending || !publication.doi}>
-            Enrich Metadata
-          </button>
-          <button type="button" className="button-secondary button-sm" onClick={() => setShowFullText((current) => !current)}>
-            {showFullText ? 'Hide PDF' : publication.fullText?.available ? 'Manage PDF' : 'Attach PDF'}
-          </button>
-          <a
-            className="button-secondary button-sm"
-            href={`/api/v1/projects/${projectId}/publications/${publication.id}/export/bib`}
-          >
-            Export BibTeX
-          </a>
-          {publication.fullText?.available ? (
-            <a
-              className="button-secondary"
-              href={`/api/v1/projects/${projectId}/publications/${publication.id}/export/pdf`}
-            >
-              Export PDF
-            </a>
+            <input
+              className="publication-card__checkbox"
+              type="checkbox"
+              checked={selected}
+              onChange={onToggleSelected}
+              aria-label={`Select ${publication.title}`}
+            />
           ) : null}
-          <ConfirmButton
-            label="Delete"
-            variant="danger"
-            className="button-sm"
-            warning={`Delete "${publication.title}"? This cannot be undone.`}
-            onConfirm={() => remove.mutate()}
-            disabled={remove.isPending}
-            icon={<IconTrash />}
-          />
+        </span>
+        <div className="publication-row-grid__title">
+          <Link className="publication-card__title-button" to={detailHref}>
+            <strong><HighlightedText text={publication.title} keywords={highlightKeywords} /></strong>
+          </Link>
+          <div className="publication-row-grid__authors">{publication.authors ?? 'Unknown authors'}</div>
         </div>
-      ) : null}
+        <span className="publication-row-grid__year">{publication.publicationYear ?? '—'}</span>
+        <span className="publication-row-grid__source" title={publication.venue ?? undefined}>
+          {publication.venue ?? '—'}
+        </span>
+        <span className="publication-row-grid__stage">
+          <span className={`status-badge ${stage.className}`}>{stage.label}</span>
+        </span>
+        <span className="publication-row-grid__pdf">
+          <PdfAvailabilityPill
+            available={Boolean(publication.fullText?.available)}
+            href={`/api/v1/projects/${projectId}/publications/${publication.id}/full-text/content`}
+            pageCount={publication.fullText?.document?.pageCount}
+            compact
+          />
+        </span>
+        <span className="publication-row-grid__actions">
+          <Link
+            className="icon-button"
+            to={detailHref}
+            aria-label={`View ${publication.title}`}
+            title="View details"
+          >
+            <IconEye />
+          </Link>
+          {canManage ? (
+            <RowActionsMenu label={`More actions for ${publication.title}`}>
+              <Link className="row-actions-menu__item" to={`${detailHref}?edit=1`}>Edit Metadata</Link>
+              <button
+                type="button"
+                className="row-actions-menu__item"
+                onClick={() => enrich.mutate()}
+                disabled={enrich.isPending || !publication.doi}
+              >
+                Enrich Metadata
+              </button>
+              <button
+                type="button"
+                className="row-actions-menu__item"
+                onClick={() => setShowFullText((current) => !current)}
+              >
+                {showFullText ? 'Hide PDF' : publication.fullText?.available ? 'Manage PDF' : 'Attach PDF'}
+              </button>
+              <a className="row-actions-menu__item" href={`/api/v1/projects/${projectId}/publications/${publication.id}/export/bib`}>
+                Export BibTeX
+              </a>
+              {publication.fullText?.available ? (
+                <a className="row-actions-menu__item" href={`/api/v1/projects/${projectId}/publications/${publication.id}/export/pdf`}>
+                  Export PDF
+                </a>
+              ) : null}
+              <ConfirmButton
+                label="Delete"
+                variant="danger"
+                className="row-actions-menu__item row-actions-menu__item--danger"
+                warning={`Delete "${publication.title}"? This cannot be undone.`}
+                onConfirm={() => remove.mutate()}
+                disabled={remove.isPending}
+                icon={<IconTrash />}
+              />
+            </RowActionsMenu>
+          ) : null}
+        </span>
+      </div>
       {canManage && showFullText ? (
         <FullTextDocumentPanel
           projectId={projectId}
@@ -363,7 +297,7 @@ function PublicationRow({
           onRemoved={refreshPublications}
         />
       ) : null}
-      {enrich.isSuccess ? <p className="muted">Enrichment queued.</p> : null}
+      {enrich.isSuccess ? <p className="muted publication-row__message">Enrichment queued.</p> : null}
       {enrich.error ? <p className="error" role="alert">{enrich.error.message}</p> : null}
       {remove.error ? <p className="error" role="alert">{remove.error.message}</p> : null}
     </li>
@@ -398,32 +332,58 @@ function MetadataConflictsPanel({ projectId }: { projectId: string }) {
   if (!conflicts.error && (!conflicts.data || conflicts.data.length === 0)) return null
 
   return (
-    <section className="card" id="metadata-conflicts">
+    <section className="card metadata-conflicts" id="metadata-conflicts">
       <h2>Metadata Conflicts</h2>
       <p className="muted">Enrichment or a duplicate merge proposed a different value for a field that already had one. Review each side by side and choose which value to keep.</p>
       {conflicts.error ? <p className="error" role="alert">{conflicts.error.message}</p> : null}
       {resolve.error ? <p className="error" role="alert">{resolve.error.message}</p> : null}
-      <ul className="card-list">
+      <ul className="metadata-conflict-list">
         {conflicts.data?.map((conflict) => (
-          <li key={conflict.id} className="card">
-            <h3>{conflict.publication?.title ?? conflict.currentValue ?? 'Publication'}</h3>
-            <p><strong>{conflict.fieldName}</strong> — proposed by {conflict.sourceName}</p>
-            <table>
-              <thead>
-                <tr>
-                  <th scope="col">Current value</th>
-                  <th scope="col">Proposed value</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <td>{conflict.currentValue ?? <span className="muted">(empty)</span>}</td>
-                  <td>{conflict.proposedValue ?? <span className="muted">(empty)</span>}</td>
-                </tr>
-              </tbody>
-            </table>
+          <li key={conflict.id} className="metadata-conflict-card">
+            <header className="metadata-conflict-card__header">
+              <div>
+                <span className="eyebrow">Metadata conflict</span>
+                <h3>{conflict.publication?.title ?? conflict.currentValue ?? 'Publication'}</h3>
+              </div>
+              <span className="metadata-conflict-card__source">
+                Proposed by {metadataSourceLabel(conflict.sourceName)}
+              </span>
+            </header>
+            <div className="metadata-conflict-comparison">
+              <section className="metadata-conflict-value metadata-conflict-value--current">
+                <header>
+                  <span className="metadata-conflict-value__label" aria-hidden="true">A</span>
+                  <div>
+                    <h4>Current Value</h4>
+                    <p>{humanizeMetadataField(conflict.fieldName)}</p>
+                  </div>
+                </header>
+                <div className="metadata-conflict-value__content">
+                  {conflict.currentValue ?? <span className="muted">(empty)</span>}
+                </div>
+              </section>
+              <aside className="metadata-conflict-reason">
+                <span className="metadata-conflict-reason__icon" aria-hidden="true">
+                  <IconSparkle />
+                </span>
+                <h4>Why was this proposed?</h4>
+                <p>{metadataConflictExplanation(conflict)}</p>
+              </aside>
+              <section className="metadata-conflict-value metadata-conflict-value--proposed">
+                <header>
+                  <span className="metadata-conflict-value__label" aria-hidden="true">B</span>
+                  <div>
+                    <h4>Proposed Value</h4>
+                    <p>{humanizeMetadataField(conflict.fieldName)}</p>
+                  </div>
+                </header>
+                <div className="metadata-conflict-value__content">
+                  {conflict.proposedValue ?? <span className="muted">(empty)</span>}
+                </div>
+              </section>
+            </div>
             {conflict.publication ? (
-              <details>
+              <details className="metadata-conflict-card__details">
                 <summary>All publication metadata</summary>
                 <dl className="detail-list metadata-conflict__metadata">
                   {PUBLICATION_METADATA_FIELDS.map((field) => {
@@ -438,24 +398,40 @@ function MetadataConflictsPanel({ projectId }: { projectId: string }) {
                 </dl>
               </details>
             ) : null}
-            <div className="toolbar">
+            <section className="metadata-conflict-decision">
+              <div>
+                <h4>Your Decision</h4>
+                <p>Choose which value Papertrail should keep for this publication.</p>
+              </div>
+              <div className="metadata-conflict-decision__actions">
               <button
                 type="button"
-                disabled={resolve.isPending}
-                onClick={() => resolve.mutate({ conflictId: conflict.id, acceptProposed: true })}
-              >
-                <IconCheckCircle />
-                Use Proposed Value
-              </button>
-              <button
-                type="button"
-                className="button-secondary button-sm"
+                className="metadata-conflict-decision__option metadata-conflict-decision__option--current"
+                aria-label="Keep Current Value"
                 disabled={resolve.isPending}
                 onClick={() => resolve.mutate({ conflictId: conflict.id, acceptProposed: false })}
               >
-                Keep Current Value
+                <span className="metadata-conflict-decision__marker" aria-hidden="true" />
+                <span>
+                  <strong>Keep Current Value</strong>
+                  <small>Retain Value A</small>
+                </span>
               </button>
-            </div>
+              <button
+                type="button"
+                className="metadata-conflict-decision__option metadata-conflict-decision__option--proposed"
+                aria-label="Use Proposed Value"
+                disabled={resolve.isPending}
+                onClick={() => resolve.mutate({ conflictId: conflict.id, acceptProposed: true })}
+              >
+                <span className="metadata-conflict-decision__marker"><IconCheckCircle /></span>
+                <span>
+                  <strong>Use Proposed Value</strong>
+                  <small>Replace it with Value B</small>
+                </span>
+              </button>
+              </div>
+            </section>
           </li>
         ))}
       </ul>
@@ -483,7 +459,6 @@ export function PublicationsPage() {
   const [searchParams] = useSearchParams()
   const queryClient = useQueryClient()
   const canManage = useCanManagePublications(projectId)
-  const canOverride = useCanManageProject(projectId)
   const highlightKeywords = useHighlightKeywords(projectId)
   const requestedTab = searchParams.get('tab')
   const [activeTab, setActiveTab] = useState<PublicationsTabId>(
@@ -495,6 +470,8 @@ export function PublicationsPage() {
   const [fullTextFilter, setFullTextFilter] = useState('')
   const [pdfStatusFilter, setPdfStatusFilter] = useState('')
   const [search, setSearch] = useState('')
+  const [sortKey, setSortKey] = useState<PublicationSortKey>('title')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const query = useQuery({
     queryKey: ['publications', projectId],
     queryFn: () => apiRequest<Publication[]>(
@@ -526,6 +503,11 @@ export function PublicationsPage() {
         && matchesPdfStatusFilter(Boolean(publication.fullText?.available), pdfStatusFilter)
     })
   }, [query.data, search, titleAbstractFilter, fullTextFilter, pdfStatusFilter])
+
+  const sortedPublications = useMemo(
+    () => sortPublications(filteredPublications, sortKey, sortDirection),
+    [filteredPublications, sortKey, sortDirection],
+  )
 
   const bulkEnrich = useMutation({
     mutationFn: (variables: { publicationIds?: string[]; missingOnly: boolean }) => apiRequest<{ jobIds: string[] }>(
@@ -641,11 +623,13 @@ export function PublicationsPage() {
         {activeTab === 'publications' ? (
           <>
             {query.data && (search || titleAbstractFilter || fullTextFilter || pdfStatusFilter) ? (
-              <p className="muted">
-                {filteredPublications.length} of {query.data.length} publication{query.data.length === 1 ? '' : 's'} match your filters
-              </p>
+              <CountPill count={filteredPublications.length}>
+                of {query.data.length} publications match your filters
+              </CountPill>
             ) : query.data ? (
-              <p className="muted">{query.data.length} publication{query.data.length === 1 ? '' : 's'} in this project</p>
+              <CountPill count={query.data.length}>
+                publication{query.data.length === 1 ? '' : 's'} in this project
+              </CountPill>
             ) : null}
             {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
             {query.data ? (
@@ -697,6 +681,30 @@ export function PublicationsPage() {
                     ? `${missingPdfCount} paper${missingPdfCount === 1 ? '' : 's'} missing a PDF`
                     : 'All papers have a PDF'}
                 </button>
+                <label>
+                  Sort by
+                  <select
+                    value={`${sortKey}:${sortDirection}`}
+                    onChange={(event) => {
+                      const [key, direction] = event.target.value.split(':') as [PublicationSortKey, SortDirection]
+                      setSortKey(key)
+                      setSortDirection(direction)
+                    }}
+                  >
+                    <option value="title:asc">Title A–Z</option>
+                    <option value="title:desc">Title Z–A</option>
+                    <option value="authors:asc">Authors A–Z</option>
+                    <option value="authors:desc">Authors Z–A</option>
+                    <option value="year:desc">Newest publication year</option>
+                    <option value="year:asc">Oldest publication year</option>
+                    <option value="source:asc">Source A–Z</option>
+                    <option value="source:desc">Source Z–A</option>
+                    <option value="stage:asc">Stage A–Z</option>
+                    <option value="stage:desc">Stage Z–A</option>
+                    <option value="pdf:desc">PDF available first</option>
+                    <option value="pdf:asc">PDF missing first</option>
+                  </select>
+                </label>
               </div>
             ) : null}
             {canManage && filteredPublications.length > 0 ? (
@@ -764,7 +772,7 @@ export function PublicationsPage() {
               </p>
             ) : null}
             <ul className="card-list stacked publication-list">
-              {filteredPublications.map((publication) => (
+              {sortedPublications.map((publication) => (
                 <PublicationRow
                   key={publication.id}
                   publication={publication}
@@ -773,7 +781,6 @@ export function PublicationsPage() {
                   onToggleSelected={() => toggleSelected(publication.id)}
                   highlightKeywords={highlightKeywords}
                   canManage={canManage}
-                  canOverride={canOverride}
                 />
               ))}
             </ul>

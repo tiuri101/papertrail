@@ -131,7 +131,9 @@ def build_prisma_svg(project_name: str, counts: dict[str, int]) -> str:  # noqa:
         # vertical padding so the label never overflows its bar.
         return len(label) * stage_font_size * 0.75 + 26
 
-    def stage_gap(label_a: str, height_a: float, label_b: str, height_b: float) -> float:
+    def stage_gap(
+        label_a: str, height_a: float, label_b: str, height_b: float
+    ) -> float:
         # The minimum main-flow gap that keeps two adjacent stage bars from
         # overlapping: each bar's own overhang past its box group, plus
         # min_bar_gap of clearance. Solved per pair (rather than one shared
@@ -226,22 +228,28 @@ def build_prisma_svg(project_name: str, counts: dict[str, int]) -> str:  # noqa:
     # min_bar_gap apart throughout, however much their surrounding
     # main-flow gap has to grow to make room for a long label.
     y_identified = top_margin
-    y_dedup = y_identified + row_height + stage_gap(
-        "Identification", row_height, "Duplicates", row_height
+    y_dedup = (
+        y_identified
+        + row_height
+        + stage_gap("Identification", row_height, "Duplicates", row_height)
     )
-    y_screened = y_dedup + row_height + stage_gap(
-        "Duplicates", row_height, "Screening", row_height
+    y_screened = (
+        y_dedup
+        + row_height
+        + stage_gap("Duplicates", row_height, "Screening", row_height)
     )
-    y_sought = y_screened + row_height + stage_gap(
-        "Screening", row_height, "Eligibility", eligibility_group_height
+    y_sought = (
+        y_screened
+        + row_height
+        + stage_gap("Screening", row_height, "Eligibility", eligibility_group_height)
     )
     y_assessed = y_sought + row_height + sought_assessed_gap
-    y_included = y_assessed + row_height + stage_gap(
-        "Eligibility", eligibility_group_height, "Included", row_height
+    y_included = (
+        y_assessed
+        + row_height
+        + stage_gap("Eligibility", eligibility_group_height, "Included", row_height)
     )
-    bottom_bar_overhang = max(
-        required_bar_height("Included") / 2 - row_height / 2, 0
-    )
+    bottom_bar_overhang = max(required_bar_height("Included") / 2 - row_height / 2, 0)
     total_height = y_included + row_height + 30 + bottom_bar_overhang
 
     half_width = (main_width - 16) / 2

@@ -100,7 +100,9 @@ def setup_project(db):
     )
     pub_available = Publication(project_id=project.id, title="Already available")
     pub_notfound = Publication(project_id=project.id, title="Human marked not found")
-    pub_excluded = Publication(project_id=project.id, title="Excluded at title/abstract")
+    pub_excluded = Publication(
+        project_id=project.id, title="Excluded at title/abstract"
+    )
     db.add_all([pub_missing, pub_available, pub_notfound, pub_excluded])
     db.flush()
     db.add(
@@ -352,7 +354,9 @@ def test_only_eligible_publications_are_included(client, db) -> None:
     response = create_batch(client, csrf, project.id)
     assert response.status_code == 201
 
-    job_publication_ids = {row.publication_id for row in db.scalars(select(PdfRetrievalJob))}
+    job_publication_ids = {
+        row.publication_id for row in db.scalars(select(PdfRetrievalJob))
+    }
     assert job_publication_ids == {pub_missing.id}
     assert pub_available.id not in job_publication_ids
     assert pub_notfound.id not in job_publication_ids
@@ -422,7 +426,8 @@ def test_pending_jobs_count_reflects_claimable_work(client, db) -> None:
     token = pair_agent(client, csrf)
 
     before = client.get(
-        "/api/v1/browser-agent/retrieval-jobs/pending-count", headers=agent_headers(token)
+        "/api/v1/browser-agent/retrieval-jobs/pending-count",
+        headers=agent_headers(token),
     )
     assert before.status_code == 200
     assert before.json()["pendingCount"] == 0
@@ -430,14 +435,16 @@ def test_pending_jobs_count_reflects_claimable_work(client, db) -> None:
     create_batch(client, csrf, project.id)
 
     after = client.get(
-        "/api/v1/browser-agent/retrieval-jobs/pending-count", headers=agent_headers(token)
+        "/api/v1/browser-agent/retrieval-jobs/pending-count",
+        headers=agent_headers(token),
     )
     assert after.json()["pendingCount"] == 1
 
     claim(client, token)
 
     claimed = client.get(
-        "/api/v1/browser-agent/retrieval-jobs/pending-count", headers=agent_headers(token)
+        "/api/v1/browser-agent/retrieval-jobs/pending-count",
+        headers=agent_headers(token),
     )
     assert claimed.json()["pendingCount"] == 0
 
@@ -686,7 +693,10 @@ def upload(client, token: str, job_id: str, content: bytes, filename="paper.pdf"
     return client.post(
         f"/api/v1/browser-agent/retrieval-jobs/{job_id}/upload",
         files={"file": (filename, content, "application/pdf")},
-        data={"sourceUrl": "https://example.org/paper.pdf", "landingUrl": "https://example.org/paper"},
+        data={
+            "sourceUrl": "https://example.org/paper.pdf",
+            "landingUrl": "https://example.org/paper",
+        },
         headers=agent_headers(token),
     )
 
@@ -745,7 +755,9 @@ def test_invalid_pdf_is_rejected(client, db) -> None:
     token = pair_agent(client, csrf)
     job_id = claim(client, token).json()["jobId"]
 
-    response = upload(client, token, job_id, b"<html><body>please sign in</body></html>")
+    response = upload(
+        client, token, job_id, b"<html><body>please sign in</body></html>"
+    )
     assert response.status_code == 415
 
     # The rejected upload is not committed, so the job keeps its live claim
@@ -828,7 +840,8 @@ def test_cancel_terminates_open_jobs_but_keeps_succeeded_documents(client, db) -
     db.flush()
     db.add(
         FullTextRetrieval(
-            project_id=project.id, publication_id=other_pub.id,
+            project_id=project.id,
+            publication_id=other_pub.id,
             status=RetrievalStatus.NOT_YET_SOUGHT,
         )
     )
@@ -847,7 +860,9 @@ def test_cancel_terminates_open_jobs_but_keeps_succeeded_documents(client, db) -
     )
     assert cancel.status_code == 200
 
-    jobs = list(db.scalars(select(PdfRetrievalJob).where(PdfRetrievalJob.batch_id == batch_id)))
+    jobs = list(
+        db.scalars(select(PdfRetrievalJob).where(PdfRetrievalJob.batch_id == batch_id))
+    )
     statuses = {job.publication_id: job.status for job in jobs}
     assert statuses[first_claim["publication"]["id"]] == RetrievalJobStatus.SUCCEEDED
     assert statuses[other_pub.id] == RetrievalJobStatus.CANCELLED

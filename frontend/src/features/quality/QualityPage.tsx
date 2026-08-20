@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { CountPill } from '../../components/CountPill'
 import { Tooltip } from '../../components/Tooltip'
 import { StageEyebrow } from '../projects/StageEyebrow'
 import { QualityWorkspace } from './QualityWorkspace'
@@ -28,11 +29,11 @@ export function QualityPage() {
       <StageEyebrow stage="extraction_quality" />
       <h1>Quality Assessment</h1>
       {progress.data ? (
-        <p className="muted">
+        <CountPill count={progress.data.claimMode ? progress.data.remaining : progress.data.completed}>
           {progress.data.claimMode
-            ? `${progress.data.remaining} papers remaining`
-            : `${progress.data.completed} of ${progress.data.assigned} assigned papers assessed`}
-        </p>
+            ? `paper${progress.data.remaining === 1 ? '' : 's'} remaining`
+            : `of ${progress.data.assigned} assigned papers assessed`}
+        </CountPill>
       ) : null}
       {lastScore !== null ? (
         <p>

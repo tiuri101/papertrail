@@ -256,11 +256,17 @@ def test_update_extraction_config_rejects_out_of_range_values(db):
     db.flush()
     with pytest.raises(DomainError):
         update_extraction_config(
-            db, project.id, allocation_mode=TaskAllocationMode.CLAIM, required_reviewers=3
+            db,
+            project.id,
+            allocation_mode=TaskAllocationMode.CLAIM,
+            required_reviewers=3,
         )
     with pytest.raises(DomainError):
         update_extraction_config(
-            db, project.id, allocation_mode=TaskAllocationMode.CLAIM, required_reviewers=0
+            db,
+            project.id,
+            allocation_mode=TaskAllocationMode.CLAIM,
+            required_reviewers=0,
         )
 
 
@@ -281,7 +287,10 @@ def test_update_extraction_config_blocks_change_after_responses_exist(db):
     )
     with pytest.raises(DomainError):
         update_extraction_config(
-            db, project.id, allocation_mode=TaskAllocationMode.CLAIM, required_reviewers=1
+            db,
+            project.id,
+            allocation_mode=TaskAllocationMode.CLAIM,
+            required_reviewers=1,
         )
 
 
@@ -329,9 +338,7 @@ def test_dual_init_requires_at_least_two_eligible_reviewers(db):
     )
     db.add(project)
     db.flush()
-    db.add(
-        ProjectMembership(project_id=project.id, user_id=r1.id, can_extract=True)
-    )
+    db.add(ProjectMembership(project_id=project.id, user_id=r1.id, can_extract=True))
     db.add(ExtractionConfig(project_id=project.id, required_reviewers=2))
     form = create_form(db, "Extraction", FormKind.EXTRACTION, project_id=project.id)
     add_field(db, form, "Summary", "long_text", required=True)
@@ -476,9 +483,7 @@ def test_agreeing_dual_responses_auto_finalize(db):
     assert final is not None
     assert final.resolution_method == "agreement"
     assert len(final.contributing_response_ids) == 2
-    assert all(
-        entry["from"] == "agreed" for entry in final.field_provenance.values()
-    )
+    assert all(entry["from"] == "agreed" for entry in final.field_provenance.values())
     assert reconciliation_queue(db, project.id) == []
     audit = db.scalar(
         select(AuditEvent).where(AuditEvent.action == "extraction.auto_finalized")

@@ -23,24 +23,16 @@ class InstanceSettingsUpdate(ApiModel):
     smtp_use_ssl: bool = Field(alias="smtpUseSsl")
     smtp_timeout_seconds: int = Field(alias="smtpTimeoutSeconds", ge=1)
     worker_threads: int = Field(alias="workerThreads", ge=1)
-    job_poll_interval_seconds: float = Field(
-        alias="jobPollIntervalSeconds", gt=0
-    )
+    job_poll_interval_seconds: float = Field(alias="jobPollIntervalSeconds", gt=0)
     job_lease_seconds: int = Field(alias="jobLeaseSeconds", ge=1)
     browser_retrieval_lease_seconds: int = Field(
         alias="browserRetrievalLeaseSeconds", ge=1
     )
     max_pdf_size_mb: int = Field(alias="maxPdfSizeMb", ge=1)
-    password_reset_ttl_minutes: int = Field(
-        alias="passwordResetTtlMinutes", ge=1
-    )
-    password_reset_max_attempts: int = Field(
-        alias="passwordResetMaxAttempts", ge=1
-    )
+    password_reset_ttl_minutes: int = Field(alias="passwordResetTtlMinutes", ge=1)
+    password_reset_max_attempts: int = Field(alias="passwordResetMaxAttempts", ge=1)
 
-    @field_validator(
-        "smtp_host", "smtp_username", "smtp_password", "smtp_from_address"
-    )
+    @field_validator("smtp_host", "smtp_username", "smtp_password", "smtp_from_address")
     @classmethod
     def normalize_optional_string(cls, value: str | None) -> str | None:
         if value is None or not value.strip():

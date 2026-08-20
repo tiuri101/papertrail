@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { CountPill } from '../../components/CountPill'
 import { DoiPill } from '../../components/DoiPill'
 import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
 import { PublisherLinkPill } from '../../components/PublisherLinkPill'
@@ -94,7 +95,9 @@ export function ReconciliationPage() {
         each disagreeing field to produce the authoritative extraction result.
       </p>
       {queue.error ? <p className="error" role="alert">{queue.error.message}</p> : null}
-      <p>{list.length} publication{list.length === 1 ? '' : 's'} awaiting reconciliation</p>
+      <CountPill count={list.length}>
+        publication{list.length === 1 ? '' : 's'} awaiting reconciliation
+      </CountPill>
       <ul className="card-list stacked">
         {list.map((item) => (
           <li className="card" key={item.publication.id}>

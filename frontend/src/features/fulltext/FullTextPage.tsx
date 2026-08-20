@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { CountPill } from '../../components/CountPill'
 import { DoiPill } from '../../components/DoiPill'
 import { InfoBox } from '../../components/InfoBox'
 import { IconAlertTriangle, IconArrowRight } from '../../components/icons'
@@ -103,12 +104,18 @@ export function FullTextPage() {
       {updateRetrieval.error ? <p className="error" role="alert">{updateRetrieval.error.message}</p> : null}
       {queue.nextError ? <p className="error" role="alert">{queue.nextError}</p> : null}
       {progress ? (
-        <p className="muted">Retrieval status recorded for {progress.addressed} of {progress.total} publications</p>
+        <CountPill
+          count={progress.addressed}
+          className="full-text-retrieval-progress"
+          prefix="Retrieval status recorded for"
+        >
+          of {progress.total} publications
+        </CountPill>
       ) : null}
       {queue.progress ? (
-        <p className="muted">
-          {queue.progress.remaining} paper{queue.progress.remaining === 1 ? '' : 's'} remaining for screening
-        </p>
+        <CountPill count={queue.progress.remaining}>
+          paper{queue.progress.remaining === 1 ? '' : 's'} remaining for screening
+        </CountPill>
       ) : null}
       {!queue.previousItem && queue.lastCompletedItem ? (
         <div className="toolbar">

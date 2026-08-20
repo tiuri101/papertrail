@@ -62,11 +62,15 @@ function baseHandler(analysis: RqAnalysisResponse) {
 }
 
 describe('ResearchQuestionAnalysisSection', () => {
-  it('renders statements with generated date and limitations for a completed run', async () => {
+  it('renders the synthesis without preloading evidence cards on the right', async () => {
     mockFetch(baseHandler(analysisResponse()))
     renderWithProviders(<ResearchQuestionAnalysisSection projectId="p1" />)
 
     expect(await screen.findByText('What study designs were used?')).toBeInTheDocument()
+    expect(screen.getByText('RQ1')).toBeInTheDocument()
+    expect(screen.getByRole('region', { name: 'Synthesis for RQ1' })).toBeInTheDocument()
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+    expect(screen.queryByText('Alpha Study')).not.toBeInTheDocument()
     expect(screen.getByText('Most included studies used a randomized design.')).toBeInTheDocument()
     expect(screen.getByText('Only one publication contributed data.')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Regenerate' })).toBeInTheDocument()
@@ -77,10 +81,73 @@ describe('ResearchQuestionAnalysisSection', () => {
     renderWithProviders(<ResearchQuestionAnalysisSection projectId="p1" />)
 
     await screen.findByText('Most included studies used a randomized design.')
+    expect(screen.queryByText(/A randomized trial\./)).not.toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'SRC-0001' }))
 
     expect(screen.getByText(/Alpha Study/)).toBeInTheDocument()
     expect(screen.getByText(/A randomized trial\./)).toBeInTheDocument()
+  })
+
+  it('shows only the evidence item selected from the synthesis', async () => {
+    const withManySources = analysisResponse()
+    const sourceTemplate = withManySources.latestRun!.sourceRefs['SRC-0001']
+    withManySources.latestRun!.sourceRefs = Object.fromEntries(
+      Array.from({ length: 5 }, (_, index) => {
+        const number = index + 1
+        const sourceId = `SRC-000${number}`
+        return [sourceId, {
+          ...sourceTemplate,
+          publicationId: `pub-${number}`,
+          publicationTitle: `Study ${number}`,
+          value: `Value ${number}`,
+          evidence: [{
+            page: number,
+            quote: `Evidence quote ${number}`,
+            section: 'Results',
+            verified: true,
+          }],
+        }]
+      }),
+    )
+    withManySources.latestRun!.statements = [{
+      claim: 'A finding supported by a source outside the initial evidence limit.',
+      sourceIds: ['SRC-0005', 'SRC-0002'],
+    }]
+    mockFetch(baseHandler(withManySources))
+    renderWithProviders(<ResearchQuestionAnalysisSection projectId="p1" />)
+
+    await screen.findByText('A finding supported by a source outside the initial evidence limit.')
+    expect(screen.queryByRole('complementary')).not.toBeInTheDocument()
+
+    fireEvent.click(screen.getByRole('button', { name: 'SRC-0005' }))
+
+    const panel = screen.getByRole('complementary', { name: 'Selected evidence SRC-0005' })
+    expect(within(panel).getByText('Evidence quote 5')).toBeInTheDocument()
+    expect(within(panel).queryByText('Study 1')).not.toBeInTheDocument()
+    expect(within(panel).queryByText('Study 2')).not.toBeInTheDocument()
+    const visibleCards = panel.querySelectorAll('.rq-evidence-card')
+    expect(visibleCards).toHaveLength(1)
+    expect(visibleCards[0]).toHaveAttribute('id', 'rq-1-evidence-SRC-0005')
+
+    fireEvent.click(screen.getByRole('button', { name: 'SRC-0002' }))
+    const replacement = screen.getByRole('complementary', { name: 'Selected evidence SRC-0002' })
+    expect(within(replacement).getByText('Evidence quote 2')).toBeInTheDocument()
+    expect(screen.queryByText('Evidence quote 5')).not.toBeInTheDocument()
+  })
+
+  it('distinguishes a source id whose value has no traceable quotation', async () => {
+    const withoutQuotation = analysisResponse()
+    withoutQuotation.latestRun!.sourceRefs['SRC-0001'].evidence = []
+    mockFetch(baseHandler(withoutQuotation))
+    renderWithProviders(<ResearchQuestionAnalysisSection projectId="p1" />)
+
+    const source = await screen.findByRole('button', { name: 'SRC-0001' })
+    expect(source).toHaveClass('rq-source-badge--untraceable')
+    expect(source).toHaveAttribute('title', 'No traceable source quotation for this value')
+
+    fireEvent.click(source)
+    const panel = screen.getByRole('complementary', { name: 'Selected evidence SRC-0001' })
+    expect(within(panel).getByText('No traceable source quotation for this value.')).toBeInTheDocument()
   })
 
   it('shows a stale banner when the underlying data changed since generation', async () => {

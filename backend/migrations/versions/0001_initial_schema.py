@@ -73,7 +73,9 @@ def upgrade() -> None:
         sa.Column("configuration_ready", sa.Boolean(), nullable=False),
         sa.Column("completed_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("reopened_at", sa.DateTime(timezone=True), nullable=True),
-        sa.Column("highlight_keywords_raw", sa.Text(), server_default="", nullable=False),
+        sa.Column(
+            "highlight_keywords_raw", sa.Text(), server_default="", nullable=False
+        ),
         sa.Column(
             "extraction_prompt_instructions",
             sa.Text(),
@@ -184,8 +186,12 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_audit_events")),
     )
-    op.create_index(op.f("ix_audit_events_action"), "audit_events", ["action"], unique=False)
-    op.create_index(op.f("ix_audit_events_actor_id"), "audit_events", ["actor_id"], unique=False)
+    op.create_index(
+        op.f("ix_audit_events_action"), "audit_events", ["action"], unique=False
+    )
+    op.create_index(
+        op.f("ix_audit_events_actor_id"), "audit_events", ["actor_id"], unique=False
+    )
     op.create_index(
         "ix_audit_events_entity",
         "audit_events",
@@ -280,7 +286,9 @@ def upgrade() -> None:
         ["project_id"],
         unique=False,
     )
-    op.create_index(op.f("ix_background_jobs_status"), "background_jobs", ["status"], unique=False)
+    op.create_index(
+        op.f("ix_background_jobs_status"), "background_jobs", ["status"], unique=False
+    )
     op.create_table(
         "criteria",
         sa.Column("project_id", sa.String(length=36), nullable=False),
@@ -303,7 +311,9 @@ def upgrade() -> None:
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_criteria")),
     )
-    op.create_index(op.f("ix_criteria_project_id"), "criteria", ["project_id"], unique=False)
+    op.create_index(
+        op.f("ix_criteria_project_id"), "criteria", ["project_id"], unique=False
+    )
     op.create_table(
         "email_notifications",
         sa.Column("recipient_user_id", sa.String(length=36), nullable=True),
@@ -599,13 +609,17 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["research_question_id"],
             ["research_questions.id"],
-            name=op.f("fk_research_question_analysis_runs_research_question_id_research_questions"),
+            name=op.f(
+                "fk_research_question_analysis_runs_research_question_id_research_questions"
+            ),
             ondelete="CASCADE",
         ),
         sa.ForeignKeyConstraint(
             ["background_job_id"],
             ["background_jobs.id"],
-            name=op.f("fk_research_question_analysis_runs_background_job_id_background_jobs"),
+            name=op.f(
+                "fk_research_question_analysis_runs_background_job_id_background_jobs"
+            ),
             ondelete="SET NULL",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_research_question_analysis_runs")),
@@ -627,7 +641,9 @@ def upgrade() -> None:
         "review_forms",
         sa.Column("project_id", sa.String(length=36), nullable=True),
         sa.Column("name", sa.String(length=250), nullable=False),
-        sa.Column("kind", sa.Enum("EXTRACTION", "QUALITY", name="formkind"), nullable=False),
+        sa.Column(
+            "kind", sa.Enum("EXTRACTION", "QUALITY", name="formkind"), nullable=False
+        ),
         sa.Column("is_template", sa.Boolean(), nullable=False),
         sa.Column("active_version_id", sa.String(length=36), nullable=True),
         sa.Column("id", sa.String(length=36), nullable=False),
@@ -653,7 +669,9 @@ def upgrade() -> None:
         ["is_template"],
         unique=False,
     )
-    op.create_index(op.f("ix_review_forms_kind"), "review_forms", ["kind"], unique=False)
+    op.create_index(
+        op.f("ix_review_forms_kind"), "review_forms", ["kind"], unique=False
+    )
     op.create_index(
         op.f("ix_review_forms_project_id"), "review_forms", ["project_id"], unique=False
     )
@@ -773,7 +791,9 @@ def upgrade() -> None:
         ["token_hash"],
         unique=True,
     )
-    op.create_index(op.f("ix_user_sessions_user_id"), "user_sessions", ["user_id"], unique=False)
+    op.create_index(
+        op.f("ix_user_sessions_user_id"), "user_sessions", ["user_id"], unique=False
+    )
     op.create_table(
         "duplicate_candidates",
         sa.Column("project_id", sa.String(length=36), nullable=False),
@@ -914,7 +934,9 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_stage_analyses")),
-        sa.UniqueConstraint("project_id", "stage", name="uq_stage_analysis_project_stage"),
+        sa.UniqueConstraint(
+            "project_id", "stage", name="uq_stage_analysis_project_stage"
+        ),
     )
     op.create_index(
         op.f("ix_stage_analyses_project_id"),
@@ -922,7 +944,9 @@ def upgrade() -> None:
         ["project_id"],
         unique=False,
     )
-    op.create_index(op.f("ix_stage_analyses_stage"), "stage_analyses", ["stage"], unique=False)
+    op.create_index(
+        op.f("ix_stage_analyses_stage"), "stage_analyses", ["stage"], unique=False
+    )
     op.create_table(
         "extraction_work_items",
         sa.Column("project_id", sa.String(length=36), nullable=False),
@@ -1013,7 +1037,9 @@ def upgrade() -> None:
         ),
         sa.Column(
             "outcome",
-            sa.Enum("INCLUDE", "EXCLUDE", "UNCERTAIN", "DUPLICATE", name="screeningoutcome"),
+            sa.Enum(
+                "INCLUDE", "EXCLUDE", "UNCERTAIN", "DUPLICATE", name="screeningoutcome"
+            ),
             nullable=False,
         ),
         sa.Column("resolution_method", sa.String(length=80), nullable=False),
@@ -1066,7 +1092,9 @@ def upgrade() -> None:
         ["publication_id"],
         unique=False,
     )
-    op.create_index(op.f("ix_final_decisions_stage"), "final_decisions", ["stage"], unique=False)
+    op.create_index(
+        op.f("ix_final_decisions_stage"), "final_decisions", ["stage"], unique=False
+    )
     op.create_table(
         "form_versions",
         sa.Column("form_id", sa.String(length=36), nullable=False),
@@ -1085,7 +1113,9 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("id", name=op.f("pk_form_versions")),
         sa.UniqueConstraint("form_id", "version_number", name="uq_form_version_number"),
     )
-    op.create_index(op.f("ix_form_versions_form_id"), "form_versions", ["form_id"], unique=False)
+    op.create_index(
+        op.f("ix_form_versions_form_id"), "form_versions", ["form_id"], unique=False
+    )
     op.create_table(
         "full_text_retrievals",
         sa.Column("project_id", sa.String(length=36), nullable=False),
@@ -1134,7 +1164,9 @@ def upgrade() -> None:
             ondelete="SET NULL",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_full_text_retrievals")),
-        sa.UniqueConstraint("publication_id", name="uq_full_text_retrieval_publication"),
+        sa.UniqueConstraint(
+            "publication_id", name="uq_full_text_retrieval_publication"
+        ),
     )
     op.create_index(
         op.f("ix_full_text_retrievals_claimed_by_id"),
@@ -1175,7 +1207,9 @@ def upgrade() -> None:
         sa.Column("file_type", sa.String(length=30), nullable=False),
         sa.Column(
             "status",
-            sa.Enum("PENDING", "PROCESSING", "COMPLETED", "FAILED", name="importstatus"),
+            sa.Enum(
+                "PENDING", "PROCESSING", "COMPLETED", "FAILED", name="importstatus"
+            ),
             nullable=False,
         ),
         sa.Column("record_count", sa.Integer(), nullable=False),
@@ -1335,7 +1369,9 @@ def upgrade() -> None:
             nullable=False,
         ),
         sa.Column("slot_number", sa.Integer(), nullable=False),
-        sa.Column("is_additional_slot", sa.Boolean(), server_default="false", nullable=False),
+        sa.Column(
+            "is_additional_slot", sa.Boolean(), server_default="false", nullable=False
+        ),
         sa.Column("assigned_reviewer_id", sa.String(length=36), nullable=True),
         sa.Column("reserved_by_id", sa.String(length=36), nullable=True),
         sa.Column("reserved_until", sa.DateTime(timezone=True), nullable=True),
@@ -1379,7 +1415,9 @@ def upgrade() -> None:
             ondelete="SET NULL",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_screening_work_items")),
-        sa.UniqueConstraint("publication_id", "stage", "slot_number", name="uq_screening_slot"),
+        sa.UniqueConstraint(
+            "publication_id", "stage", "slot_number", name="uq_screening_slot"
+        ),
     )
     op.create_index(
         op.f("ix_screening_work_items_assigned_reviewer_id"),
@@ -1462,7 +1500,9 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_extraction_responses")),
-        sa.UniqueConstraint("work_item_id", "version", name="uq_extraction_response_version"),
+        sa.UniqueConstraint(
+            "work_item_id", "version", name="uq_extraction_response_version"
+        ),
     )
     op.create_index(
         op.f("ix_extraction_responses_form_version_id"),
@@ -1532,7 +1572,9 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_form_fields")),
-        sa.UniqueConstraint("form_version_id", "stable_key", name="uq_form_field_stable_key"),
+        sa.UniqueConstraint(
+            "form_version_id", "stable_key", name="uq_form_field_stable_key"
+        ),
     )
     op.create_index(
         op.f("ix_form_fields_form_version_id"),
@@ -1540,7 +1582,9 @@ def upgrade() -> None:
         ["form_version_id"],
         unique=False,
     )
-    op.create_index(op.f("ix_form_fields_stable_key"), "form_fields", ["stable_key"], unique=False)
+    op.create_index(
+        op.f("ix_form_fields_stable_key"), "form_fields", ["stable_key"], unique=False
+    )
     op.create_table(
         "imported_records",
         sa.Column("import_batch_id", sa.String(length=36), nullable=False),
@@ -1609,7 +1653,9 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_llm_schema_versions")),
-        sa.UniqueConstraint("project_id", "version_number", name="uq_llm_schema_version"),
+        sa.UniqueConstraint(
+            "project_id", "version_number", name="uq_llm_schema_version"
+        ),
     )
     op.create_index(
         op.f("ix_llm_schema_versions_based_on_form_version_id"),
@@ -1646,7 +1692,9 @@ def upgrade() -> None:
         sa.Column("removed_by_user_id", sa.String(length=36), nullable=True),
         sa.Column(
             "source",
-            sa.Enum("MANUAL", "BULK_IMPORT", "BROWSER_RETRIEVAL", name="documentsource"),
+            sa.Enum(
+                "MANUAL", "BULK_IMPORT", "BROWSER_RETRIEVAL", name="documentsource"
+            ),
             nullable=False,
         ),
         sa.Column("import_batch_id", sa.String(length=36), nullable=True),
@@ -1681,7 +1729,9 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["replaced_by_document_id"],
             ["publication_documents.id"],
-            name=op.f("fk_publication_documents_replaced_by_document_id_publication_documents"),
+            name=op.f(
+                "fk_publication_documents_replaced_by_document_id_publication_documents"
+            ),
             ondelete="SET NULL",
         ),
         sa.ForeignKeyConstraint(
@@ -1691,7 +1741,9 @@ def upgrade() -> None:
             ondelete="SET NULL",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_publication_documents")),
-        sa.UniqueConstraint("storage_key", name=op.f("uq_publication_documents_storage_key")),
+        sa.UniqueConstraint(
+            "storage_key", name=op.f("uq_publication_documents_storage_key")
+        ),
     )
     op.create_index(
         op.f("ix_publication_documents_import_batch_id"),
@@ -1853,7 +1905,9 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_quality_responses")),
-        sa.UniqueConstraint("work_item_id", "version", name="uq_quality_response_version"),
+        sa.UniqueConstraint(
+            "work_item_id", "version", name="uq_quality_response_version"
+        ),
     )
     op.create_index(
         op.f("ix_quality_responses_form_version_id"),
@@ -1885,7 +1939,9 @@ def upgrade() -> None:
         sa.Column("reviewer_id", sa.String(length=36), nullable=False),
         sa.Column(
             "outcome",
-            sa.Enum("INCLUDE", "EXCLUDE", "UNCERTAIN", "DUPLICATE", name="screeningoutcome"),
+            sa.Enum(
+                "INCLUDE", "EXCLUDE", "UNCERTAIN", "DUPLICATE", name="screeningoutcome"
+            ),
             nullable=False,
         ),
         sa.Column(
@@ -1912,7 +1968,9 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_screening_decisions")),
-        sa.UniqueConstraint("work_item_id", "version", name="uq_screening_decision_version"),
+        sa.UniqueConstraint(
+            "work_item_id", "version", name="uq_screening_decision_version"
+        ),
     )
     op.create_index(
         op.f("ix_screening_decisions_is_current"),
@@ -2045,7 +2103,9 @@ def upgrade() -> None:
             ondelete="SET NULL",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_import_pdf_items")),
-        sa.UniqueConstraint("storage_key", name=op.f("uq_import_pdf_items_storage_key")),
+        sa.UniqueConstraint(
+            "storage_key", name=op.f("uq_import_pdf_items_storage_key")
+        ),
     )
     op.create_index(
         op.f("ix_import_pdf_items_attached_document_id"),
@@ -2110,7 +2170,9 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_llm_schema_fields")),
-        sa.UniqueConstraint("schema_version_id", "stable_key", name="uq_llm_schema_field_key"),
+        sa.UniqueConstraint(
+            "schema_version_id", "stable_key", name="uq_llm_schema_field_key"
+        ),
     )
     op.create_index(
         op.f("ix_llm_schema_fields_mapped_extraction_field_key"),
@@ -2150,7 +2212,9 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_publication_sources")),
-        sa.UniqueConstraint("imported_record_id", name="uq_publication_source_imported_record"),
+        sa.UniqueConstraint(
+            "imported_record_id", name="uq_publication_source_imported_record"
+        ),
     )
     op.create_index(
         op.f("ix_publication_sources_imported_record_id"),
@@ -2175,11 +2239,15 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["text_extraction_id"],
             ["document_text_extractions.id"],
-            name=op.f("fk_document_page_texts_text_extraction_id_document_text_extractions"),
+            name=op.f(
+                "fk_document_page_texts_text_extraction_id_document_text_extractions"
+            ),
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_document_page_texts")),
-        sa.UniqueConstraint("text_extraction_id", "page_number", name="uq_document_page"),
+        sa.UniqueConstraint(
+            "text_extraction_id", "page_number", name="uq_document_page"
+        ),
     )
     op.create_index(
         op.f("ix_document_page_texts_text_extraction_id"),
@@ -2243,7 +2311,9 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["extraction_response_id"],
             ["extraction_responses.id"],
-            name=op.f("fk_llm_extraction_runs_extraction_response_id_extraction_responses"),
+            name=op.f(
+                "fk_llm_extraction_runs_extraction_response_id_extraction_responses"
+            ),
             ondelete="SET NULL",
         ),
         sa.ForeignKeyConstraint(
@@ -2267,7 +2337,9 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["text_extraction_id"],
             ["document_text_extractions.id"],
-            name=op.f("fk_llm_extraction_runs_text_extraction_id_document_text_extractions"),
+            name=op.f(
+                "fk_llm_extraction_runs_text_extraction_id_document_text_extractions"
+            ),
             ondelete="RESTRICT",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_llm_extraction_runs")),
@@ -2483,7 +2555,9 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_llm_validation_results")),
-        sa.UniqueConstraint("run_id", "extraction_field_key", name="uq_llm_validation_field"),
+        sa.UniqueConstraint(
+            "run_id", "extraction_field_key", name="uq_llm_validation_field"
+        ),
     )
     op.create_index(
         op.f("ix_llm_validation_results_extraction_field_key"),
@@ -2545,7 +2619,9 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["suggestion_id"],
             ["llm_field_suggestions.id"],
-            name=op.f("fk_extraction_suggestion_reviews_suggestion_id_llm_field_suggestions"),
+            name=op.f(
+                "fk_extraction_suggestion_reviews_suggestion_id_llm_field_suggestions"
+            ),
             ondelete="SET NULL",
         ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_extraction_suggestion_reviews")),
@@ -2612,7 +2688,9 @@ def upgrade() -> None:
         sa.Column("id", sa.String(length=36), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["updated_by_user_id"], ["users.id"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(
+            ["updated_by_user_id"], ["users.id"], ondelete="SET NULL"
+        ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_llm_installation_settings")),
     )
 
@@ -2639,7 +2717,9 @@ def upgrade() -> None:
         sa.Column("id", sa.String(length=36), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
         sa.Column("updated_at", sa.DateTime(timezone=True), nullable=False),
-        sa.ForeignKeyConstraint(["updated_by_user_id"], ["users.id"], ondelete="SET NULL"),
+        sa.ForeignKeyConstraint(
+            ["updated_by_user_id"], ["users.id"], ondelete="SET NULL"
+        ),
         sa.PrimaryKeyConstraint("id", name=op.f("pk_instance_settings")),
     )
 
@@ -2656,7 +2736,9 @@ def upgrade() -> None:
             server_default="CLAIM",
             nullable=False,
         ),
-        sa.Column("required_reviewers", sa.Integer(), server_default="1", nullable=False),
+        sa.Column(
+            "required_reviewers", sa.Integer(), server_default="1", nullable=False
+        ),
         sa.Column("project_id", sa.String(length=36), nullable=False),
         sa.Column("id", sa.String(length=36), nullable=False),
         sa.Column("created_at", sa.DateTime(timezone=True), nullable=False),
@@ -2698,10 +2780,16 @@ def upgrade() -> None:
     )
     for column in ("user_id", "revoked_at"):
         op.create_index(
-            op.f(f"ix_browser_agents_{column}"), "browser_agents", [column], unique=False
+            op.f(f"ix_browser_agents_{column}"),
+            "browser_agents",
+            [column],
+            unique=False,
         )
     op.create_index(
-        op.f("ix_browser_agents_token_hash"), "browser_agents", ["token_hash"], unique=True
+        op.f("ix_browser_agents_token_hash"),
+        "browser_agents",
+        ["token_hash"],
+        unique=True,
     )
 
     op.create_table(
@@ -2823,7 +2911,9 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["created_document_id"],
             ["publication_documents.id"],
-            name=op.f("fk_pdf_retrieval_jobs_created_document_id_publication_documents"),
+            name=op.f(
+                "fk_pdf_retrieval_jobs_created_document_id_publication_documents"
+            ),
             ondelete="SET NULL",
         ),
         sa.ForeignKeyConstraint(
@@ -2926,7 +3016,10 @@ def upgrade() -> None:
     )
     for column in ("project_id", "publication_id", "form_version_id", "is_valid"):
         op.create_index(
-            op.f(f"ix_final_extractions_{column}"), "final_extractions", [column], unique=False
+            op.f(f"ix_final_extractions_{column}"),
+            "final_extractions",
+            [column],
+            unique=False,
         )
     op.create_index(
         "uq_final_extraction_current",
@@ -2964,7 +3057,9 @@ def downgrade() -> None:
     )
     op.drop_index("uq_final_extraction_current", table_name="final_extractions")
     for column in ("is_valid", "form_version_id", "publication_id", "project_id"):
-        op.drop_index(op.f(f"ix_final_extractions_{column}"), table_name="final_extractions")
+        op.drop_index(
+            op.f(f"ix_final_extractions_{column}"), table_name="final_extractions"
+        )
     op.drop_table("final_extractions")
 
     for column in (
@@ -2986,7 +3081,8 @@ def downgrade() -> None:
     op.drop_table("pdf_retrieval_jobs")
     for column in ("status", "project_id"):
         op.drop_index(
-            op.f(f"ix_pdf_retrieval_batches_{column}"), table_name="pdf_retrieval_batches"
+            op.f(f"ix_pdf_retrieval_batches_{column}"),
+            table_name="pdf_retrieval_batches",
         )
     op.drop_table("pdf_retrieval_batches")
     for column in ("expires_at", "token_hash", "user_id"):
@@ -2998,7 +3094,9 @@ def downgrade() -> None:
     for column in ("revoked_at", "token_hash", "user_id"):
         op.drop_index(op.f(f"ix_browser_agents_{column}"), table_name="browser_agents")
     op.drop_table("browser_agents")
-    op.drop_index(op.f("ix_extraction_configs_project_id"), table_name="extraction_configs")
+    op.drop_index(
+        op.f("ix_extraction_configs_project_id"), table_name="extraction_configs"
+    )
     op.drop_table("extraction_configs")
     op.drop_table("llm_installation_settings")
     op.drop_table("instance_settings")
@@ -3029,7 +3127,9 @@ def downgrade() -> None:
         table_name="extraction_suggestion_reviews",
     )
     op.drop_table("extraction_suggestion_reviews")
-    op.drop_index(op.f("ix_llm_validation_results_run_id"), table_name="llm_validation_results")
+    op.drop_index(
+        op.f("ix_llm_validation_results_run_id"), table_name="llm_validation_results"
+    )
     op.drop_index(
         op.f("ix_llm_validation_results_extraction_field_key"),
         table_name="llm_validation_results",
@@ -3039,7 +3139,9 @@ def downgrade() -> None:
         op.f("ix_llm_field_suggestions_schema_field_id"),
         table_name="llm_field_suggestions",
     )
-    op.drop_index(op.f("ix_llm_field_suggestions_run_id"), table_name="llm_field_suggestions")
+    op.drop_index(
+        op.f("ix_llm_field_suggestions_run_id"), table_name="llm_field_suggestions"
+    )
     op.drop_index(
         op.f("ix_llm_field_suggestions_mapped_extraction_field_key"),
         table_name="llm_field_suggestions",
@@ -3066,24 +3168,36 @@ def downgrade() -> None:
         op.f("ix_llm_extraction_runs_text_extraction_id"),
         table_name="llm_extraction_runs",
     )
-    op.drop_index(op.f("ix_llm_extraction_runs_task_type"), table_name="llm_extraction_runs")
-    op.drop_index(op.f("ix_llm_extraction_runs_status"), table_name="llm_extraction_runs")
+    op.drop_index(
+        op.f("ix_llm_extraction_runs_task_type"), table_name="llm_extraction_runs"
+    )
+    op.drop_index(
+        op.f("ix_llm_extraction_runs_status"), table_name="llm_extraction_runs"
+    )
     op.drop_index(
         op.f("ix_llm_extraction_runs_schema_version_id"),
         table_name="llm_extraction_runs",
     )
-    op.drop_index(op.f("ix_llm_extraction_runs_publication_id"), table_name="llm_extraction_runs")
-    op.drop_index(op.f("ix_llm_extraction_runs_project_id"), table_name="llm_extraction_runs")
+    op.drop_index(
+        op.f("ix_llm_extraction_runs_publication_id"), table_name="llm_extraction_runs"
+    )
+    op.drop_index(
+        op.f("ix_llm_extraction_runs_project_id"), table_name="llm_extraction_runs"
+    )
     op.drop_index(
         op.f("ix_llm_extraction_runs_input_fingerprint"),
         table_name="llm_extraction_runs",
     )
-    op.drop_index(op.f("ix_llm_extraction_runs_bulk_id"), table_name="llm_extraction_runs")
+    op.drop_index(
+        op.f("ix_llm_extraction_runs_bulk_id"), table_name="llm_extraction_runs"
+    )
     op.drop_index(
         op.f("ix_llm_extraction_runs_extraction_response_id"),
         table_name="llm_extraction_runs",
     )
-    op.drop_index(op.f("ix_llm_extraction_runs_document_id"), table_name="llm_extraction_runs")
+    op.drop_index(
+        op.f("ix_llm_extraction_runs_document_id"), table_name="llm_extraction_runs"
+    )
     op.drop_index(
         op.f("ix_llm_extraction_runs_background_job_id"),
         table_name="llm_extraction_runs",
@@ -3094,14 +3208,20 @@ def downgrade() -> None:
         table_name="document_page_texts",
     )
     op.drop_table("document_page_texts")
-    op.drop_index(op.f("ix_publication_sources_publication_id"), table_name="publication_sources")
+    op.drop_index(
+        op.f("ix_publication_sources_publication_id"), table_name="publication_sources"
+    )
     op.drop_index(
         op.f("ix_publication_sources_imported_record_id"),
         table_name="publication_sources",
     )
     op.drop_table("publication_sources")
-    op.drop_index(op.f("ix_llm_schema_fields_stable_key"), table_name="llm_schema_fields")
-    op.drop_index(op.f("ix_llm_schema_fields_schema_version_id"), table_name="llm_schema_fields")
+    op.drop_index(
+        op.f("ix_llm_schema_fields_stable_key"), table_name="llm_schema_fields"
+    )
+    op.drop_index(
+        op.f("ix_llm_schema_fields_schema_version_id"), table_name="llm_schema_fields"
+    )
     op.drop_index(
         op.f("ix_llm_schema_fields_mapped_extraction_field_key"),
         table_name="llm_schema_fields",
@@ -3114,9 +3234,15 @@ def downgrade() -> None:
         op.f("ix_import_pdf_items_matched_publication_id"),
         table_name="import_pdf_items",
     )
-    op.drop_index(op.f("ix_import_pdf_items_import_batch_id"), table_name="import_pdf_items")
-    op.drop_index(op.f("ix_import_pdf_items_detected_doi"), table_name="import_pdf_items")
-    op.drop_index(op.f("ix_import_pdf_items_attached_document_id"), table_name="import_pdf_items")
+    op.drop_index(
+        op.f("ix_import_pdf_items_import_batch_id"), table_name="import_pdf_items"
+    )
+    op.drop_index(
+        op.f("ix_import_pdf_items_detected_doi"), table_name="import_pdf_items"
+    )
+    op.drop_index(
+        op.f("ix_import_pdf_items_attached_document_id"), table_name="import_pdf_items"
+    )
     op.drop_table("import_pdf_items")
     op.drop_index(
         op.f("ix_document_text_extractions_status"),
@@ -3127,17 +3253,35 @@ def downgrade() -> None:
         table_name="document_text_extractions",
     )
     op.drop_table("document_text_extractions")
-    op.drop_index(op.f("ix_screening_decisions_work_item_id"), table_name="screening_decisions")
-    op.drop_index(op.f("ix_screening_decisions_reviewer_id"), table_name="screening_decisions")
-    op.drop_index(op.f("ix_screening_decisions_outcome"), table_name="screening_decisions")
-    op.drop_index(op.f("ix_screening_decisions_is_current"), table_name="screening_decisions")
+    op.drop_index(
+        op.f("ix_screening_decisions_work_item_id"), table_name="screening_decisions"
+    )
+    op.drop_index(
+        op.f("ix_screening_decisions_reviewer_id"), table_name="screening_decisions"
+    )
+    op.drop_index(
+        op.f("ix_screening_decisions_outcome"), table_name="screening_decisions"
+    )
+    op.drop_index(
+        op.f("ix_screening_decisions_is_current"), table_name="screening_decisions"
+    )
     op.drop_table("screening_decisions")
-    op.drop_index(op.f("ix_quality_responses_work_item_id"), table_name="quality_responses")
-    op.drop_index(op.f("ix_quality_responses_reviewer_id"), table_name="quality_responses")
-    op.drop_index(op.f("ix_quality_responses_is_current"), table_name="quality_responses")
-    op.drop_index(op.f("ix_quality_responses_form_version_id"), table_name="quality_responses")
+    op.drop_index(
+        op.f("ix_quality_responses_work_item_id"), table_name="quality_responses"
+    )
+    op.drop_index(
+        op.f("ix_quality_responses_reviewer_id"), table_name="quality_responses"
+    )
+    op.drop_index(
+        op.f("ix_quality_responses_is_current"), table_name="quality_responses"
+    )
+    op.drop_index(
+        op.f("ix_quality_responses_form_version_id"), table_name="quality_responses"
+    )
     op.drop_table("quality_responses")
-    op.drop_index(op.f("ix_publication_merges_project_id"), table_name="publication_merges")
+    op.drop_index(
+        op.f("ix_publication_merges_project_id"), table_name="publication_merges"
+    )
     op.drop_index(
         op.f("ix_publication_merges_merged_publication_id"),
         table_name="publication_merges",
@@ -3161,35 +3305,55 @@ def downgrade() -> None:
         op.f("ix_publication_documents_publication_id"),
         table_name="publication_documents",
     )
-    op.drop_index(op.f("ix_publication_documents_project_id"), table_name="publication_documents")
-    op.drop_index("ix_publication_documents_project_hash", table_name="publication_documents")
+    op.drop_index(
+        op.f("ix_publication_documents_project_id"), table_name="publication_documents"
+    )
+    op.drop_index(
+        "ix_publication_documents_project_hash", table_name="publication_documents"
+    )
     op.drop_index(
         op.f("ix_publication_documents_import_batch_id"),
         table_name="publication_documents",
     )
     op.drop_table("publication_documents")
-    op.drop_index(op.f("ix_llm_schema_versions_status"), table_name="llm_schema_versions")
-    op.drop_index(op.f("ix_llm_schema_versions_project_id"), table_name="llm_schema_versions")
+    op.drop_index(
+        op.f("ix_llm_schema_versions_status"), table_name="llm_schema_versions"
+    )
+    op.drop_index(
+        op.f("ix_llm_schema_versions_project_id"), table_name="llm_schema_versions"
+    )
     op.drop_index(
         op.f("ix_llm_schema_versions_based_on_form_version_id"),
         table_name="llm_schema_versions",
     )
     op.drop_table("llm_schema_versions")
-    op.drop_index(op.f("ix_imported_records_import_batch_id"), table_name="imported_records")
+    op.drop_index(
+        op.f("ix_imported_records_import_batch_id"), table_name="imported_records"
+    )
     op.drop_table("imported_records")
     op.drop_index(op.f("ix_form_fields_stable_key"), table_name="form_fields")
     op.drop_index(op.f("ix_form_fields_form_version_id"), table_name="form_fields")
     op.drop_table("form_fields")
-    op.drop_index(op.f("ix_extraction_responses_work_item_id"), table_name="extraction_responses")
-    op.drop_index(op.f("ix_extraction_responses_reviewer_id"), table_name="extraction_responses")
-    op.drop_index(op.f("ix_extraction_responses_is_current"), table_name="extraction_responses")
+    op.drop_index(
+        op.f("ix_extraction_responses_work_item_id"), table_name="extraction_responses"
+    )
+    op.drop_index(
+        op.f("ix_extraction_responses_reviewer_id"), table_name="extraction_responses"
+    )
+    op.drop_index(
+        op.f("ix_extraction_responses_is_current"), table_name="extraction_responses"
+    )
     op.drop_index(
         op.f("ix_extraction_responses_form_version_id"),
         table_name="extraction_responses",
     )
     op.drop_table("extraction_responses")
-    op.drop_index(op.f("ix_screening_work_items_status"), table_name="screening_work_items")
-    op.drop_index(op.f("ix_screening_work_items_stage"), table_name="screening_work_items")
+    op.drop_index(
+        op.f("ix_screening_work_items_status"), table_name="screening_work_items"
+    )
+    op.drop_index(
+        op.f("ix_screening_work_items_stage"), table_name="screening_work_items"
+    )
     op.drop_index(
         op.f("ix_screening_work_items_reserved_until"),
         table_name="screening_work_items",
@@ -3198,60 +3362,92 @@ def downgrade() -> None:
         op.f("ix_screening_work_items_reserved_by_id"),
         table_name="screening_work_items",
     )
-    op.drop_index(op.f("ix_screening_work_items_random_rank"), table_name="screening_work_items")
+    op.drop_index(
+        op.f("ix_screening_work_items_random_rank"), table_name="screening_work_items"
+    )
     op.drop_index(
         op.f("ix_screening_work_items_publication_id"),
         table_name="screening_work_items",
     )
-    op.drop_index(op.f("ix_screening_work_items_project_id"), table_name="screening_work_items")
+    op.drop_index(
+        op.f("ix_screening_work_items_project_id"), table_name="screening_work_items"
+    )
     op.drop_index(
         op.f("ix_screening_work_items_assigned_reviewer_id"),
         table_name="screening_work_items",
     )
     op.drop_table("screening_work_items")
     op.drop_index(op.f("ix_quality_work_items_status"), table_name="quality_work_items")
-    op.drop_index(op.f("ix_quality_work_items_reserved_until"), table_name="quality_work_items")
-    op.drop_index(op.f("ix_quality_work_items_random_rank"), table_name="quality_work_items")
-    op.drop_index(op.f("ix_quality_work_items_publication_id"), table_name="quality_work_items")
-    op.drop_index(op.f("ix_quality_work_items_project_id"), table_name="quality_work_items")
+    op.drop_index(
+        op.f("ix_quality_work_items_reserved_until"), table_name="quality_work_items"
+    )
+    op.drop_index(
+        op.f("ix_quality_work_items_random_rank"), table_name="quality_work_items"
+    )
+    op.drop_index(
+        op.f("ix_quality_work_items_publication_id"), table_name="quality_work_items"
+    )
+    op.drop_index(
+        op.f("ix_quality_work_items_project_id"), table_name="quality_work_items"
+    )
     op.drop_index(
         op.f("ix_quality_work_items_assigned_reviewer_id"),
         table_name="quality_work_items",
     )
     op.drop_table("quality_work_items")
-    op.drop_index(op.f("ix_metadata_conflicts_publication_id"), table_name="metadata_conflicts")
+    op.drop_index(
+        op.f("ix_metadata_conflicts_publication_id"), table_name="metadata_conflicts"
+    )
     op.drop_table("metadata_conflicts")
-    op.drop_index(op.f("ix_import_batches_search_source_id"), table_name="import_batches")
+    op.drop_index(
+        op.f("ix_import_batches_search_source_id"), table_name="import_batches"
+    )
     op.drop_index(op.f("ix_import_batches_project_id"), table_name="import_batches")
     op.drop_table("import_batches")
-    op.drop_index(op.f("ix_full_text_retrievals_status"), table_name="full_text_retrievals")
+    op.drop_index(
+        op.f("ix_full_text_retrievals_status"), table_name="full_text_retrievals"
+    )
     op.drop_index(
         op.f("ix_full_text_retrievals_publication_id"),
         table_name="full_text_retrievals",
     )
-    op.drop_index(op.f("ix_full_text_retrievals_project_id"), table_name="full_text_retrievals")
-    op.drop_index(op.f("ix_full_text_retrievals_claimed_until"), table_name="full_text_retrievals")
-    op.drop_index(op.f("ix_full_text_retrievals_claimed_by_id"), table_name="full_text_retrievals")
+    op.drop_index(
+        op.f("ix_full_text_retrievals_project_id"), table_name="full_text_retrievals"
+    )
+    op.drop_index(
+        op.f("ix_full_text_retrievals_claimed_until"), table_name="full_text_retrievals"
+    )
+    op.drop_index(
+        op.f("ix_full_text_retrievals_claimed_by_id"), table_name="full_text_retrievals"
+    )
     op.drop_table("full_text_retrievals")
     op.drop_index(op.f("ix_form_versions_form_id"), table_name="form_versions")
     op.drop_table("form_versions")
     op.drop_index(op.f("ix_final_decisions_stage"), table_name="final_decisions")
-    op.drop_index(op.f("ix_final_decisions_publication_id"), table_name="final_decisions")
+    op.drop_index(
+        op.f("ix_final_decisions_publication_id"), table_name="final_decisions"
+    )
     op.drop_index(op.f("ix_final_decisions_project_id"), table_name="final_decisions")
     op.drop_index(op.f("ix_final_decisions_outcome"), table_name="final_decisions")
     op.drop_index(op.f("ix_final_decisions_is_valid"), table_name="final_decisions")
     op.drop_table("final_decisions")
-    op.drop_index(op.f("ix_extraction_work_items_status"), table_name="extraction_work_items")
+    op.drop_index(
+        op.f("ix_extraction_work_items_status"), table_name="extraction_work_items"
+    )
     op.drop_index(
         op.f("ix_extraction_work_items_reserved_until"),
         table_name="extraction_work_items",
     )
-    op.drop_index(op.f("ix_extraction_work_items_random_rank"), table_name="extraction_work_items")
+    op.drop_index(
+        op.f("ix_extraction_work_items_random_rank"), table_name="extraction_work_items"
+    )
     op.drop_index(
         op.f("ix_extraction_work_items_publication_id"),
         table_name="extraction_work_items",
     )
-    op.drop_index(op.f("ix_extraction_work_items_project_id"), table_name="extraction_work_items")
+    op.drop_index(
+        op.f("ix_extraction_work_items_project_id"), table_name="extraction_work_items"
+    )
     op.drop_index(
         op.f("ix_extraction_work_items_assigned_reviewer_id"),
         table_name="extraction_work_items",
@@ -3262,9 +3458,13 @@ def downgrade() -> None:
     op.drop_table("stage_analyses")
     op.drop_index(op.f("ix_export_artifacts_project_id"), table_name="export_artifacts")
     op.drop_index(op.f("ix_export_artifacts_job_id"), table_name="export_artifacts")
-    op.drop_index(op.f("ix_export_artifacts_export_type"), table_name="export_artifacts")
+    op.drop_index(
+        op.f("ix_export_artifacts_export_type"), table_name="export_artifacts"
+    )
     op.drop_table("export_artifacts")
-    op.drop_index(op.f("ix_duplicate_candidates_status"), table_name="duplicate_candidates")
+    op.drop_index(
+        op.f("ix_duplicate_candidates_status"), table_name="duplicate_candidates"
+    )
     op.drop_index(
         op.f("ix_duplicate_candidates_publication_b_id"),
         table_name="duplicate_candidates",
@@ -3273,7 +3473,9 @@ def downgrade() -> None:
         op.f("ix_duplicate_candidates_publication_a_id"),
         table_name="duplicate_candidates",
     )
-    op.drop_index(op.f("ix_duplicate_candidates_project_id"), table_name="duplicate_candidates")
+    op.drop_index(
+        op.f("ix_duplicate_candidates_project_id"), table_name="duplicate_candidates"
+    )
     op.drop_table("duplicate_candidates")
     op.drop_index(op.f("ix_user_sessions_user_id"), table_name="user_sessions")
     op.drop_index(op.f("ix_user_sessions_token_hash"), table_name="user_sessions")
@@ -3281,7 +3483,9 @@ def downgrade() -> None:
     op.drop_table("user_sessions")
     op.drop_index(op.f("ix_search_sources_project_id"), table_name="search_sources")
     op.drop_table("search_sources")
-    op.drop_index(op.f("ix_screening_configs_project_id"), table_name="screening_configs")
+    op.drop_index(
+        op.f("ix_screening_configs_project_id"), table_name="screening_configs"
+    )
     op.drop_table("screening_configs")
     op.drop_index(op.f("ix_review_forms_project_id"), table_name="review_forms")
     op.drop_index(op.f("ix_review_forms_kind"), table_name="review_forms")
@@ -3298,7 +3502,9 @@ def downgrade() -> None:
             table_name="research_question_analysis_runs",
         )
     op.drop_table("research_question_analysis_runs")
-    op.drop_index(op.f("ix_research_questions_project_id"), table_name="research_questions")
+    op.drop_index(
+        op.f("ix_research_questions_project_id"), table_name="research_questions"
+    )
     op.drop_table("research_questions")
     op.drop_index(op.f("ix_quality_configs_project_id"), table_name="quality_configs")
     op.drop_table("quality_configs")
@@ -3306,22 +3512,34 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_publications_merged_into_id"), table_name="publications")
     op.drop_index(op.f("ix_publications_doi"), table_name="publications")
     op.drop_table("publications")
-    op.drop_index(op.f("ix_project_memberships_user_id"), table_name="project_memberships")
-    op.drop_index(op.f("ix_project_memberships_project_id"), table_name="project_memberships")
+    op.drop_index(
+        op.f("ix_project_memberships_user_id"), table_name="project_memberships"
+    )
+    op.drop_index(
+        op.f("ix_project_memberships_project_id"), table_name="project_memberships"
+    )
     op.drop_table("project_memberships")
-    op.drop_index(op.f("ix_project_llm_settings_project_id"), table_name="project_llm_settings")
+    op.drop_index(
+        op.f("ix_project_llm_settings_project_id"), table_name="project_llm_settings"
+    )
     op.drop_index(
         op.f("ix_project_llm_settings_current_schema_version_id"),
         table_name="project_llm_settings",
     )
     op.drop_table("project_llm_settings")
-    op.drop_index(op.f("ix_email_notifications_template"), table_name="email_notifications")
-    op.drop_index(op.f("ix_email_notifications_status"), table_name="email_notifications")
+    op.drop_index(
+        op.f("ix_email_notifications_template"), table_name="email_notifications"
+    )
+    op.drop_index(
+        op.f("ix_email_notifications_status"), table_name="email_notifications"
+    )
     op.drop_index(
         op.f("ix_email_notifications_recipient_user_id"),
         table_name="email_notifications",
     )
-    op.drop_index(op.f("ix_email_notifications_project_id"), table_name="email_notifications")
+    op.drop_index(
+        op.f("ix_email_notifications_project_id"), table_name="email_notifications"
+    )
     op.drop_index(
         op.f("ix_email_notifications_deduplication_key"),
         table_name="email_notifications",
@@ -3341,15 +3559,25 @@ def downgrade() -> None:
     op.drop_index(op.f("ix_audit_events_actor_id"), table_name="audit_events")
     op.drop_index(op.f("ix_audit_events_action"), table_name="audit_events")
     op.drop_table("audit_events")
-    op.drop_index(op.f("ix_password_reset_tokens_user_id"), table_name="password_reset_tokens")
-    op.drop_index(op.f("ix_password_reset_tokens_token_hash"), table_name="password_reset_tokens")
-    op.drop_index(op.f("ix_password_reset_tokens_expires_at"), table_name="password_reset_tokens")
+    op.drop_index(
+        op.f("ix_password_reset_tokens_user_id"), table_name="password_reset_tokens"
+    )
+    op.drop_index(
+        op.f("ix_password_reset_tokens_token_hash"), table_name="password_reset_tokens"
+    )
+    op.drop_index(
+        op.f("ix_password_reset_tokens_expires_at"), table_name="password_reset_tokens"
+    )
     op.drop_table("password_reset_tokens")
     op.drop_index(op.f("ix_users_username"), table_name="users")
     op.drop_index(op.f("ix_users_email"), table_name="users")
     op.drop_table("users")
     op.drop_table("projects")
-    op.drop_index(op.f("ix_login_throttles_identity_hash"), table_name="login_throttles")
-    op.drop_index(op.f("ix_login_throttles_blocked_until"), table_name="login_throttles")
+    op.drop_index(
+        op.f("ix_login_throttles_identity_hash"), table_name="login_throttles"
+    )
+    op.drop_index(
+        op.f("ix_login_throttles_blocked_until"), table_name="login_throttles"
+    )
     op.drop_table("login_throttles")
     # ### end Alembic commands ###

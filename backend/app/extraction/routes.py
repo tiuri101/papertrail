@@ -160,9 +160,11 @@ def extraction_item_payload(
         "full_text_available": active_document(db, item.publication_id) is not None,
         "assigned_reviewer_id": item.assigned_reviewer_id,
         "status": item.status,
-        "draft": (response.answers if response is not None else item.draft)
-        if visible
-        else {},
+        "draft": (
+            (response.answers if response is not None else item.draft)
+            if visible
+            else {}
+        ),
         "publication": db.get(Publication, item.publication_id),
         "fields": active_fields(db, form) if form else [],
         "current_response": response,
@@ -255,9 +257,7 @@ def next_extraction(
     )
     db.commit()
     return (
-        extraction_item_payload(db, item, viewer_id=session.user.id)
-        if item
-        else None
+        extraction_item_payload(db, item, viewer_id=session.user.id) if item else None
     )
 
 
