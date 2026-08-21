@@ -31,24 +31,28 @@ _LATEX_ACCENT_COMBINING = {
     "k": "̨",
     "r": "̊",
 }
-_LATEX_ACCENT_RE = re.compile(
-    r'\{?\\(["\'`^~=.]|[cvuHkr])\s*\{?([A-Za-z])\}?\}?'
-)
+_LATEX_ACCENT_RE = re.compile(r'\{?\\(["\'`^~=.]|[cvuHkr])\s*\{?([A-Za-z])\}?\}?')
 
 # LaTeX commands for characters with no separate base letter + accent.
 _LATEX_SPECIAL_CHARS = {
-    "ss": "ß", "o": "ø", "O": "Ø", "aa": "å", "AA": "Å",
-    "l": "ł", "L": "Ł", "ae": "æ", "AE": "Æ", "oe": "œ", "OE": "Œ",
-    "i": "ı", "j": "ȷ",
+    "ss": "ß",
+    "o": "ø",
+    "O": "Ø",
+    "aa": "å",
+    "AA": "Å",
+    "l": "ł",
+    "L": "Ł",
+    "ae": "æ",
+    "AE": "Æ",
+    "oe": "œ",
+    "OE": "Œ",
+    "i": "ı",
+    "j": "ȷ",
 }
 # Braces unambiguously delimit the command, so match those first; the bare form
 # needs a following-letter lookahead so "\oe" isn't misread as "\o" + "e".
-_LATEX_SPECIAL_BRACED_RE = re.compile(
-    r"\{\\(ss|AA|aa|AE|ae|OE|oe|L|l|O|o|i|j)\}"
-)
-_LATEX_SPECIAL_BARE_RE = re.compile(
-    r"\\(ss|AA|aa|AE|ae|OE|oe|L|l|O|o|i|j)(?![A-Za-z])"
-)
+_LATEX_SPECIAL_BRACED_RE = re.compile(r"\{\\(ss|AA|aa|AE|ae|OE|oe|L|l|O|o|i|j)\}")
+_LATEX_SPECIAL_BARE_RE = re.compile(r"\\(ss|AA|aa|AE|ae|OE|oe|L|l|O|o|i|j)(?![A-Za-z])")
 
 # Bare braces BibTeX uses to protect capitalization of a single word/acronym,
 # e.g. "{COVID-19}" or "{PTSD}" -- left over once no accent command matched.

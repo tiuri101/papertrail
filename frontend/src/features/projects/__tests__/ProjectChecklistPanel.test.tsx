@@ -114,6 +114,55 @@ describe('ProjectChecklistPanel', () => {
       .toHaveAttribute('href', '/projects/p1/duplicates')
   })
 
+  it('links unresolved full-text retrievals to the retrieval forms', async () => {
+    mockFetch(() => jsonResponse({
+      stage: 'full_text_screening',
+      stages: [{
+        stage: 'full_text_screening',
+        label: 'Retrieve and Screen Full Texts',
+        isCurrent: true,
+        isComplete: false,
+        autoAdvances: true,
+        action: null,
+        items: [{
+          key: 'full_text_retrieval',
+          label: 'Resolve full-text retrievals',
+          done: false,
+          detail: '2 publications missing PDFs',
+        }],
+      }],
+    }))
+    renderWithProviders(<ProjectChecklistPanel projectId="p1" canManage />)
+
+    expect(await screen.findByRole('link', { name: 'Resolve full-text retrievals' }))
+      .toHaveAttribute('href', '/projects/p1/full-text')
+  })
+
+  it('offers results and export actions when the review is complete', async () => {
+    mockFetch(() => jsonResponse({
+      stage: 'completed',
+      stages: [{
+        stage: 'completed',
+        label: 'Completed',
+        isCurrent: true,
+        isComplete: true,
+        autoAdvances: false,
+        action: null,
+        items: [],
+      }],
+    }))
+    renderWithProviders(<ProjectChecklistPanel projectId="p1" canManage />)
+
+    expect(await screen.findByRole('heading', { name: 'Your review is complete' })).toBeInTheDocument()
+    expect(screen.queryByText('Nothing left to do here.')).not.toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'View Final Results' }))
+      .toHaveAttribute('href', '/projects/p1/results')
+    expect(screen.getByRole('link', { name: 'Explore Charts & Analysis' }))
+      .toHaveAttribute('href', '/projects/p1/analysis')
+    expect(screen.getByRole('link', { name: 'Open Reporting and Exports' }))
+      .toHaveAttribute('href', '/projects/p1/reporting')
+  })
+
   it('marks the project ready and refreshes the checklist', async () => {
     const completeChecklist = {
       ...draftChecklist,

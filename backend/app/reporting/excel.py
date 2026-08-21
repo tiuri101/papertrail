@@ -555,7 +555,11 @@ def _add_evidence_sheets(
                 publication_id,
                 titles.get(publication_id, publication_id),
                 final.resolution_method,
-                user_names.get(final.resolved_by_id, "") if final.resolved_by_id else "",
+                (
+                    user_names.get(final.resolved_by_id, "")
+                    if final.resolved_by_id
+                    else ""
+                ),
                 form_version_labels.get(final.form_version_id, final.form_version_id),
                 _readable_answers(
                     final.answers, field_labels.get(final.form_version_id, {})

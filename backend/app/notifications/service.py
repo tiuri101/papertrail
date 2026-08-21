@@ -423,7 +423,9 @@ def send_email_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
     notification.error_message = None
     rendered = render_email(notification.template, notification.context)
     send_smtp_email(
-        effective_instance_settings(db), recipient=notification.recipient_email, rendered=rendered
+        effective_instance_settings(db),
+        recipient=notification.recipient_email,
+        rendered=rendered,
     )
     notification.status = EmailDeliveryStatus.SENT
     notification.sent_at = datetime.now(UTC)

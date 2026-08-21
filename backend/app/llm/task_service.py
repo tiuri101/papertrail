@@ -11,7 +11,10 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.conflicts.models import FinalDecision
-from app.extraction.final import get_current_final_extraction, get_current_final_extractions
+from app.extraction.final import (
+    get_current_final_extraction,
+    get_current_final_extractions,
+)
 from app.extraction.models import (
     ExtractionResponse,
     ExtractionStatus,
@@ -432,9 +435,7 @@ def project_extractions_completed(db: Session, project_id: str) -> bool:
     return set(finals) == set(publication_ids)
 
 
-def current_validation_run(
-    db: Session, publication_id: str
-) -> LlmExtractionRun | None:
+def current_validation_run(db: Session, publication_id: str) -> LlmExtractionRun | None:
     final = get_current_final_extraction(db, publication_id)
     document = active_document(db, publication_id)
     if final is None or document is None:

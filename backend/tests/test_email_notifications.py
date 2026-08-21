@@ -56,7 +56,9 @@ def login(client, username: str, password: str) -> str:
 def test_registration_queues_deduplicated_welcome_email(
     client, db, monkeypatch
 ) -> None:
-    monkeypatch.setattr("app.notifications.service.effective_instance_settings", email_settings)
+    monkeypatch.setattr(
+        "app.notifications.service.effective_instance_settings", email_settings
+    )
     create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
     db.commit()
     csrf = login(client, "admin", "secret-password")
@@ -184,7 +186,9 @@ def test_llm_completion_email_has_compact_status_summary() -> None:
 
 
 def test_project_creation_emails_active_administrators(db, monkeypatch) -> None:
-    monkeypatch.setattr("app.notifications.service.effective_instance_settings", email_settings)
+    monkeypatch.setattr(
+        "app.notifications.service.effective_instance_settings", email_settings
+    )
     creator = create_user(
         db,
         "owner",
@@ -301,7 +305,9 @@ def test_project_creation_does_not_queue_email_when_email_is_disabled(
 def test_project_completion_email_is_sent_only_to_project_owner(
     db, monkeypatch
 ) -> None:
-    monkeypatch.setattr("app.notifications.service.effective_instance_settings", email_settings)
+    monkeypatch.setattr(
+        "app.notifications.service.effective_instance_settings", email_settings
+    )
     owner = create_user(
         db,
         "owner",
@@ -383,7 +389,9 @@ def test_project_completion_email_is_sent_only_to_project_owner(
 
 
 def test_stage_completion_email_is_sent_only_to_project_owner(db, monkeypatch) -> None:
-    monkeypatch.setattr("app.notifications.service.effective_instance_settings", email_settings)
+    monkeypatch.setattr(
+        "app.notifications.service.effective_instance_settings", email_settings
+    )
     owner = create_user(
         db,
         "owner",
@@ -435,7 +443,9 @@ def test_stage_completion_email_is_sent_only_to_project_owner(db, monkeypatch) -
 def test_screening_stage_completion_advances_and_notifies_owner(
     db, monkeypatch
 ) -> None:
-    monkeypatch.setattr("app.notifications.service.effective_instance_settings", email_settings)
+    monkeypatch.setattr(
+        "app.notifications.service.effective_instance_settings", email_settings
+    )
     owner = create_user(
         db,
         "owner",
@@ -469,7 +479,9 @@ def test_screening_stage_completion_advances_and_notifies_owner(
 def test_membership_add_and_remove_send_email_but_permission_change_does_not(
     client, db, monkeypatch
 ) -> None:
-    monkeypatch.setattr("app.notifications.service.effective_instance_settings", email_settings)
+    monkeypatch.setattr(
+        "app.notifications.service.effective_instance_settings", email_settings
+    )
     create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
     reviewer = create_user(
         db,
@@ -532,7 +544,9 @@ def test_membership_add_and_remove_send_email_but_permission_change_does_not(
 def test_email_job_uses_worker_and_records_success(
     client, db, session_factory, monkeypatch
 ) -> None:
-    monkeypatch.setattr("app.notifications.service.effective_instance_settings", email_settings)
+    monkeypatch.setattr(
+        "app.notifications.service.effective_instance_settings", email_settings
+    )
     sent: list[tuple[str, str]] = []
 
     def fake_send(_settings, *, recipient, rendered) -> None:
@@ -565,7 +579,9 @@ def test_email_job_uses_worker_and_records_success(
 def test_email_job_retries_and_records_terminal_failure(
     client, db, session_factory, monkeypatch
 ) -> None:
-    monkeypatch.setattr("app.notifications.service.effective_instance_settings", email_settings)
+    monkeypatch.setattr(
+        "app.notifications.service.effective_instance_settings", email_settings
+    )
 
     def fail_send(*_args, **_kwargs) -> None:
         raise TimeoutError("SMTP timed out")
@@ -600,7 +616,9 @@ def test_email_job_retries_and_records_terminal_failure(
 
 
 def test_owner_notified_once_when_entire_llm_bulk_finishes(db, monkeypatch) -> None:
-    monkeypatch.setattr("app.notifications.service.effective_instance_settings", email_settings)
+    monkeypatch.setattr(
+        "app.notifications.service.effective_instance_settings", email_settings
+    )
     owner = create_user(
         db,
         "owner",

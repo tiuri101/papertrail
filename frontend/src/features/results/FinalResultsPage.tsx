@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
 import { apiRequest } from '../../api/client'
+import { CountPill } from '../../components/CountPill'
 import { StageEyebrow } from '../projects/StageEyebrow'
 
 interface FieldMeta {
@@ -270,10 +271,10 @@ export function FinalResultsPage() {
               </select>
             </label>
           </div>
-          <p className="muted">
-            {sortedItems.length} of {query.data.items.length} publication{query.data.items.length === 1 ? '' : 's'}
+          <CountPill count={sortedItems.length}>
+            of {query.data.items.length} publication{query.data.items.length === 1 ? '' : 's'}
             {search.trim() ? ' match your search' : ''}
-          </p>
+          </CountPill>
           {sortedItems.length === 0 ? (
             <p>No publications match your search.</p>
           ) : (

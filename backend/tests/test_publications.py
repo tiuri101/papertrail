@@ -24,7 +24,11 @@ from app.projects.models import (
     ScreeningStage,
 )
 from app.publications.models import MetadataConflict, Publication, PublicationSource
-from app.publications.service import apply_enrichment, clean_text, normalize_imported_records
+from app.publications.service import (
+    apply_enrichment,
+    clean_text,
+    normalize_imported_records,
+)
 from app.screening.models import (
     ScreeningDecision,
     ScreeningOutcome,
@@ -422,8 +426,8 @@ def project_and_batch(db):
 
 
 def test_clean_text_decodes_latex_accents_and_html_entities() -> None:
-    assert clean_text(r'K{\"u}chenmeister') == "Küchenmeister"
-    assert clean_text(r'J{\"u}rgen') == "Jürgen"
+    assert clean_text(r"K{\"u}chenmeister") == "Küchenmeister"
+    assert clean_text(r"J{\"u}rgen") == "Jürgen"
     assert clean_text(r"Jo{\~a}o") == "João"
     assert clean_text(r"Pl{\'a}cido") == "Plácido"
     assert clean_text("PTSD&nbsp;Patients") == "PTSD Patients"
@@ -772,7 +776,11 @@ def test_publication_response_includes_screening_status_per_stage(client, db) ->
         f"/api/v1/projects/{project.id}/publications/{publication.id}/review-details"
     )
     assert review_details.status_code == 200
-    assert review_details.json()["screening"]["titleAbstract"]["finalDecision"] == {
+    final_decision = review_details.json()["screening"]["titleAbstract"][
+        "finalDecision"
+    ]
+    assert final_decision.pop("resolvedAt") is not None
+    assert final_decision == {
         "outcome": "include",
         "resolutionMethod": "agreement",
         "note": None,
@@ -785,7 +793,11 @@ def test_publication_response_includes_screening_status_per_stage(client, db) ->
             "text": "Relevant population",
         }
     ]
-    assert review_details.json()["screening"]["titleAbstract"]["reviewerDecisions"] == [
+    reviewer_decisions = review_details.json()["screening"]["titleAbstract"][
+        "reviewerDecisions"
+    ]
+    assert reviewer_decisions[0].pop("createdAt") is not None
+    assert reviewer_decisions == [
         {
             "workItemId": screening_item.id,
             "reviewerName": "Administrator",
@@ -861,5 +873,3 @@ def test_publication_response_includes_screening_status_per_stage(client, db) ->
     assert audit.event_metadata["previousOutcome"] == "include"
     assert audit.event_metadata["outcome"] == "exclude"
     assert audit.event_metadata["reason"] == "Incorrectly included during screening"
-
-

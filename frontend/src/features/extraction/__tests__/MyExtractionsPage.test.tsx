@@ -39,6 +39,11 @@ describe('MyExtractionsPage', () => {
 
     expect(await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })).toBeInTheDocument()
     expect(screen.getByText('v2')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Immersive Urban Analytics' })).toHaveAttribute(
+      'href',
+      '/projects/p1/publications/publication-1',
+    )
+    expect(document.querySelector('time')).toHaveAttribute('datetime', baseEntry.completedAt)
     expect(screen.getByRole('button', { name: 'Edit Extraction' })).toBeInTheDocument()
   })
 
@@ -66,10 +71,11 @@ describe('MyExtractionsPage', () => {
       'Immersive Urban Analytics',
     ])
 
-    fireEvent.change(screen.getByLabelText('Sort by'), { target: { value: 'title_asc' } })
+    expect(document.querySelector('.publication-list__header')).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Sort by'), { target: { value: 'title:desc' } })
     expect(screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)).toEqual([
-      'Alpha Study',
       'Immersive Urban Analytics',
+      'Alpha Study',
     ])
 
     fireEvent.change(screen.getByLabelText('Search papers'), { target: { value: 'Z. Reviewer' } })

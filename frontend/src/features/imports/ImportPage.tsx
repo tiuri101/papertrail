@@ -1,10 +1,11 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
+import { CountPill } from '../../components/CountPill'
 import { DateField } from '../../components/DateField'
 import { IconClock, IconPerson, IconTrash, IconUpload } from '../../components/icons'
 import { useRegisterSectionItems } from '../../components/sectionNavigation'
@@ -52,7 +53,7 @@ interface DeleteSearchPreview {
 }
 
 const importSections = [
-  { id: 'section-import-records', label: 'Import an Export File' },
+  { id: 'section-import-records', label: 'Import a Database Export' },
   { id: 'section-search-history', label: 'Previously Documented Searches' },
 ]
 
@@ -94,6 +95,7 @@ export function ImportPage() {
   const [deleteCandidate, setDeleteCandidate] = useState<
     { search: SearchSource; preview: DeleteSearchPreview } | null
   >(null)
+  const autoScrolledPdfReviewJobIdRef = useRef<string | null>(null)
 
   const searches = useQuery({
     queryKey: ['searches', projectId],
@@ -138,6 +140,23 @@ export function ImportPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pendingJob, projectId, queryClient])
+
+  useEffect(() => {
+    if (
+      pendingJob?.status !== 'completed'
+      || !projectNeedsPdfReview
+      || autoScrolledPdfReviewJobIdRef.current === pendingJob.id
+    ) return
+    const pdfSummary = pendingJob.result?.pdfs as PdfSummary | undefined
+    const needsReview = (pdfSummary?.ambiguous ?? 0)
+      + (pdfSummary?.unmatched ?? 0)
+      + (pdfSummary?.conflict_existing_pdf ?? 0)
+    if (needsReview === 0) return
+    const reviewCard = document.getElementById('section-pdf-review')
+    if (!reviewCard) return
+    autoScrolledPdfReviewJobIdRef.current = pendingJob.id
+    reviewCard.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [pendingJob, projectNeedsPdfReview])
 
   const submit = useMutation({
     mutationFn: async (): Promise<ImportResult> => {
@@ -217,13 +236,13 @@ export function ImportPage() {
 
       {hadSearchHistoryOnLoad === null ? (
         <section id="section-import-records" className="card">
-          <h2>Import an Export File</h2>
+          <h2>Import a Database Export</h2>
           <p className="muted">Loading documented searches…</p>
         </section>
       ) : (
         <CollapsibleSection
           id="section-import-records"
-          title="Import an Export File"
+          title="Import a Database Export"
           defaultExpanded={!hadSearchHistoryOnLoad}
         >
         <p className="muted">Record the database and search string used alongside the file, so it can be traced back for this import and reported in your PRISMA flow.</p>
@@ -330,9 +349,9 @@ export function ImportPage() {
       >
         <h2 id="search-history-title">Previously Documented Searches</h2>
         {searches.data?.length ? (
-          <p className="muted">
-            {searches.data.length} documented search{searches.data.length === 1 ? '' : 'es'}
-          </p>
+          <CountPill count={searches.data.length}>
+            documented search{searches.data.length === 1 ? '' : 'es'}
+          </CountPill>
         ) : (
           <p className="muted">No searches have been documented for this project yet.</p>
         )}

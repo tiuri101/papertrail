@@ -58,6 +58,13 @@ describe('JobsPage', () => {
     })
     renderWithProviders(<JobsPage />, { route: '/projects/p1/jobs', path: '/projects/:projectId/jobs' })
 
+    const summary = await screen.findByRole('region', { name: 'Job status summary' })
+    expect(within(summary).getByLabelText('1 completed job')).toBeInTheDocument()
+    expect(within(summary).getByLabelText('1 failed job')).toBeInTheDocument()
+    expect(within(summary).getByLabelText('0 running jobs')).toBeInTheDocument()
+    expect(within(summary).getByLabelText('0 queued jobs')).toBeInTheDocument()
+    expect(within(summary).getByLabelText('0 cancelled jobs')).toBeInTheDocument()
+
     const completedRow = await screen.findByRole('row', { name: /parse_import/ })
     expect(completedRow).toHaveTextContent('completed')
     expect(completedRow).toHaveTextContent('10 / 10')
@@ -151,12 +158,15 @@ describe('JobsPage', () => {
     const { queryClient } = renderWithProviders(<JobsPage />, { route: '/projects/p1/jobs', path: '/projects/:projectId/jobs' })
 
     expect(await screen.findByRole('row', { name: /detect_duplicates/ })).toHaveTextContent('running')
+    expect(screen.getByLabelText('1 running job')).toBeInTheDocument()
 
     status = 'completed'
     await queryClient.invalidateQueries({ queryKey: ['jobs', 'p1'] })
 
     await waitFor(() => {
       expect(screen.getByRole('row', { name: /detect_duplicates/ })).toHaveTextContent('completed')
+      expect(screen.getByLabelText('0 running jobs')).toBeInTheDocument()
+      expect(screen.getByLabelText('1 completed job')).toBeInTheDocument()
     })
     const jobsCalls = fetchMock.mock.calls.filter(([input]) => String(input).endsWith('/projects/p1/jobs'))
     expect(jobsCalls).toHaveLength(2)
@@ -196,7 +206,10 @@ describe('JobsPage', () => {
     await screen.findByRole('row', { name: /parse_import/ })
     expect(screen.getByRole('row', { name: /enrich_publication/ })).toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'failed' } })
+    const failedSummary = screen.getByRole('button', { name: '1 failed job' })
+    fireEvent.click(failedSummary)
+    expect(failedSummary).toHaveAttribute('aria-pressed', 'true')
+    expect(screen.getByLabelText('Status')).toHaveValue('failed')
     expect(screen.queryByRole('row', { name: /parse_import/ })).not.toBeInTheDocument()
     expect(screen.getByRole('row', { name: /enrich_publication/ })).toBeInTheDocument()
 

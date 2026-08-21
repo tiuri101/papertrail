@@ -1,5 +1,6 @@
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
+import { CountPill } from '../../components/CountPill'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 import { StageEyebrow } from '../projects/StageEyebrow'
 import { PreviousItemCard } from './PreviousItemCard'
@@ -22,11 +23,11 @@ export function TitleAbstractScreeningPage() {
       <StageEyebrow stage="title_abstract_screening" />
       <h1>Title and Abstract Screening</h1>
       {queue.progress ? (
-        <p className="muted">
+        <CountPill count={queue.progress.claimMode ? queue.progress.remaining : queue.progress.completed}>
           {queue.progress.claimMode
-            ? `${queue.progress.remaining} papers remaining`
-            : `${queue.progress.completed} of ${queue.progress.assigned} assigned papers screened`}
-        </p>
+            ? `paper${queue.progress.remaining === 1 ? '' : 's'} remaining`
+            : `of ${queue.progress.assigned} assigned papers screened`}
+        </CountPill>
       ) : null}
       <p><Link to={`/projects/${projectId}/screening/${STAGE}/my-decisions`}>Review or change my past decisions</Link></p>
       {!queue.previousItem && queue.lastCompletedItem ? (

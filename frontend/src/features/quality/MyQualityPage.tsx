@@ -1,13 +1,12 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useMemo, useState, type MouseEvent } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { CountPill } from '../../components/CountPill'
 import { DoiPill } from '../../components/DoiPill'
 import { HighlightedText } from '../../components/HighlightedText'
-import { PublisherLinkPill } from '../../components/PublisherLinkPill'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
-import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { StageEyebrow } from '../projects/StageEyebrow'
 import { QualityWorkspace } from './QualityWorkspace'
 
@@ -31,66 +30,99 @@ interface CompletedQualityAssessment {
   totalScore: number | null
 }
 
-function QualityCard({
-  projectId,
-  entry,
-  highlightKeywords,
-}: {
+type QualitySortKey = 'title' | 'authors' | 'venue' | 'score' | 'doi' | 'submitted'
+type SortDirection = 'asc' | 'desc'
+
+function sortValue(entry: CompletedQualityAssessment, key: QualitySortKey): string | number {
+  switch (key) {
+    case 'title': return entry.publication.title.toLocaleLowerCase()
+    case 'authors': return (entry.publication.authors ?? '').toLocaleLowerCase()
+    case 'venue': return (entry.publication.venue ?? '').toLocaleLowerCase()
+    case 'score': return entry.totalScore ?? Number.NEGATIVE_INFINITY
+    case 'doi': return (entry.publication.doi ?? '').toLocaleLowerCase()
+    case 'submitted': return entry.completedAt ? Date.parse(entry.completedAt) : 0
+  }
+}
+
+function sortItems(items: CompletedQualityAssessment[], key: QualitySortKey, direction: SortDirection) {
+  return [...items].sort((left, right) => {
+    const leftValue = sortValue(left, key)
+    const rightValue = sortValue(right, key)
+    const comparison = typeof leftValue === 'number' && typeof rightValue === 'number'
+      ? leftValue - rightValue
+      : String(leftValue).localeCompare(String(rightValue), undefined, { sensitivity: 'base' })
+    if (comparison !== 0) return direction === 'asc' ? comparison : -comparison
+    return left.publication.title.localeCompare(right.publication.title)
+  })
+}
+
+function formatSubmittedAt(value: string | null) {
+  if (!value) return '—'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString()
+}
+
+function QualityRow({ projectId, entry, highlightKeywords }: {
   projectId: string
   entry: CompletedQualityAssessment
   highlightKeywords: string[]
 }) {
+  const navigate = useNavigate()
   const [editing, setEditing] = useState(false)
   const queryClient = useQueryClient()
   const publication = entry.publication
+  const detailHref = `/projects/${projectId}/publications/${publication.id}`
+
+  const openPublication = (event: MouseEvent<HTMLLIElement>) => {
+    if ((event.target as HTMLElement).closest('a, button, input, select, textarea, label, .review-work-card__editor')) return
+    navigate(detailHref)
+  }
 
   return (
-    <li className="card publication-card decision-card">
-      <div className="publication-card__summary">
-        <div>
-          <h2 className="decision-card__title">
-            <HighlightedText text={publication.title} keywords={highlightKeywords} />
-          </h2>
-          {' — '}{publication.authors ?? 'Unknown authors'}
-          {publication.publicationYear ? ` (${publication.publicationYear})` : ''}
-          {' '}
-          <span className="muted">v{entry.version}</span>
-          {entry.totalScore !== null ? <span className="muted"> · Total score {entry.totalScore}</span> : null}
+    <li className="card publication-card review-work-card--clickable" onClick={openPublication}>
+      <div className="publication-card__summary review-work-row-grid">
+        <div className="review-work-row-grid__title">
+          <Link className="publication-card__title-button" to={detailHref}>
+            <h2 className="decision-card__title">
+              <HighlightedText text={publication.title} keywords={highlightKeywords} />
+            </h2>
+          </Link>
+          <div className="review-work-row-grid__authors">{publication.authors ?? 'Unknown authors'}</div>
         </div>
+        <span className="review-work-row-grid__venue" title={publication.venue ?? undefined}>
+          {publication.venue ?? '—'}{publication.publicationYear ? ` (${publication.publicationYear})` : ''}
+        </span>
+        <span className="review-work-row-grid__status">
+          <span className="status-pill">
+            {entry.totalScore === null ? `Version ${entry.version}` : `Total score ${entry.totalScore} · v${entry.version}`}
+          </span>
+        </span>
+        <span className="review-work-row-grid__doi">
+          {publication.doi ? <DoiPill doi={publication.doi} /> : <span className="muted">—</span>}
+        </span>
+        <time className="review-work-row-grid__submitted" dateTime={entry.completedAt ?? undefined}>
+          {formatSubmittedAt(entry.completedAt)}
+        </time>
+        <span className="review-work-row-grid__actions">
+          {!editing ? (
+            <button type="button" className="button-secondary button-sm" onClick={() => setEditing(true)}>Edit Quality Assessment</button>
+          ) : null}
+        </span>
       </div>
-      <div className="publication-card__workflow">
-        <DoiPill doi={publication.doi} />
-        {isSafeHttpUrl(publication.publisherUrl) ? (
-          <PublisherLinkPill url={publication.publisherUrl!} />
-        ) : null}
-      </div>
-      <details className="publication-card__abstract">
-        <summary>Publication details</summary>
-        {publication.venue ? <p><strong>Venue:</strong> {publication.venue}</p> : null}
-        <p>
-          <strong>Abstract:</strong>{' '}
-          {publication.abstract
-            ? <HighlightedText text={publication.abstract} keywords={highlightKeywords} />
-            : 'No abstract available.'}
-        </p>
-        {entry.completedAt ? <p className="muted">Submitted {new Date(entry.completedAt).toLocaleString()}</p> : null}
-      </details>
       {editing ? (
-        <QualityWorkspace
-          projectId={projectId}
-          itemId={entry.id}
-          variant="inline"
-          onCancel={() => setEditing(false)}
-          onSubmitted={() => {
-            setEditing(false)
-            queryClient.invalidateQueries({ queryKey: ['my-quality-assessments', projectId] })
-          }}
-        />
-      ) : (
-        <div className="toolbar publication-card__actions">
-          <button type="button" className="button-secondary" onClick={() => setEditing(true)}>Edit Quality Assessment</button>
+        <div className="review-work-card__editor">
+          <QualityWorkspace
+            projectId={projectId}
+            itemId={entry.id}
+            variant="inline"
+            onCancel={() => setEditing(false)}
+            onSubmitted={() => {
+              setEditing(false)
+              queryClient.invalidateQueries({ queryKey: ['my-quality-assessments', projectId] })
+            }}
+          />
         </div>
-      )}
+      ) : null}
     </li>
   )
 }
@@ -99,7 +131,8 @@ export function MyQualityPage() {
   const { projectId = '' } = useParams()
   const highlightKeywords = useHighlightKeywords(projectId)
   const [search, setSearch] = useState('')
-  const [sort, setSort] = useState('newest')
+  const [sortKey, setSortKey] = useState<QualitySortKey>('submitted')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const query = useQuery({
     queryKey: ['my-quality-assessments', projectId],
     queryFn: () => apiRequest<CompletedQualityAssessment[]>(`/api/v1/projects/${projectId}/quality/mine`),
@@ -110,32 +143,18 @@ export function MyQualityPage() {
     const normalizedSearch = search.trim().toLocaleLowerCase()
     const items = (query.data ?? []).filter((entry) => {
       const publication = entry.publication
-      const searchable = [
-        publication.title,
-        publication.authors,
-        publication.abstract,
-        publication.venue,
-        publication.doi,
-      ].filter(Boolean).join(' ').toLocaleLowerCase()
+      const searchable = [publication.title, publication.authors, publication.abstract, publication.venue, publication.doi]
+        .filter(Boolean).join(' ').toLocaleLowerCase()
       return !normalizedSearch || searchable.includes(normalizedSearch)
     })
-    return items.sort((left, right) => {
-      if (sort === 'title_asc') return left.publication.title.localeCompare(right.publication.title)
-      if (sort === 'title_desc') return right.publication.title.localeCompare(left.publication.title)
-      const leftTime = left.completedAt ? Date.parse(left.completedAt) : 0
-      const rightTime = right.completedAt ? Date.parse(right.completedAt) : 0
-      return sort === 'oldest' ? leftTime - rightTime : rightTime - leftTime
-    })
-  }, [query.data, search, sort])
+    return sortItems(items, sortKey, sortDirection)
+  }, [query.data, search, sortDirection, sortKey])
 
   return (
     <main className="page">
       <StageEyebrow stage="extraction_quality" />
       <h1>My Submitted Quality Assessments</h1>
-      <p className="muted">
-        Publications you have already assessed. Open one to revisit and correct your answers —
-        each correction is saved as a new, separately tracked version.
-      </p>
+      <p className="muted">Publications you have already assessed. Select a publication to view its details, or edit your assessment.</p>
       <p><Link to={`/projects/${projectId}/quality`}>← Back to quality assessment queue</Link></p>
       {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
       {query.isLoading ? <p>Loading…</p> : null}
@@ -143,28 +162,31 @@ export function MyQualityPage() {
         <>
           {query.data.length > 0 ? (
             <>
-              <p className="muted">
-                {search
-                  ? `${filteredItems.length} of ${query.data.length} assessments match your filters`
-                  : `${query.data.length} assessment${query.data.length === 1 ? '' : 's'}`}
-              </p>
+              <CountPill count={search ? filteredItems.length : query.data.length}>
+                {search ? `of ${query.data.length} assessments match your filters` : `assessment${query.data.length === 1 ? '' : 's'}`}
+              </CountPill>
               <div className="toolbar">
                 <label className="paper-search-field">
                   Search papers
-                  <input
-                    type="search"
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Title, author, DOI…"
-                  />
+                  <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Title, author, DOI…" />
                 </label>
                 <label>
                   Sort by
-                  <select value={sort} onChange={(event) => setSort(event.target.value)}>
-                    <option value="newest">Newest submission</option>
-                    <option value="oldest">Oldest submission</option>
-                    <option value="title_asc">Title A–Z</option>
-                    <option value="title_desc">Title Z–A</option>
+                  <select value={`${sortKey}:${sortDirection}`} onChange={(event) => {
+                    const [key, direction] = event.target.value.split(':') as [QualitySortKey, SortDirection]
+                    setSortKey(key)
+                    setSortDirection(direction)
+                  }}>
+                    <option value="submitted:desc">Newest submission</option>
+                    <option value="submitted:asc">Oldest submission</option>
+                    <option value="title:asc">Title A–Z</option>
+                    <option value="title:desc">Title Z–A</option>
+                    <option value="authors:asc">Authors A–Z</option>
+                    <option value="authors:desc">Authors Z–A</option>
+                    <option value="venue:asc">Venue A–Z</option>
+                    <option value="venue:desc">Venue Z–A</option>
+                    <option value="score:desc">Highest score</option>
+                    <option value="score:asc">Lowest score</option>
                   </select>
                 </label>
               </div>
@@ -176,14 +198,7 @@ export function MyQualityPage() {
             <p className="muted">No assessments match your filters.</p>
           ) : (
             <ul className="card-list stacked publication-list">
-              {filteredItems.map((entry) => (
-                <QualityCard
-                  key={entry.id}
-                  projectId={projectId}
-                  entry={entry}
-                  highlightKeywords={highlightKeywords}
-                />
-              ))}
+                {filteredItems.map((entry) => <QualityRow key={entry.id} projectId={projectId} entry={entry} highlightKeywords={highlightKeywords} />)}
             </ul>
           )}
         </>

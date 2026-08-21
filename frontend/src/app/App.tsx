@@ -45,6 +45,7 @@ import { ProjectSetupWizard } from '../features/projects/ProjectSetupWizard'
 import { ProjectsPage } from '../features/projects/ProjectsPage'
 import { AdministrationEyebrow, StageEyebrow } from '../features/projects/StageEyebrow'
 import { AddPublicationPage } from '../features/publications/AddPublicationPage'
+import { PublicationDetailPage } from '../features/publications/PublicationDetailPage'
 import { PublicationsPage } from '../features/publications/PublicationsPage'
 import { MyQualityPage } from '../features/quality/MyQualityPage'
 import { QualityPage } from '../features/quality/QualityPage'
@@ -296,6 +297,7 @@ export function App() {
             <Route path="/projects/:projectId/jobs" element={<JobsPage />} />
             <Route path="/projects/:projectId/publications" element={<PublicationsPage />} />
             <Route path="/projects/:projectId/publications/add" element={<AddPublicationPage />} />
+            <Route path="/projects/:projectId/publications/:publicationId" element={<PublicationDetailPage />} />
             <Route path="/projects/:projectId/duplicates" element={<DuplicateReviewPage />} />
             <Route path="/projects/:projectId/screening/title_abstract" element={<TitleAbstractScreeningPage />} />
             <Route path="/projects/:projectId/screening/:stage/my-decisions" element={<MyDecisionsPage />} />

@@ -50,6 +50,53 @@ describe('DuplicateReviewPage', () => {
     ))).toBe(true)
   })
 
+  it('refreshes the candidates when the re-run detection job completes', async () => {
+    let jobCompleted = false
+    let duplicateFetchCount = 0
+    const fetchMock = mockFetch(async (input, init) => {
+      const path = String(input)
+      if (path.endsWith('/projects/p1')) {
+        return jsonResponse({ id: 'p1', canManage: true, stage: 'duplicate_review' })
+      }
+      if (path.endsWith('/duplicates/detect') && init?.method === 'POST') {
+        return jsonResponse({ jobId: 'job-1', status: 'queued' }, 202)
+      }
+      if (path.endsWith('/jobs')) {
+        return jsonResponse([{
+          id: 'job-1',
+          jobType: 'detect_duplicates',
+          status: jobCompleted ? 'completed' : 'running',
+          progressCurrent: jobCompleted ? 1 : 0,
+          progressTotal: 1,
+          progressMessage: null,
+          errorMessage: null,
+          createdAt: '2026-08-20T10:00:00Z',
+          completedAt: jobCompleted ? '2026-08-20T10:00:01Z' : null,
+        }])
+      }
+      if (path.endsWith('/duplicates')) duplicateFetchCount += 1
+      return jsonResponse([])
+    })
+    const { queryClient } = renderWithProviders(<DuplicateReviewPage />, {
+      route: '/projects/p1/duplicates',
+      path: '/projects/:projectId/duplicates',
+    })
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Re-run Duplicate Detection' }))
+    await waitFor(() => expect(fetchMock.mock.calls.some(([input]) => (
+      String(input).endsWith('/jobs')
+    ))).toBe(true))
+    const fetchesBeforeCompletion = duplicateFetchCount
+
+    jobCompleted = true
+    await queryClient.invalidateQueries({ queryKey: ['jobs', 'p1'] })
+
+    await waitFor(() => expect(duplicateFetchCount).toBeGreaterThan(fetchesBeforeCompletion))
+    expect(screen.getByRole('status')).toHaveTextContent(
+      'Duplicate detection finished. Results refreshed.',
+    )
+  })
+
   it('shows publication metadata and resolves a candidate as distinct', async () => {
     let resolved = false
     const fetchMock = mockFetch(async (input, init) => {
@@ -65,7 +112,8 @@ describe('DuplicateReviewPage', () => {
 
     expect(await screen.findByText('A Study of Urban VR')).toBeInTheDocument()
     expect(screen.getByText('A study of urban VR')).toBeInTheDocument()
-    expect(screen.getByText(/Doe, Jane/)).toHaveTextContent('2025')
+    expect(screen.getByText('Doe, Jane')).toBeInTheDocument()
+    expect(screen.getAllByText('2025')).toHaveLength(2)
     expect(screen.getByText('CHI')).toBeInTheDocument()
     expect(screen.getByText('CHI Extended Abstracts')).toBeInTheDocument()
     const doiLinks = screen.getAllByRole('link', { name: 'DOI' })
@@ -73,11 +121,13 @@ describe('DuplicateReviewPage', () => {
     expect(doiLinks[0]).toHaveAttribute('href', 'https://doi.org/10.1000/same')
     expect(doiLinks[0]).toHaveAttribute('target', '_blank')
     expect(screen.getByText('98% match')).toBeInTheDocument()
-    const summary = screen.getByText('98% match').closest('p')!
-    expect(summary).toHaveTextContent('Exact DOI, Similar title & authors, Shared ISSN')
+    const summary = screen.getByText('98% match').closest('.duplicate-review-card')!
+    expect(summary).toHaveTextContent('Exact DOI')
+    expect(summary).toHaveTextContent('Similar title & authors')
+    expect(summary).toHaveTextContent('Shared ISSN')
     expect(summary).toHaveTextContent('unresolved')
     const candidateList = screen.getByText('A Study of Urban VR').closest('ul')
-    expect(candidateList).toHaveClass('card-list', 'stacked')
+    expect(candidateList).toHaveClass('duplicate-review-list')
     expect(screen.getByText('A Study of Urban VR').closest('.duplicate-publications')).toBe(
       screen.getByText('A study of urban VR').closest('.duplicate-publications'),
     )

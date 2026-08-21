@@ -23,7 +23,8 @@ $excludedRootDirectories = @(
 
 # Relative (forward-slash) paths, from the repo root, to exclude regardless of depth.
 $excludedRelativePaths = @(
-    "backend/data"
+    "backend/data",
+    "frontend/data"
 )
 
 function Test-ExcludedDirectory {

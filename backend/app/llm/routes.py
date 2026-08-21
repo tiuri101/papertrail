@@ -1240,6 +1240,7 @@ def extraction_validation_review(
                 "publicationId": item.publication_id,
                 "assignedReviewerId": item.assigned_reviewer_id,
                 "responseId": response.id if response else None,
+                "submittedAt": response.created_at if response else None,
                 "fullTextAvailable": active_document(db, item.publication_id)
                 is not None,
                 "state": state,
@@ -1252,6 +1253,8 @@ def extraction_validation_review(
                     "title": publication.title,
                     "authors": publication.authors,
                     "publicationYear": publication.publication_year,
+                    "venue": publication.venue,
+                    "doi": publication.doi,
                 },
                 "results": [
                     _validation_result_payload(result)

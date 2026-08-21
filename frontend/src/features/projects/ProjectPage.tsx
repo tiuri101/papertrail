@@ -99,6 +99,7 @@ type ProjectCapability =
 interface ProjectSectionLink {
   path: string
   label: string
+  alwaysAvailable?: boolean
   managerOnly?: boolean
   validationOnly?: boolean
   requiresCapability?: ProjectCapability
@@ -211,7 +212,7 @@ const projectSectionGroups: ProjectSectionGroup[] = [
     stage: 'completed',
     links: [
       { path: 'results', label: 'Final Results' },
-      { path: 'analysis', label: 'Charts & Analysis' },
+      { path: 'analysis', label: 'Charts & Analysis', alwaysAvailable: true },
       { path: 'reporting', label: 'Reporting and Exports' },
     ],
     jobStages: ['Reporting and export'],
@@ -391,8 +392,8 @@ export function ProjectPage() {
                     ) : null}
                   </h3>
                   <div className="toolbar">
-                    {visibleLinks.map(({ path, label }) => (
-                      upcoming ? (
+                    {visibleLinks.map(({ path, label, alwaysAvailable }) => (
+                      upcoming && !alwaysAvailable ? (
                         <span
                           key={path}
                           className="nav-link-disabled"

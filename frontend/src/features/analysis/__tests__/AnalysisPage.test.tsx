@@ -53,6 +53,7 @@ const fullTextResponse = {
 const extractionResponse = {
   stats: {
     totalPublications: 3,
+    completedExtractions: 2,
     qualityTotalScore: null,
     fields: [
       {
@@ -74,8 +75,11 @@ const extractionResponse = {
 
 const reviewerAnalysisResponse = {
   stage: 'title_abstract',
+  configuredReviewerCount: 2,
+  eligibleReviewerCount: 2,
   overall: {
     comparingReviewerCount: 2,
+    maximumReviewerCount: 2,
     publicationsWithCompleteSet: 3,
     totalOriginalDecisions: 6,
     rawAgreementRate: 0.67,
@@ -145,7 +149,9 @@ function baseFetchHandler(input: RequestInfo | URL) {
     return jsonResponse({ ...reviewerAnalysisResponse, stage: 'full_text', pairwise: [], reviewerSummary: [] })
   }
   if (path.endsWith('/evidence-matrix')) return jsonResponse(evidenceMatrixResponse)
-  if (/\/api\/v1\/projects\/[^/]+$/.test(path)) return jsonResponse({ researchQuestions: [] })
+  if (/\/api\/v1\/projects\/[^/]+$/.test(path)) {
+    return jsonResponse({ stage: 'completed', researchQuestions: [] })
+  }
   if (path.endsWith('/jobs')) return jsonResponse([])
   return jsonResponse({})
 }
@@ -159,9 +165,25 @@ describe('AnalysisPage', () => {
       path: '/projects/:projectId/analysis',
     })
 
-    // Deduplication tab is active by default.
+    expect((await screen.findAllByRole('tab')).map((tab) => tab.textContent)).toEqual([
+      'General',
+      'Deduplication',
+      'Screening',
+      'Extraction & Quality',
+      'Research Questions',
+    ])
+    const generalOverviewHeading = await screen.findByRole('heading', { name: 'General Overview' })
+    expect(generalOverviewHeading).toBeInTheDocument()
+    expect(await screen.findByRole('heading', { name: 'Review Funnel' })).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Stage Details' })).toBeInTheDocument()
+    const generalOverview = generalOverviewHeading.closest('section')
+    expect(generalOverview?.querySelector('.general-analysis__metric--imported')).toHaveTextContent('12')
+    expect(generalOverview?.querySelector('.general-analysis__metric--extraction')).toHaveTextContent('2')
+    expect(screen.getByText('Pending extractions').closest('div')).toHaveTextContent('1')
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Deduplication' }))
     expect(await screen.findByRole('heading', { name: 'Deduplication' })).toBeInTheDocument()
-    expect(screen.queryByRole('heading', { name: 'Title/Abstract Screening' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'General Overview' })).not.toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('tab', { name: /Screening/ }))
     expect(await screen.findByRole('heading', { name: 'Title/Abstract Screening' })).toBeInTheDocument()
@@ -206,6 +228,116 @@ describe('AnalysisPage', () => {
 
     expect(withinReviewer.getByText('Reviewer A')).toBeInTheDocument()
     expect(withinReviewer.getByText('Reviewer B')).toBeInTheDocument()
+    expect(withinReviewer.queryByRole('heading', { name: 'Multi-reviewer agreement' })).not.toBeInTheDocument()
+    expect(withinReviewer.queryByRole('heading', { name: 'Criterion-level agreement' })).not.toBeInTheDocument()
+    expect(withinReviewer.queryByRole('heading', { name: 'Disagreement over time' })).not.toBeInTheDocument()
+  })
+
+  it('shows only analysis from stages that have already completed', async () => {
+    const requests: string[] = []
+    mockFetch((input) => {
+      const path = String(input)
+      requests.push(path)
+      if (/\/api\/v1\/projects\/[^/]+$/.test(path)) {
+        return jsonResponse({ stage: 'full_text_screening', researchQuestions: [] })
+      }
+      return baseFetchHandler(input)
+    })
+
+    renderWithProviders(<AnalysisPage />, {
+      route: '/projects/p1/analysis',
+      path: '/projects/:projectId/analysis',
+    })
+
+    expect(await screen.findAllByText('Included (Title/Abstract)')).toHaveLength(2)
+    expect(screen.queryByText('Included (Full-Text)')).not.toBeInTheDocument()
+    expect(screen.queryByText('Extractions completed')).not.toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Deduplication' })).toBeEnabled()
+    expect(screen.getByRole('tab', { name: 'Screening' })).toBeEnabled()
+    expect(screen.getByRole('tab', { name: 'Extraction & Quality' })).toBeDisabled()
+    expect(screen.getByRole('tab', { name: 'Research Questions' })).toBeDisabled()
+    expect(requests.some((path) => path.endsWith('/analysis/full_text_screening'))).toBe(false)
+    expect(requests.some((path) => path.endsWith('/analysis/extraction_quality'))).toBe(false)
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Screening' }))
+    expect(await screen.findByRole('heading', { name: 'Title/Abstract Screening' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Full-Text Screening' })).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(requests.some((path) => path.endsWith('/reviewer-analysis/title_abstract'))).toBe(true)
+    })
+    expect(requests.some((path) => path.endsWith('/reviewer-analysis/full_text'))).toBe(false)
+  })
+
+  it('hides reviewer analysis for stages configured for or limited to one reviewer', async () => {
+    mockFetch((input) => {
+      const path = String(input)
+      if (path.includes('/analysis/reviewer-analysis/')) {
+        return jsonResponse({
+          ...reviewerAnalysisResponse,
+          stage: path.endsWith('/full_text') ? 'full_text' : 'title_abstract',
+          configuredReviewerCount: path.endsWith('/full_text') ? 2 : 1,
+          eligibleReviewerCount: path.endsWith('/full_text') ? 1 : 2,
+          reviewerSummary: reviewerAnalysisResponse.reviewerSummary.slice(0, 1),
+        })
+      }
+      return baseFetchHandler(input)
+    })
+
+    renderWithProviders(<AnalysisPage />, {
+      route: '/projects/p1/analysis',
+      path: '/projects/:projectId/analysis',
+    })
+
+    fireEvent.click(await screen.findByRole('tab', { name: /Screening/ }))
+    await waitFor(() => {
+      expect(screen.queryByRole('heading', { name: 'Reviewer Analysis' })).not.toBeInTheDocument()
+    })
+  })
+
+  it('shows one useful message instead of empty agreement sections before reviews overlap', async () => {
+    mockFetch((input) => {
+      const path = String(input)
+      if (path.endsWith('/analysis/reviewer-analysis/title_abstract')) {
+        return jsonResponse({
+          ...reviewerAnalysisResponse,
+          overall: {
+            ...reviewerAnalysisResponse.overall,
+            comparingReviewerCount: 0,
+            maximumReviewerCount: 0,
+            publicationsWithCompleteSet: 0,
+            totalOriginalDecisions: 0,
+            rawAgreementRate: null,
+            publicationDisagreementRate: null,
+          },
+          pairwise: [],
+          criteria: [],
+          disagreementTrend: [],
+          reviewerSummary: [],
+        })
+      }
+      if (path.endsWith('/analysis/reviewer-analysis/full_text')) {
+        return jsonResponse({
+          ...reviewerAnalysisResponse,
+          stage: 'full_text',
+          configuredReviewerCount: 1,
+          reviewerSummary: [],
+        })
+      }
+      return baseFetchHandler(input)
+    })
+
+    renderWithProviders(<AnalysisPage />, {
+      route: '/projects/p1/analysis',
+      path: '/projects/:projectId/analysis',
+    })
+
+    fireEvent.click(await screen.findByRole('tab', { name: /Screening/ }))
+    const reviewerSection = (
+      await screen.findByRole('heading', { name: 'Reviewer Analysis' })
+    ).closest('section') as HTMLElement
+    expect(await within(reviewerSection).findByText(/after at least two reviewers/)).toBeInTheDocument()
+    expect(within(reviewerSection).queryByText('Raw agreement')).not.toBeInTheDocument()
+    expect(within(reviewerSection).queryByText('Pairwise reviewer agreement')).not.toBeInTheDocument()
   })
 
   it('shows deduplication counts and why records were merged', async () => {
@@ -216,6 +348,7 @@ describe('AnalysisPage', () => {
       path: '/projects/:projectId/analysis',
     })
 
+    fireEvent.click(await screen.findByRole('tab', { name: 'Deduplication' }))
     expect(
       await screen.findByText('12 records identified · 3 removed as duplicates'),
     ).toBeInTheDocument()

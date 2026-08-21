@@ -12,6 +12,7 @@ from app.projects.models import (
     AllocationMode,
     Project,
     ProjectMembership,
+    ProjectStage,
     ResolutionMethod,
     ReviewType,
     ScreeningConfig,
@@ -199,6 +200,187 @@ def open_task_counts_for_user(
         counts[project_id] = counts.get(project_id, 0) + int(count)
 
     return counts
+
+
+def project_progress_stats(
+    db: Session, projects: list[Project]
+) -> dict[str, dict[str, Any]]:
+    """Per-project card stats for the projects overview: an imports/reviewers
+    count plus a stage-dependent secondary count and completion percentage.
+
+    The secondary metric and its label change with a project's current stage
+    (screened vs. duplicates found vs. extracted vs. final included count) so
+    each card reads as progress toward *that* stage's finish line, not a
+    generic aggregate.
+    """
+    from app.conflicts.models import FinalDecision
+    from app.deduplication.models import DuplicateCandidate
+    from app.extraction.models import ExtractionStatus, ExtractionWorkItem
+    from app.publications.models import Publication
+    from app.screening.models import ScreeningOutcome
+
+    if not projects:
+        return {}
+
+    project_ids = [project.id for project in projects]
+
+    imported_counts: dict[str, int] = dict(
+        db.execute(
+            select(Publication.project_id, func.count())
+            .where(Publication.project_id.in_(project_ids))
+            .group_by(Publication.project_id)
+        )
+        .tuples()
+        .all()
+    )
+    reviewer_counts: dict[str, int] = dict(
+        db.execute(
+            select(ProjectMembership.project_id, func.count())
+            .where(ProjectMembership.project_id.in_(project_ids))
+            .group_by(ProjectMembership.project_id)
+        )
+        .tuples()
+        .all()
+    )
+    duplicate_totals: dict[str, int] = dict(
+        db.execute(
+            select(DuplicateCandidate.project_id, func.count())
+            .where(DuplicateCandidate.project_id.in_(project_ids))
+            .group_by(DuplicateCandidate.project_id)
+        )
+        .tuples()
+        .all()
+    )
+    duplicate_resolved: dict[str, int] = dict(
+        db.execute(
+            select(DuplicateCandidate.project_id, func.count())
+            .where(
+                DuplicateCandidate.project_id.in_(project_ids),
+                DuplicateCandidate.status != "unresolved",
+            )
+            .group_by(DuplicateCandidate.project_id)
+        )
+        .tuples()
+        .all()
+    )
+    duplicate_merged: dict[str, int] = dict(
+        db.execute(
+            select(DuplicateCandidate.project_id, func.count())
+            .where(
+                DuplicateCandidate.project_id.in_(project_ids),
+                DuplicateCandidate.status == "merged",
+            )
+            .group_by(DuplicateCandidate.project_id)
+        )
+        .tuples()
+        .all()
+    )
+    extraction_completed: dict[str, int] = dict(
+        db.execute(
+            select(ExtractionWorkItem.project_id, func.count())
+            .where(
+                ExtractionWorkItem.project_id.in_(project_ids),
+                ExtractionWorkItem.status == ExtractionStatus.COMPLETED,
+                ExtractionWorkItem.slot_number == 1,
+            )
+            .group_by(ExtractionWorkItem.project_id)
+        )
+        .tuples()
+        .all()
+    )
+
+    decision_counts: dict[str, dict[tuple[str, str], int]] = {}
+    for project_id, stage, outcome, count in db.execute(
+        select(
+            FinalDecision.project_id,
+            FinalDecision.stage,
+            FinalDecision.outcome,
+            func.count(),
+        )
+        .where(
+            FinalDecision.project_id.in_(project_ids),
+            FinalDecision.is_valid.is_(True),
+        )
+        .group_by(FinalDecision.project_id, FinalDecision.stage, FinalDecision.outcome)
+    ).all():
+        decision_counts.setdefault(project_id, {})[(str(stage), str(outcome))] = int(
+            count
+        )
+
+    def stage_total(project_id: str, stage: ScreeningStage) -> int:
+        return sum(
+            count
+            for (s, _outcome), count in decision_counts.get(project_id, {}).items()
+            if s == str(stage)
+        )
+
+    def stage_outcome(
+        project_id: str, stage: ScreeningStage, outcome: ScreeningOutcome
+    ) -> int:
+        return decision_counts.get(project_id, {}).get((str(stage), str(outcome)), 0)
+
+    stats: dict[str, dict[str, Any]] = {}
+    for project in projects:
+        imported = imported_counts.get(project.id, 0)
+        title_abstract_screened = stage_total(project.id, ScreeningStage.TITLE_ABSTRACT)
+        title_abstract_included = stage_outcome(
+            project.id, ScreeningStage.TITLE_ABSTRACT, ScreeningOutcome.INCLUDE
+        )
+        full_text_screened = stage_total(project.id, ScreeningStage.FULL_TEXT)
+        full_text_included = stage_outcome(
+            project.id, ScreeningStage.FULL_TEXT, ScreeningOutcome.INCLUDE
+        )
+        extracted = extraction_completed.get(project.id, 0)
+
+        if project.stage == ProjectStage.DRAFT:
+            primary_label, primary_count = "Imported", imported
+            secondary_label, secondary_count = "Screened", 0
+            percent = 0
+        elif project.stage == ProjectStage.DUPLICATE_REVIEW:
+            total_candidates = duplicate_totals.get(project.id, 0)
+            resolved_candidates = duplicate_resolved.get(project.id, 0)
+            primary_label, primary_count = "Imported", imported
+            secondary_label, secondary_count = (
+                "Duplicates",
+                duplicate_merged.get(project.id, 0),
+            )
+            percent = (
+                round(resolved_candidates / total_candidates * 100)
+                if total_candidates
+                else 0
+            )
+        elif project.stage == ProjectStage.TITLE_ABSTRACT:
+            primary_label, primary_count = "Imported", imported
+            secondary_label, secondary_count = "Screened", title_abstract_screened
+            percent = round(title_abstract_screened / imported * 100) if imported else 0
+        elif project.stage == ProjectStage.FULL_TEXT:
+            primary_label, primary_count = "Imported", imported
+            secondary_label, secondary_count = "Screened", full_text_screened
+            percent = (
+                round(full_text_screened / title_abstract_included * 100)
+                if title_abstract_included
+                else 0
+            )
+        elif project.stage == ProjectStage.EXTRACTION:
+            primary_label, primary_count = "Imported", imported
+            secondary_label, secondary_count = "Extracted", extracted
+            percent = (
+                round(extracted / full_text_included * 100) if full_text_included else 0
+            )
+        else:  # ProjectStage.COMPLETED
+            primary_label, primary_count = "Included", full_text_included
+            secondary_label, secondary_count = "Screened", title_abstract_screened
+            percent = 100
+
+        stats[project.id] = {
+            "primary_label": primary_label,
+            "primary_count": primary_count,
+            "secondary_label": secondary_label,
+            "secondary_count": secondary_count,
+            "reviewer_count": reviewer_counts.get(project.id, 0),
+            "percent_complete": max(0, min(100, percent)),
+        }
+    return stats
 
 
 def add_membership(

@@ -72,6 +72,7 @@ export interface FieldStats {
 
 export interface ExtractionQualityStats {
   totalPublications: number
+  completedExtractions: number
   fields: FieldStats[]
   qualityTotalScore?: NumericStats | null
 }

@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { act, fireEvent, screen, waitFor } from '@testing-library/react'
 import { describe, expect, it, vi } from 'vitest'
 
 import { BrowserHelpersSection } from '../BrowserHelpersSection'
@@ -117,7 +117,9 @@ describe('BrowserHelpersSection', () => {
 
       // The extension pairs directly against the backend, outside this tab.
       agents = [agent]
-      await vi.advanceTimersByTimeAsync(3000)
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(3000)
+      })
 
       await waitFor(() => expect(fetchMock.mock.calls.filter(
         ([input, init]) => String(input).endsWith('/browser-agents') && (!init || init.method === undefined),

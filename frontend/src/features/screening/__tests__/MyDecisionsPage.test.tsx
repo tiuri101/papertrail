@@ -18,7 +18,7 @@ const baseItem = {
     title: 'Immersive Urban Analytics',
     authors: 'A. Author',
     abstract: 'A study of urban data in virtual reality.',
-    venue: null,
+    venue: 'Journal of Immersive Analytics',
     doi: '10.1000/example',
     publisherUrl: null,
   },
@@ -49,9 +49,19 @@ describe('MyDecisionsPage', () => {
       return jsonResponse({})
     })
 
-    expect(await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })).toBeInTheDocument()
+    const title = await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
+    expect(title.closest('a')).toHaveAttribute(
+      'href',
+      '/projects/project-1/publications/publication-1',
+    )
+    expect(screen.getByText('A. Author')).toBeInTheDocument()
+    expect(screen.getByText('Journal of Immersive Analytics')).toBeInTheDocument()
     expect(screen.getByText('Include', { selector: '.status-badge' })).toBeInTheDocument()
-    expect(screen.getByText('Looks relevant', { exact: false })).toBeInTheDocument()
+    expect(screen.getByText(new Date(baseItem.submittedAt).toLocaleString(), { selector: 'time' })).toHaveAttribute(
+      'datetime',
+      baseItem.submittedAt,
+    )
+    expect(screen.getByRole('button', { name: 'Edit Decision' }).closest('.my-decisions-row-grid__actions')).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
@@ -76,7 +86,7 @@ describe('MyDecisionsPage', () => {
     expect(
       await screen.findByText('Full text inaccessible', { selector: '.status-badge' }),
     ).toBeInTheDocument()
-    expect(screen.getByText(/Paywall could not be bypassed/)).toBeInTheDocument()
+    expect(screen.getByText(new Date(baseItem.submittedAt).toLocaleString(), { selector: 'time' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Edit Decision' })).not.toBeInTheDocument()
   })
 
@@ -120,7 +130,8 @@ describe('MyDecisionsPage', () => {
       'Immersive Urban Analytics',
     ])
 
-    fireEvent.change(screen.getByLabelText('Sort by'), { target: { value: 'title_asc' } })
+    expect(document.querySelector('.publication-list__header')).not.toBeInTheDocument()
+    fireEvent.change(screen.getByLabelText('Sort by'), { target: { value: 'title:asc' } })
     expect(screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent)).toEqual([
       'Alpha Study',
       'Immersive Urban Analytics',

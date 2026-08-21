@@ -161,15 +161,23 @@ def test_message_builders_honor_base_prompt_override() -> None:
 
     publication = Publication(id="pub-1", project_id="proj-1", title="Example paper")
     criterion = Criterion(
-        id="crit-1", project_id="proj-1", kind=CriterionKind.INCLUSION, text="Is relevant."
+        id="crit-1",
+        project_id="proj-1",
+        kind=CriterionKind.INCLUSION,
+        text="Is relevant.",
     )
     research_questions = []
 
-    default_screening = title_abstract_messages(publication, [criterion], research_questions)
+    default_screening = title_abstract_messages(
+        publication, [criterion], research_questions
+    )
     assert default_screening[0]["content"].startswith(SCREENING_SYSTEM_PROMPT)
 
     overridden_screening = title_abstract_messages(
-        publication, [criterion], research_questions, base_prompt="Custom screening base."
+        publication,
+        [criterion],
+        research_questions,
+        base_prompt="Custom screening base.",
     )
     assert overridden_screening[0]["content"] == "Custom screening base."
     assert SCREENING_SYSTEM_PROMPT not in overridden_screening[0]["content"]
@@ -902,7 +910,9 @@ def test_administrator_can_override_installation_llm_settings(client, db) -> Non
     assert forbidden_get_by_owner.status_code == 403
 
 
-def test_administrator_can_test_installation_connection(client, db, monkeypatch) -> None:
+def test_administrator_can_test_installation_connection(
+    client, db, monkeypatch
+) -> None:
     admin, reviewer, project, _, _, _, _, _ = setup_llm_project(db)
     admin_csrf = client.post(
         "/api/v1/auth/login",
@@ -966,7 +976,10 @@ def test_administrator_can_override_and_reset_base_prompts(client, db) -> None:
     )
     assert updated.status_code == 200
     updated_by_key = {flow["key"]: flow for flow in updated.json()["flows"]}
-    assert updated_by_key["titleAbstract"]["currentPrompt"] == "Custom screening instructions."
+    assert (
+        updated_by_key["titleAbstract"]["currentPrompt"]
+        == "Custom screening instructions."
+    )
     assert updated_by_key["titleAbstract"]["isOverridden"] is True
     # Untouched flows stay at their defaults.
     assert updated_by_key["fullText"]["isOverridden"] is False
@@ -978,7 +991,9 @@ def test_administrator_can_override_and_reset_base_prompts(client, db) -> None:
         headers={"X-CSRF-Token": admin_csrf},
     )
     project_flow = next(
-        flow for flow in project_prompts.json()["flows"] if flow["key"] == "titleAbstract"
+        flow
+        for flow in project_prompts.json()["flows"]
+        if flow["key"] == "titleAbstract"
     )
     assert project_flow["basePrompt"] == "Custom screening instructions."
 
@@ -1854,6 +1869,9 @@ def test_validation_review_lists_assigned_mismatches_and_supports_revision(
     body = review.json()
     assert body["enabled"] is True
     assert body["items"][0]["workItemId"] == item.id
+    assert body["items"][0]["submittedAt"] is not None
+    assert body["items"][0]["publication"]["venue"] == publication.venue
+    assert body["items"][0]["publication"]["doi"] == publication.doi
     assert body["items"][0]["results"][0]["assessment"] == "contradicted"
 
     revision = client.get(f"/api/v1/projects/{project.id}/extraction/{item.id}")
@@ -1882,7 +1900,10 @@ def test_validation_waits_for_dual_extraction_consensus_then_targets_it(db) -> N
     from app.extraction.final import get_current_final_extraction
     from app.extraction.models import ExtractionConfig
     from app.extraction.service import claim_next_extraction, initialize_extraction
-    from app.llm.task_service import project_extractions_completed, queue_extraction_validation
+    from app.llm.task_service import (
+        project_extractions_completed,
+        queue_extraction_validation,
+    )
     from app.projects.models import ProjectMembership as PM
 
     admin, reviewer, project, publication, document, _schema, sample, method = (
@@ -1892,9 +1913,7 @@ def test_validation_waits_for_dual_extraction_consensus_then_targets_it(db) -> N
     assert settings is not None
     settings.extraction_validation_enabled = True
     second_reviewer = create_user(db, "llm-reviewer-2", "Reviewer 2", "password-2")
-    db.add(
-        PM(project_id=project.id, user_id=second_reviewer.id, can_extract=True)
-    )
+    db.add(PM(project_id=project.id, user_id=second_reviewer.id, can_extract=True))
     db.add(ExtractionConfig(project_id=project.id, required_reviewers=2))
     include_title_abstract(db, publication)
     include_full_text(db, publication)
@@ -1909,7 +1928,10 @@ def test_validation_waits_for_dual_extraction_consensus_then_targets_it(db) -> N
     item_a = claim_next_extraction(db, project.id, reviewer.id)
     assert item_a is not None
     submit_extraction(
-        db, item_a, reviewer.id, {sample.stable_key: 22, method.stable_key: "experiment"}
+        db,
+        item_a,
+        reviewer.id,
+        {sample.stable_key: 22, method.stable_key: "experiment"},
     )
     db.commit()
 
@@ -1921,7 +1943,10 @@ def test_validation_waits_for_dual_extraction_consensus_then_targets_it(db) -> N
     item_b = claim_next_extraction(db, project.id, second_reviewer.id)
     assert item_b is not None
     submit_extraction(
-        db, item_b, second_reviewer.id, {sample.stable_key: 99, method.stable_key: "survey"}
+        db,
+        item_b,
+        second_reviewer.id,
+        {sample.stable_key: 99, method.stable_key: "survey"},
     )
     db.commit()
 

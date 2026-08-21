@@ -3,6 +3,7 @@ import { useState } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { ConfirmButton } from '../../components/ConfirmButton'
+import { CountPill } from '../../components/CountPill'
 import { IconPlus, IconRestart, IconTrash } from '../../components/icons'
 import type { LoginResponse, User } from '../auth/types'
 
@@ -100,6 +101,9 @@ export function UsersPage() {
       {setActive.error ? <p className="error" role="alert">{setActive.error.message}</p> : null}
       {users.isLoading ? <p>Loading…</p> : null}
       {users.error ? <p className="error" role="alert">{users.error.message}</p> : null}
+      {users.data ? (
+        <CountPill count={users.data.length}>user{users.data.length === 1 ? '' : 's'}</CountPill>
+      ) : null}
       {users.data ? (
         <table>
           <thead>

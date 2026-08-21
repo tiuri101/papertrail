@@ -172,6 +172,21 @@ describe('LlmAssistancePanel', () => {
     expect(field).not.toHaveAttribute('open')
     fireEvent.click(field.querySelector('summary') as HTMLElement)
     expect(field).toHaveAttribute('open')
+
+    const evidenceHelp = screen.getByRole('button', { name: 'About requiring evidence' })
+    const evidenceTooltip = screen.getByText(/verifies the quote against the cited PDF page/)
+    expect(evidenceTooltip).not.toBeVisible()
+    fireEvent.focus(evidenceHelp)
+    expect(evidenceTooltip).toBeVisible()
+    fireEvent.blur(evidenceHelp)
+
+    const inferredHelp = screen.getByRole('button', { name: 'About inferred values' })
+    const inferredTooltip = screen.getByText(/Inferred results are rejected/)
+    expect(inferredTooltip).not.toBeVisible()
+    fireEvent.focus(inferredHelp)
+    expect(inferredTooltip).toBeVisible()
+    fireEvent.blur(inferredHelp)
+
     fireEvent.change(screen.getByLabelText('Extraction instruction'), {
       target: { value: 'Return the main evaluation sample only.' },
     })
@@ -184,5 +199,49 @@ describe('LlmAssistancePanel', () => {
     })
     fireEvent.click(screen.getByRole('button', { name: 'Publish version' }))
     await waitFor(() => expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith('/publish'))).toBe(true))
+  })
+
+  it('reorders LLM extraction fields with the shared drag handle', async () => {
+    const schema = {
+      id: 'schema-1', versionNumber: 1, status: 'draft',
+      fields: [
+        {
+          stableKey: 'sample', label: 'Sample size', instruction: 'Extract sample size.',
+          fieldType: 'number', mappedExtractionFieldKey: 'sample', options: [],
+          evidenceRequired: true, allowInferred: false, enabled: true, position: 0,
+        },
+        {
+          stableKey: 'design', label: 'Study design', instruction: 'Extract the study design.',
+          fieldType: 'short_text', mappedExtractionFieldKey: 'design', options: [],
+          evidenceRequired: true, allowInferred: false, enabled: true, position: 1,
+        },
+      ],
+    }
+    const fetchMock = mockFetch(async (input, init) => {
+      const path = String(input)
+      if (path.endsWith('/llm/settings')) return jsonResponse(settings)
+      if (path.endsWith('/llm/schema') && !init?.method) return jsonResponse({
+        schema,
+        extractionFields: [
+          { stableKey: 'sample', label: 'Sample size', fieldType: 'number', options: [] },
+          { stableKey: 'design', label: 'Study design', fieldType: 'short_text', options: [] },
+        ],
+      })
+      if (init?.method === 'PUT') return jsonResponse(schema)
+      return jsonResponse({})
+    })
+
+    renderWithProviders(<LlmAssistancePanel projectId="p1" showProcessingStatus={false} />)
+
+    const handle = await screen.findByRole('button', { name: 'Reorder Sample size' })
+    fireEvent.keyDown(handle, { key: 'ArrowDown' })
+    fireEvent.click(screen.getByRole('button', { name: 'Save draft' }))
+
+    await waitFor(() => {
+      const saveCall = fetchMock.mock.calls.find(([, init]) => init?.method === 'PUT')
+      const savedFields = JSON.parse(String(saveCall?.[1]?.body)).fields
+      expect(savedFields.map((field: { stableKey: string }) => field.stableKey)).toEqual(['design', 'sample'])
+      expect(savedFields.map((field: { position: number }) => field.position)).toEqual([0, 1])
+    })
   })
 })

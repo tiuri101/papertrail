@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { CountPill } from '../../components/CountPill'
 import {
   lastExtractionKey,
   loadLastCompletedItem,
@@ -35,11 +36,11 @@ export function ExtractionPage() {
       <StageEyebrow stage="extraction_quality" />
       <h1>Data Extraction</h1>
       {progress.data ? (
-        <p className="muted">
+        <CountPill count={progress.data.claimMode ? progress.data.remaining : progress.data.completed}>
           {progress.data.claimMode
-            ? `${progress.data.remaining} papers remaining`
-            : `${progress.data.completed} of ${progress.data.assigned} assigned papers extracted`}
-        </p>
+            ? `paper${progress.data.remaining === 1 ? '' : 's'} remaining`
+            : `of ${progress.data.assigned} assigned papers extracted`}
+        </CountPill>
       ) : null}
       {!itemId && lastCompletedItem ? (
         <p>
