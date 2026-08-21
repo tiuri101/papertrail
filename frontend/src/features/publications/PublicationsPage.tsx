@@ -19,6 +19,7 @@ import {
 import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
 import { RowActionsMenu } from '../../components/RowActionsMenu'
 import { InfoTooltip } from '../../components/Tooltip'
+import { TabList, TabPanel } from '../../components/Tabs'
 import { FullTextDocumentPanel } from '../fulltext/FullTextDocumentPanel'
 import { AdministrationEyebrow } from '../projects/StageEyebrow'
 import { useCanManagePublications } from '../../hooks/useCanManageProject'
@@ -607,29 +608,15 @@ export function PublicationsPage() {
       <p className="muted">
         Want to import a database export? Go to <Link to={`/projects/${projectId}/imports`}>Searches and Imports</Link>.
       </p>
-      <div className="page-tabs" role="tablist" aria-label="Publications sections">
-        {visibleTabs.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            role="tab"
-            id={`publications-tab-${tab.id}`}
-            aria-selected={tab.id === activeTab}
-            aria-controls={`publications-tabpanel-${tab.id}`}
-            className={`page-tab${tab.id === activeTab ? ' page-tab--active' : ''}`}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
-      </div>
-      <div
-        id={`publications-tabpanel-${activeTab}`}
-        className="page-tabpanel"
-        role="tabpanel"
-        aria-labelledby={`publications-tab-${activeTab}`}
-      >
+      <TabList
+        idPrefix="publications"
+        label="Publications sections"
+        activeId={activeTab}
+        onSelect={(id) => setActiveTab(id as PublicationsTabId)}
+        className="mb-6"
+        items={visibleTabs.map((tab) => ({ id: tab.id, label: <>{tab.icon}{tab.label}</> }))}
+      />
+      <TabPanel idPrefix="publications" id={activeTab}>
         {activeTab === 'publications' ? (
           <>
             {query.data && (search || titleAbstractFilter || fullTextFilter || pdfStatusFilter) ? (
@@ -830,7 +817,7 @@ export function PublicationsPage() {
             {canManage ? <BulkPdfUploadPanel projectId={projectId} /> : null}
           </>
         ) : null}
-      </div>
+      </TabPanel>
     </main>
   )
 }

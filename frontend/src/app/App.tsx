@@ -19,6 +19,7 @@ import { IconClock, IconSettings, IconSparkle, IconSwap, IconTrash } from '../co
 import { InfoBox } from '../components/InfoBox'
 import { useRegisterSectionItems } from '../components/sectionNavigation'
 import type { SectionNavigationItem } from '../components/SectionNavigationLayout'
+import { TabList, TabPanel } from '../components/Tabs'
 import { AdminGate } from '../features/auth/AdminGate'
 import { AuthGate } from '../features/auth/AuthGate'
 import { ChangePasswordPage } from '../features/auth/ChangePasswordPage'
@@ -165,32 +166,19 @@ function ProjectAdministrationPage() {
       <p className="muted">
         Configure this project's details, membership, workflow rules, and AI assistance.
       </p>
-      <div className="page-tabs" role="tablist" aria-label="Project administration sections">
-        {adminTabs.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            role="tab"
-            id={`admin-tab-${tab.id}`}
-            aria-selected={tab.id === activeTab}
-            aria-controls={`admin-tabpanel-${tab.id}`}
-            className={
-              `page-tab${tab.id === 'danger' ? ' page-tab--danger' : ''}`
-              + (tab.id === activeTab ? ' page-tab--active' : '')
-            }
-            onClick={() => setActiveTab(tab.id)}
-          >
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
-      </div>
-      <div
-        id={`admin-tabpanel-${activeTab}`}
-        className="page-tabpanel"
-        role="tabpanel"
-        aria-labelledby={`admin-tab-${activeTab}`}
-      >
+      <TabList
+        idPrefix="admin"
+        label="Project administration sections"
+        activeId={activeTab}
+        onSelect={(id) => setActiveTab(id as AdminTabId)}
+        className="mb-6"
+        items={adminTabs.map((tab) => ({
+          id: tab.id,
+          label: <>{tab.icon}{tab.label}</>,
+          danger: tab.id === 'danger',
+        }))}
+      />
+      <TabPanel idPrefix="admin" id={activeTab}>
         {activeTab === 'general' ? (
           <>
             <ProjectDetailsPanel projectId={projectId} />
@@ -234,7 +222,7 @@ function ProjectAdministrationPage() {
             <DangerZonePanel projectId={projectId} />
           </>
         ) : null}
-      </div>
+      </TabPanel>
     </main>
   )
 }

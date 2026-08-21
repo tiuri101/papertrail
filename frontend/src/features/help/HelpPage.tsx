@@ -20,6 +20,7 @@ import {
   IconUsers,
 } from '../../components/icons'
 import { SectionNavigationLayout, type SectionNavigationItem } from '../../components/SectionNavigationLayout'
+import { TabList, TabPanel } from '../../components/Tabs'
 import { STAGES } from '../projects/StageProgress'
 
 type HelpTabId = 'getting-started' | 'roles' | 'ai-automation' | 'good-to-know'
@@ -631,29 +632,15 @@ export function HelpPage() {
       <main className="page">
         <h1>Help</h1>
         <p className="muted">Documentation and guidance for using Papertrail.</p>
-        <div className="page-tabs" role="tablist" aria-label="Help sections">
-          {helpTabs.map((tab) => (
-            <button
-              key={tab.id}
-              type="button"
-              role="tab"
-              id={`help-tab-${tab.id}`}
-              aria-selected={tab.id === activeTab}
-              aria-controls={`help-tabpanel-${tab.id}`}
-              className={`page-tab${tab.id === activeTab ? ' page-tab--active' : ''}`}
-              onClick={() => setActiveTab(tab.id)}
-            >
-              {tab.icon}
-              {tab.label}
-            </button>
-          ))}
-        </div>
-        <div
-          id={`help-tabpanel-${activeTab}`}
-          className="page-tabpanel"
-          role="tabpanel"
-          aria-labelledby={`help-tab-${activeTab}`}
-        >
+        <TabList
+          idPrefix="help"
+          label="Help sections"
+          activeId={activeTab}
+          onSelect={(id) => setActiveTab(id as HelpTabId)}
+          className="mb-6"
+          items={helpTabs.map((tab) => ({ id: tab.id, label: <>{tab.icon}{tab.label}</> }))}
+        />
+        <TabPanel idPrefix="help" id={activeTab}>
           {activeTab === 'getting-started' ? (
             <>
               <CollapsibleSection id="section-help-overview" title="What Papertrail Does" icon={<IconInfo />}>
@@ -728,7 +715,7 @@ export function HelpPage() {
               </div>
             </CollapsibleSection>
           ) : null}
-        </div>
+        </TabPanel>
       </main>
     </SectionNavigationLayout>
   )
