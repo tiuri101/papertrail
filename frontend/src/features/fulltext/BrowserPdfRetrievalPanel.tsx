@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 
+import { Button } from '../../components/Button'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { IconXCircle } from '../../components/icons'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
@@ -59,10 +60,10 @@ function BatchProgressView({ batch, onCancel, cancelling }: {
         <li>{remaining} remaining</li>
       </ul>
       {batch.status === 'running' ? (
-        <button type="button" className="button-secondary" onClick={onCancel} disabled={cancelling}>
+        <Button type="button" variant="secondary" onClick={onCancel} disabled={cancelling}>
           <IconXCircle />
           Cancel retrieval
-        </button>
+        </Button>
       ) : null}
       {batch.attentionJobs.length > 0 ? (
         <details>
@@ -131,22 +132,22 @@ export function BrowserPdfRetrievalPanel({ projectId }: { projectId: string }) {
                 />
               ) : null}
               <div className="toolbar">
-                <button
+                <Button
                   type="button"
                   onClick={() => createBatch.mutate(undefined)}
                   disabled={createBatch.isPending || !missingCount}
                 >
                   Retrieve missing PDFs
-                </button>
+                </Button>
                 {hasRetryableFailures ? (
-                  <button
+                  <Button
                     type="button"
-                    className="button-secondary"
+                    variant="secondary"
                     onClick={() => retryFailed.mutate(latestBatch!.id)}
                     disabled={retryFailed.isPending}
                   >
                     Retry failed
-                  </button>
+                  </Button>
                 ) : null}
               </div>
             </>

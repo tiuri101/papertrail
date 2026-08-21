@@ -3438,15 +3438,6 @@ form .toolbar,
   font-size: 14px;
 }
 
-.go-back-button {
-  height: auto;
-  min-height: var(--button-height);
-  padding-top: var(--space-2);
-  padding-bottom: var(--space-2);
-  white-space: normal;
-  text-align: center;
-}
-
 .publication-card--manageable .publication-card__abstract {
   margin-left: calc(1rem + var(--space-3));
 }
@@ -7303,20 +7294,6 @@ kbd {
   border-color: var(--color-border-strong);
   background: var(--color-surface-hover);
   color: var(--color-text);
-}
-
-.full-text-document .toolbar a.button-primary {
-  border-color: var(--button-primary-border);
-  background: linear-gradient(180deg, var(--button-primary-bg-hover) 0%, var(--button-primary-bg) 100%);
-  color: var(--button-primary-text);
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.14);
-}
-
-.full-text-document .toolbar a.button-primary:hover {
-  border-color: #a1b0ff;
-  background: transparent;
-  color: var(--button-primary-bg-hover);
-  box-shadow: inset 0 0 0 1px var(--button-primary-border);
 }
 
 .full-text-document .toolbar {
