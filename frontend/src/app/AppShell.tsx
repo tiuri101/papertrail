@@ -110,13 +110,14 @@ export function AppShell() {
               Sign Out
             </Button>
             <IconButton
+              variant="outline"
               className="hidden max-md:inline-flex"
               aria-expanded={mobileMenuOpen}
               aria-controls={mobileMenuId}
               aria-label="Main menu"
               onClick={() => setMobileMenuOpen(true)}
             >
-              <svg viewBox="0 0 24 24" aria-hidden="true" className="size-5 fill-current">
+              <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="M4 6h16v2H4V6Zm0 5h16v2H4v-2Zm0 5h16v2H4v-2Z" />
               </svg>
             </IconButton>
@@ -140,8 +141,8 @@ export function AppShell() {
         >
           <div className="mb-5 flex items-center justify-between gap-4">
             <h2 className="m-0">Menu</h2>
-            <IconButton aria-label="Close main menu" onClick={() => setMobileMenuOpen(false)}>
-              <svg viewBox="0 0 24 24" aria-hidden="true" className="size-5 fill-current">
+            <IconButton variant="outline" aria-label="Close main menu" onClick={() => setMobileMenuOpen(false)}>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
                 <path d="m6.7 5.3 5.3 5.3 5.3-5.3 1.4 1.4-5.3 5.3 5.3 5.3-1.4 1.4-5.3-5.3-5.3 5.3-1.4-1.4 5.3-5.3-5.3-5.3 1.4-1.4Z" />
               </svg>
             </IconButton>

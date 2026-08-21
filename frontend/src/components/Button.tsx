@@ -2,7 +2,7 @@ import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react'
 
 import { cn } from '../lib/cn'
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'text' | 'destructive'
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'text' | 'destructive' | 'outline'
 export type ButtonSize = 'sm' | 'md'
 
 export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -17,25 +17,28 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const base =
-  'inline-flex items-center justify-center gap-2 rounded-sm text-sm font-semibold leading-none whitespace-nowrap select-none transition-[background-color,border-color,color,box-shadow,transform,opacity] duration-150 disabled:opacity-[.48] disabled:cursor-not-allowed [&_svg]:size-4 [&_svg]:shrink-0'
+  'inline-flex items-center justify-center gap-2 rounded-sm text-sm font-semibold leading-none whitespace-nowrap select-none transition-[background-color,border-color,color,box-shadow,transform,opacity] duration-150 disabled:opacity-[.48] disabled:cursor-not-allowed [&_svg]:shrink-0 [&_svg]:fill-current'
 
+// Icon sizing lives here, one rule per size, rather than a single blanket rule on `base` that
+// `iconOnlySizes` would then need to out-rank: Tailwind v4 orders same-property utilities by
+// its own internal scale, not by className string order, so two competing `[&_svg]:size-*`
+// rules of equal specificity would NOT reliably resolve in the order they're written.
 const heights: Record<ButtonSize, string> = {
-  md: 'h-10',
-  sm: 'h-8 text-[13px]',
+  md: 'h-10 [&_svg]:size-4',
+  sm: 'h-8 text-[13px] [&_svg]:size-4',
 }
 
 // Kept separate from `heights` so the `text` variant's narrower padding never has to
-// out-rank another px-* utility: Tailwind v4 orders same-property utilities by its own
-// internal scale, not by className string order, so two conflicting px-* classes in one
-// string would NOT resolve in the order they're written.
+// out-rank another px-* utility (same reasoning as the icon-sizing note above).
 const paddingX: Record<ButtonSize, string> = {
   md: 'px-4',
   sm: 'px-3',
 }
 
+// Icon-only buttons keep the legacy 20px icon size (vs. 16px for a labelled button).
 const iconOnlySizes: Record<ButtonSize, string> = {
-  md: 'h-10 w-10 min-w-10 px-0',
-  sm: 'h-8 w-8 min-w-8 px-0',
+  md: 'h-10 w-10 min-w-10 px-0 [&_svg]:size-5',
+  sm: 'h-8 w-8 min-w-8 px-0 [&_svg]:size-5',
 }
 
 // Colors below are the values actually rendered today (verified against a live render of
@@ -62,6 +65,11 @@ const variants: Record<ButtonVariant, string> = {
     'border border-[rgba(255,127,130,0.28)] bg-danger-container text-danger ' +
     'hover:not-disabled:border-danger hover:not-disabled:bg-danger-strong hover:not-disabled:text-white ' +
     'active:not-disabled:bg-danger-strong active:not-disabled:text-white active:not-disabled:translate-y-px',
+  // The legacy `.icon-button` look: a visible border at rest (unlike `ghost`, which is
+  // borderless until hover) over a transparent background. Mainly used for icon-only actions.
+  outline:
+    'border border-border bg-transparent text-text-secondary ' +
+    'hover:not-disabled:border-border-strong hover:not-disabled:bg-surface-hover hover:not-disabled:text-text',
 }
 
 const textPaddingX: Record<ButtonSize, string> = {
