@@ -126,8 +126,8 @@ export function AuditLogPage() {
       {events.isLoading ? <p>Loading…</p> : null}
       {events.data && events.data.length === 0 ? <p>No audit events recorded yet.</p> : null}
       {events.data && events.data.length > 0 ? (
-        <div className="toolbar">
-          <label>
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="grid gap-1 text-sm font-semibold text-text-secondary">
             Action
             <Select value={actionFilter} onChange={(event) => setActionFilter(event.target.value)}>
               <option value="">All</option>
@@ -136,7 +136,7 @@ export function AuditLogPage() {
               ))}
             </Select>
           </label>
-          <label>
+          <label className="grid gap-1 text-sm font-semibold text-text-secondary">
             Entity
             <Select value={entityTypeFilter} onChange={(event) => setEntityTypeFilter(event.target.value)}>
               <option value="">All</option>
@@ -145,7 +145,7 @@ export function AuditLogPage() {
               ))}
             </Select>
           </label>
-          <label>
+          <label className="grid gap-1 text-sm font-semibold text-text-secondary">
             User
             <Select value={actorFilter} onChange={(event) => setActorFilter(event.target.value)}>
               <option value="">All</option>
@@ -154,7 +154,7 @@ export function AuditLogPage() {
               ))}
             </Select>
           </label>
-          <label>
+          <label className="grid gap-1 text-sm font-semibold text-text-secondary">
             Search
             <Input
               type="search"

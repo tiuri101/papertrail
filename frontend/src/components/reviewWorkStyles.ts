@@ -1,0 +1,12 @@
+export const reviewWorkCardClass = 'relative cursor-pointer rounded-md border border-border bg-linear-to-b from-surface-raised to-surface px-4 py-3 shadow-sm transition-[border-color,transform,box-shadow] duration-150 hover:-translate-y-0.5 hover:border-border-strong hover:shadow-md'
+export const reviewWorkGridClass = "grid grid-cols-[minmax(15rem,1fr)_minmax(8rem,0.65fr)_minmax(7.5rem,auto)_4.5rem_minmax(10.5rem,auto)_minmax(11rem,auto)] items-center gap-3 [&>*]:min-w-0 max-[520px]:grid-cols-[minmax(0,1fr)] max-[520px]:[grid-template-areas:'title'_'venue'_'status'_'doi'_'submitted'_'actions']"
+export const reviewWorkTitleClass = 'min-w-0 max-[520px]:[grid-area:title]'
+export const reviewWorkMetadataClass = 'overflow-hidden text-ellipsis whitespace-nowrap text-[0.86rem] text-text-secondary'
+export const reviewWorkVenueClass = `${reviewWorkMetadataClass} max-[520px]:[grid-area:venue]`
+export const reviewWorkStatusClass = 'flex min-w-0 items-center [&_.status-pill]:max-w-full [&_.status-pill]:overflow-hidden [&_.status-pill]:text-ellipsis max-[520px]:[grid-area:status]'
+export const reviewWorkDoiClass = 'flex min-w-0 items-center max-[520px]:justify-start max-[520px]:[grid-area:doi]'
+export const reviewWorkSubmittedClass = `${reviewWorkMetadataClass} max-[520px]:[grid-area:submitted]`
+export const reviewWorkActionsClass = 'flex min-w-0 items-center justify-end [&_.button-sm]:max-w-full [&_.button-sm]:whitespace-nowrap max-[520px]:justify-start max-[520px]:[grid-area:actions] max-[520px]:[&_.button-sm]:w-full'
+export const reviewWorkTitleLinkClass = 'h-auto min-h-0 whitespace-normal text-left text-text [overflow-wrap:anywhere] hover:text-primary hover:no-underline'
+export const reviewWorkEditorClass = 'mt-4 cursor-default border-t border-border pt-4'
+export const reviewWorkListClass = 'm-0 grid list-none gap-2 p-0'

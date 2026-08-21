@@ -45,13 +45,13 @@ export function StageNarrativePanel({
   const isGenerating = Boolean(pendingJob && isJobActive(pendingJob.status)) || regenerate.isPending
 
   return (
-    <div className="stage-narrative">
-      <div className="stage-narrative__header">
+    <div className="mt-6 rounded-lg border border-[color:color-mix(in_srgb,var(--color-primary)_26%,var(--color-border))] bg-[radial-gradient(circle_at_100%_0,var(--color-primary-container),transparent_18rem)] bg-surface-elevated p-5">
+      <div className="flex items-center justify-between gap-4">
         <div>
-          <span className="stage-narrative__eyebrow">AI-assisted insight</span>
-          <h3>Interpretation</h3>
+          <span className="text-[0.7rem] font-bold tracking-[0.1em] text-primary uppercase">AI-assisted insight</span>
+          <h3 className="mt-1">Interpretation</h3>
         </div>
-        <span className="stage-narrative__badge">Summary</span>
+        <span className="rounded-full border border-[color:color-mix(in_srgb,var(--color-primary)_35%,var(--color-border))] bg-primary-container px-2.5 py-1.5 text-xs font-bold text-primary">Summary</span>
       </div>
       {narrative ? (
         <>
@@ -61,17 +61,17 @@ export function StageNarrativePanel({
               it was generated.
             </p>
           ) : null}
-          <div className="stage-narrative__content">
-            <p className="stage-narrative__summary">{narrative.summary}</p>
-            <span className="stage-narrative__timestamp">
+          <div className="mt-4 border-l-[3px] border-primary px-4 py-2">
+            <p className="m-0 max-w-[75ch] text-[0.95rem] leading-[1.7] text-text-secondary">{narrative.summary}</p>
+            <span className="mt-3 block text-xs text-text-muted">
               Generated {new Date(narrative.generatedAt).toLocaleDateString()}
             </span>
           </div>
         </>
       ) : (
-        <div className="stage-narrative__empty">
-          <p className="muted">No summary generated yet.</p>
-          <p className="stage-narrative__empty-hint">Generate an interpretation to add context to the results above.</p>
+        <div className="mt-4 rounded-md border border-dashed border-border p-4">
+          <p className="m-0 text-text-muted">No summary generated yet.</p>
+          <p className="mt-2 mb-0 text-[0.8rem] text-text-muted">Generate an interpretation to add context to the results above.</p>
         </div>
       )}
       {regenerate.error ? <p className="error" role="alert">{regenerate.error.message}</p> : null}
@@ -80,7 +80,7 @@ export function StageNarrativePanel({
           Summary generation failed{pendingJob.errorMessage ? `: ${pendingJob.errorMessage}` : ''}
         </p>
       ) : null}
-      <div className="stage-narrative__footer">
+      <div className="mt-5 flex items-center justify-between gap-4 max-[560px]:flex-col max-[560px]:items-start">
         <Button type="button" variant="secondary" onClick={() => regenerate.mutate()} disabled={isGenerating}>
         {isGenerating ? 'Generating…' : narrative ? 'Regenerate summary' : 'Generate summary'}
         </Button>

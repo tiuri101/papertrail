@@ -246,8 +246,8 @@ export function FinalResultsPage() {
       {query.isLoading ? <p>Loading…</p> : null}
       {query.data ? (
         <>
-          <div className="toolbar">
-            <label>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="grid gap-1 text-sm font-semibold text-text-secondary">
               Search
               <Input
                 type="search"
@@ -259,7 +259,7 @@ export function FinalResultsPage() {
                 placeholder="Filter by title, author, DOI, or any answer…"
               />
             </label>
-            <label>
+            <label className="grid gap-1 text-sm font-semibold text-text-secondary">
               Rows per page
               <Select
                 value={pageSize}
@@ -314,7 +314,7 @@ export function FinalResultsPage() {
             </div>
           )}
           {pageCount > 1 ? (
-            <div className="toolbar">
+            <div className="flex flex-wrap items-center gap-3">
               <Button type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={currentPage <= 1}>
                 Previous
               </Button>

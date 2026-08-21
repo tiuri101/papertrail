@@ -297,19 +297,19 @@ export function ProjectPage() {
       + (pdfMatchSummary.conflict_existing_pdf ?? 0)
     : 0
   if (project.isLoading) return <main className="page"><p>Loading…</p></main>
-  if (!project.data) return <main className="page"><p className="error" role="alert">Project could not be loaded.</p></main>
+  if (!project.data) return <main className="page"><p className="text-danger" role="alert">Project could not be loaded.</p></main>
 
   const currentIndex = STAGE_INDEX[project.data.stage] ?? 0
 
   return (
     <SectionNavigationLayout items={projectMainSections}>
       <main className="page">
-        <p className="eyebrow">
+        <p className="mb-1 block text-xs font-bold uppercase tracking-[0.08em] text-primary">
           Project workspace · {STAGES[currentIndex]?.label ?? project.data.stage}
         </p>
         <h1>{project.data.name}</h1>
         {integrity.data?.issues.length ? (
-          <section className="error alert" role="alert" aria-labelledby="workflow-integrity-heading">
+          <section className="rounded-md border border-[rgba(255,127,130,0.28)] bg-danger-container p-4 text-danger" role="alert" aria-labelledby="workflow-integrity-heading">
             <h2 id="workflow-integrity-heading">Workflow integrity issue</h2>
             <ul>
               {integrity.data.issues.map((issue) => (
@@ -329,16 +329,16 @@ export function ProjectPage() {
                   variant="secondary"
                   icon={<IconRestart />}
                 />
-                {repair.error ? <p className="error" role="alert">{repair.error.message}</p> : null}
+                {repair.error ? <p className="text-danger" role="alert">{repair.error.message}</p> : null}
                 {repair.isSuccess ? (
-                  <p className="success" role="status">{repairSummaryText(repair.data)}</p>
+                  <p className="text-success" role="status">{repairSummaryText(repair.data)}</p>
                 ) : null}
               </>
             ) : null}
           </section>
         ) : null}
         {metadataConflicts.data?.length ? (
-          <section className="alert" role="status" aria-labelledby="metadata-conflict-heading">
+          <section className="rounded-md border border-[rgba(255,127,130,0.28)] bg-danger-container p-4" role="status" aria-labelledby="metadata-conflict-heading">
             <h2 id="metadata-conflict-heading">Metadata conflicts need review</h2>
             <p>
               {metadataConflicts.data.length} open metadata conflict{metadataConflicts.data.length === 1 ? '' : 's'} found.{' '}
@@ -347,7 +347,7 @@ export function ProjectPage() {
           </section>
         ) : null}
         {pdfMatchesNeedingReview ? (
-          <section className="alert" role="status" aria-labelledby="pdf-match-heading">
+          <section className="rounded-md border border-[rgba(255,127,130,0.28)] bg-danger-container p-4" role="status" aria-labelledby="pdf-match-heading">
             <h2 id="pdf-match-heading">PDF matches need review</h2>
             <p>
               {pdfMatchesNeedingReview} imported PDF{pdfMatchesNeedingReview === 1 ? '' : 's'} still
@@ -394,7 +394,7 @@ export function ProjectPage() {
                       <span className="text-[0.78rem] font-medium text-text-secondary">{'\u00a0·\u00a0'}{summaryText}</span>
                     ) : null}
                   </h3>
-                  <div className="toolbar">
+                  <div className="flex flex-wrap items-center gap-3">
                     {visibleLinks.map(({ path, label, alwaysAvailable }) => (
                       upcoming && !alwaysAvailable ? (
                         <span

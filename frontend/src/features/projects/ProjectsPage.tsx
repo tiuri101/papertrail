@@ -164,11 +164,11 @@ export function ProjectsPage() {
   }
 
   return (
-    <main className="page projects-page">
+    <main className="page">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <h1>Projects</h1>
-          <p className="muted">Manage and monitor all your systematic reviews.</p>
+          <p className="text-text">Manage and monitor all your systematic reviews.</p>
         </div>
         <div className="flex flex-wrap items-center gap-3 max-[680px]:w-full">
           <label className="flex h-10 w-[min(18rem,100%)] min-w-0 items-center gap-2 rounded-full border border-border bg-surface px-4 focus-within:border-primary focus-within:shadow-[0_0_0_3px_var(--color-focus)] max-[680px]:w-full">
@@ -188,7 +188,7 @@ export function ProjectsPage() {
         </div>
       </div>
       {projects.isLoading ? <p>Loading…</p> : null}
-      {projects.error ? <p className="error" role="alert">{projects.error.message}</p> : null}
+      {projects.error ? <p className="text-danger" role="alert">{projects.error.message}</p> : null}
       {projects.data && projects.data.length > 0 ? (
         <section className="my-5 mb-4 flex flex-wrap items-center gap-3 max-[680px]:flex-col max-[680px]:items-stretch" aria-label="Project filters">
           <label>
@@ -240,16 +240,16 @@ export function ProjectsPage() {
         </CountPill>
       ) : null}
       {projects.data?.length === 0 ? (
-        <p className="muted">No projects yet. Create your first project to get started.</p>
+        <p className="text-text">No projects yet. Create your first project to get started.</p>
       ) : null}
       {projects.data && projects.data.length > 0 && filteredProjects.length === 0 ? (
-        <p className="muted">No projects match your filters.</p>
+        <p className="text-text">No projects match your filters.</p>
       ) : null}
       <ul className="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4 p-0" aria-label="Projects">
         {filteredProjects.map((project) => (
           <Card as="li" key={project.id} className="flex flex-col">
             <div className="flex items-start justify-between gap-3">
-              <span className="stage-badge" style={stageBadgeStyle(project.stage)}>
+              <span className="inline-flex min-h-[26px] items-center rounded-full border border-[color-mix(in_srgb,var(--stage-color,var(--color-primary))_35%,transparent)] bg-[color-mix(in_srgb,var(--stage-color,var(--color-primary))_14%,transparent)] px-2.5 py-[3px] text-[0.78rem] font-bold text-(--stage-color)" data-project-stage={project.stage} style={stageBadgeStyle(project.stage)}>
                 {formatStage(project.stage)}
               </span>
             </div>
@@ -311,7 +311,7 @@ export function ProjectsPage() {
               <IconPlus />
             </IconButton>
             <h2>Create New Project</h2>
-            <p className="muted">Start a new systematic review</p>
+            <p className="text-text">Start a new systematic review</p>
             <Button type="button" onClick={() => navigate('/projects/new')}>Get Started</Button>
           </Card>
         ) : null}

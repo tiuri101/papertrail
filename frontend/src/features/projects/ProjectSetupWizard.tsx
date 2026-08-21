@@ -5,6 +5,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { apiRequest } from '../../api/client'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { Button } from '../../components/Button'
+import { Card } from '../../components/Card'
 import { IconArrowRight, IconCheckCircle, IconFolder } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
 import { Input } from '../../components/Input'
@@ -112,10 +113,10 @@ function ProjectDetailsStep({
   const error = create.error ?? update.error
 
   return (
-    <section className="card">
+    <Card as="section">
       <h2>
-        <span className="collapsible-section__title">
-          <span className="collapsible-section__icon" aria-hidden="true"><IconFolder /></span>
+        <span className="inline-flex items-center gap-2">
+          <span className="inline-flex shrink-0 text-primary [&_svg]:size-5 [&_svg]:fill-current" aria-hidden="true"><IconFolder /></span>
           Project Name and Description
         </span>
       </h2>
@@ -162,15 +163,15 @@ function ProjectDetailsStep({
               ))}
             </Select>
           </label>
-          {projectId ? <p className="muted">Review type can&apos;t be changed after the project is created.</p> : null}
-          {error ? <p className="error" role="alert">{error.message}</p> : null}
+          {projectId ? <p className="text-text">Review type can&apos;t be changed after the project is created.</p> : null}
+          {error ? <p className="text-danger" role="alert">{error.message}</p> : null}
           <button type="submit" disabled={pending || name.trim().length === 0}>
             {projectId ? 'Save & Continue' : 'Create Project & Continue'}
             <IconArrowRight />
           </button>
         </form>
       )}
-    </section>
+    </Card>
   )
 }
 
@@ -229,9 +230,9 @@ export function ProjectSetupWizard() {
     <main className="page">
       <div className="grid grid-cols-[max-content_minmax(0,1fr)] grid-rows-[auto_1fr] items-start gap-x-8 gap-y-6 max-[760px]:grid-cols-1 max-[760px]:grid-rows-none max-[760px]:gap-5">
         <div className="col-start-2 row-start-1 max-[760px]:col-start-1 max-[760px]:row-auto [&>h1]:m-0">
-          <p className="eyebrow">Project setup · Step {step + 1} of {WIZARD_STEPS.length}</p>
+          <p className="mb-1 block text-xs font-bold uppercase tracking-[0.08em] text-primary">Project setup · Step {step + 1} of {WIZARD_STEPS.length}</p>
           <h1>Project Setup Wizard</h1>
-          <p className="muted">
+          <p className="text-text">
             {project.data?.name
               ? `Setting up "${project.data.name}". Every step but the first can be revisited later from the project's Project Administration page.`
               : 'Create a project by walking through each setup step. You can finish the rest later from the project\'s Project Administration page.'}
@@ -269,7 +270,7 @@ export function ProjectSetupWizard() {
                     )}>{isDone ? '✓' : index + 1}</span>
                     <span className={cn('text-[0.85rem] leading-[1.3] font-semibold whitespace-nowrap max-[760px]:text-[0.8rem]', isCurrent && 'font-bold text-(--stage-color)')}>
                       {wizardStep.label}
-                      {wizardStep.optional ? <span className="muted"> (optional)</span> : null}
+                      {wizardStep.optional ? <span className="text-text"> (optional)</span> : null}
                     </span>
                   </button>
                 </li>

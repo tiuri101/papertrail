@@ -53,7 +53,7 @@ describe('ProjectsPage', () => {
     const projectLink = await screen.findByRole('link', { name: 'Existing review' })
     expect(projectLink).toHaveAttribute('href', '/projects/p1')
     const projectCard = projectLink.closest('li') as HTMLLIElement
-    expect(within(projectCard).getByText('Draft')).toHaveClass('stage-badge')
+    expect(within(projectCard).getByText('Draft')).toHaveAttribute('data-project-stage', 'draft')
     expect(within(projectCard).getByText('Systematic review')).toBeVisible()
     expect(within(projectCard).getByText('Owner')).toBeVisible()
     expect(within(projectCard).queryByText('Owner: Ada Lovelace')).not.toBeInTheDocument()
