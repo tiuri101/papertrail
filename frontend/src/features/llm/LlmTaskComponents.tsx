@@ -204,7 +204,9 @@ export function ScreeningLlmPanel({
       <aside className="llm-task-panel" aria-label="LLM assistance failed">
         <LlmAssistanceHeading qualifier="failed" />
         <p className="error">{data.error ?? 'The model did not return a usable result.'}</p>
-        <button type="button" onClick={() => regenerate.mutate()} disabled={regenerate.isPending}>Retry</button>
+        <Button type="button" onClick={() => regenerate.mutate()} disabled={regenerate.isPending}>
+          Retry
+        </Button>
       </aside>
     )
   }
@@ -213,10 +215,14 @@ export function ScreeningLlmPanel({
       <aside className="llm-task-panel" aria-label="LLM assistance is stale">
         <LlmAssistanceHeading qualifier="is stale" />
         <p className="muted">The source changed before this result completed.</p>
-        <button type="button" onClick={() => regenerate.mutate()} disabled={regenerate.isPending}>
-          <IconRestart />
+        <Button
+          type="button"
+          onClick={() => regenerate.mutate()}
+          disabled={regenerate.isPending}
+          startIcon={<IconRestart />}
+        >
           Regenerate
-        </button>
+        </Button>
       </aside>
     )
   }

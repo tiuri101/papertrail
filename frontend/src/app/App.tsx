@@ -14,6 +14,7 @@ import { ScreeningAssignmentsPanel } from '../features/administration/ScreeningA
 import { ScreeningConfigPanel } from '../features/administration/ScreeningConfigPanel'
 import { ResearchAgendaPanel } from '../features/administration/ResearchAgendaPanel'
 import { AuditLogPage } from '../features/audit/AuditLogPage'
+import { Button } from '../components/Button'
 import { CollapsibleSection } from '../components/CollapsibleSection'
 import { IconClock, IconSettings, IconSparkle, IconSwap, IconTrash } from '../components/icons'
 import { InfoBox } from '../components/InfoBox'
@@ -202,9 +203,9 @@ function ProjectAdministrationPage() {
                 </p>
               </InfoBox>
               <div className="toolbar">
-                <button type="button" onClick={() => navigate(`/projects/${projectId}/audit`)}>
+                <Button type="button" onClick={() => navigate(`/projects/${projectId}/audit`)}>
                   View Audit Log
-                </button>
+                </Button>
               </div>
             </CollapsibleSection>
           </>

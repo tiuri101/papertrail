@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { IconCheckCircle, IconFolder } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
@@ -79,10 +80,9 @@ export function ProjectDetailsPanel({ projectId }: { projectId: string }) {
           />
         </label>
         {save.error ? <p className="error" role="alert">{save.error.message}</p> : null}
-        <button type="submit" disabled={save.isPending}>
-          <IconCheckCircle />
+        <Button type="submit" disabled={save.isPending} startIcon={<IconCheckCircle />}>
           {save.isPending ? 'Saving…' : 'Save Project Details'}
-        </button>
+        </Button>
         {save.isSuccess ? <p className="muted" aria-live="polite">Saved.</p> : null}
       </form>
     </CollapsibleSection>

@@ -518,7 +518,7 @@ export function ImportPage() {
                 <>This will permanently delete the search. No papers came in exclusively through it.</>
               )}
               {deleteCandidate.preview.screenedPublicationCount > 0 ? (
-                <span className="error" role="alert" style={{ display: 'block', marginTop: '0.75rem' }}>
+                <span className="mt-3 block text-danger" role="alert">
                   {deleteCandidate.preview.screenedPublicationCount === 1
                     ? 'One of these papers has'
                     : `${deleteCandidate.preview.screenedPublicationCount} of these papers have`}{' '}
@@ -527,7 +527,7 @@ export function ImportPage() {
                 </span>
               ) : null}
               {confirmDeleteSearch.error ? (
-                <span className="error" role="alert" style={{ display: 'block', marginTop: '0.75rem' }}>
+                <span className="mt-3 block text-danger" role="alert">
                   {confirmDeleteSearch.error.message}
                 </span>
               ) : null}
