@@ -108,27 +108,27 @@ const overviewPillars = [
 
 function PapertrailOverview() {
   return (
-    <div className="help-overview">
-      <header className="help-overview__hero">
-        <span className="eyebrow">Systematic review workspace</span>
-        <h3>One path from search results to review-ready data</h3>
-        <p>
+    <div className="grid gap-4">
+      <header className="relative overflow-hidden rounded-lg border border-[color-mix(in_srgb,var(--color-primary)_24%,var(--color-border))] bg-[radial-gradient(circle_at_92%_5%,var(--color-primary-container-hover),transparent_19rem),linear-gradient(145deg,var(--color-surface-raised),var(--color-surface))] p-4 min-[561px]:p-6">
+        <span className="mb-1 block text-xs font-bold uppercase tracking-[0.08em] text-primary">Systematic review workspace</span>
+        <h3 className="m-0 max-w-[720px] text-[clamp(1.25rem,2vw,1.6rem)] leading-tight">One path from search results to review-ready data</h3>
+        <p className="mt-3 max-w-[720px] text-text-secondary">
           Papertrail keeps assignments, decisions, evidence, and revisions connected so
           the whole team can follow and defend the review process.
         </p>
       </header>
 
-      <ul className="help-overview__pillars" aria-label="Papertrail at a glance">
+      <ul className="m-0 grid list-none grid-cols-1 gap-3 p-0 min-[821px]:grid-cols-3" aria-label="Papertrail at a glance">
         {overviewPillars.map((pillar) => (
-          <li key={pillar.title}>
-            <span className="help-overview__pillar-icon" aria-hidden="true">{pillar.icon}</span>
-            <h4>{pillar.title}</h4>
-            <p>{pillar.description}</p>
+          <li className="min-w-0 rounded-md border border-border bg-surface p-4" key={pillar.title}>
+            <span className="mb-3 inline-flex size-10 items-center justify-center rounded-sm bg-primary-container text-primary [&_svg]:size-[21px] [&_svg]:fill-current" aria-hidden="true">{pillar.icon}</span>
+            <h4 className="m-0 text-[0.98rem]">{pillar.title}</h4>
+            <p className="mt-2 text-[0.88rem] text-text-secondary">{pillar.description}</p>
           </li>
         ))}
       </ul>
 
-      <p className="help-overview__principle">
+      <p className="m-0 flex items-start gap-3 rounded-md border border-[color-mix(in_srgb,var(--color-success)_24%,var(--color-border))] bg-success-container px-4 py-3 text-sm text-text-secondary min-[561px]:items-center [&>svg]:size-[22px] [&>svg]:shrink-0 [&>svg]:fill-success">
         <IconSparkle />
         <span>
           <strong>Reviewer judgement stays authoritative.</strong> Optional local LLM
@@ -150,19 +150,20 @@ function StageTimeline({
 }) {
   return (
     <ol
-      className={`help-stage-timeline${centerMarkers ? ' help-stage-timeline--centered' : ''}`}
+      className="m-0 grid list-none gap-5 p-0"
+      data-marker-alignment={centerMarkers ? 'center' : 'start'}
       aria-label={label}
     >
       {STAGES.map((stage, index) => (
         <li
-          className="help-stage-timeline__item"
+          className={`grid grid-cols-[56px_1fr] gap-4 ${centerMarkers ? 'items-center' : 'items-start'}`}
           key={stage.value}
           style={{ '--stage-color': stage.color } as CSSProperties}
         >
-          <span className="help-stage-timeline__number" aria-hidden="true">{index + 1}</span>
-          <div className="help-stage-timeline__body">
-            <h3>{stage.label}</h3>
-            <p>{descriptions[stage.value]}</p>
+          <span className="inline-flex size-14 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--stage-color)_18%,transparent)] text-2xl font-bold leading-none text-(--stage-color)" aria-hidden="true">{index + 1}</span>
+          <div className="border-l-[3px] border-(--stage-color) py-1 pl-4">
+            <h3 className="mb-1 text-base font-bold text-(--stage-color)">{stage.label}</h3>
+            <p className="text-text-secondary">{descriptions[stage.value]}</p>
           </div>
         </li>
       ))}
@@ -258,7 +259,8 @@ const stages: StageResponsibilities[] = [
 function StageList({ role }: { role: 'owner' | 'reviewer' }) {
   return (
     <ol
-      className="help-stage-timeline help-stage-timeline--responsibilities"
+      className="m-0 grid list-none gap-5 p-0"
+      data-timeline="responsibilities"
       aria-label={role === 'reviewer' ? 'Reviewer responsibilities by stage' : 'Project owner responsibilities by stage'}
     >
       {stages.map((stage, index) => {
@@ -266,14 +268,15 @@ function StageList({ role }: { role: 'owner' | 'reviewer' }) {
 
         return (
           <li
-            className="help-stage-timeline__item"
+            className="grid grid-cols-[56px_1fr] items-center gap-4"
+            data-stage={stage.id}
             key={stage.id}
             style={{ '--stage-color': color } as CSSProperties}
           >
-            <span className="help-stage-timeline__number" aria-hidden="true">{index + 1}</span>
-            <div className="help-stage-timeline__body">
-              <h3>{stage.name}</h3>
-              <ul>
+            <span className="inline-flex size-14 shrink-0 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--stage-color)_18%,transparent)] text-2xl font-bold leading-none text-(--stage-color)" aria-hidden="true">{index + 1}</span>
+            <div className="border-l-[3px] border-(--stage-color) py-1 pl-4">
+              <h3 className="mb-1 text-base font-bold text-(--stage-color)">{stage.name}</h3>
+              <ul className="m-0 grid gap-1 pl-5 text-text-secondary">
                 {stage[role].map((item) => (
                   <li key={item}>{item}</li>
                 ))}
@@ -293,27 +296,27 @@ function OwnerDangerZoneGuide() {
         title="Reset is a fresh start, delete is permanent removal"
         subtitle="Before using the Danger Zone"
         icon={<IconTrash />}
-        className="help-owner-danger"
+        className="overflow-hidden rounded-lg border-[color-mix(in_srgb,var(--color-danger)_28%,var(--color-border))] [background:radial-gradient(circle_at_100%_0,var(--color-danger-container),transparent_20rem),color-mix(in_srgb,var(--color-danger)_3%,var(--color-surface))] p-0 shadow-none [&>.collapsible-section__heading]:p-4 min-[561px]:[&>.collapsible-section__heading]:p-5 [&_.collapsible-section__heading]:text-[1.08rem] [&_.collapsible-section__icon]:size-[42px] [&_.collapsible-section__icon]:items-center [&_.collapsible-section__icon]:justify-center [&_.collapsible-section__icon]:rounded-md [&_.collapsible-section__icon]:bg-danger-container [&_.collapsible-section__icon]:text-danger [&_.collapsible-section__subtitle]:mb-1 [&_.collapsible-section__subtitle]:text-danger [&>.collapsible-section__content[data-expanded=true]]:mt-0 [&>.collapsible-section__content[data-expanded=true]]:border-t [&>.collapsible-section__content[data-expanded=true]]:border-[color-mix(in_srgb,var(--color-danger)_18%,var(--color-border))]"
         defaultExpanded={false}
         headingLevel={3}
       >
-        <div className="help-owner-danger__options">
-          <section>
-            <span className="help-owner-danger__icon" aria-hidden="true"><IconRestart /></span>
+        <div className="grid grid-cols-1 min-[821px]:grid-cols-2">
+          <section className="flex min-w-0 gap-3 p-4 min-[561px]:p-5">
+            <span className="inline-flex size-[38px] shrink-0 items-center justify-center rounded-sm bg-warning-container text-warning [&_svg]:size-5 [&_svg]:fill-current" aria-hidden="true"><IconRestart /></span>
             <div>
-              <h4>Reset Project</h4>
-              <p>
+              <h4 className="m-0 text-[0.96rem]">Reset Project</h4>
+              <p className="mt-2 text-[0.87rem] text-text-secondary">
                 Returns the project to Draft and removes imported publications plus all duplicate,
                 screening, full-text, extraction, and quality progress. It keeps the project itself,
                 members, research questions, criteria, screening setup, and forms so the review can restart.
               </p>
             </div>
           </section>
-          <section>
-            <span className="help-owner-danger__icon" aria-hidden="true"><IconTrash /></span>
+          <section className="flex min-w-0 gap-3 border-t border-[color-mix(in_srgb,var(--color-danger)_18%,var(--color-border))] p-4 min-[561px]:p-5 min-[821px]:border-l min-[821px]:border-t-0">
+            <span className="inline-flex size-[38px] shrink-0 items-center justify-center rounded-sm bg-danger-container text-danger [&_svg]:size-5 [&_svg]:fill-current" aria-hidden="true"><IconTrash /></span>
             <div>
-              <h4>Delete Project</h4>
-              <p>
+              <h4 className="m-0 text-[0.96rem]">Delete Project</h4>
+              <p className="mt-2 text-[0.87rem] text-text-secondary">
                 Removes the entire project, including its configuration, membership, audit history,
                 publications, stored PDFs, import files, exports, and progress. Running background jobs
                 must finish before deletion can proceed.
@@ -379,6 +382,11 @@ const extensionPracticalNotes = [
     icon: <IconPerson />,
   },
 ]
+
+const setupStepsClassName = 'm-0 mt-5 grid list-none grid-cols-1 gap-3 p-0 min-[761px]:grid-cols-3'
+const setupStepClassName = 'flex min-w-0 gap-3 rounded-md border border-[color-mix(in_srgb,var(--color-primary)_24%,var(--color-border))] bg-[color-mix(in_srgb,var(--color-surface-raised)_90%,transparent)] p-4 shadow-sm'
+const practicalNotesClassName = 'grid content-start gap-4 border-t border-border bg-[color-mix(in_srgb,var(--color-surface-hover)_55%,transparent)] p-4 min-[481px]:p-6 min-[761px]:border-l min-[761px]:border-t-0'
+const practicalNoteClassName = 'flex gap-3 [&>span]:inline-flex [&>span]:size-9 [&>span]:shrink-0 [&>span]:items-center [&>span]:justify-center [&>span]:rounded-sm [&>span]:bg-primary-container [&>span]:text-primary [&>span_svg]:size-[22px] [&>span_svg]:fill-current [&_h4]:m-0 [&_h4]:text-[0.94rem] [&_p]:mt-2 [&_p]:text-[0.88rem] [&_p]:text-text-secondary'
 
 const goodToKnowItems = [
   {
@@ -467,6 +475,12 @@ const goodToKnowItems = [
   },
 ]
 
+const tipToneClassName: Record<string, string> = {
+  primary: '[--tip-accent:var(--color-primary)]',
+  success: '[--tip-accent:var(--color-success)]',
+  warning: '[--tip-accent:var(--color-warning)]',
+}
+
 function LlmHelpSection() {
   return (
     <CollapsibleSection id="section-help-llm" title="LLM Assistance" icon={<IconSparkle />}>
@@ -476,11 +490,11 @@ function LlmHelpSection() {
         as a screening decision, overwrites reviewer work, or blocks the normal
         workflow when processing is unavailable or fails.
       </p>
-      <aside className="help-llm-background-note" aria-label="LLM background processing">
-        <span className="help-llm-background-note__icon" aria-hidden="true"><IconClock /></span>
+      <aside className="flex items-start gap-3 rounded-md border border-[color-mix(in_srgb,var(--color-primary)_24%,var(--color-border))] bg-primary-container p-4" aria-label="LLM background processing">
+        <span className="inline-flex size-[38px] shrink-0 items-center justify-center rounded-sm bg-surface text-primary [&_svg]:size-5 [&_svg]:fill-current" aria-hidden="true"><IconClock /></span>
         <div>
-          <h3>Results arrive in the background</h3>
-          <p>
+          <h3 className="m-0 text-[0.98rem]">Results arrive in the background</h3>
+          <p className="mt-2 text-sm text-text-secondary">
             LLM assistance is processed by background jobs, so suggestions can take some time
             to appear. You can continue screening or extracting before the LLM result is ready
             and review it after processing finishes.
@@ -497,72 +511,72 @@ function LlmHelpSection() {
         title="Configuring LLM assistance and custom prompts"
         subtitle="For project owners and administrators"
         icon={<IconSparkle />}
-        className="help-llm-configuration"
+        className="relative overflow-hidden rounded-lg border-border [background:radial-gradient(circle_at_100%_0,var(--color-primary-container-hover),transparent_20rem),var(--color-surface)] p-4 shadow-none min-[481px]:p-6 [&_.collapsible-section__heading]:m-0 [&_.collapsible-section__heading]:text-[1.16rem] [&>.collapsible-section__heading_.collapsible-section__icon]:size-[42px] [&>.collapsible-section__heading_.collapsible-section__icon]:items-center [&>.collapsible-section__heading_.collapsible-section__icon]:justify-center [&>.collapsible-section__heading_.collapsible-section__icon]:rounded-md [&>.collapsible-section__heading_.collapsible-section__icon]:bg-primary-container [&>.collapsible-section__heading_.collapsible-section__subtitle]:mb-1 [&>.collapsible-section__heading_.collapsible-section__subtitle]:text-primary"
         defaultExpanded={false}
         headingLevel={3}
       >
-        <p className="help-llm-configuration__intro">
+        <p className="m-0 max-w-[720px] text-text-secondary">
           Open <strong>Project Administration</strong> and work through these three areas.
           Each one controls a different layer of the assistance reviewers see.
         </p>
-        <ol className="help-llm-setup-steps" aria-label="LLM configuration steps">
+        <ol className={setupStepsClassName} aria-label="LLM configuration steps">
           {llmSetupSteps.map((step, index) => (
-            <li key={step.section}>
-              <span className="help-llm-setup-steps__number" aria-hidden="true">{index + 1}</span>
+            <li className={setupStepClassName} key={step.section}>
+              <span className="inline-flex size-[30px] shrink-0 items-center justify-center rounded-full bg-primary-container text-[0.84rem] font-bold text-primary" aria-hidden="true">{index + 1}</span>
               <div>
-                <span className="help-llm-setup-steps__section">{step.section}</span>
-                <h4>{step.title}</h4>
-                <p>{step.description}</p>
+                <span className="mb-1 block text-xs font-bold text-primary">{step.section}</span>
+                <h4 className="m-0 text-[0.94rem]">{step.title}</h4>
+                <p className="mt-2 text-[0.88rem] text-text-secondary">{step.description}</p>
               </div>
             </li>
           ))}
         </ol>
 
-        <section className="help-prompt-guide" aria-labelledby="help-prompt-guide-title">
-          <div className="help-prompt-guide__main">
-            <header className="help-prompt-guide__heading">
-              <span className="help-prompt-guide__icon" aria-hidden="true"><IconLightbulb /></span>
+        <section className="grid grid-cols-1 overflow-hidden rounded-lg border border-border bg-surface min-[761px]:grid-cols-[minmax(0,1.25fr)_minmax(260px,0.75fr)]" aria-labelledby="help-prompt-guide-title">
+          <div className="p-4 min-[481px]:p-6">
+            <header className="flex items-center gap-3">
+              <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-md bg-warning-container text-warning [&_svg]:size-[22px] [&_svg]:fill-current" aria-hidden="true"><IconLightbulb /></span>
               <div>
-                <span className="eyebrow">Prompt guidance</span>
-                <h3 id="help-prompt-guide-title">Writing useful custom instructions</h3>
+                <span className="mb-1 block text-xs font-bold uppercase tracking-[0.08em] text-primary">Prompt guidance</span>
+                <h3 className="m-0 text-[1.16rem]" id="help-prompt-guide-title">Writing useful custom instructions</h3>
               </div>
             </header>
-            <ul className="help-prompt-principles">
-              <li>
+            <ul className="mt-5 grid list-none gap-3 p-0 [&_strong]:text-[0.92rem] [&_span]:text-[0.88rem] [&_span]:text-text-secondary">
+              <li className="relative grid gap-0.5 pl-5 before:absolute before:left-0.5 before:top-[0.48rem] before:size-[7px] before:rounded-full before:bg-primary before:shadow-[0_0_0_4px_var(--color-primary-container)]">
                 <strong>Use the project's language</strong>
                 <span>Define domain terms, abbreviations, and concepts the model must distinguish.</span>
               </li>
-              <li>
+              <li className="relative grid gap-0.5 pl-5 before:absolute before:left-0.5 before:top-[0.48rem] before:size-[7px] before:rounded-full before:bg-primary before:shadow-[0_0_0_4px_var(--color-primary-container)]">
                 <strong>Clarify judgement calls</strong>
                 <span>Explain how project criteria should be interpreted when the source is unclear.</span>
               </li>
-              <li>
+              <li className="relative grid gap-0.5 pl-5 before:absolute before:left-0.5 before:top-[0.48rem] before:size-[7px] before:rounded-full before:bg-primary before:shadow-[0_0_0_4px_var(--color-primary-container)]">
                 <strong>Keep the scope focused</strong>
                 <span>Highlight what deserves attention without repeating the entire protocol.</span>
               </li>
             </ul>
-            <p className="help-prompt-guide__boundary">
+            <p className="mt-5 border-l-[3px] border-warning bg-warning-container px-4 py-3 text-[0.88rem] text-text-secondary">
               Custom instructions supplement the base prompt. They cannot relax its evidence,
               safety, or output-format rules.
             </p>
           </div>
 
-          <aside className="help-llm-practical-notes" aria-label="Practical LLM guidance">
-            <div className="help-llm-practical-note">
+          <aside className={practicalNotesClassName} aria-label="Practical LLM guidance">
+            <div className={practicalNoteClassName}>
               <span aria-hidden="true"><IconRestart /></span>
               <div>
                 <h4>Re-run after edits</h4>
                 <p>Prompt changes affect future processing. Re-run a task to refresh existing suggestions.</p>
               </div>
             </div>
-            <div className="help-llm-practical-note">
+            <div className={practicalNoteClassName}>
               <span aria-hidden="true"><IconCheckCircle /></span>
               <div>
                 <h4>Verify every result</h4>
                 <p>Check suggestions against the publication, especially inferred, ambiguous, or unverified evidence.</p>
               </div>
             </div>
-            <div className="help-llm-practical-note">
+            <div className={practicalNoteClassName}>
               <span aria-hidden="true"><IconInfo /></span>
               <div>
                 <h4>Text and privacy</h4>
@@ -584,11 +598,11 @@ function ExtensionHelpSection() {
         PDFs using your own computer's network access and sign-in, then uploads them through the
         same review pipeline as a manual upload. Papertrail itself never scrapes publisher sites.
       </p>
-      <aside className="help-llm-background-note" aria-label="Browser extension background processing">
-        <span className="help-llm-background-note__icon" aria-hidden="true"><IconDownload /></span>
+      <aside className="flex items-start gap-3 rounded-md border border-[color-mix(in_srgb,var(--color-primary)_24%,var(--color-border))] bg-primary-container p-4" aria-label="Browser extension background processing">
+        <span className="inline-flex size-[38px] shrink-0 items-center justify-center rounded-sm bg-surface text-primary [&_svg]:size-5 [&_svg]:fill-current" aria-hidden="true"><IconDownload /></span>
         <div>
-          <h3>Runs quietly in the background</h3>
-          <p>
+          <h3 className="m-0 text-[0.98rem]">Runs quietly in the background</h3>
+          <p className="mt-2 text-sm text-text-secondary">
             Once paired, a background service worker can claim queued retrieval jobs without
             keeping any window open. Every result still goes through the same staged-upload
             validation as a manually attached PDF before it counts as available, so an automated
@@ -596,21 +610,21 @@ function ExtensionHelpSection() {
           </p>
         </div>
       </aside>
-      <ol className="help-llm-setup-steps" aria-label="Browser extension setup steps">
+      <ol className={setupStepsClassName} aria-label="Browser extension setup steps">
         {extensionSetupSteps.map((step, index) => (
-          <li key={step.section}>
-            <span className="help-llm-setup-steps__number" aria-hidden="true">{index + 1}</span>
+          <li className={setupStepClassName} key={step.section}>
+            <span className="inline-flex size-[30px] shrink-0 items-center justify-center rounded-full bg-primary-container text-[0.84rem] font-bold text-primary" aria-hidden="true">{index + 1}</span>
             <div>
-              <span className="help-llm-setup-steps__section">{step.section}</span>
-              <h4>{step.title}</h4>
-              <p>{step.description}</p>
+              <span className="mb-1 block text-xs font-bold text-primary">{step.section}</span>
+              <h4 className="m-0 text-[0.94rem]">{step.title}</h4>
+              <p className="mt-2 text-[0.88rem] text-text-secondary">{step.description}</p>
             </div>
           </li>
         ))}
       </ol>
-      <aside className="help-llm-practical-notes" aria-label="Practical browser extension guidance">
+      <aside className={practicalNotesClassName} aria-label="Practical browser extension guidance">
         {extensionPracticalNotes.map((note) => (
-          <div className="help-llm-practical-note" key={note.title}>
+          <div className={practicalNoteClassName} key={note.title}>
             <span aria-hidden="true">{note.icon}</span>
             <div>
               <h4>{note.title}</h4>
@@ -680,34 +694,35 @@ export function HelpPage() {
           ) : null}
           {activeTab === 'good-to-know' ? (
             <CollapsibleSection id="section-help-good-to-know" title="Good to Know" icon={<IconLightbulb />}>
-              <div className="help-good-to-know">
-                <header className="help-good-to-know__intro">
-                  <span className="help-good-to-know__intro-icon" aria-hidden="true">
+              <div className="grid gap-4">
+                <header className="grid grid-cols-1 items-center gap-4 overflow-hidden rounded-lg border border-[color-mix(in_srgb,var(--color-warning)_28%,var(--color-border))] bg-[radial-gradient(circle_at_92%_-25%,var(--color-warning-container),transparent_18rem),linear-gradient(135deg,var(--color-surface-raised),var(--color-surface))] p-4 min-[561px]:grid-cols-[auto_minmax(0,1fr)] min-[561px]:px-6 min-[561px]:py-5">
+                  <span className="inline-flex size-[54px] items-center justify-center rounded-lg bg-warning-container text-warning shadow-[inset_0_0_0_1px_color-mix(in_srgb,var(--color-warning)_20%,transparent)] [&_svg]:size-7 [&_svg]:fill-current" aria-hidden="true">
                     <IconLightbulb />
                   </span>
                   <div>
-                    <span className="eyebrow">Practical details</span>
-                    <h3>Small things that keep a review moving</h3>
-                    <p>
+                    <span className="mb-1 block text-xs font-bold uppercase tracking-[0.08em] text-primary">Practical details</span>
+                    <h3 className="m-0 text-[1.16rem]">Small things that keep a review moving</h3>
+                    <p className="mt-2 max-w-[700px] text-text-secondary">
                       Keep these safeguards and workflow details in mind as your project moves
                       from imported records to final results.
                     </p>
                   </div>
                 </header>
 
-                <ul className="help-good-to-know__grid" aria-label="Helpful things to know">
+                <ul className="m-0 grid list-none grid-cols-1 gap-3 p-0 min-[561px]:grid-cols-2 min-[821px]:grid-cols-6" aria-label="Helpful things to know">
                   {goodToKnowItems.map((item) => (
                     <li
-                      className={`help-good-to-know__card help-good-to-know__card--${item.tone}`}
+                      className={`relative flex min-w-0 gap-3 overflow-hidden rounded-md border border-[color-mix(in_srgb,var(--tip-accent)_22%,var(--color-border))] bg-[color-mix(in_srgb,var(--tip-accent)_5%,var(--color-surface))] p-4 before:absolute before:inset-y-0 before:left-0 before:w-[3px] before:bg-(--tip-accent) min-[821px]:col-span-2 ${tipToneClassName[item.tone]}`}
+                      data-help-tip={item.tone}
                       key={item.title}
                     >
-                      <span className="help-good-to-know__card-icon" aria-hidden="true">
+                      <span className="inline-flex size-[38px] shrink-0 items-center justify-center rounded-sm bg-[color-mix(in_srgb,var(--tip-accent)_13%,transparent)] text-(--tip-accent) [&_svg]:size-5 [&_svg]:fill-current" aria-hidden="true">
                         {item.icon}
                       </span>
                       <div>
-                        <span className="help-good-to-know__label">{item.label}</span>
-                        <h4>{item.title}</h4>
-                        <p>{item.description}</p>
+                        <span className="mb-0.5 block text-xs font-bold uppercase tracking-[0.055em] text-(--tip-accent)">{item.label}</span>
+                        <h4 className="m-0 text-[0.95rem]">{item.title}</h4>
+                        <p className="mt-2 text-[0.87rem] text-text-secondary">{item.description}</p>
                       </div>
                     </li>
                   ))}

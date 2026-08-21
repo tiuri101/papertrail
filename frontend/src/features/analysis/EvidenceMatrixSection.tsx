@@ -93,7 +93,7 @@ function ColumnFilterControl({
   }
 
   return (
-    <div className="evidence-matrix__filter">
+    <div className="mt-1.5 flex flex-col gap-1 font-normal normal-case tracking-normal [&_input]:text-[0.8rem] [&_select]:text-[0.8rem]">
       <label>
         <span className="visually-hidden">Filter {column.label}</span>
         <Select
@@ -123,7 +123,7 @@ function ColumnFilterControl({
         </Select>
       ) : null}
       {mode === 'value' && predicate?.type === 'multi_select' ? (
-        <fieldset className="evidence-matrix__filter-checkboxes">
+        <fieldset className="flex max-h-32 flex-col gap-0.5 overflow-y-auto border-0 p-0">
           <legend className="visually-hidden">{column.label} values</legend>
           {options.map((option) => {
             const checked = predicate.anyOf.includes(option)
@@ -146,7 +146,7 @@ function ColumnFilterControl({
         </fieldset>
       ) : null}
       {mode === 'value' && predicate?.type === 'numeric' ? (
-        <span className="evidence-matrix__filter-range">
+        <span className="flex gap-1 [&_input]:w-20">
           <Input
             type="number"
             aria-label={`${column.label} minimum`}
@@ -206,7 +206,7 @@ function CellDetailPanel({
   const detail = query.data
 
   return (
-    <aside className="evidence-matrix__detail nested-card" aria-label="Field evidence detail">
+    <aside className="nested-card mt-4 [&_.llm-evidence-list]:grid [&_.llm-evidence-list]:gap-3 [&_.llm-evidence-list_blockquote]:m-0 [&_.llm-evidence-list_blockquote]:rounded-md [&_.llm-evidence-list_blockquote]:border [&_.llm-evidence-list_blockquote]:border-border [&_.llm-evidence-list_blockquote]:bg-bg-elevated [&_.llm-evidence-list_blockquote]:px-4 [&_.llm-evidence-list_blockquote]:py-3" aria-label="Field evidence detail">
       <div className="toolbar">
         <h3>{selection.publicationTitle}</h3>
         <Button type="button" variant="secondary" onClick={onClose}>Close</Button>
@@ -218,7 +218,7 @@ function CellDetailPanel({
           <p className="muted">
             {detail.label} · {detail.sourceType === 'quality' ? 'Quality assessment' : 'Extraction'}
           </p>
-          <dl className="evidence-matrix__detail-meta">
+          <dl className="m-0 grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-3 [&>div]:min-w-0 [&>div]:rounded-sm [&>div]:border [&>div]:border-border [&>div]:bg-surface-hover/50 [&>div]:px-4 [&>div]:py-3 [&_dt]:m-0 [&_dt]:text-[0.72rem] [&_dt]:font-bold [&_dt]:uppercase [&_dt]:tracking-[0.05em] [&_dt]:text-text-muted [&_dd]:mb-0 [&_dd]:mt-1 [&_dd]:overflow-wrap-anywhere [&_dd]:text-[0.92rem] [&_dd]:text-text">
             <div>
               <dt>Value</dt>
               <dd>{formatCellValue(detail.value, detail.fieldType)}</dd>
@@ -333,9 +333,9 @@ export function EvidenceMatrixSection({ projectId }: { projectId: string }) {
         </label>
       </div>
       {data ? (
-        <details className="evidence-matrix__columns">
+        <details className="mb-3">
           <summary>Show/hide columns ({visibleColumns.length} of {data.columns.length} shown)</summary>
-          <div className="evidence-matrix__column-toggle-list">
+          <div className="mt-3 flex flex-wrap gap-3">
             {data.columns.map((column) => (
               <label key={column.key}>
                 <Input
@@ -354,11 +354,11 @@ export function EvidenceMatrixSection({ projectId }: { projectId: string }) {
       ) : null}
       {data && data.items.length === 0 ? <p>No publications match your search and filters.</p> : null}
       {data && data.items.length > 0 ? (
-        <div className="evidence-matrix__scroll">
-          <table className="evidence-matrix__table">
+        <div className="max-h-[70vh] overflow-auto rounded-md border border-border">
+          <table className="w-auto min-w-full [&_td]:whitespace-nowrap [&_th]:whitespace-nowrap [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-[2] [&_thead_th]:bg-bg-elevated">
             <thead>
               <tr>
-                <th scope="col" className="evidence-matrix__sticky-col">Publication</th>
+                <th scope="col" className="sticky left-0 z-[3]! min-w-56 max-w-[22rem] overflow-wrap-anywhere bg-bg-elevated whitespace-normal!">Publication</th>
                 {visibleColumns.map((column) => (
                   <th scope="col" key={column.key}>
                     {column.label}
@@ -374,7 +374,7 @@ export function EvidenceMatrixSection({ projectId }: { projectId: string }) {
             <tbody>
               {data.items.map((item: EvidenceMatrixItem) => (
                 <tr key={item.publication.id}>
-                  <th scope="row" className="evidence-matrix__sticky-col">
+                  <th scope="row" className="sticky left-0 z-[1] min-w-56 max-w-[22rem] overflow-wrap-anywhere bg-bg-elevated whitespace-normal!">
                     {item.publication.title}
                     {item.publication.authors ? (
                       <span className="muted"> · {item.publication.authors}</span>
@@ -387,7 +387,7 @@ export function EvidenceMatrixSection({ projectId }: { projectId: string }) {
                     return (
                       <td
                         key={column.key}
-                        className={`evidence-matrix__cell evidence-matrix__cell--${state}`}
+                        className={state === 'pending_reconciliation' ? 'bg-warning-container' : state === 'missing' ? 'text-text-muted' : undefined}
                       >
                         {clickable ? (
                           <Button

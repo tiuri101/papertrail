@@ -4,6 +4,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { apiRequest } from '../../api/client'
 import { Button } from '../../components/Button'
 import { IconRestart } from '../../components/icons'
+import { cn } from '../../lib/cn'
 import { criterionNumbers, criterionOrderIndex } from '../screening/criteriaNumbering'
 import type { CriterionAnswer, ScreeningCriterion } from '../screening/useScreeningQueue'
 
@@ -89,11 +90,14 @@ function criterionComparison(
 export function LlmAssistanceHeading({ qualifier }: { qualifier?: string }) {
   return (
     <h3>
-      <span className="llm-task-panel__icon" aria-hidden="true">✦</span>
+      <span className="text-primary" aria-hidden="true">✦</span>
       {' '}LLM assistance{qualifier ? ` ${qualifier}` : ''}
     </h3>
   )
 }
+
+const panelClass = 'my-4 rounded-xl border border-border bg-primary-container p-4'
+const headingClass = 'flex flex-wrap items-center justify-between gap-x-4 gap-y-2 [&_h3]:m-0'
 
 export function ScreeningLlmPanel({
   projectId,
@@ -152,7 +156,7 @@ export function ScreeningLlmPanel({
 
   if (query.isLoading) {
     return (
-      <aside className="llm-task-panel" aria-label="LLM assistance">
+      <aside className={panelClass} aria-label="LLM assistance">
         <LlmAssistanceHeading />
         <p>Checking LLM assistance…</p>
       </aside>
@@ -160,7 +164,7 @@ export function ScreeningLlmPanel({
   }
   if (query.error) {
     return (
-      <aside className="llm-task-panel" aria-label="LLM assistance">
+      <aside className={panelClass} aria-label="LLM assistance">
         <LlmAssistanceHeading />
         <p className="error">{query.error.message}</p>
       </aside>
@@ -169,7 +173,7 @@ export function ScreeningLlmPanel({
   if (!data?.state) return null
   if (data.hidden) {
     return (
-      <aside className="llm-task-panel" aria-label="LLM assistance">
+      <aside className={panelClass} aria-label="LLM assistance">
         <LlmAssistanceHeading />
         <p className="muted">Hidden until you submit your own screening decision.</p>
       </aside>
@@ -178,7 +182,7 @@ export function ScreeningLlmPanel({
   if (data.state === 'disabled') return null
   if (['queued', 'pending', 'processing'].includes(data.state)) {
     return (
-      <aside className="llm-task-panel" aria-label="LLM assistance">
+      <aside className={panelClass} aria-label="LLM assistance">
         <LlmAssistanceHeading />
         <p>LLM processing: {statusText(data.state)}…</p>
       </aside>
@@ -186,7 +190,7 @@ export function ScreeningLlmPanel({
   }
   if (['missing_pdf', 'text_unavailable', 'unavailable'].includes(data.state)) {
     return (
-      <aside className="llm-task-panel" aria-label="LLM assistance">
+      <aside className={panelClass} aria-label="LLM assistance">
         <LlmAssistanceHeading />
         <p className="muted">
           {data.state === 'missing_pdf'
@@ -201,7 +205,7 @@ export function ScreeningLlmPanel({
   }
   if (data.state === 'failed') {
     return (
-      <aside className="llm-task-panel" aria-label="LLM assistance failed">
+      <aside className={panelClass} aria-label="LLM assistance failed">
         <LlmAssistanceHeading qualifier="failed" />
         <p className="error">{data.error ?? 'The model did not return a usable result.'}</p>
         <Button type="button" onClick={() => regenerate.mutate()} disabled={regenerate.isPending}>
@@ -212,7 +216,7 @@ export function ScreeningLlmPanel({
   }
   if (data.state === 'stale') {
     return (
-      <aside className="llm-task-panel" aria-label="LLM assistance is stale">
+      <aside className={panelClass} aria-label="LLM assistance is stale">
         <LlmAssistanceHeading qualifier="is stale" />
         <p className="muted">The source changed before this result completed.</p>
         <Button
@@ -231,14 +235,19 @@ export function ScreeningLlmPanel({
     : null
   return (
     <aside
-      className={`llm-task-panel${comparison ? ` llm-task-panel--${comparison}` : ''}`}
+      className={cn(
+        panelClass,
+        comparison === 'match' && 'border-success shadow-[0_0_0_1px_var(--color-success)]',
+        comparison === 'mismatch' && 'border-danger shadow-[0_0_0_1px_var(--color-danger)]',
+      )}
+      data-comparison={comparison ?? undefined}
       aria-label={comparison === 'match'
         ? 'LLM assistance — matches your decision'
         : comparison === 'mismatch'
           ? 'LLM assistance — differs from your decision'
           : 'LLM assistance'}
     >
-      <div ref={headingRef} className="llm-task-panel__heading">
+      <div ref={headingRef} className={headingClass}>
         <LlmAssistanceHeading />
         <Button type="button" variant="secondary" onClick={() => regenerate.mutate()} disabled={regenerate.isPending}>
           Regenerate
@@ -268,7 +277,15 @@ export function ScreeningLlmPanel({
           <details
             key={criterion.criterionId ?? criterion.criterionText}
             open={stage === 'full_text'}
-            className={comparison ? `llm-criterion llm-criterion--${comparison}` : 'llm-criterion'}
+            className={cn(
+              'group my-2 rounded-lg border border-transparent px-3 py-2 open:px-5 open:py-4',
+              '[&_summary]:flex [&_summary]:cursor-pointer [&_summary]:list-none [&_summary]:flex-wrap [&_summary]:items-baseline [&_summary]:gap-1',
+              '[&_summary]:after:ml-auto [&_summary]:after:shrink-0 [&_summary]:after:text-[1.35rem] [&_summary]:after:font-medium [&_summary]:after:leading-none [&_summary]:after:text-text-secondary [&_summary]:after:content-[\'+\'] open:[&_summary]:after:content-[\'−\']',
+              'open:[&_summary]:-mx-3 open:[&_summary]:-mt-2 open:[&_summary]:mb-3 open:[&_summary]:border-b open:[&_summary]:border-[color-mix(in_srgb,currentColor_18%,transparent)] open:[&_summary]:px-4 open:[&_summary]:py-3 open:[&_summary]:text-base open:[&_summary]:font-bold open:[&_summary]:leading-snug open:[&_summary]:text-text',
+              comparison === 'match' && 'border-success bg-success-container',
+              comparison === 'mismatch' && 'border-danger bg-danger-container',
+            )}
+            data-comparison={comparison ?? undefined}
           >
             <summary>
               {criterion.criterionId && numbers[criterion.criterionId] ? (
@@ -276,10 +293,10 @@ export function ScreeningLlmPanel({
                   {numbers[criterion.criterionId]}
                 </span>
               ) : null}
-              <span className="llm-criterion__title">{criterion.criterionText}</span>
-              <span className="llm-criterion__status"> · {statusText(criterion.assessment)}</span>
+              <span className="group-open:text-base group-open:font-bold group-open:tracking-[-0.01em] group-open:text-text">{criterion.criterionText}</span>
+              <span className="group-open:text-[0.82rem] group-open:font-semibold group-open:text-text-secondary"> · {statusText(criterion.assessment)}</span>
               {comparison === 'mismatch' ? (
-                <span className="llm-criterion__flag"> ⚠ Differs from your answer</span>
+                <span className="font-semibold text-danger group-open:text-[0.82rem]"> ⚠ Differs from your answer</span>
               ) : null}
             </summary>
             <p>{criterion.explanation}</p>

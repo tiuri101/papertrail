@@ -34,13 +34,13 @@ function SourceBadge({
   onSelect: (sourceId: string) => void
 }) {
   if (!sourceRef) {
-    return <span className="rq-source-badge rq-source-badge--unknown">{sourceId}</span>
+    return <span className="inline-flex cursor-default items-center rounded-full border border-primary/35 bg-primary-container px-[9px] py-[3px] text-[0.72rem] font-bold leading-[1.3] text-primary opacity-60">{sourceId}</span>
   }
   const traceable = sourceRef.evidence.some((item) => item.quote.trim().length > 0)
   return (
     <button
       type="button"
-      className={`rq-source-badge${traceable ? '' : ' rq-source-badge--untraceable'}`}
+      className={`inline-flex h-auto min-h-0 w-auto min-w-0 cursor-pointer items-center rounded-full border px-[9px] py-[3px] text-[0.72rem] font-bold leading-[1.3] shadow-none ${traceable ? 'border-primary/35 bg-primary-container text-primary hover:border-primary hover:bg-primary-container-hover aria-expanded:border-primary aria-expanded:bg-primary-container-hover' : 'border-dashed border-warning/55 bg-warning-container text-warning hover:border-warning aria-expanded:border-warning'}`}
       aria-controls={evidenceId}
       aria-expanded={expanded}
       title={traceable ? undefined : 'No traceable source quotation for this value'}
@@ -65,9 +65,9 @@ function StatementRow({
   onSourceSelect: (sourceId: string) => void
 }) {
   return (
-    <li className="rq-statement">
+    <li className="pl-1 text-text-secondary marker:text-primary">
       <p>{statement.claim}</p>
-      <div className="rq-statement__sources">
+      <div className="mt-1.5 flex flex-wrap gap-1.5">
         {statement.sourceIds.map((sourceId) => (
           <SourceBadge
             key={sourceId}
@@ -102,16 +102,16 @@ function SourceEvidenceCard({
   return (
     <article
       id={evidenceId}
-      className="rq-evidence-card rq-evidence-card--expanded"
+      className="min-w-0 rounded-md border border-primary/50 bg-surface-raised p-4 shadow-[0_0_0_2px_var(--color-primary-container)] transition-[border-color,box-shadow] duration-150"
     >
-      <header className="rq-evidence-card__header">
-        <span className="rq-evidence-card__icon" aria-hidden="true"><IconFile /></span>
-        <div>
+      <header className="flex items-center gap-2">
+        <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-primary-container text-primary [&_svg]:size-3.5 [&_svg]:fill-current" aria-hidden="true"><IconFile /></span>
+        <div className="grid min-w-0 gap-0.5 [&>strong]:text-[0.78rem] [&>strong]:text-text [&>span]:overflow-hidden [&>span]:text-ellipsis [&>span]:whitespace-nowrap [&>span]:text-xs [&>span]:text-text-muted">
           <strong>{sourceId}</strong>
           <span>{sourceRef.publicationTitle}</span>
         </div>
       </header>
-      <div className="rq-evidence-card__details">
+      <div className="mt-3 [&>.llm-evidence-list_blockquote]:mt-2 [&>.llm-evidence-list_blockquote]:bg-bg-elevated">
         <p><strong>Recorded value:</strong> {formatSourceValue(sourceRef.value)}</p>
         {traceableEvidence.length ? (
           <LlmEvidence
@@ -123,8 +123,8 @@ function SourceEvidenceCard({
           <p className="muted">No traceable source quotation for this value.</p>
         )}
       </div>
-      <div className="rq-evidence-card__footer">
-        <span className={`rq-evidence-tag rq-evidence-tag--${sourceRef.sourceType}`}>
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-[0.72rem] text-text-muted">
+        <span className={`max-w-full overflow-hidden text-ellipsis whitespace-nowrap rounded-full px-2 py-[3px] font-bold ${sourceRef.sourceType === 'quality' ? 'bg-success-container text-success' : 'bg-primary-container text-primary'}`}>
           {sourceRef.label}
         </span>
         <span>{sourceTypeLabel}</span>
@@ -132,7 +132,7 @@ function SourceEvidenceCard({
       <Button
         type="button"
         variant="text"
-        className="rq-evidence-card__toggle"
+        className="mt-2 min-h-0 text-[0.76rem]"
         onClick={onClose}
       >
         Close evidence
@@ -198,10 +198,10 @@ function ResearchQuestionCard({
     : undefined
 
   return (
-    <div className="rq-card">
-      <div className="rq-card__header">
-        <div className="rq-card__question">
-          <span className="rq-card__number">{questionLabel}</span>
+    <div className="mt-4 overflow-hidden rounded-lg border border-border bg-surface-raised shadow-sm first:mt-5">
+      <div className="flex flex-col items-stretch justify-between gap-4 bg-[radial-gradient(circle_at_100%_0,var(--color-primary-container),transparent_18rem)] p-4 min-[601px]:flex-row min-[601px]:items-start min-[601px]:p-5 [&>button]:self-start">
+        <div className="min-w-0">
+          <span className="text-[0.78rem] font-extrabold uppercase tracking-[0.09em] text-primary">{questionLabel}</span>
           <h3>{data.researchQuestionText}</h3>
         </div>
         <Button
@@ -233,17 +233,17 @@ function ResearchQuestionCard({
           {run.status === 'failed' && run.error ? (
             <p className="error" role="alert">{run.error}</p>
           ) : null}
-          <div className={`rq-card__layout${selectedSourceEntry ? '' : ' rq-card__layout--single'}`}>
-            <section className="rq-synthesis" aria-label={`Synthesis for ${questionLabel}`}>
+          <div className={`grid grid-cols-1 items-stretch border-t border-border ${selectedSourceEntry ? 'min-[901px]:grid-cols-[minmax(0,1.45fr)_minmax(280px,.85fr)]' : ''}`}>
+            <section className="min-w-0 p-4 min-[601px]:p-5" aria-label={`Synthesis for ${questionLabel}`}>
               <h4>Synthesis</h4>
-              <p className="rq-synthesis__intro">
+              <p className="mb-0 mt-2 max-w-[68ch] text-[0.9rem] leading-relaxed text-text-secondary">
                 Evidence-supported findings generated from the project&apos;s authoritative results.
               </p>
               <h5>Key findings</h5>
               {run.statements.length === 0 ? (
                 <p className="muted">No supported statements could be generated from the current data.</p>
               ) : (
-                <ul className="rq-statement-list">
+                <ul className="mt-4 grid gap-4 pl-5">
                   {run.statements.map((statement, index) => (
                     <StatementRow
                       key={index}
@@ -259,7 +259,7 @@ function ResearchQuestionCard({
                 </ul>
               )}
               {run.limitations.length > 0 ? (
-                <div className="rq-limitations">
+                <div className="mt-6 rounded-md border border-border bg-bg-elevated p-4">
                   <h5>Limitations</h5>
                   <ul>
                     {run.limitations.map((limitation, index) => <li key={index}>{limitation}</li>)}
@@ -267,11 +267,11 @@ function ResearchQuestionCard({
                 </div>
               ) : null}
               {run.generatedAt ? (
-                <p className="rq-card__generated">Generated {new Date(run.generatedAt).toLocaleDateString()}</p>
+                <p className="mb-0 mt-5 text-[0.78rem] text-text-muted">Generated {new Date(run.generatedAt).toLocaleDateString()}</p>
               ) : null}
             </section>
             {selectedSourceEntry ? (
-              <aside className="rq-evidence-panel" aria-label={`Selected evidence ${selectedSourceEntry[0]}`}>
+              <aside className="min-w-0 border-t border-border bg-bg-elevated/65 p-4 min-[601px]:p-5 min-[901px]:border-l min-[901px]:border-t-0" aria-label={`Selected evidence ${selectedSourceEntry[0]}`}>
                 <h4>Selected Evidence</h4>
                 <SourceEvidenceCard
                   sourceId={selectedSourceEntry[0]}
