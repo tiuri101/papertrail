@@ -2615,25 +2615,6 @@ form .toolbar,
   gap: 2px;
 }
 
-.publication-list__sort-button {
-  min-height: auto !important;
-  height: auto !important;
-  border: none !important;
-  background: none !important;
-  box-shadow: none !important;
-  padding: 0 !important;
-  color: var(--color-text-muted) !important;
-  font-size: inherit;
-  font-weight: inherit;
-  text-transform: inherit;
-  letter-spacing: inherit;
-}
-
-.publication-list__sort-button:hover:not(:disabled) {
-  background: none !important;
-  color: var(--color-text) !important;
-}
-
 .publication-row-grid__checkbox {
   display: flex;
   align-items: center;
@@ -8392,10 +8373,6 @@ kbd {
   overflow: hidden;
   text-overflow: ellipsis;
   vertical-align: middle;
-}
-
-.keyword-editor__delete {
-  color: var(--color-danger);
 }
 
 .keyword-editor__empty {

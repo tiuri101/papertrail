@@ -2,9 +2,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useRef, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { HighlightedText } from '../../components/HighlightedText'
 import { InfoBox } from '../../components/InfoBox'
+import { Input } from '../../components/Input'
 import { IconHighlighter, IconPlus, IconTrash } from '../../components/icons'
 
 function cleanKeywords(keywords: string[]): string[] {
@@ -85,7 +87,7 @@ export function HighlightKeywordsPanel({ projectId }: { projectId: string }) {
             <div className="keyword-editor__row" key={index}>
               <label className="keyword-editor__input">
                 <span className="visually-hidden">Keyword {index + 1}</span>
-                <input
+                <Input
                   value={keyword}
                   onChange={(event) => editKeyword(index, event.target.value)}
                 />
@@ -99,7 +101,7 @@ export function HighlightKeywordsPanel({ projectId }: { projectId: string }) {
               </span>
               <button
                 type="button"
-                className="icon-button keyword-editor__delete"
+                className="inline-flex size-10 shrink-0 items-center justify-center rounded-sm border border-border bg-transparent text-danger shadow-none transition-colors duration-150 hover:not-disabled:border-border-strong hover:not-disabled:bg-surface-hover hover:not-disabled:text-text disabled:opacity-[.48] disabled:cursor-not-allowed [&_svg]:size-5 [&_svg]:shrink-0 [&_svg]:fill-current"
                 aria-label={`Delete keyword ${index + 1}`}
                 onClick={() => deleteKeyword(index)}
               >
@@ -118,16 +120,16 @@ export function HighlightKeywordsPanel({ projectId }: { projectId: string }) {
       >
         <label htmlFor={newKeywordId}>Add a keyword</label>
         <div className="keyword-editor__add-controls">
-          <input
+          <Input
             id={newKeywordId}
             value={newKeyword}
             onChange={(event) => setNewKeyword(event.target.value)}
             placeholder="Enter a word or phrase"
           />
-          <button type="submit" disabled={!newKeyword.trim()}>
+          <Button type="submit" disabled={!newKeyword.trim()}>
             <IconPlus />
             Add keyword
-          </button>
+          </Button>
         </div>
       </form>
       {save.error ? <p className="error" role="alert">{save.error.message}</p> : null}

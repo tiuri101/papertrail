@@ -6,6 +6,7 @@ import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { CountPill } from '../../components/CountPill'
 import { InfoBox } from '../../components/InfoBox'
 import { IconSwap } from '../../components/icons'
+import { SortableColumnHeader } from '../../components/SortableColumnHeader'
 import type { User } from '../auth/types'
 
 type RoleKey = 'canTitleAbstractScreen' | 'canFullTextScreen'
@@ -80,13 +81,13 @@ function SortableHeader({
   order: 'asc' | 'desc'
   onSort: (key: string) => void
 }) {
-  const active = sort === column.key
   return (
-    <th scope="col" aria-sort={active ? (order === 'asc' ? 'ascending' : 'descending') : 'none'}>
-      <button type="button" className="link-button" onClick={() => onSort(column.key)}>
-        {column.label}{active ? (order === 'asc' ? ' ▲' : ' ▼') : ''}
-      </button>
-    </th>
+    <SortableColumnHeader
+      label={column.label}
+      active={sort === column.key}
+      direction={order}
+      onSort={() => onSort(column.key)}
+    />
   )
 }
 
