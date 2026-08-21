@@ -4,6 +4,7 @@ import { Link, useParams, useSearchParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { Badge } from '../../components/Badge'
+import { Button } from '../../components/Button'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { DoiPill } from '../../components/DoiPill'
 import {
@@ -259,7 +260,7 @@ export function PublicationDetailPage() {
           {openedFromList ? (
             <Link to={`/projects/${projectId}/publications`}>← Back to Publications</Link>
           ) : (
-            <button type="button" className="link-button" onClick={closeEditing}>← Back to Publication</button>
+            <Button type="button" variant="text" onClick={closeEditing}>← Back to Publication</Button>
           )}
         </p>
         <h1>Edit publication</h1>

@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom'
 import { apiRequest } from '../../api/client'
 import { Button } from '../../components/Button'
 import { IconArrowRight } from '../../components/icons'
+import { Input } from '../../components/Input'
 import { ThemeToggle } from '../../components/ThemeToggle'
 
 export function ForgotPasswordPage() {
@@ -39,7 +40,7 @@ export function ForgotPasswordPage() {
           <form onSubmit={(event) => { event.preventDefault(); requestReset.mutate() }}>
             <label>
               Email address
-              <input
+              <Input
                 type="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
@@ -56,7 +57,7 @@ export function ForgotPasswordPage() {
             </Button>
           </form>
         )}
-        <Link to="/login" className="link-button">Back to sign in</Link>
+        <Button as={Link} to="/login" variant="text" className="mt-6">Back to sign in</Button>
       </section>
     </main>
   )

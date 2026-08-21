@@ -3,8 +3,10 @@ import { useMemo, useState, type CSSProperties } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
 import { CountPill } from '../../components/CountPill'
 import { IconGear, IconPlus, IconSearch } from '../../components/icons'
+import { Select } from '../../components/Select'
 import { ProjectProgressDots, STAGES } from './StageProgress'
 
 interface Project {
@@ -177,10 +179,10 @@ export function ProjectsPage() {
               placeholder="Search projects…"
             />
           </label>
-          <button type="button" onClick={() => navigate('/projects/new')}>
+          <Button type="button" onClick={() => navigate('/projects/new')}>
             <IconPlus />
             New Project
-          </button>
+          </Button>
         </div>
       </div>
       {projects.isLoading ? <p>Loading…</p> : null}
@@ -189,45 +191,45 @@ export function ProjectsPage() {
         <section className="project-filters" aria-label="Project filters">
           <label>
             <span className="visually-hidden">Stage</span>
-            <select value={stageFilter} onChange={(event) => setStageFilter(event.target.value)}>
+            <Select value={stageFilter} onChange={(event) => setStageFilter(event.target.value)}>
               <option value="">All Status</option>
               {STAGES.map((stage) => (
                 <option key={stage.value} value={stage.value}>{formatStage(stage.value)}</option>
               ))}
-            </select>
+            </Select>
           </label>
           <label>
             <span className="visually-hidden">My role</span>
-            <select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)}>
+            <Select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)}>
               <option value="">All Roles</option>
               {Object.entries(roleLabels)
                 .filter(([value]) => value !== 'administrator')
                 .map(([value, label]) => (
                   <option key={value} value={value}>{label}</option>
                 ))}
-            </select>
+            </Select>
           </label>
           <label>
             <span className="visually-hidden">Project type</span>
-            <select value={reviewTypeFilter} onChange={(event) => setReviewTypeFilter(event.target.value)}>
+            <Select value={reviewTypeFilter} onChange={(event) => setReviewTypeFilter(event.target.value)}>
               <option value="">All Types</option>
               {Object.entries(reviewTypeLabels).map(([value, label]) => (
                 <option key={value} value={value}>{label}</option>
               ))}
-            </select>
+            </Select>
           </label>
           <label>
             <span className="visually-hidden">Project owner</span>
-            <select value={ownerFilter} onChange={(event) => setOwnerFilter(event.target.value)}>
+            <Select value={ownerFilter} onChange={(event) => setOwnerFilter(event.target.value)}>
               <option value="">All Owners</option>
               {owners.map(([id, displayName]) => (
                 <option key={id} value={id}>{displayName}</option>
               ))}
-            </select>
+            </Select>
           </label>
-          <button type="button" className="button-secondary" disabled={!hasFilters} onClick={clearFilters}>
+          <Button type="button" variant="secondary" disabled={!hasFilters} onClick={clearFilters}>
             Clear filters
-          </button>
+          </Button>
         </section>
       ) : null}
       {projects.data ? (
@@ -285,7 +287,7 @@ export function ProjectsPage() {
                 Updated <time dateTime={project.updatedAt}>{formatRelativeTime(project.updatedAt)}</time>
               </span>
               <div className="project-card__actions">
-                <Link className="button-secondary" to={`/projects/${project.id}`}>Open Project</Link>
+                <Button as={Link} variant="secondary" to={`/projects/${project.id}`}>Open Project</Button>
                 {project.myRole !== 'reviewer' ? (
                   <Link
                     className="project-card__menu"
