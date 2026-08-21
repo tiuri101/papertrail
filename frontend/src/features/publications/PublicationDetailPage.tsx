@@ -360,25 +360,36 @@ export function PublicationDetailPage() {
             ) : null}
 
             {activeTab === 'details' ? (
-              <dl className="detail-list">
-                {DETAIL_FIELDS.map((field) => {
-                  const value = field.value(publication)
-                  return (
-                    <div key={field.label} className="detail-list__row">
-                      <dt>{field.label}</dt>
-                      <dd>
-                        {!value ? (
-                          <span className="muted">-</span>
-                        ) : field.label === 'DOI' ? (
-                          <a href={`https://doi.org/${value}`} target="_blank" rel="noopener noreferrer">{value}</a>
-                        ) : (
-                          value
-                        )}
-                      </dd>
-                    </div>
-                  )
-                })}
-              </dl>
+              <div className="table-scroll">
+                <table>
+                  <caption className="visually-hidden">Publication details</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Field</th>
+                      <th scope="col">Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {DETAIL_FIELDS.map((field) => {
+                      const value = field.value(publication)
+                      return (
+                        <tr key={field.label}>
+                          <th scope="row">{field.label}</th>
+                          <td>
+                            {!value ? (
+                              <span className="muted">-</span>
+                            ) : field.label === 'DOI' ? (
+                              <a href={`https://doi.org/${value}`} target="_blank" rel="noopener noreferrer">{value}</a>
+                            ) : (
+                              value
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
             ) : null}
 
             {activeTab === 'history' ? (
