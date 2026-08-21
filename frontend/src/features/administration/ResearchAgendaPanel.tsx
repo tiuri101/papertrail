@@ -363,7 +363,9 @@ export function ResearchQuestionsPanel({
                 required
               />
             </label>
-            <button type="submit" disabled={addQuestion.isPending}><IconPlus />Add Research Question</button>
+            <Button type="submit" disabled={addQuestion.isPending} startIcon={<IconPlus />}>
+              Add Research Question
+            </Button>
           </form>
         </>
       ) : null}
@@ -595,7 +597,9 @@ export function CriteriaPanel({
                 required
               />
             </label>
-            <button type="submit" disabled={addCriterion.isPending}><IconPlus />Add Criterion</button>
+            <Button type="submit" disabled={addCriterion.isPending} startIcon={<IconPlus />}>
+              Add Criterion
+            </Button>
           </form>
         </>
       ) : null}

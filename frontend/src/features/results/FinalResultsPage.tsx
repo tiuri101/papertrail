@@ -281,7 +281,7 @@ export function FinalResultsPage() {
           {sortedItems.length === 0 ? (
             <p>No publications match your search.</p>
           ) : (
-            <div style={{ overflowX: 'auto' }}>
+            <div className="overflow-x-auto">
               <table>
                 <thead>
                   <tr>
