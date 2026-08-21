@@ -33,9 +33,14 @@ const base =
 // `iconOnlySizes` would then need to out-rank: Tailwind v4 orders same-property utilities by
 // its own internal scale, not by className string order, so two competing `[&_svg]:size-*`
 // rules of equal specificity would NOT reliably resolve in the order they're written.
+//
+// `min-h-*` alongside `h-*` isn't redundant: the legacy bare `button { min-height: 40px }` rule
+// still applies to every button-tag element (nothing else here overrides that specific
+// longhand), so without an explicit min-h-* utility a "sm" button's own `h-8` is capped from
+// below at 40px anyway, silently rendering "sm" the same size as "md" everywhere.
 const heights: Record<ButtonSize, string> = {
-  md: 'h-10 [&_svg]:size-4',
-  sm: 'h-8 text-[13px] [&_svg]:size-4',
+  md: 'h-10 min-h-10 [&_svg]:size-4',
+  sm: 'h-8 min-h-8 text-[13px] [&_svg]:size-4',
 }
 
 // Kept separate from `heights` so the `text` variant's narrower padding never has to
@@ -47,8 +52,8 @@ const paddingX: Record<ButtonSize, string> = {
 
 // Icon-only buttons keep the legacy 20px icon size (vs. 16px for a labelled button).
 const iconOnlySizes: Record<ButtonSize, string> = {
-  md: 'h-10 w-10 min-w-10 px-0 [&_svg]:size-5',
-  sm: 'h-8 w-8 min-w-8 px-0 [&_svg]:size-5',
+  md: 'h-10 min-h-10 w-10 min-w-10 px-0 [&_svg]:size-5',
+  sm: 'h-8 min-h-8 w-8 min-w-8 px-0 [&_svg]:size-5',
 }
 
 // Colors below are the values actually rendered today (verified against a live render of
@@ -60,23 +65,27 @@ const variants: Record<ButtonVariant, string> = {
     'border border-(--button-primary-border) bg-linear-to-b from-(--button-primary-bg-hover) to-(--button-primary-bg) text-(--button-primary-text) shadow-[0_1px_2px_rgba(0,0,0,0.22),inset_0_1px_0_rgba(255,255,255,0.14)] ' +
     'hover:not-disabled:border-[#a1b0ff] hover:not-disabled:bg-none hover:not-disabled:bg-transparent hover:not-disabled:text-(--button-primary-bg-hover) hover:not-disabled:shadow-[inset_0_0_0_1px_var(--button-primary-border)] ' +
     'active:not-disabled:bg-(--button-primary-bg-active) active:not-disabled:translate-y-px active:not-disabled:shadow-[0_1px_2px_rgba(0,0,0,0.18)]',
+  // `bg-none` on every non-primary variant cancels the legacy bare-<button> rule's
+  // `background: linear-gradient(...)` — that shorthand sets background-image, a different
+  // longhand than these variants' own `bg-*` (background-color), so nothing here would
+  // otherwise override it, and it would paint over the intended flat background-color.
   secondary:
-    'border border-border bg-surface-raised text-text-secondary ' +
+    'bg-none border border-border bg-surface-raised text-text-secondary ' +
     'hover:not-disabled:border-border-strong hover:not-disabled:bg-surface-hover hover:not-disabled:text-text ' +
     'active:not-disabled:bg-surface-hover active:not-disabled:text-text active:not-disabled:translate-y-px',
   ghost:
-    'border border-transparent bg-transparent text-text-secondary ' +
+    'bg-none border border-transparent bg-transparent text-text-secondary ' +
     'hover:not-disabled:border-white/7 hover:not-disabled:bg-surface-hover hover:not-disabled:text-text ' +
     'active:not-disabled:bg-surface-hover active:not-disabled:text-text active:not-disabled:translate-y-px',
   text:
-    'border border-transparent bg-transparent text-primary ' +
+    'bg-none border border-transparent bg-transparent text-primary ' +
     'hover:not-disabled:text-primary-strong hover:not-disabled:underline hover:not-disabled:underline-offset-[3px]',
   destructive:
-    'border border-[rgba(255,127,130,0.28)] bg-danger-container text-danger ' +
+    'bg-none border border-[rgba(255,127,130,0.28)] bg-danger-container text-danger ' +
     'hover:not-disabled:border-danger hover:not-disabled:bg-danger-strong hover:not-disabled:text-white ' +
     'active:not-disabled:bg-danger-strong active:not-disabled:text-white active:not-disabled:translate-y-px',
   success:
-    'border border-transparent bg-success text-primary-contrast shadow-md ' +
+    'bg-none border border-transparent bg-success text-primary-contrast shadow-md ' +
     'hover:not-disabled:bg-[color-mix(in_srgb,var(--color-success)_85%,black)] hover:not-disabled:shadow-lg',
 }
 
