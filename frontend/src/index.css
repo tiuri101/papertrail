@@ -3071,11 +3071,6 @@ form .toolbar,
   margin: 0 0 var(--space-3);
 }
 
-.publication-detail__history-meta {
-  margin: 0 0 var(--space-1);
-  font-size: 0.82rem;
-}
-
 @media (max-width: 960px) {
   .publication-detail__layout {
     grid-template-columns: minmax(0, 1fr);

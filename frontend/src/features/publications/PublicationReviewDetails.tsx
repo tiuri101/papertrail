@@ -318,41 +318,43 @@ export function PublicationReviewDetails({
               <p className="muted">No screening decisions have been recorded.</p>
             ) : null}
 
-            <section className="publication-review-details__extraction">
-              <div className="publication-review-details__heading">
-                <h4>Data extraction</h4>
-                {extraction ? <span className="status-badge">{extraction.status.replaceAll('_', ' ')}</span> : null}
-              </div>
-              {response ? (
-                <>
-                  <p className="muted publication-review-details__meta">
-                    Version {response.version}{response.reviewerName ? ` by ${response.reviewerName}` : ''}
-                    {formatDate(extraction?.completedAt) ? ` on ${formatDate(extraction?.completedAt)}` : ''}
-                  </p>
-                  <dl className="publication-review-details__values">
-                    {response.fields.map((field) => (
-                      <div key={field.stableKey}>
-                        <dt>{field.label}</dt>
-                        <dd>{valueLabel(response.answers[field.stableKey])}</dd>
-                      </div>
-                    ))}
-                  </dl>
-                  {canManage ? (
-                    <button
-                      type="button"
-                      className="button-secondary button-sm"
-                      onClick={() => {
-                        setExtractionAnswers({ ...response.answers })
-                        setExtractionReason('')
-                        setEditingExtraction(true)
-                      }}
-                    >
-                      Override data extraction
-                    </button>
-                  ) : null}
-                </>
-              ) : <p className="muted">No completed data extraction is available.</p>}
-            </section>
+            {extraction ? (
+              <section className="publication-review-details__extraction">
+                <div className="publication-review-details__heading">
+                  <h4>Data extraction</h4>
+                  <span className="status-badge">{extraction.status.replaceAll('_', ' ')}</span>
+                </div>
+                {response ? (
+                  <>
+                    <p className="muted publication-review-details__meta">
+                      Version {response.version}{response.reviewerName ? ` by ${response.reviewerName}` : ''}
+                      {formatDate(extraction.completedAt) ? ` on ${formatDate(extraction.completedAt)}` : ''}
+                    </p>
+                    <dl className="publication-review-details__values">
+                      {response.fields.map((field) => (
+                        <div key={field.stableKey}>
+                          <dt>{field.label}</dt>
+                          <dd>{valueLabel(response.answers[field.stableKey])}</dd>
+                        </div>
+                      ))}
+                    </dl>
+                    {canManage ? (
+                      <button
+                        type="button"
+                        className="button-secondary button-sm"
+                        onClick={() => {
+                          setExtractionAnswers({ ...response.answers })
+                          setExtractionReason('')
+                          setEditingExtraction(true)
+                        }}
+                      >
+                        Override data extraction
+                      </button>
+                    ) : null}
+                  </>
+                ) : <p className="muted">No completed data extraction is available.</p>}
+              </section>
+            ) : null}
 
             {responseOverride ? (
               <form
