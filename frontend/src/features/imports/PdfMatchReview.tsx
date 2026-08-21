@@ -144,12 +144,12 @@ export function PdfMatchReview({ projectId, importBatchId }: {
       {review.error ? <p className="error" role="alert">{review.error.message}</p> : null}
       <label>
         PDF match filter
-        <select value={filter} onChange={(event) => setFilter(event.target.value)}>
+        <Select value={filter} onChange={(event) => setFilter(event.target.value)}>
           <option value="needs_review">Needs review{needsReviewCount !== undefined ? ` (${needsReviewCount})` : ''}</option>
           <option value="unmatched">Unmatched{counts ? ` (${counts.unmatched ?? 0})` : ''}</option>
           <option value="conflict_existing_pdf">Existing-PDF conflicts{counts ? ` (${counts.conflict_existing_pdf ?? 0})` : ''}</option>
           <option value="all">All{counts ? ` (${counts.total ?? 0})` : ''}</option>
-        </select>
+        </Select>
       </label>
       {review.data ? (
         <CountPill count={items.length}>

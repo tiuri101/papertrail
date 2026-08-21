@@ -9,7 +9,9 @@ import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { CountPill } from '../../components/CountPill'
 import { DateField } from '../../components/DateField'
 import { IconClock, IconPerson, IconTrash, IconUpload } from '../../components/icons'
+import { Input } from '../../components/Input'
 import { useRegisterSectionItems } from '../../components/sectionNavigation'
+import { Textarea } from '../../components/Textarea'
 import { InfoTooltip } from '../../components/Tooltip'
 import { getCsrfToken } from '../auth/session'
 import { BackgroundJob, findJob, hasActiveJob, isJobActive } from '../jobs/jobStatus'
@@ -251,16 +253,16 @@ export function ImportPage() {
         <form onSubmit={(event) => { event.preventDefault(); submit.mutate() }}>
           <label>
             Database
-            <input value={sourceName} onChange={(event) => setSourceName(event.target.value)} required />
+            <Input value={sourceName} onChange={(event) => setSourceName(event.target.value)} required />
           </label>
           <label>
             Search string
-            <textarea value={query} onChange={(event) => setQuery(event.target.value)} rows={2} required />
+            <Textarea value={query} onChange={(event) => setQuery(event.target.value)} rows={2} required />
           </label>
           <DateField label="Search date" value={searchDate} onChange={setSearchDate} required />
           <label>
             Filters applied (optional)
-            <input value={filters} onChange={(event) => setFilters(event.target.value)} />
+            <Input value={filters} onChange={(event) => setFilters(event.target.value)} />
           </label>
           <FileDropZone
             id="bibliographic-export"

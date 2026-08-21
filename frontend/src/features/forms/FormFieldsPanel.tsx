@@ -7,6 +7,9 @@ import { Button, IconButton } from '../../components/Button'
 import { DragHandle } from '../../components/DragHandle'
 import { IconCheckCircle, IconDownload, IconPlus, IconTrash } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
+import { Input } from '../../components/Input'
+import { Select } from '../../components/Select'
+import { Textarea } from '../../components/Textarea'
 import { DynamicForm } from './DynamicForm'
 import {
   buildScoring,
@@ -399,7 +402,7 @@ export function FormFieldsPanel({
       {isQualityForm ? (
         <div className="quality-settings-fields">
           <label>
-            <input
+            <Input
               type="checkbox"
               checked={qcEnabled}
               onChange={(event) => updateQualityConfig({
@@ -411,7 +414,7 @@ export function FormFieldsPanel({
           <div className="quality-settings-selects">
             <label>
               Mode
-              <select
+              <Select
                 value={qcMode}
                 onChange={(event) => updateQualityConfig({
                   enabled: qcEnabled, mode: event.target.value, aggregation: qcAggregation, allocationMode: qcAllocationMode,
@@ -420,11 +423,11 @@ export function FormFieldsPanel({
                 <option value="qualitative">Qualitative only</option>
                 <option value="numeric">Numerical scoring only</option>
                 <option value="both">Both</option>
-              </select>
+              </Select>
             </label>
             <label>
               Aggregation
-              <select
+              <Select
                 value={qcAggregation}
                 onChange={(event) => updateQualityConfig({
                   enabled: qcEnabled, mode: qcMode, aggregation: event.target.value, allocationMode: qcAllocationMode,
@@ -433,11 +436,11 @@ export function FormFieldsPanel({
                 <option value="sum">Simple sum</option>
                 <option value="average">Average</option>
                 <option value="weighted_average">Weighted average</option>
-              </select>
+              </Select>
             </label>
             <label>
               Allocation
-              <select
+              <Select
                 value={qcAllocationMode}
                 onChange={(event) => updateQualityConfig({
                   enabled: qcEnabled, mode: qcMode, aggregation: qcAggregation,
@@ -447,7 +450,7 @@ export function FormFieldsPanel({
                 {(Object.keys(TASK_ALLOCATION_MODE_LABELS) as TaskAllocationMode[]).map((value) => (
                   <option key={value} value={value}>{TASK_ALLOCATION_MODE_LABELS[value]}</option>
                 ))}
-              </select>
+              </Select>
             </label>
           </div>
           {saveQualityConfig.error ? <p className="error" role="alert">{saveQualityConfig.error.message}</p> : null}
@@ -459,14 +462,14 @@ export function FormFieldsPanel({
         <div className="quality-settings-fields">
           <label>
             Allocation
-            <select
+            <Select
               value={extractionAllocationMode}
               onChange={(event) => updateExtractionAllocationMode(event.target.value as TaskAllocationMode)}
             >
               {(Object.keys(TASK_ALLOCATION_MODE_LABELS) as TaskAllocationMode[]).map((value) => (
                 <option key={value} value={value}>{TASK_ALLOCATION_MODE_LABELS[value]}</option>
               ))}
-            </select>
+            </Select>
           </label>
           {saveExtractionConfig.error ? <p className="error" role="alert">{saveExtractionConfig.error.message}</p> : null}
           <p className="muted" aria-live="polite">
@@ -482,16 +485,16 @@ export function FormFieldsPanel({
         }}>
           <label>
             Name
-            <input value={name} onChange={(event) => setName(event.target.value)} required />
+            <Input value={name} onChange={(event) => setName(event.target.value)} required />
           </label>
           <label>
             Start from template (optional)
-            <select value={templateId} onChange={(event) => setTemplateId(event.target.value)}>
+            <Select value={templateId} onChange={(event) => setTemplateId(event.target.value)}>
               <option value="">From scratch</option>
               {templatesForKind.map((template) => (
                 <option key={template.id} value={template.id}>{template.name}</option>
               ))}
-            </select>
+            </Select>
           </label>
           {templates.error ? <p className="error" role="alert">{templates.error.message}</p> : null}
           <Button type="submit" variant="primary" loading={createForm.isPending}>
@@ -507,18 +510,18 @@ export function FormFieldsPanel({
               <form onSubmit={(event) => { event.preventDefault(); addField.mutate() }}>
             <label>
               Label
-              <input value={fieldLabel} onChange={(event) => setFieldLabel(event.target.value)} required />
+              <Input value={fieldLabel} onChange={(event) => setFieldLabel(event.target.value)} required />
             </label>
             <label>
               Type
-              <select value={fieldType} onChange={(event) => setFieldType(event.target.value)}>
+              <Select value={fieldType} onChange={(event) => setFieldType(event.target.value)}>
                 {fieldTypes.map((type) => (
                   <option key={type} value={type}>{fieldTypeLabels[type] ?? type}</option>
                 ))}
-              </select>
+              </Select>
             </label>
             <label>
-              <input
+              <Input
                 type="checkbox"
                 checked={required}
                 onChange={(event) => setRequired(event.target.checked)}
@@ -528,7 +531,7 @@ export function FormFieldsPanel({
             {showOptions ? (
               <label>
                 Options (one per line)
-                <textarea
+                <Textarea
                   value={optionsText}
                   onChange={(event) => setOptionsText(event.target.value)}
                   rows={4}
@@ -539,18 +542,18 @@ export function FormFieldsPanel({
               <>
                 <label>
                   Scale minimum
-                  <input type="number" value={ratingMin} onChange={(event) => setRatingMin(event.target.value)} />
+                  <Input type="number" value={ratingMin} onChange={(event) => setRatingMin(event.target.value)} />
                 </label>
                 <label>
                   Scale maximum
-                  <input type="number" value={ratingMax} onChange={(event) => setRatingMax(event.target.value)} />
+                  <Input type="number" value={ratingMax} onChange={(event) => setRatingMax(event.target.value)} />
                 </label>
               </>
             ) : null}
             {isQualityForm && weightedFieldTypes.has(fieldType) ? (
               <label>
                 Score weight
-                <input type="number" value={weight} onChange={(event) => setWeight(event.target.value)} />
+                <Input type="number" value={weight} onChange={(event) => setWeight(event.target.value)} />
               </label>
             ) : null}
             {isQualityForm && fieldType === 'single_select' ? (
@@ -560,7 +563,7 @@ export function FormFieldsPanel({
                 {options.map((option) => (
                   <label key={option}>
                     {option}
-                    <input
+                    <Input
                       type="number"
                       value={optionScores[option] ?? ''}
                       onChange={(event) => setOptionScores((current) => ({ ...current, [option]: event.target.value }))}
@@ -573,11 +576,11 @@ export function FormFieldsPanel({
               <>
                 <label>
                   Score if checked
-                  <input type="number" value={trueScore} onChange={(event) => setTrueScore(event.target.value)} />
+                  <Input type="number" value={trueScore} onChange={(event) => setTrueScore(event.target.value)} />
                 </label>
                 <label>
                   Score if unchecked
-                  <input type="number" value={falseScore} onChange={(event) => setFalseScore(event.target.value)} />
+                  <Input type="number" value={falseScore} onChange={(event) => setFalseScore(event.target.value)} />
                 </label>
               </>
             ) : null}
@@ -681,7 +684,7 @@ export function FormFieldsPanel({
                         <>
                           <label>
                             Label
-                            <input
+                            <Input
                               aria-label={`Edit label for ${field.label}`}
                               value={editingLabel}
                               onChange={(event) => setEditingLabel(event.target.value)}
@@ -689,7 +692,7 @@ export function FormFieldsPanel({
                           </label>
                           <label>
                             Type
-                            <select
+                            <Select
                               aria-label={`Edit type for ${field.label}`}
                               value={editingType}
                               onChange={(event) => setEditingType(event.target.value)}
@@ -697,10 +700,10 @@ export function FormFieldsPanel({
                               {fieldTypes.map((type) => (
                                 <option key={type} value={type}>{fieldTypeLabels[type] ?? type}</option>
                               ))}
-                            </select>
+                            </Select>
                           </label>
                           <label>
-                            <input
+                            <Input
                               type="checkbox"
                               aria-label={`Edit required for ${field.label}`}
                               checked={editingRequired}
@@ -711,7 +714,7 @@ export function FormFieldsPanel({
                           {selectFieldTypes.has(editingType) ? (
                             <label>
                               Options (one per line)
-                              <textarea
+                              <Textarea
                                 aria-label={`Edit options for ${field.label}`}
                                 value={editingOptionsText}
                                 onChange={(event) => setEditingOptionsText(event.target.value)}
@@ -723,7 +726,7 @@ export function FormFieldsPanel({
                             <div className="form-editor-field__settings-row">
                               <label>
                                 Scale minimum
-                                <input
+                                <Input
                                   type="number"
                                   aria-label={`Edit scale minimum for ${field.label}`}
                                   value={editingRatingMin}
@@ -732,7 +735,7 @@ export function FormFieldsPanel({
                               </label>
                               <label>
                                 Scale maximum
-                                <input
+                                <Input
                                   type="number"
                                   aria-label={`Edit scale maximum for ${field.label}`}
                                   value={editingRatingMax}
@@ -744,7 +747,7 @@ export function FormFieldsPanel({
                           {isQualityForm && weightedFieldTypes.has(editingType) ? (
                             <label>
                               Score weight
-                              <input
+                              <Input
                                 type="number"
                                 aria-label={`Edit score weight for ${field.label}`}
                                 value={editingWeight}
@@ -759,7 +762,7 @@ export function FormFieldsPanel({
                               {editingOptions.map((option) => (
                                 <label key={option}>
                                   {option}
-                                  <input
+                                  <Input
                                     type="number"
                                     aria-label={`Edit score for ${option}`}
                                     value={editingOptionScores[option] ?? ''}
@@ -776,7 +779,7 @@ export function FormFieldsPanel({
                             <div className="form-editor-field__settings-row">
                               <label>
                                 Score if checked
-                                <input
+                                <Input
                                   type="number"
                                   aria-label={`Edit checked score for ${field.label}`}
                                   value={editingTrueScore}
@@ -785,7 +788,7 @@ export function FormFieldsPanel({
                               </label>
                               <label>
                                 Score if unchecked
-                                <input
+                                <Input
                                   type="number"
                                   aria-label={`Edit unchecked score for ${field.label}`}
                                   value={editingFalseScore}
@@ -869,7 +872,7 @@ export function FormFieldsPanel({
                   >
                     <label>
                       Label
-                      <input
+                      <Input
                         value={fieldLabel}
                         onChange={(event) => setFieldLabel(event.target.value)}
                         autoFocus
@@ -878,14 +881,14 @@ export function FormFieldsPanel({
                     </label>
                     <label>
                       Type
-                      <select value={fieldType} onChange={(event) => setFieldType(event.target.value)}>
+                      <Select value={fieldType} onChange={(event) => setFieldType(event.target.value)}>
                         {fieldTypes.map((type) => (
                           <option key={type} value={type}>{fieldTypeLabels[type] ?? type}</option>
                         ))}
-                      </select>
+                      </Select>
                     </label>
                     <label>
-                      <input
+                      <Input
                         type="checkbox"
                         checked={required}
                         onChange={(event) => setRequired(event.target.checked)}
@@ -895,7 +898,7 @@ export function FormFieldsPanel({
                     {showOptions ? (
                       <label>
                         Options (one per line)
-                        <textarea
+                        <Textarea
                           value={optionsText}
                           onChange={(event) => setOptionsText(event.target.value)}
                           rows={4}
@@ -906,18 +909,18 @@ export function FormFieldsPanel({
                       <div className="form-editor-field__settings-row">
                         <label>
                           Scale minimum
-                          <input type="number" value={ratingMin} onChange={(event) => setRatingMin(event.target.value)} />
+                          <Input type="number" value={ratingMin} onChange={(event) => setRatingMin(event.target.value)} />
                         </label>
                         <label>
                           Scale maximum
-                          <input type="number" value={ratingMax} onChange={(event) => setRatingMax(event.target.value)} />
+                          <Input type="number" value={ratingMax} onChange={(event) => setRatingMax(event.target.value)} />
                         </label>
                       </div>
                     ) : null}
                     {isQualityForm && weightedFieldTypes.has(fieldType) ? (
                       <label>
                         Score weight
-                        <input type="number" value={weight} onChange={(event) => setWeight(event.target.value)} />
+                        <Input type="number" value={weight} onChange={(event) => setWeight(event.target.value)} />
                       </label>
                     ) : null}
                     {isQualityForm && fieldType === 'single_select' ? (
@@ -927,7 +930,7 @@ export function FormFieldsPanel({
                         {options.map((option) => (
                           <label key={option}>
                             {option}
-                            <input
+                            <Input
                               type="number"
                               value={optionScores[option] ?? ''}
                               onChange={(event) => setOptionScores((current) => ({
@@ -943,11 +946,11 @@ export function FormFieldsPanel({
                       <div className="form-editor-field__settings-row">
                         <label>
                           Score if checked
-                          <input type="number" value={trueScore} onChange={(event) => setTrueScore(event.target.value)} />
+                          <Input type="number" value={trueScore} onChange={(event) => setTrueScore(event.target.value)} />
                         </label>
                         <label>
                           Score if unchecked
-                          <input type="number" value={falseScore} onChange={(event) => setFalseScore(event.target.value)} />
+                          <Input type="number" value={falseScore} onChange={(event) => setFalseScore(event.target.value)} />
                         </label>
                       </div>
                     ) : null}

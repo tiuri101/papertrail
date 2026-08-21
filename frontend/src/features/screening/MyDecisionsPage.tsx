@@ -10,7 +10,9 @@ import { DoiPill } from '../../components/DoiPill'
 import { HighlightedText } from '../../components/HighlightedText'
 import { IconAlertTriangle } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
+import { Input } from '../../components/Input'
 import { OutcomeBadge } from '../../components/OutcomeBadge'
+import { Select } from '../../components/Select'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 import { ScreeningLlmPanel } from '../llm/LlmTaskComponents'
 import { StageEyebrow } from '../projects/StageEyebrow'
@@ -431,7 +433,7 @@ export function MyDecisionsPage() {
               <div className="toolbar">
                 <label className="paper-search-field">
                   Search papers
-                  <input
+                  <Input
                     type="search"
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
@@ -440,15 +442,15 @@ export function MyDecisionsPage() {
                 </label>
                 <label>
                   Decision
-                  <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                  <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
                     {decisionFilterOptions
                       .filter((option) => !option.fullTextOnly || stage === 'full_text')
                       .map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                  </select>
+                  </Select>
                 </label>
                 <label>
                   Sort by
-                  <select
+                  <Select
                     value={`${sortKey}:${sortDirection}`}
                     onChange={(event) => {
                       const [key, direction] = event.target.value.split(':') as [DecisionSortKey, SortDirection]
@@ -466,7 +468,7 @@ export function MyDecisionsPage() {
                     <option value="venue:desc">Venue Z–A</option>
                     <option value="decision:asc">Decision A–Z</option>
                     <option value="decision:desc">Decision Z–A</option>
-                  </select>
+                  </Select>
                 </label>
               </div>
             </>

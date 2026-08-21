@@ -7,7 +7,9 @@ import { Button } from '../../components/Button'
 import { CountPill } from '../../components/CountPill'
 import { DoiPill } from '../../components/DoiPill'
 import { HighlightedText } from '../../components/HighlightedText'
+import { Input } from '../../components/Input'
 import { PublicationListSortHeader } from '../../components/PublicationListSortHeader'
+import { Select } from '../../components/Select'
 import { Tooltip } from '../../components/Tooltip'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 import { LlmEvidence, type LlmEvidenceItem } from '../llm/LlmTaskComponents'
@@ -279,11 +281,11 @@ export function ValidationReviewPage() {
           <div className="toolbar">
             <label className="paper-search-field">
               Search papers
-              <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Title, author, DOI…" />
+              <Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Title, author, DOI…" />
             </label>
             <label className="review-work-mobile-sort">
               Sort by
-              <select value={`${sortKey}:${sortDirection}`} onChange={(event) => {
+              <Select value={`${sortKey}:${sortDirection}`} onChange={(event) => {
                 const [key, direction] = event.target.value.split(':') as [ValidationSortKey, SortDirection]
                 setSortKey(key)
                 setSortDirection(direction)
@@ -298,7 +300,7 @@ export function ValidationReviewPage() {
                 <option value="venue:desc">Venue Z–A</option>
                 <option value="status:asc">Status A–Z</option>
                 <option value="status:desc">Status Z–A</option>
-              </select>
+              </Select>
             </label>
           </div>
         </>
