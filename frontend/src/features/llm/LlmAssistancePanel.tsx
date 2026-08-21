@@ -474,6 +474,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
                   Require evidence
                 </label>
                 <InfoTooltip
+                  className="absolute top-1/2 left-full -translate-y-1/2"
                   label="About requiring evidence"
                   text="Require the LLM to support a returned value with a quote from the publication. Papertrail verifies the quote against the cited PDF page and flags missing or unverifiable evidence."
                 />
@@ -488,6 +489,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
                   Allow inferred values
                 </label>
                 <InfoTooltip
+                  className="absolute top-1/2 left-full -translate-y-1/2"
                   label="About inferred values"
                   text="Allow the LLM to derive a value from information in the paper when it is not stated directly. Inferred results are rejected when this is turned off."
                 />
