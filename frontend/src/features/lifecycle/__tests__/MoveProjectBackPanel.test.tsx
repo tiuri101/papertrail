@@ -13,7 +13,7 @@ describe('MoveProjectBackPanel', () => {
     const moveBackSection = (await screen.findByRole('heading', { name: 'Move Project Back' }))
       .closest('section')
     expect(moveBackSection).toHaveClass('card')
-    expect(moveBackSection).toHaveClass('danger-zone')
+    expect(moveBackSection).toHaveAttribute('id', 'section-move-project-back')
     expect(screen.getByRole('option', { name: 'Duplicate Review' })).toBeInTheDocument()
     expect(screen.getByRole('option', { name: 'Title Abstract Screening' })).toBeInTheDocument()
     expect(screen.queryByRole('option', { name: 'Extraction Quality' })).not.toBeInTheDocument()

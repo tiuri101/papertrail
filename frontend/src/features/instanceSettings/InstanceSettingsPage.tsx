@@ -286,14 +286,14 @@ export function InstanceSettingsPage() {
           </InfoBox>
           {connection.data ? (
             <form
-              className="llm-installation-settings"
+              className="my-5 rounded-md border border-[color-mix(in_srgb,var(--color-primary)_30%,var(--color-border))] bg-primary-container p-5"
               onSubmit={(event) => { event.preventDefault(); saveConnection.mutate() }}
             >
-              <div className="llm-installation-settings__heading">
+              <div className="flex flex-col items-stretch justify-between gap-4 min-[681px]:flex-row min-[681px]:items-start [&_h3]:m-0 [&_p]:mt-1">
                 <div>
                   <h3>Connection configuration</h3>
                 </div>
-                <label className="toggle-label">
+                <label className="flex items-center gap-2">
                   <Input
                     type="checkbox"
                     checked={enabled}
@@ -302,7 +302,7 @@ export function InstanceSettingsPage() {
                   LLM enabled
                 </label>
               </div>
-              <div className="llm-installation-settings__grid">
+              <div className="my-5 grid grid-cols-1 gap-4 min-[681px]:grid-cols-2 min-[1051px]:grid-cols-[2fr_1fr_1fr]">
                 <label>
                   Endpoint
                   <Input
@@ -420,7 +420,7 @@ export function InstanceSettingsPage() {
           </InfoBox>
           {prompts.error ? <p className="error" role="alert">{prompts.error.message}</p> : null}
           {prompts.data?.flows.map((flow) => (
-            <div className="prompt-flow" key={flow.key}>
+            <div data-prompt-flow={flow.key} className="border-t border-border pt-4 first:border-t-0 first:pt-0 [&>*+*]:mt-4" key={flow.key}>
               <h3>
                 {flow.label}
                 {flow.isOverridden ? <Badge variant="plain">Customized</Badge> : null}
@@ -465,14 +465,14 @@ export function InstanceSettingsPage() {
           </InfoBox>
           {instance.data ? (
             <form
-              className="llm-installation-settings"
+              className="my-5 rounded-md border border-[color-mix(in_srgb,var(--color-primary)_30%,var(--color-border))] bg-primary-container p-5"
               onSubmit={(event) => { event.preventDefault(); saveInstanceSettings.mutate() }}
             >
-              <div className="llm-installation-settings__heading">
+              <div className="flex flex-col items-stretch justify-between gap-4 min-[681px]:flex-row min-[681px]:items-start [&_h3]:m-0 [&_p]:mt-1">
                 <div>
                   <h3>SMTP configuration</h3>
                 </div>
-                <label className="toggle-label">
+                <label className="flex items-center gap-2">
                   <Input
                     type="checkbox"
                     checked={emailEnabled}
@@ -481,7 +481,7 @@ export function InstanceSettingsPage() {
                   Email enabled
                 </label>
               </div>
-              <div className="llm-installation-settings__grid">
+              <div className="my-5 grid grid-cols-1 gap-4 min-[681px]:grid-cols-2 min-[1051px]:grid-cols-[2fr_1fr_1fr]">
                 <label>
                   Public base URL
                   <Input
@@ -546,7 +546,7 @@ export function InstanceSettingsPage() {
                     required
                   />
                 </label>
-                <label className="toggle-label">
+                <label className="flex items-center gap-2">
                   <Input
                     type="checkbox"
                     checked={smtpStarttls}
@@ -554,7 +554,7 @@ export function InstanceSettingsPage() {
                   />
                   Use STARTTLS
                 </label>
-                <label className="toggle-label">
+                <label className="flex items-center gap-2">
                   <Input
                     type="checkbox"
                     checked={smtpUseSsl}
@@ -595,10 +595,10 @@ export function InstanceSettingsPage() {
           </InfoBox>
           {instance.data ? (
             <form
-              className="llm-installation-settings"
+              className="my-5 rounded-md border border-[color-mix(in_srgb,var(--color-primary)_30%,var(--color-border))] bg-primary-container p-5"
               onSubmit={(event) => { event.preventDefault(); saveInstanceSettings.mutate() }}
             >
-              <div className="llm-installation-settings__grid">
+              <div className="my-5 grid grid-cols-1 gap-4 min-[681px]:grid-cols-2 min-[1051px]:grid-cols-[2fr_1fr_1fr]">
                 <label>
                   Password reset link lifetime (minutes)
                   <Input
@@ -639,10 +639,10 @@ export function InstanceSettingsPage() {
           </InfoBox>
           {instance.data ? (
             <form
-              className="llm-installation-settings"
+              className="my-5 rounded-md border border-[color-mix(in_srgb,var(--color-primary)_30%,var(--color-border))] bg-primary-container p-5"
               onSubmit={(event) => { event.preventDefault(); saveInstanceSettings.mutate() }}
             >
-              <div className="llm-installation-settings__grid">
+              <div className="my-5 grid grid-cols-1 gap-4 min-[681px]:grid-cols-2 min-[1051px]:grid-cols-[2fr_1fr_1fr]">
                 <label>
                   Max PDF size (MB)
                   <Input
@@ -683,10 +683,10 @@ export function InstanceSettingsPage() {
           </InfoBox>
           {instance.data ? (
             <form
-              className="llm-installation-settings"
+              className="my-5 rounded-md border border-[color-mix(in_srgb,var(--color-primary)_30%,var(--color-border))] bg-primary-container p-5"
               onSubmit={(event) => { event.preventDefault(); saveInstanceSettings.mutate() }}
             >
-              <div className="llm-installation-settings__grid">
+              <div className="my-5 grid grid-cols-1 gap-4 min-[681px]:grid-cols-2 min-[1051px]:grid-cols-[2fr_1fr_1fr]">
                 <label>
                   Worker threads
                   <Input

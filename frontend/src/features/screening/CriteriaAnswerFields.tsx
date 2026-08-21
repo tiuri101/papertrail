@@ -155,23 +155,30 @@ export function CriteriaAnswerFields({
           personalized hotkeys to include/exclude the paper and submit.
         </p>
       </InfoBox>
-      <div className="decision-field">
-        <span className="decision-field__label">Decision</span>
-        <div className="decision-group" role="radiogroup" aria-label="Decision">
+      <div className="grid gap-2">
+        <span className="text-sm font-semibold text-text-secondary">Decision</span>
+        <div className="grid grid-cols-2 gap-2 min-[681px]:grid-cols-4" role="radiogroup" aria-label="Decision">
           {DECISION_OPTIONS.map(({ value, label, hotkeyAction }) => {
             const hotkey = formatHotkey(hotkeys[hotkeyAction])
+            const selected = outcome === value
+            const selectedClasses = {
+              include: 'border-success bg-success-container text-success',
+              exclude: 'border-danger bg-danger-container text-danger',
+              uncertain: 'border-warning bg-warning-container text-warning',
+              duplicate: 'border-primary bg-primary-container text-primary',
+            }[value]
             return (
               <button
                 key={value}
                 type="button"
                 role="radio"
                 aria-checked={outcome === value}
-                className={`decision-button decision-button--${value}${outcome === value ? ' decision-button--selected' : ''}`}
+                className={`relative inline-flex min-h-10 items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold transition-colors [&_svg]:size-4 [&_svg]:fill-current ${selected ? selectedClasses : 'border-border bg-bg-elevated text-text-secondary hover:border-border-strong hover:bg-surface-hover hover:text-text'}`}
                 onClick={() => setOutcome(value)}
               >
                 {value === 'include' ? <IconCheckCircle /> : value === 'exclude' ? <IconXCircle /> : null}
                 {label}
-                {hotkey ? <kbd className="decision-button__hotkey" aria-hidden="true">{hotkey}</kbd> : null}
+                {hotkey ? <kbd className={`absolute right-1.5 top-1/2 -translate-y-1/2 rounded px-1 py-0.5 text-[0.65rem] ${selected ? 'bg-white/15 text-current' : 'bg-surface-active text-text-muted'}`} aria-hidden="true">{hotkey}</kbd> : null}
               </button>
             )
           })}

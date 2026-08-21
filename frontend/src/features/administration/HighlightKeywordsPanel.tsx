@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useId, useRef, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
-import { Button } from '../../components/Button'
+import { Button, IconButton } from '../../components/Button'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { HighlightedText } from '../../components/HighlightedText'
 import { InfoBox } from '../../components/InfoBox'
@@ -75,65 +75,66 @@ export function HighlightKeywordsPanel({ projectId }: { projectId: string }) {
       <InfoBox icon={<IconHighlighter />}>
         <p>Keywords entered here are highlighted in publication titles and abstracts.</p>
       </InfoBox>
-      {keywords.error ? <p className="error" role="alert">{keywords.error.message}</p> : null}
-      {keywords.isPending ? <p className="muted">Loading keywords…</p> : null}
+      {keywords.error ? <p className="text-danger" role="alert">{keywords.error.message}</p> : null}
+      {keywords.isPending ? <p className="text-text">Loading keywords…</p> : null}
       {!keywords.isPending && draft.length === 0 ? (
-        <p className="keyword-editor__empty">No highlighted keywords yet.</p>
+        <p className="my-4 w-fit rounded-sm border border-dashed border-border-strong p-4 text-text-muted">No highlighted keywords yet.</p>
       ) : null}
       {draft.length > 0 ? (
-        <fieldset className="keyword-editor__list">
+        <fieldset className="grid gap-3">
           <legend>Keywords</legend>
           {draft.map((keyword, index) => (
-            <div className="keyword-editor__row" key={index}>
-              <label className="keyword-editor__input">
-                <span className="visually-hidden">Keyword {index + 1}</span>
+            <div className="grid grid-cols-[minmax(0,1fr)_40px] items-center gap-3 min-[681px]:grid-cols-[minmax(12rem,1fr)_minmax(10rem,0.7fr)_40px]" key={index}>
+              <label className="min-w-0">
+                <span className="sr-only">Keyword {index + 1}</span>
                 <Input
                   value={keyword}
                   onChange={(event) => editKeyword(index, event.target.value)}
                 />
               </label>
-              <span className="keyword-editor__preview" aria-label={`Preview for keyword ${index + 1}`}>
+              <span className="col-span-full row-start-2 min-w-0 truncate min-[681px]:col-span-1 min-[681px]:row-start-auto [&_mark]:inline-block [&_mark]:max-w-full [&_mark]:truncate [&_mark]:align-middle" aria-label={`Preview for keyword ${index + 1}`}>
                 {keyword.trim() ? (
                   <HighlightedText text={keyword.trim()} keywords={[keyword.trim()]} />
                 ) : (
-                  <span className="muted">Enter a keyword</span>
+                  <span className="text-text">Enter a keyword</span>
                 )}
               </span>
-              <button
+              <IconButton
                 type="button"
-                className="inline-flex size-10 shrink-0 items-center justify-center rounded-sm border border-border bg-transparent text-danger shadow-none transition-colors duration-150 hover:not-disabled:border-border-strong hover:not-disabled:bg-surface-hover hover:not-disabled:text-text disabled:opacity-[.48] disabled:cursor-not-allowed [&_svg]:size-5 [&_svg]:shrink-0 [&_svg]:fill-current"
+                variant="destructive"
                 aria-label={`Delete keyword ${index + 1}`}
                 onClick={() => deleteKeyword(index)}
               >
                 <IconTrash />
-              </button>
+              </IconButton>
             </div>
           ))}
         </fieldset>
       ) : null}
       <form
-        className="keyword-editor__add"
+        className="mt-5 grid grid-cols-1 gap-2"
         onSubmit={(event) => {
           event.preventDefault()
           addKeyword()
         }}
       >
         <label htmlFor={newKeywordId}>Add a keyword</label>
-        <div className="keyword-editor__add-controls">
+        <div className="flex flex-col items-stretch gap-3 min-[681px]:flex-row min-[681px]:items-center">
           <Input
             id={newKeywordId}
             value={newKeyword}
             onChange={(event) => setNewKeyword(event.target.value)}
+            className="max-w-lg"
             placeholder="Enter a word or phrase"
           />
-          <Button type="submit" disabled={!newKeyword.trim()}>
+          <Button className="w-full shrink-0 min-[681px]:w-auto" type="submit" disabled={!newKeyword.trim()}>
             <IconPlus />
             Add keyword
           </Button>
         </div>
       </form>
-      {save.error ? <p className="error" role="alert">{save.error.message}</p> : null}
-      {save.isPending || save.isSuccess ? <p className="muted" aria-live="polite">
+      {save.error ? <p className="text-danger" role="alert">{save.error.message}</p> : null}
+      {save.isPending || save.isSuccess ? <p className="text-text" aria-live="polite">
         {save.isPending ? 'Saving…' : save.isSuccess ? 'Saved.' : ' '}
       </p> : null}
     </CollapsibleSection>

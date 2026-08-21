@@ -75,18 +75,18 @@ export function ScreeningHotkeysSection() {
         you can quickly move through papers. Click a field and press the key you
         want to use. Press Backspace to clear it.
       </p>
-      <div className="hotkey-list">
+      <div className="grid gap-2">
         {SCREENING_HOTKEY_ACTIONS.map((action) => {
           const key = hotkeys[action]
           const hasConflict = key ? conflicts.has(key.toLowerCase()) : false
           const displayKey = key ? formatHotkey(key) : 'Not set'
           return (
-            <div key={action} className="hotkey-row">
-              <span className="hotkey-row__label" id={`hotkey-label-${action}`}>{ACTION_LABELS[action]}</span>
+            <div key={action} className="grid grid-cols-[minmax(8rem,1fr)_minmax(8rem,12rem)] items-center gap-4 border-b border-border py-2 last:border-b-0">
+              <span className="text-sm font-medium text-text-secondary" id={`hotkey-label-${action}`}>{ACTION_LABELS[action]}</span>
               <button
                 type="button"
                 aria-labelledby={`hotkey-label-${action} hotkey-value-${action}`}
-                className={`hotkey-capture${capturing === action ? ' hotkey-capture--active' : ''}${hasConflict ? ' hotkey-capture--conflict' : ''}`}
+                className={`min-h-10 rounded-md border bg-bg-elevated px-3 py-2 text-center text-sm font-semibold shadow-none transition-colors hover:bg-surface-hover ${hasConflict ? 'border-danger text-danger' : capturing === action ? 'border-primary text-text ring-2 ring-primary-container' : 'border-border text-text-secondary'}`}
                 onClick={() => startCapture(action)}
                 onKeyDown={capturing === action ? handleCaptureKeyDown(action) : undefined}
                 onBlur={() => setCapturing((current) => (current === action ? null : current))}

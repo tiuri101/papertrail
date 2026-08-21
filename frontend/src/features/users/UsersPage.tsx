@@ -3,6 +3,7 @@ import { useState } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { Button } from '../../components/Button'
+import { Card } from '../../components/Card'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { CountPill } from '../../components/CountPill'
 import { IconPlus, IconRestart, IconTrash } from '../../components/icons'
@@ -45,11 +46,11 @@ export function UsersPage() {
 
   return (
     <main className="page">
-      <p className="eyebrow">Installation administration</p>
+      <p className="mb-1 text-xs font-bold uppercase tracking-[0.08em] text-primary">Installation administration</p>
       <h1>Users</h1>
-      <p className="muted">Manage reviewer accounts for this Papertrail installation.</p>
+      <p className="text-text">Manage reviewer accounts for this Papertrail installation.</p>
       {showCreateForm ? (
-        <section className="card">
+        <Card as="section">
           <h2>Create Reviewer</h2>
           <form onSubmit={(event) => { event.preventDefault(); create.mutate() }}>
             <label>
@@ -88,21 +89,21 @@ export function UsersPage() {
                 required
               />
             </label>
-            <div className="toolbar">
+            <div className="flex flex-wrap items-center gap-3">
               <Button type="submit" loading={create.isPending}><IconPlus />Create Reviewer</Button>
               <Button type="button" variant="secondary" onClick={() => setShowCreateForm(false)}>Cancel</Button>
             </div>
           </form>
-        </section>
+        </Card>
       ) : (
-        <div className="toolbar">
+        <div className="flex flex-wrap items-center gap-3">
           <Button type="button" onClick={() => setShowCreateForm(true)}><IconPlus />Add Reviewer</Button>
         </div>
       )}
-      {create.error ? <p className="error" role="alert">{create.error.message}</p> : null}
-      {setActive.error ? <p className="error" role="alert">{setActive.error.message}</p> : null}
+      {create.error ? <p className="text-danger" role="alert">{create.error.message}</p> : null}
+      {setActive.error ? <p className="text-danger" role="alert">{setActive.error.message}</p> : null}
       {users.isLoading ? <p>Loading…</p> : null}
-      {users.error ? <p className="error" role="alert">{users.error.message}</p> : null}
+      {users.error ? <p className="text-danger" role="alert">{users.error.message}</p> : null}
       {users.data ? (
         <CountPill count={users.data.length}>user{users.data.length === 1 ? '' : 's'}</CountPill>
       ) : null}

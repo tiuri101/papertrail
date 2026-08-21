@@ -5,6 +5,7 @@ import { apiRequest } from '../../api/client'
 import { Button } from '../../components/Button'
 import { IconRestart } from '../../components/icons'
 import { cn } from '../../lib/cn'
+import { llmPanelClass, llmPanelHeadingClass, llmPanelToneClass } from './llmStyles'
 import { criterionNumbers, criterionOrderIndex } from '../screening/criteriaNumbering'
 import type { CriterionAnswer, ScreeningCriterion } from '../screening/useScreeningQueue'
 
@@ -96,9 +97,6 @@ export function LlmAssistanceHeading({ qualifier }: { qualifier?: string }) {
   )
 }
 
-const panelClass = 'my-4 rounded-xl border border-border bg-primary-container p-4'
-const headingClass = 'flex flex-wrap items-center justify-between gap-x-4 gap-y-2 [&_h3]:m-0'
-
 export function ScreeningLlmPanel({
   projectId,
   publicationId,
@@ -156,7 +154,7 @@ export function ScreeningLlmPanel({
 
   if (query.isLoading) {
     return (
-      <aside className={panelClass} aria-label="LLM assistance">
+      <aside className={llmPanelClass} aria-label="LLM assistance">
         <LlmAssistanceHeading />
         <p>Checking LLM assistance…</p>
       </aside>
@@ -164,7 +162,7 @@ export function ScreeningLlmPanel({
   }
   if (query.error) {
     return (
-      <aside className={panelClass} aria-label="LLM assistance">
+      <aside className={llmPanelClass} aria-label="LLM assistance">
         <LlmAssistanceHeading />
         <p className="error">{query.error.message}</p>
       </aside>
@@ -173,7 +171,7 @@ export function ScreeningLlmPanel({
   if (!data?.state) return null
   if (data.hidden) {
     return (
-      <aside className={panelClass} aria-label="LLM assistance">
+      <aside className={llmPanelClass} aria-label="LLM assistance">
         <LlmAssistanceHeading />
         <p className="muted">Hidden until you submit your own screening decision.</p>
       </aside>
@@ -182,7 +180,7 @@ export function ScreeningLlmPanel({
   if (data.state === 'disabled') return null
   if (['queued', 'pending', 'processing'].includes(data.state)) {
     return (
-      <aside className={panelClass} aria-label="LLM assistance">
+      <aside className={llmPanelClass} aria-label="LLM assistance">
         <LlmAssistanceHeading />
         <p>LLM processing: {statusText(data.state)}…</p>
       </aside>
@@ -190,7 +188,7 @@ export function ScreeningLlmPanel({
   }
   if (['missing_pdf', 'text_unavailable', 'unavailable'].includes(data.state)) {
     return (
-      <aside className={panelClass} aria-label="LLM assistance">
+      <aside className={llmPanelClass} aria-label="LLM assistance">
         <LlmAssistanceHeading />
         <p className="muted">
           {data.state === 'missing_pdf'
@@ -205,7 +203,7 @@ export function ScreeningLlmPanel({
   }
   if (data.state === 'failed') {
     return (
-      <aside className={panelClass} aria-label="LLM assistance failed">
+      <aside className={llmPanelClass} aria-label="LLM assistance failed">
         <LlmAssistanceHeading qualifier="failed" />
         <p className="error">{data.error ?? 'The model did not return a usable result.'}</p>
         <Button type="button" onClick={() => regenerate.mutate()} disabled={regenerate.isPending}>
@@ -216,7 +214,7 @@ export function ScreeningLlmPanel({
   }
   if (data.state === 'stale') {
     return (
-      <aside className={panelClass} aria-label="LLM assistance is stale">
+      <aside className={llmPanelClass} aria-label="LLM assistance is stale">
         <LlmAssistanceHeading qualifier="is stale" />
         <p className="muted">The source changed before this result completed.</p>
         <Button
@@ -235,11 +233,7 @@ export function ScreeningLlmPanel({
     : null
   return (
     <aside
-      className={cn(
-        panelClass,
-        comparison === 'match' && 'border-success shadow-[0_0_0_1px_var(--color-success)]',
-        comparison === 'mismatch' && 'border-danger shadow-[0_0_0_1px_var(--color-danger)]',
-      )}
+      className={llmPanelToneClass(comparison ?? undefined)}
       data-comparison={comparison ?? undefined}
       aria-label={comparison === 'match'
         ? 'LLM assistance — matches your decision'
@@ -247,7 +241,7 @@ export function ScreeningLlmPanel({
           ? 'LLM assistance — differs from your decision'
           : 'LLM assistance'}
     >
-      <div ref={headingRef} className={headingClass}>
+      <div ref={headingRef} className={llmPanelHeadingClass}>
         <LlmAssistanceHeading />
         <Button type="button" variant="secondary" onClick={() => regenerate.mutate()} disabled={regenerate.isPending}>
           Regenerate

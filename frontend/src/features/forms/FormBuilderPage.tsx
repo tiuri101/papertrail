@@ -27,6 +27,8 @@ import {
   weightedFieldTypes,
 } from './fieldTypes'
 import {InfoBox} from "../../components/InfoBox";
+import { cn } from '../../lib/cn'
+import { llmSchemaContentClass, llmSchemaFieldClass, llmSchemaFieldsClass, llmSchemaMappingClass, llmSchemaPreviewClass, llmSchemaSummaryClass, llmSchemaTitleClass } from '../llm/llmStyles'
 
 const formBuilderSections = [
   { id: 'section-create-form', label: 'Create Project Form' },
@@ -467,14 +469,16 @@ export function FormBuilderPage() {
             <h3>Fields</h3>
             {fields.error ? <p className="error" role="alert">{fields.error.message}</p> : null}
             {fields.data?.length === 0 && selectedFormReadOnly ? <p className="muted">No fields added yet.</p> : (
-              <div className="llm-schema-fields form-editor-fields">
+              <div className={cn(llmSchemaFieldsClass, 'form-editor-fields')}>
                 {fields.data?.length === 0 && !addingField ? <p className="muted">No fields added yet.</p> : null}
                 {orderedFields.map((field) => {
                   const editingOptions = parseOptions(editingOptionsText)
                   const fieldIndex = activeFields.findIndex((item) => item.stableKey === field.stableKey)
                   return (
                   <details
-                    className={`llm-schema-field form-editor-field${draggedFieldKey === field.stableKey ? ' llm-schema-field--dragging' : ''}${dragOverFieldKey === field.stableKey ? ' llm-schema-field--drag-over' : ''}`}
+                    className={cn(llmSchemaFieldClass({ dragging: draggedFieldKey === field.stableKey, dragOver: dragOverFieldKey === field.stableKey }), 'form-editor-field')}
+                    data-dragging={draggedFieldKey === field.stableKey || undefined}
+                    data-drag-over={dragOverFieldKey === field.stableKey || undefined}
                     key={field.id}
                     data-field-sort-key={field.isArchived ? undefined : field.stableKey}
                     open={field.isArchived ? undefined : editingKey === field.stableKey}
@@ -494,7 +498,7 @@ export function FormBuilderPage() {
                     }}
                   >
                     <summary
-                      className="llm-schema-field__summary"
+                      className={llmSchemaSummaryClass}
                       onClick={(event) => {
                         if (field.isArchived) return
                         if (selectedFormReadOnly) return
@@ -506,7 +510,7 @@ export function FormBuilderPage() {
                         }
                       }}
                     >
-                      <span className="llm-schema-field__title">
+                      <span className={llmSchemaTitleClass}>
                         <strong>{field.label}</strong>
                         <Badge variant="plain">
                           {fieldTypeLabels[field.fieldType] ?? field.fieldType}
@@ -515,12 +519,12 @@ export function FormBuilderPage() {
                         {field.required ? <Badge variant="plain">Required</Badge> : null}
                         {field.isArchived ? <Badge variant="plain">Archived</Badge> : null}
                       </span>
-                      <span className="llm-schema-field__mapping">
+                      <span className={llmSchemaMappingClass}>
                         {field.isArchived
                           ? 'Archived field retained for historical submissions'
                           : field.required ? 'Reviewers must complete this field' : 'Optional for reviewers'}
                       </span>
-                      <span className="llm-schema-field__preview">
+                      <span className={llmSchemaPreviewClass}>
                         {field.fieldType === 'rating'
                           ? `Rating scale ${describeRatingScale(field.options)}`
                           : selectFieldTypes.has(field.fieldType)
@@ -562,7 +566,7 @@ export function FormBuilderPage() {
                         />
                       ) : null}
                     </summary>
-                    <div className="llm-schema-field__content">
+                    <div className={llmSchemaContentClass}>
                       {editingKey === field.stableKey ? (
                         <>
                           <label>
@@ -743,20 +747,20 @@ export function FormBuilderPage() {
                   )
                 })}
                 {!selectedFormReadOnly && addingField ? (
-                  <div className="llm-schema-field form-editor-field form-editor-field--draft">
-                    <div className="llm-schema-field__summary">
-                      <span className="llm-schema-field__title">
+                  <div className={cn(llmSchemaFieldClass({ draft: true }), 'form-editor-field form-editor-field--draft')}>
+                    <div className={cn(llmSchemaSummaryClass, 'cursor-default')}>
+                      <span className={llmSchemaTitleClass}>
                         <strong>{fieldLabel.trim() || 'New field'}</strong>
                         <Badge variant="plain">{fieldTypeLabels[fieldType] ?? fieldType}</Badge>
                         {required ? <Badge variant="plain">Required</Badge> : null}
                       </span>
-                      <span className="llm-schema-field__mapping">
+                      <span className={llmSchemaMappingClass}>
                         {required ? 'Reviewers must complete this field' : 'Optional for reviewers'}
                       </span>
-                      <span className="llm-schema-field__preview">Configure the new response field below.</span>
+                      <span className={llmSchemaPreviewClass}>Configure the new response field below.</span>
                     </div>
                     <form
-                      className="llm-schema-field__content form-editor-field__draft-form"
+                      className={cn(llmSchemaContentClass, 'form-editor-field__draft-form')}
                       onSubmit={(event) => { event.preventDefault(); addField.mutate() }}
                     >
                       <label>

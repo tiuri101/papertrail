@@ -37,21 +37,21 @@ export function BrowserHelpersSection() {
 
   return (
     <CollapsibleSection id="section-account-browser-helpers" title="Browser Helpers" icon={<IconUpload />}>
-      <p className="muted">
+      <p className="text-text">
         A paired Chrome extension can retrieve publisher PDFs using this computer&apos;s own
         network connection and browser sign-in (e.g. university IP access, VPN, or an
         institutional login already open in Chrome). Papertrail never receives your publisher
         credentials or browser cookies, only the resulting PDF.
       </p>
-      {agents.error ? <p className="error" role="alert">{agents.error.message}</p> : null}
-      {agents.isLoading ? <p className="muted">Loading browser helpers…</p> : null}
+      {agents.error ? <p className="text-danger" role="alert">{agents.error.message}</p> : null}
+      {agents.isLoading ? <p className="text-text">Loading browser helpers…</p> : null}
       {agents.data && agents.data.length > 0 ? (
-        <ul className="compact-list">
+        <ul className="mb-0 list-disc pl-6">
           {agents.data.map((agent) => (
             <li key={agent.id}>
               <strong>{agent.displayName}</strong>
               {' · '}
-              <span className="muted">
+              <span className="text-text">
                 Last connected: {formatDateTime(agent.lastSeenAt)}
                 {agent.extensionVersion ? ` · Extension v${agent.extensionVersion}` : ''}
               </span>
@@ -69,9 +69,9 @@ export function BrowserHelpersSection() {
           ))}
         </ul>
       ) : agents.data ? (
-        <p className="muted">No browser helper is paired with your account.</p>
+        <p className="text-text">No browser helper is paired with your account.</p>
       ) : null}
-      {revoke.error ? <p className="error" role="alert">{revoke.error.message}</p> : null}
+      {revoke.error ? <p className="text-danger" role="alert">{revoke.error.message}</p> : null}
 
       {pairingSecret ? (
         <Card role="region" aria-label="Pairing secret">
@@ -85,11 +85,11 @@ export function BrowserHelpersSection() {
             <br />
             <code>{pairingSecret.pairingSecret}</code>
           </p>
-          <p className="muted">
+          <p className="text-text">
             Expires: {formatDateTime(pairingSecret.expiresAt)}. This secret is shown only once --
             paste it into the Chrome extension&apos;s setup page now.
           </p>
-          <div className="toolbar">
+          <div className="flex flex-wrap items-center gap-3">
             <Button type="button" onClick={handleCopy}>
               <IconCopy />
               {copied ? 'Copied' : 'Copy'}
@@ -102,7 +102,7 @@ export function BrowserHelpersSection() {
       ) : (
         <>
           {createPairingSecret.error ? (
-            <p className="error" role="alert">{createPairingSecret.error.message}</p>
+            <p className="text-danger" role="alert">{createPairingSecret.error.message}</p>
           ) : null}
           <Button type="button" onClick={handleCreatePairingSecret} loading={createPairingSecret.isPending}>
             <IconPlus />
