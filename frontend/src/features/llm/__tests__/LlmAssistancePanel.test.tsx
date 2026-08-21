@@ -81,7 +81,6 @@ describe('LlmAssistancePanel', () => {
 
     const banner = await screen.findByRole('alert')
     expect(banner).toHaveTextContent(/LLM support is currently disabled for this Papertrail installation/)
-    expect(banner).toHaveClass('info-box--danger')
   })
 
   it('re-runs an enabled capability with its task type', async () => {

@@ -3,9 +3,18 @@ import type { ReactNode } from 'react'
 import { cn } from '../lib/cn'
 
 const toneStyles = {
-  info: 'border-[color-mix(in_srgb,var(--color-primary)_24%,var(--color-border))] bg-primary-container [&_.info-box-icon]:text-primary',
-  warning: 'border-[color-mix(in_srgb,var(--color-warning)_32%,var(--color-border))] bg-warning-container [&_.info-box-icon]:text-warning',
-  danger: 'border-[color-mix(in_srgb,var(--color-danger)_32%,var(--color-border))] bg-danger-container [&_.info-box-icon]:text-danger',
+  info: {
+    box: 'border-[color-mix(in_srgb,var(--color-primary)_24%,var(--color-border))] bg-primary-container',
+    icon: 'text-primary',
+  },
+  warning: {
+    box: 'border-[color-mix(in_srgb,var(--color-warning)_32%,var(--color-border))] bg-warning-container',
+    icon: 'text-warning',
+  },
+  danger: {
+    box: 'border-[color-mix(in_srgb,var(--color-danger)_32%,var(--color-border))] bg-danger-container',
+    icon: 'text-danger',
+  },
 } as const
 
 export function InfoBox({ icon, children, tone = 'info', alert = false, className }: {
@@ -17,11 +26,14 @@ export function InfoBox({ icon, children, tone = 'info', alert = false, classNam
 }) {
   return (
     <div
-      className={cn('flex items-center gap-3 rounded-md border p-4', toneStyles[tone], className)}
+      className={cn('flex items-center gap-3 rounded-md border p-4', toneStyles[tone].box, className)}
       role={alert ? 'alert' : undefined}
     >
       <span
-        className="info-box-icon inline-flex size-[38px] shrink-0 items-center justify-center rounded-sm bg-surface text-primary [&_svg]:size-5 [&_svg]:fill-current"
+        className={cn(
+          'inline-flex size-[38px] shrink-0 items-center justify-center rounded-sm bg-surface [&_svg]:size-5 [&_svg]:fill-current',
+          toneStyles[tone].icon,
+        )}
         aria-hidden="true"
       >
         {icon}
