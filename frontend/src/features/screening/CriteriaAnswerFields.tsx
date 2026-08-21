@@ -166,7 +166,13 @@ export function CriteriaAnswerFields({
               include: 'border-success bg-success-container text-success',
               exclude: 'border-danger bg-danger-container text-danger',
               uncertain: 'border-warning bg-warning-container text-warning',
-              duplicate: 'border-primary bg-primary-container text-primary',
+              duplicate: 'border-border-strong bg-surface-hover text-text',
+            }[value]
+            const hoverClasses = {
+              include: 'hover:border-success/50 hover:bg-success-container hover:text-success',
+              exclude: 'hover:border-danger/50 hover:bg-danger-container hover:text-danger',
+              uncertain: 'hover:border-warning/50 hover:bg-warning-container hover:text-warning',
+              duplicate: 'hover:border-border-strong hover:bg-surface-hover hover:text-text',
             }[value]
             return (
               <button
@@ -174,7 +180,7 @@ export function CriteriaAnswerFields({
                 type="button"
                 role="radio"
                 aria-checked={outcome === value}
-                className={`relative inline-flex min-h-10 items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold transition-colors [&_svg]:size-4 [&_svg]:fill-current ${selected ? selectedClasses : 'border-border bg-bg-elevated text-text-secondary hover:border-border-strong hover:bg-surface-hover hover:text-text'}`}
+                className={`relative inline-flex min-h-10 items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold transition-colors [&_svg]:size-4 [&_svg]:fill-current ${selected ? selectedClasses : `border-border bg-surface-raised text-text-secondary ${hoverClasses}`}`}
                 onClick={() => setOutcome(value)}
               >
                 {value === 'include' ? <IconCheckCircle /> : value === 'exclude' ? <IconXCircle /> : null}

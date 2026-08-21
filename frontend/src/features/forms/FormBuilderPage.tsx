@@ -729,22 +729,20 @@ export function FormBuilderPage() {
                             >
                               Cancel
                             </Button>
+                            <ConfirmButton
+                              label="Archive"
+                              confirmLabel="Archive Field"
+                              warning={`Archive field "${field.label}"? It will be removed from new submissions, but every value already recorded for it is kept and can still be included in exports.`}
+                              onConfirm={() => deleteField.mutate(field.stableKey)}
+                              disabled={deleteField.isPending}
+                              variant="danger"
+                            />
                           </div>
                         </>
                       ) : field.isArchived ? (
                         <p className="text-text-muted">
                           This field is no longer shown on new submissions. Previously recorded values are preserved.
                         </p>
-                      ) : null}
-                      {!field.isArchived && editingKey === field.stableKey ? (
-                        <ConfirmButton
-                          label="Archive"
-                          confirmLabel="Archive Field"
-                          warning={`Archive field "${field.label}"? It will be removed from new submissions, but every value already recorded for it is kept and can still be included in exports.`}
-                          onConfirm={() => deleteField.mutate(field.stableKey)}
-                          disabled={deleteField.isPending}
-                          variant="danger"
-                        />
                       ) : null}
                     </div>
                   </details>

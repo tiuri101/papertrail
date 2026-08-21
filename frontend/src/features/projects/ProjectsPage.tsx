@@ -312,7 +312,7 @@ export function ProjectsPage() {
               <IconPlus />
             </IconButton>
             <h2>Create New Project</h2>
-            <p className="text-text">Start a new systematic review</p>
+            <p className="text-text">Start a new review project</p>
             <Button type="button" onClick={() => navigate('/projects/new')}>Get Started</Button>
           </Card>
         ) : null}

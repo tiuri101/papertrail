@@ -65,7 +65,7 @@ function ResearchQuestionRow({
             }}
           >
             <Input value={draft} onChange={(event) => setDraft(event.target.value)} required />
-            <div className={toolbarClass}>
+            <div className={`${toolbarClass} flex-nowrap`}>
               <Button type="submit" disabled={pending}><IconCheckCircle />Save</Button>
               <Button type="button" variant="secondary" onClick={() => { setDraft(question.text); setEditing(false) }}>Cancel</Button>
             </div>
@@ -80,7 +80,7 @@ function ResearchQuestionRow({
       <td>{number}</td>
       <td>{question.text}</td>
       <td>
-        <div className={toolbarClass}>
+        <div className={`${toolbarClass} flex-nowrap`}>
           <Button type="button" variant="secondary" size="sm" onClick={() => setEditing(true)} disabled={pending}>Edit</Button>
           <ConfirmButton
             label="Delete"
@@ -139,7 +139,7 @@ function CriterionRow({
               </Select>
             </label>
             <Input value={draftText} onChange={(event) => setDraftText(event.target.value)} required />
-            <div className={toolbarClass}>
+            <div className={`${toolbarClass} flex-nowrap`}>
               <Button type="submit" disabled={pending}><IconCheckCircle />Save</Button>
               <Button
                 type="button"
@@ -162,7 +162,7 @@ function CriterionRow({
       </td>
       <td>{criterion.text}</td>
       <td>
-        <div className={toolbarClass}>
+        <div className={`${toolbarClass} flex-nowrap`}>
           <Button type="button" variant="secondary" size="sm" onClick={() => setEditing(true)} disabled={pending}>Edit</Button>
           <ConfirmButton
             label="Delete"
@@ -294,8 +294,8 @@ export function ResearchQuestionsPanel({
   return (
     <Card as="section" id="section-research-questions">
       <h2>
-        <span className="collapsible-section__title">
-          <span className="collapsible-section__icon" aria-hidden="true"><IconHelpCircle /></span>
+        <span className="collapsible-section__title inline-flex items-center gap-2">
+          <span className="collapsible-section__icon inline-flex shrink-0 text-primary [&_svg]:size-5 [&_svg]:fill-current" aria-hidden="true"><IconHelpCircle /></span>
           Research Questions
         </span>
       </h2>
@@ -446,8 +446,8 @@ export function CriteriaPanel({
   return (
     <Card as="section" id="section-screening-criteria">
       <h2>
-        <span className="collapsible-section__title">
-          <span className="collapsible-section__icon" aria-hidden="true"><IconCheckCircle /></span>
+        <span className="collapsible-section__title inline-flex items-center gap-2">
+          <span className="collapsible-section__icon inline-flex shrink-0 text-primary [&_svg]:size-5 [&_svg]:fill-current" aria-hidden="true"><IconCheckCircle /></span>
           Inclusion / Exclusion Criteria
         </span>
       </h2>

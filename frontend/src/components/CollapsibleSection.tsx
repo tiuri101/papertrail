@@ -52,10 +52,10 @@ export function CollapsibleSection({
       data-expanded={expanded}
     >
       {headingAccessory ? (
-        <Heading className={cn('collapsible-section__heading collapsible-section__heading--with-accessory m-0 flex items-center gap-2', expanded ? '-m-6 mb-0 min-h-[88px] p-6' : 'min-h-[88px] p-6')} aria-label={title}>
+        <Heading className={cn('collapsible-section__heading collapsible-section__heading--with-accessory m-0 flex items-center gap-2', expanded ? '-m-6 mb-0 pt-6 px-6 pb-0' : 'p-6')} aria-label={title}>
           <button
             type="button"
-            className="collapsible-section__toggle inline-flex h-auto min-h-0 w-auto cursor-pointer items-center justify-between border-0 bg-none bg-transparent p-0 text-left font-[inherit] text-[inherit] shadow-none hover:bg-none hover:text-primary focus-visible:rounded-sm focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-focus"
+            className="collapsible-section__toggle inline-flex h-auto min-h-0 w-auto cursor-pointer items-center justify-between border-0 bg-none bg-transparent p-0 text-left text-[1.25rem] leading-[1.2] font-[680] tracking-[-0.018em] text-[inherit] shadow-none hover:bg-none hover:text-primary focus-visible:rounded-sm focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-focus"
             aria-expanded={expanded}
             aria-controls={contentId}
             onClick={toggle}
@@ -80,7 +80,10 @@ export function CollapsibleSection({
         <Heading className={cn('collapsible-section__heading m-0', expanded && '-m-6 mb-0')}>
           <button
             type="button"
-            className="collapsible-section__toggle inline-flex h-auto min-h-[88px] w-full cursor-pointer items-center justify-between border-0 bg-none bg-transparent p-6 text-left font-[inherit] text-[inherit] shadow-none hover:bg-none hover:text-primary focus-visible:rounded-sm focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-focus"
+            className={cn(
+              'collapsible-section__toggle inline-flex h-auto min-h-0 w-full cursor-pointer items-center justify-between border-0 bg-none bg-transparent text-left text-[1.25rem] leading-[1.2] font-[680] tracking-[-0.018em] text-[inherit] shadow-none hover:bg-none hover:text-primary focus-visible:rounded-sm focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-focus',
+              expanded ? 'pt-6 px-6 pb-0' : 'p-6',
+            )}
             aria-expanded={expanded}
             aria-controls={contentId}
             onClick={toggle}

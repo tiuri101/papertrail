@@ -11,6 +11,7 @@ import { CountPill } from '../../components/CountPill'
 import { DoiPill } from '../../components/DoiPill'
 import { HighlightedText } from '../../components/HighlightedText'
 import { Input } from '../../components/Input'
+import { PublicationListSortHeader } from '../../components/PublicationListSortHeader'
 import { Select } from '../../components/Select'
 import { reviewWorkActionsClass, reviewWorkCardClass, reviewWorkDoiClass, reviewWorkEditorClass, reviewWorkGridClass, reviewWorkListClass, reviewWorkMetadataClass, reviewWorkStatusClass, reviewWorkSubmittedClass, reviewWorkTitleClass, reviewWorkTitleLinkClass, reviewWorkVenueClass } from '../../components/reviewWorkStyles'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
@@ -152,6 +153,14 @@ export function MyExtractionsPage() {
     return sortItems(items, sortKey, sortDirection)
   }, [query.data, search, sortDirection, sortKey])
 
+  const toggleSort = (key: ExtractionSortKey) => {
+    if (key === sortKey) setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+    else {
+      setSortKey(key)
+      setSortDirection(key === 'submitted' ? 'desc' : 'asc')
+    }
+  }
+
   return (
     <Page>
       <StageEyebrow stage="extraction_quality" />
@@ -172,7 +181,7 @@ export function MyExtractionsPage() {
                   Search papers
                   <Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Title, author, DOI…" />
                 </label>
-                <label>
+                <label className="hidden max-[520px]:block">
                   Sort by
                   <Select value={`${sortKey}:${sortDirection}`} onChange={(event) => {
                     const [key, direction] = event.target.value.split(':') as [ExtractionSortKey, SortDirection]
@@ -199,9 +208,22 @@ export function MyExtractionsPage() {
           ) : filteredItems.length === 0 ? (
             <p className="text-text-muted">No extractions match your filters.</p>
           ) : (
-            <ul className={reviewWorkListClass}>
+            <>
+              <div className={`${reviewWorkGridClass} mb-2 px-4 text-[0.72rem] font-bold tracking-[0.04em] text-text-muted uppercase max-[520px]:hidden`}>
+                <span className="flex items-center gap-0.5">
+                  <PublicationListSortHeader label="Title" sortKey="title" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />{' / '}
+                  <PublicationListSortHeader label="Authors" sortKey="authors" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+                </span>
+                <PublicationListSortHeader label="Venue" sortKey="venue" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+                <PublicationListSortHeader label="Version" sortKey="version" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+                <PublicationListSortHeader label="DOI" sortKey="doi" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+                <PublicationListSortHeader label="Submitted" sortKey="submitted" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+                <span className={reviewWorkActionsClass}>Actions</span>
+              </div>
+              <ul className={reviewWorkListClass}>
                 {filteredItems.map((entry) => <ExtractionRow key={entry.id} projectId={projectId} entry={entry} highlightKeywords={highlightKeywords} />)}
-            </ul>
+              </ul>
+            </>
           )}
         </>
       ) : null}
