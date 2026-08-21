@@ -931,7 +931,7 @@ export function FormBuilderPage() {
           <div>
             <h2>Manage Templates</h2>
           </div>
-          <CountPill count={templateCatalog.length}>
+          <CountPill count={templateCatalog.length} className="mb-0">
             template{templateCatalog.length === 1 ? '' : 's'}
           </CountPill>
         </div>

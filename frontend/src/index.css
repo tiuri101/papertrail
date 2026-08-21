@@ -3295,28 +3295,6 @@ mark {
   color: var(--kw-7-fg);
 }
 
-.completion-bar {
-  display: grid;
-  gap: var(--space-1);
-}
-
-.completion-bar__track {
-  height: 8px;
-  border-radius: 999px;
-  background: var(--color-border);
-  overflow: hidden;
-}
-
-.completion-bar__fill {
-  height: 100%;
-  border-radius: 999px;
-  background: var(--color-success);
-}
-
-.completion-bar__label {
-  font-size: 0.82rem;
-}
-
 /* Button system: shared visual layer for legacy native button usages not yet migrated to <Button>. */
 .button,
 button {
@@ -4928,10 +4906,6 @@ kbd {
   }
 }
 
-.stage-eyebrow {
-  color: var(--stage-color);
-}
-
 .reporting-job-notice {
   border: 1px solid color-mix(in srgb, var(--color-primary) 30%, transparent);
   border-radius: var(--radius-md);
@@ -5776,38 +5750,8 @@ kbd {
   margin: 0;
 }
 
-.count-pill {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  width: fit-content;
-  max-width: 100%;
-  margin: 0 0 var(--space-5);
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  background: var(--color-surface);
-  padding: 6px var(--space-3);
-  color: var(--color-text-secondary);
-  font-size: 0.86rem;
-  line-height: 1.35;
-}
-
-.count-pill strong {
-  flex: 0 0 auto;
-  color: var(--color-text);
-}
-
-.count-pill span {
-  min-width: 0;
-}
-
 .full-text-retrieval-progress {
   margin-top: var(--space-5);
-}
-
-.form-template-manager__heading .count-pill,
-.reporting-library > header .count-pill {
-  margin: 0;
 }
 
 .duplicate-review-list {
