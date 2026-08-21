@@ -91,7 +91,7 @@ export function ProjectChecklistPanel({ projectId, canManage }: { projectId: str
   }, [checklist.data?.stage, projectId, queryClient])
 
   if (checklist.isLoading) return <p>Loading checklist…</p>
-  if (checklist.isError || !checklist.data) return <p className="error" role="alert">Checklist could not be loaded.</p>
+  if (checklist.isError || !checklist.data) return <p className="text-danger" role="alert">Checklist could not be loaded.</p>
 
   const currentStageIndex = checklist.data.stages.findIndex((stage) => stage.isCurrent)
   const currentStage = checklist.data.stages[currentStageIndex]
@@ -106,7 +106,7 @@ export function ProjectChecklistPanel({ projectId, canManage }: { projectId: str
   return (
     <Card as="section" id="section-project-checklist">
       <h2>What&apos;s Next: {currentStage.label}</h2>
-      {markReady.error ? <p className="error" role="alert">{markReady.error.message}</p> : null}
+      {markReady.error ? <p className="text-danger" role="alert">{markReady.error.message}</p> : null}
       {currentStage.items.length ? (
         <ul className="m-0 grid list-none gap-3 p-0">
           {currentStage.items.map((item) => {
@@ -166,7 +166,7 @@ export function ProjectChecklistPanel({ projectId, canManage }: { projectId: str
           </div>
         </div>
       ) : (
-        <p className="muted">Nothing left to do here.</p>
+        <p className="text-text">Nothing left to do here.</p>
       )}
       {currentStage.action === 'ready' && canManage ? (
         <Button
@@ -185,7 +185,7 @@ export function ProjectChecklistPanel({ projectId, canManage }: { projectId: str
         </p>
       ) : null}
       {currentStage.autoAdvances ? (
-        <p className="muted">Moves to the next stage automatically once everything above is checked off.</p>
+        <p className="text-text">Moves to the next stage automatically once everything above is checked off.</p>
       ) : null}
     </Card>
   )

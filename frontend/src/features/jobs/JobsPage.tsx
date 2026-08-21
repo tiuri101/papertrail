@@ -126,7 +126,7 @@ function JobFailureDetails({ job }: { job: BackgroundJob }) {
   const downloadText = [...reportContext, '', 'Traceback:', diagnosticText].join('\n')
 
   return (
-    <div className="job-failure">
+    <div className="grid gap-2">
       <span className="error" role="alert">{job.errorMessage}</span>
       <Button
         type="button"
@@ -137,13 +137,13 @@ function JobFailureDetails({ job }: { job: BackgroundJob }) {
         {visible ? 'Hide error details' : 'View error details'}
       </Button>
       {visible ? (
-        <div className="job-error-report">
+        <div className="rounded-md border border-danger/30 bg-danger-container p-4">
           {report.isLoading ? <p>Loading diagnostic report…</p> : null}
           {report.error ? <p className="error" role="alert">{report.error.message}</p> : null}
           {report.data ? (
             <>
               <strong>Failure context</strong>
-              <dl className="job-error-context">
+              <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-1 [&_dd]:m-0 [&_dd]:overflow-wrap-anywhere [&_dt]:font-semibold [&_dt]:text-text-muted">
                 <dt>Job</dt>
                 <dd>{report.data.jobLabel} <code>{report.data.jobType}</code></dd>
                 <dt>Job ID</dt><dd><code>{report.data.jobId}</code></dd>
@@ -161,7 +161,7 @@ function JobFailureDetails({ job }: { job: BackgroundJob }) {
                 <dt>Error type</dt><dd>{report.data.errorType ?? 'Unknown'}</dd>
               </dl>
               <strong>Traceback</strong>
-              <pre>{diagnosticText}</pre>
+              <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-sm bg-bg-elevated p-3 text-xs">{diagnosticText}</pre>
               <a
                 download={`job-${job.id}-error.txt`}
                 href={`data:text/plain;charset=utf-8,${encodeURIComponent(downloadText)}`}
@@ -296,12 +296,12 @@ export function JobsPage() {
       ) : null}
       {jobs.data && jobs.data.length === 0 ? <p className="muted">No background jobs have run for this project yet.</p> : null}
       {jobs.data && jobs.data.length > 0 ? (
-        <section className="jobs-summary" aria-label="Job status summary">
+        <section className="grid grid-cols-2 gap-3 min-[681px]:grid-cols-5" aria-label="Job status summary">
           {jobStatusCounts.map(({ status, label, count }) => (
             <button
               type="button"
               key={status}
-              className={`jobs-summary__item jobs-summary__item--${status}${statusFilter === status ? ' jobs-summary__item--active' : ''}`}
+              className={`grid min-h-20 cursor-pointer gap-1 rounded-md border bg-bg-elevated p-3 text-left shadow-none transition-colors hover:bg-surface-hover aria-pressed:ring-2 aria-pressed:ring-primary-container [&_strong]:text-xl [&_span]:text-xs [&_span]:font-semibold [&_span]:text-text-muted ${status === 'running' ? 'border-primary/35 [&_strong]:text-primary' : status === 'queued' ? 'border-warning/35 [&_strong]:text-warning' : status === 'completed' ? 'border-success/35 [&_strong]:text-success' : status === 'failed' ? 'border-danger/35 [&_strong]:text-danger' : 'border-border [&_strong]:text-text'}`}
               aria-label={`${count} ${status} job${count === 1 ? '' : 's'}`}
               aria-pressed={statusFilter === status}
               onClick={() => setStatusFilter(status)}
@@ -313,7 +313,7 @@ export function JobsPage() {
         </section>
       ) : null}
       {jobs.data && jobs.data.length > 0 ? (
-        <div className="toolbar jobs-toolbar">
+        <div className="flex flex-wrap items-end gap-3">
           <FormField label="Status">
             <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
               {STATUS_FILTER_OPTIONS.map((option) => (
@@ -358,7 +358,7 @@ export function JobsPage() {
             <thead>
               <tr>
                 {canManage ? (
-                  <th scope="col" className="jobs-table__select">
+                  <th scope="col" className="w-10">
                     <Input
                       type="checkbox"
                       checked={allFailedSelected}
@@ -400,7 +400,7 @@ export function JobsPage() {
                         />
                       </td>
                     ) : null}
-                    <th scope="row" className="jobs-table__jobtype">{job.jobType}</th>
+                    <th scope="row" className="min-w-40">{job.jobType}</th>
                     <td>
                       <Badge variant={STATUS_BADGE_VARIANT[job.status] ?? 'neutral'} className="capitalize">
                         {job.status}
@@ -408,12 +408,12 @@ export function JobsPage() {
                     </td>
                     <td>
                       {job.progressTotal ? (
-                        <span className="jobs-progress">
-                          <span className="jobs-progress__label">{job.progressCurrent} / {job.progressTotal}</span>
+                        <span className="grid min-w-28 gap-1.5">
+                          <span className="text-xs font-semibold text-text-secondary">{job.progressCurrent} / {job.progressTotal}</span>
                           {job.status === 'running' ? (
-                            <span className="jobs-progress__bar">
+                            <span className="h-1.5 overflow-hidden rounded-full bg-surface-active">
                               <span
-                                className="jobs-progress__fill"
+                                className="block h-full rounded-full bg-primary transition-[width] duration-200"
                                 style={{ width: `${Math.min(100, (job.progressCurrent / job.progressTotal) * 100)}%` }}
                               />
                             </span>

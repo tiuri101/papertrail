@@ -11,7 +11,7 @@ export function StageEyebrow({ stage }: { stage: ProjectStageValue }) {
   if (!definition) return null
   return (
     <p
-      className="eyebrow text-(--stage-color)"
+      className="mb-1 block text-xs font-bold uppercase tracking-[0.08em] text-(--stage-color)"
       style={{ '--stage-color': definition.color } as CSSProperties}
     >
       {definition.label}
@@ -22,7 +22,7 @@ export function StageEyebrow({ stage }: { stage: ProjectStageValue }) {
 export function AdministrationEyebrow() {
   return (
     <p
-      className="eyebrow text-(--stage-color)"
+      className="mb-1 block text-xs font-bold uppercase tracking-[0.08em] text-(--stage-color)"
       style={{ '--stage-color': ADMINISTRATION_COLOR } as CSSProperties}
     >
       Administration

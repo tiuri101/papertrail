@@ -9,6 +9,7 @@ import { DoiPill } from '../../components/DoiPill'
 import { HighlightedText } from '../../components/HighlightedText'
 import { Input } from '../../components/Input'
 import { Select } from '../../components/Select'
+import { reviewWorkActionsClass, reviewWorkCardClass, reviewWorkDoiClass, reviewWorkEditorClass, reviewWorkGridClass, reviewWorkListClass, reviewWorkMetadataClass, reviewWorkStatusClass, reviewWorkSubmittedClass, reviewWorkTitleClass, reviewWorkTitleLinkClass, reviewWorkVenueClass } from '../../components/reviewWorkStyles'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 import { StageEyebrow } from '../projects/StageEyebrow'
 import { QualityWorkspace } from './QualityWorkspace'
@@ -77,43 +78,43 @@ function QualityRow({ projectId, entry, highlightKeywords }: {
   const detailHref = `/projects/${projectId}/publications/${publication.id}`
 
   const openPublication = (event: MouseEvent<HTMLLIElement>) => {
-    if ((event.target as HTMLElement).closest('a, button, input, select, textarea, label, .review-work-card__editor')) return
+    if ((event.target as HTMLElement).closest('a, button, input, select, textarea, label, [data-review-work-editor]')) return
     navigate(detailHref)
   }
 
   return (
-    <li className="card publication-card review-work-card--clickable" onClick={openPublication}>
-      <div className="publication-card__summary review-work-row-grid">
-        <div className="review-work-row-grid__title">
-          <Link className="publication-card__title-button" to={detailHref}>
-            <h2 className="decision-card__title">
+    <li className={reviewWorkCardClass} onClick={openPublication}>
+      <div className={reviewWorkGridClass}>
+        <div className={reviewWorkTitleClass}>
+          <Link className={reviewWorkTitleLinkClass} to={detailHref}>
+            <h2 className="m-0 inline text-[inherit] leading-[inherit]">
               <HighlightedText text={publication.title} keywords={highlightKeywords} />
             </h2>
           </Link>
-          <div className="review-work-row-grid__authors">{publication.authors ?? 'Unknown authors'}</div>
+          <div className={reviewWorkMetadataClass}>{publication.authors ?? 'Unknown authors'}</div>
         </div>
-        <span className="review-work-row-grid__venue" title={publication.venue ?? undefined}>
+        <span className={reviewWorkVenueClass} title={publication.venue ?? undefined}>
           {publication.venue ?? '—'}{publication.publicationYear ? ` (${publication.publicationYear})` : ''}
         </span>
-        <span className="review-work-row-grid__status">
+        <span className={reviewWorkStatusClass}>
           <span className="status-pill">
             {entry.totalScore === null ? `Version ${entry.version}` : `Total score ${entry.totalScore} · v${entry.version}`}
           </span>
         </span>
-        <span className="review-work-row-grid__doi">
+        <span className={reviewWorkDoiClass}>
           {publication.doi ? <DoiPill doi={publication.doi} /> : <span className="muted">—</span>}
         </span>
-        <time className="review-work-row-grid__submitted" dateTime={entry.completedAt ?? undefined}>
+        <time className={reviewWorkSubmittedClass} dateTime={entry.completedAt ?? undefined}>
           {formatSubmittedAt(entry.completedAt)}
         </time>
-        <span className="review-work-row-grid__actions">
+        <span className={reviewWorkActionsClass}>
           {!editing ? (
             <Button type="button" variant="secondary" size="sm" onClick={() => setEditing(true)}>Edit Quality Assessment</Button>
           ) : null}
         </span>
       </div>
       {editing ? (
-        <div className="review-work-card__editor">
+        <div data-review-work-editor="true" className={reviewWorkEditorClass}>
           <QualityWorkspace
             projectId={projectId}
             itemId={entry.id}
@@ -200,7 +201,7 @@ export function MyQualityPage() {
           ) : filteredItems.length === 0 ? (
             <p className="muted">No assessments match your filters.</p>
           ) : (
-            <ul className="card-list stacked publication-list">
+            <ul className={reviewWorkListClass}>
                 {filteredItems.map((entry) => <QualityRow key={entry.id} projectId={projectId} entry={entry} highlightKeywords={highlightKeywords} />)}
             </ul>
           )}
