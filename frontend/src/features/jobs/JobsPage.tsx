@@ -3,8 +3,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Button, IconButton } from '../../components/Button'
 import { CountPill } from '../../components/CountPill'
+import { FormField } from '../../components/FormField'
 import { IconRestart } from '../../components/icons'
+import { Input } from '../../components/Input'
+import { Select } from '../../components/Select'
+import { SortableColumnHeader } from '../../components/SortableColumnHeader'
 import { InfoTooltip } from '../../components/Tooltip'
 import { useCanManageProject } from '../../hooks/useCanManageProject'
 import { AdministrationEyebrow } from '../projects/StageEyebrow'
@@ -122,14 +127,14 @@ function JobFailureDetails({ job }: { job: BackgroundJob }) {
   return (
     <div className="job-failure">
       <span className="error" role="alert">{job.errorMessage}</span>
-      <button
+      <Button
         type="button"
-        className="link-button"
+        variant="text"
         aria-expanded={visible}
         onClick={() => setVisible((current) => !current)}
       >
         {visible ? 'Hide error details' : 'View error details'}
-      </button>
+      </Button>
       {visible ? (
         <div className="job-error-report">
           {report.isLoading ? <p>Loading diagnostic report…</p> : null}
@@ -308,41 +313,39 @@ export function JobsPage() {
       ) : null}
       {jobs.data && jobs.data.length > 0 ? (
         <div className="toolbar jobs-toolbar">
-          <label>
-            Status
-            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+          <FormField label="Status">
+            <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
               {STATUS_FILTER_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
               ))}
-            </select>
-          </label>
-          <label>
-            Job type
-            <select value={jobTypeFilter} onChange={(event) => setJobTypeFilter(event.target.value)}>
+            </Select>
+          </FormField>
+          <FormField label="Job type">
+            <Select value={jobTypeFilter} onChange={(event) => setJobTypeFilter(event.target.value)}>
               <option value="">All</option>
               {jobTypeOptions.map((jobType) => (
                 <option key={jobType} value={jobType}>{jobType}</option>
               ))}
-            </select>
-          </label>
+            </Select>
+          </FormField>
           {canManage ? (
             <>
-              <button
+              <Button
                 type="button"
                 disabled={selectedIds.size === 0 || restartMany.isPending}
                 onClick={() => restartMany.mutate(Array.from(selectedIds))}
               >
                 <IconRestart />
                 Restart Selected ({selectedIds.size})
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                className="button-secondary"
+                variant="secondary"
                 disabled={failedJobIds.length === 0 || restartMany.isPending}
                 onClick={() => restartMany.mutate(failedJobIds)}
               >
                 Restart All Failed ({failedJobIds.length})
-              </button>
+              </Button>
             </>
           ) : null}
         </div>
@@ -355,7 +358,7 @@ export function JobsPage() {
               <tr>
                 {canManage ? (
                   <th scope="col" className="jobs-table__select">
-                    <input
+                    <Input
                       type="checkbox"
                       checked={allFailedSelected}
                       onChange={toggleAllFailed}
@@ -364,25 +367,18 @@ export function JobsPage() {
                     />
                   </th>
                 ) : null}
-                {COLUMNS.map((column) => {
-                  const active = sortKey === column.key
-                  return (
-                    <th
-                      key={column.key}
-                      scope="col"
-                      aria-sort={active ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
-                    >
-                      <span className="jobs-table__heading">
-                        <button type="button" className="link-button" onClick={() => toggleSort(column.key)}>
-                          {column.label}{active ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
-                        </button>
-                        {COLUMN_HELP[column.key] ? (
-                          <InfoTooltip text={COLUMN_HELP[column.key]!} label={`About ${column.label}`} placement="bottom" />
-                        ) : null}
-                      </span>
-                    </th>
-                  )
-                })}
+                {COLUMNS.map((column) => (
+                  <SortableColumnHeader
+                    key={column.key}
+                    label={column.label}
+                    active={sortKey === column.key}
+                    direction={sortDirection}
+                    onSort={() => toggleSort(column.key)}
+                    accessory={COLUMN_HELP[column.key] ? (
+                      <InfoTooltip text={COLUMN_HELP[column.key]!} label={`About ${column.label}`} placement="bottom" />
+                    ) : null}
+                  />
+                ))}
                 {canManage ? <th scope="col"><span className="visually-hidden">Actions</span></th> : null}
               </tr>
             </thead>
@@ -393,7 +389,7 @@ export function JobsPage() {
                   <tr key={job.id}>
                     {canManage ? (
                       <td>
-                        <input
+                        <Input
                           type="checkbox"
                           checked={selectedIds.has(job.id)}
                           onChange={() => toggleSelected(job.id)}
@@ -434,16 +430,17 @@ export function JobsPage() {
                     {canManage ? (
                       <td>
                         {failed ? (
-                          <button
-                            type="button"
-                            className="icon-button icon-button--round"
+                          <IconButton
+                            variant="outline"
+                            size="sm"
+                            className="rounded-full"
                             disabled={restartOne.isPending}
                             onClick={() => restartOne.mutate(job.id)}
                             aria-label="Restart"
                             title="Restart job"
                           >
                             <IconRestart />
-                          </button>
+                          </IconButton>
                         ) : null}
                       </td>
                     ) : null}

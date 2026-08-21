@@ -3,7 +3,9 @@ import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
 import { CountPill } from '../../components/CountPill'
+import { Textarea } from '../../components/Textarea'
 import { useProjectManageState } from '../../hooks/useCanManageProject'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { StageEyebrow } from '../projects/StageEyebrow'
@@ -166,25 +168,25 @@ function ConflictCard({ conflict, resolving, addingReviewer, onResolve, onAddRev
       </table>
       <label>
         Resolution note
-        <textarea value={note} onChange={(event) => setNote(event.target.value)} />
+        <Textarea value={note} onChange={(event) => setNote(event.target.value)} />
       </label>
       <div className="toolbar">
         {outcomes.map((outcome) => (
-          <button
+          <Button
             type="button"
             key={outcome}
-            className={outcome === 'include' ? undefined : 'button-secondary'}
+            variant={outcome === 'include' ? 'primary' : 'secondary'}
             onClick={() => onResolve(outcome, note || null)}
             disabled={resolving}
           >
             {formatOutcome(outcome)}
-          </button>
+          </Button>
         ))}
       </div>
       <div className="toolbar">
-        <button type="button" className="button-secondary" onClick={onAddReviewer} disabled={addingReviewer}>
+        <Button type="button" variant="secondary" onClick={onAddReviewer} disabled={addingReviewer}>
           Add Another Reviewer
-        </button>
+        </Button>
       </div>
     </li>
   )

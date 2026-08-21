@@ -4,6 +4,7 @@ import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { CountPill } from '../../components/CountPill'
+import { SortableColumnHeader } from '../../components/SortableColumnHeader'
 import { InfoTooltip } from '../../components/Tooltip'
 import { useProjectManageState } from '../../hooks/useCanManageProject'
 
@@ -175,23 +176,18 @@ export function AuditLogPage() {
             <caption className="visually-hidden">Audit events</caption>
             <thead>
               <tr>
-                {COLUMNS.map((column) => {
-                  const active = sortKey === column.key
-                  return (
-                    <th
-                      key={column.key}
-                      scope="col"
-                      aria-sort={active ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
-                    >
-                      <button type="button" className="link-button" onClick={() => toggleSort(column.key)}>
-                        {column.label}{active ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
-                      </button>
-                      {COLUMN_HELP[column.key] ? (
-                        <InfoTooltip text={COLUMN_HELP[column.key]!} label={`About ${column.label}`} placement="bottom" />
-                      ) : null}
-                    </th>
-                  )
-                })}
+                {COLUMNS.map((column) => (
+                  <SortableColumnHeader
+                    key={column.key}
+                    label={column.label}
+                    active={sortKey === column.key}
+                    direction={sortDirection}
+                    onSort={() => toggleSort(column.key)}
+                    accessory={COLUMN_HELP[column.key] ? (
+                      <InfoTooltip text={COLUMN_HELP[column.key]!} label={`About ${column.label}`} placement="bottom" />
+                    ) : null}
+                  />
+                ))}
               </tr>
             </thead>
             <tbody>
