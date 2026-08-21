@@ -5,6 +5,7 @@ import { apiRequest } from '../../api/client'
 import { Button } from '../../components/Button'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { IconCheckCircle, IconPerson, IconSettings } from '../../components/icons'
+import { Input } from '../../components/Input'
 import { SectionNavigationLayout } from '../../components/SectionNavigationLayout'
 import { ScreeningHotkeysSection } from '../screening/ScreeningHotkeysSection'
 import { BrowserHelpersSection } from './BrowserHelpersSection'
@@ -72,7 +73,7 @@ export function AccountSettingsPage() {
           <p className="muted">Changes save automatically when you leave a field.</p>
           <label>
             Display name
-            <input
+            <Input
               value={displayName}
               onChange={(event) => setDisplayName(event.target.value)}
               onBlur={saveProfileIfChanged}
@@ -81,7 +82,7 @@ export function AccountSettingsPage() {
           </label>
           <label>
             Email address
-            <input
+            <Input
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
@@ -98,7 +99,7 @@ export function AccountSettingsPage() {
           <form onSubmit={(event) => { event.preventDefault(); updatePassword.mutate() }}>
             <label>
               Current password
-              <input
+              <Input
                 type="password"
                 value={currentPassword}
                 onChange={(event) => setCurrentPassword(event.target.value)}
@@ -108,7 +109,7 @@ export function AccountSettingsPage() {
             </label>
             <label>
               New password
-              <input
+              <Input
                 type="password"
                 value={newPassword}
                 onChange={(event) => setNewPassword(event.target.value)}
@@ -119,7 +120,7 @@ export function AccountSettingsPage() {
             </label>
             <label>
               Confirm new password
-              <input
+              <Input
                 type="password"
                 value={confirmPassword}
                 onChange={(event) => setConfirmPassword(event.target.value)}

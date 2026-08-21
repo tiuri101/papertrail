@@ -5,6 +5,7 @@ import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { InfoBox } from '../../components/InfoBox'
 import { IconDownload } from '../../components/icons'
+import { Select } from '../../components/Select'
 
 type TaskAllocationMode = 'pre_assigned' | 'claim'
 
@@ -82,26 +83,26 @@ export function ExtractionSettingsPanel({ projectId }: { projectId: string }) {
         <>
           <label>
             Extractors per publication
-            <select
+            <Select
               value={requiredReviewers}
               onChange={(event) => updateRequiredReviewers(Number(event.target.value))}
             >
               {[1, 2].map((value) => (
                 <option key={value} value={value}>{REQUIRED_REVIEWERS_LABELS[value].title}</option>
               ))}
-            </select>
+            </Select>
           </label>
           <p className="muted">{REQUIRED_REVIEWERS_LABELS[requiredReviewers]?.description}</p>
           <label>
             Allocation
-            <select
+            <Select
               value={allocationMode}
               onChange={(event) => updateAllocationMode(event.target.value as TaskAllocationMode)}
             >
               {(Object.keys(TASK_ALLOCATION_MODE_LABELS) as TaskAllocationMode[]).map((value) => (
                 <option key={value} value={value}>{TASK_ALLOCATION_MODE_LABELS[value]}</option>
               ))}
-            </select>
+            </Select>
           </label>
         </>
       )}

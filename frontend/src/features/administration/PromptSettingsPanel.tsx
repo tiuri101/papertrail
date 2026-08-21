@@ -5,6 +5,7 @@ import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { InfoBox } from '../../components/InfoBox'
 import { IconLightbulb } from '../../components/icons'
+import { Textarea } from '../../components/Textarea'
 
 interface PromptFlow {
   key: string
@@ -85,7 +86,7 @@ export function PromptSettingsPanel({ projectId }: { projectId: string }) {
           </details>
           <label>
             Custom instructions
-            <textarea
+            <Textarea
               value={draft[flow.key] ?? ''}
               onChange={(event) => setDraft((current) => ({
                 ...current, [flow.key]: event.target.value,

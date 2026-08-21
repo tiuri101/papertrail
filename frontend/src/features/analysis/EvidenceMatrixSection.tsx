@@ -3,6 +3,8 @@ import { useMemo, useState } from 'react'
 import { Button } from '../../components/Button'
 import { Card } from '../../components/Card'
 import { CountPill } from '../../components/CountPill'
+import { Input } from '../../components/Input'
+import { Select } from '../../components/Select'
 import { LlmEvidence } from '../llm/LlmTaskComponents'
 import {
   useEvidenceCellDetail,
@@ -94,7 +96,7 @@ function ColumnFilterControl({
     <div className="evidence-matrix__filter">
       <label>
         <span className="visually-hidden">Filter {column.label}</span>
-        <select
+        <Select
           value={mode}
           onChange={(event) => setMode(event.target.value as FilterMode)}
           aria-label={`Filter ${column.label}`}
@@ -103,10 +105,10 @@ function ColumnFilterControl({
           <option value="value">Filter by value…</option>
           <option value="missing">Only missing</option>
           <option value="pending_reconciliation">Only pending reconciliation</option>
-        </select>
+        </Select>
       </label>
       {mode === 'value' && predicate?.type === 'categorical' ? (
-        <select
+        <Select
           multiple
           aria-label={`${column.label} values`}
           value={predicate.values}
@@ -118,7 +120,7 @@ function ColumnFilterControl({
           {options.map((option) => (
             <option key={option} value={option}>{option}</option>
           ))}
-        </select>
+        </Select>
       ) : null}
       {mode === 'value' && predicate?.type === 'multi_select' ? (
         <fieldset className="evidence-matrix__filter-checkboxes">
@@ -127,7 +129,7 @@ function ColumnFilterControl({
             const checked = predicate.anyOf.includes(option)
             return (
               <label key={option}>
-                <input
+                <Input
                   type="checkbox"
                   checked={checked}
                   onChange={(event) => {
@@ -145,7 +147,7 @@ function ColumnFilterControl({
       ) : null}
       {mode === 'value' && predicate?.type === 'numeric' ? (
         <span className="evidence-matrix__filter-range">
-          <input
+          <Input
             type="number"
             aria-label={`${column.label} minimum`}
             placeholder="Min"
@@ -155,7 +157,7 @@ function ColumnFilterControl({
               min: event.target.value === '' ? undefined : Number(event.target.value),
             })}
           />
-          <input
+          <Input
             type="number"
             aria-label={`${column.label} maximum`}
             placeholder="Max"
@@ -168,7 +170,7 @@ function ColumnFilterControl({
         </span>
       ) : null}
       {mode === 'value' && predicate?.type === 'text' ? (
-        <input
+        <Input
           type="text"
           aria-label={`${column.label} contains`}
           placeholder="Contains…"
@@ -305,7 +307,7 @@ export function EvidenceMatrixSection({ projectId }: { projectId: string }) {
       <div className="toolbar">
         <label>
           Search
-          <input
+          <Input
             type="search"
             value={search}
             onChange={(event) => {
@@ -317,7 +319,7 @@ export function EvidenceMatrixSection({ projectId }: { projectId: string }) {
         </label>
         <label>
           Rows per page
-          <select
+          <Select
             value={pageSize}
             onChange={(event) => {
               setPageSize(Number(event.target.value))
@@ -327,7 +329,7 @@ export function EvidenceMatrixSection({ projectId }: { projectId: string }) {
             {PAGE_SIZE_OPTIONS.map((size) => (
               <option key={size} value={size}>{size}</option>
             ))}
-          </select>
+          </Select>
         </label>
       </div>
       {data ? (
@@ -336,7 +338,7 @@ export function EvidenceMatrixSection({ projectId }: { projectId: string }) {
           <div className="evidence-matrix__column-toggle-list">
             {data.columns.map((column) => (
               <label key={column.key}>
-                <input
+                <Input
                   type="checkbox"
                   checked={!hiddenColumns.has(column.key)}
                   onChange={() => toggleColumn(column.key)}
