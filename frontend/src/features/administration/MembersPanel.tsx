@@ -1,3 +1,4 @@
+import { tableCompactClass, toolbarClass } from '../../components/layoutStyles'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
@@ -94,7 +95,7 @@ function MemberRow({
             }}
           >
             <fieldset>
-              <legend className="subsection-heading">Stages</legend>
+              <legend className="mb-3 text-base font-semibold leading-[1.2] text-text">Stages</legend>
               {ROLE_FIELDS.map(([field, fieldLabel]) => (
                 <label key={field}>
                   <Input
@@ -118,7 +119,7 @@ function MemberRow({
                 required
               />
             </label>
-            <div className="toolbar">
+            <div className={toolbarClass}>
               <Button type="submit" disabled={pending}><IconCheckCircle />Save</Button>
               <Button
                 type="button"
@@ -147,10 +148,10 @@ function MemberRow({
       <td>{label}</td>
       <td>
         {activeRoles.length > 0 ? activeRoles.join(', ') : 'No roles assigned'}
-        <span className="muted">. Weight: {membership.workloadWeight}.</span>
+        <span className="text-text-muted">. Weight: {membership.workloadWeight}.</span>
       </td>
       <td>
-        <div className="toolbar">
+        <div className={toolbarClass}>
           <Button type="button" onClick={() => setEditing(true)} disabled={pending}>Edit</Button>
           <ConfirmButton
             label="Remove"
@@ -229,7 +230,7 @@ export function MembersPanel({
 
   if (project.isLoading) return <p>Loading project members…</p>
   if (project.isError || !project.data) {
-    return <p className="error" role="alert">Project members could not be loaded.</p>
+    return <p className="text-danger" role="alert">Project members could not be loaded.</p>
   }
 
   const usersById = new Map((users.data ?? []).map((user) => [user.id, user]))
@@ -251,12 +252,12 @@ export function MembersPanel({
           many publications as one with weight 1.
         </p>
       </InfoBox>
-      {users.error ? <p className="error" role="alert">{users.error.message}</p> : null}
-      {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
+      {users.error ? <p className="text-danger" role="alert">{users.error.message}</p> : null}
+      {mutationError ? <p className="text-danger" role="alert">{mutationError.message}</p> : null}
       <CountPill count={project.data.memberships.length}>
         project member{project.data.memberships.length === 1 ? '' : 's'}
       </CountPill>
-      <table className="table-compact">
+      <table className={tableCompactClass}>
         <thead>
           <tr>
             <th scope="col">Reviewer</th>
@@ -308,7 +309,7 @@ export function MembersPanel({
         {selectedUserId ? (
           <>
             <fieldset>
-              <legend className="subsection-heading">Stages</legend>
+              <legend className="mb-3 text-base font-semibold leading-[1.2] text-text">Stages</legend>
               {ROLE_FIELDS.map(([field, label]) => (
                 <label key={field}>
                   <Input

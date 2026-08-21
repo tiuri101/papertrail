@@ -1,3 +1,4 @@
+import { toolbarClass } from '../../components/layoutStyles'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
@@ -7,6 +8,8 @@ import { Badge } from '../../components/Badge'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { Button, IconButton } from '../../components/Button'
 import { CountPill } from '../../components/CountPill'
+import { cardStyles } from '../../components/Card'
+import { pageStyles } from '../../components/Page'
 import { DragHandle } from '../../components/DragHandle'
 import { IconCheckCircle, IconPlus, IconTrash } from '../../components/icons'
 import { Input } from '../../components/Input'
@@ -328,13 +331,13 @@ export function FormBuilderPage() {
   }
 
   if (canManageLoading) {
-    return <main className="page"><p>Loading…</p></main>
+    return <main className={pageStyles}><p>Loading…</p></main>
   }
   if (!canManage) {
     return (
-      <main className="page">
+      <main className={pageStyles}>
         <h1>Forms and Templates</h1>
-        <p className="error" role="alert">
+        <p className="text-danger" role="alert">
           Only the project owner or an administrator can manage forms and templates.
         </p>
       </main>
@@ -342,16 +345,16 @@ export function FormBuilderPage() {
   }
 
   return (
-    <main className="page">
+    <main className={pageStyles}>
       <StageEyebrow stage="draft" />
       <h1>Forms and Templates</h1>
-      <p className="muted">
+      <p className="text-text-muted">
         Build and manage this project's extraction and quality assessment forms, and save
         reusable field templates.
       </p>
-      {forms.error ? <p className="error" role="alert">{forms.error.message}</p> : null}
-      {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
-      <section id="section-create-form" className="card">
+      {forms.error ? <p className="text-danger" role="alert">{forms.error.message}</p> : null}
+      {mutationError ? <p className="text-danger" role="alert">{mutationError.message}</p> : null}
+      <section id="section-create-form" className={cardStyles} data-ui="card">
         <h2>Create Project Form</h2>
         <InfoBox icon={<IconCheckCircle />}>
           <p>
@@ -405,12 +408,12 @@ export function FormBuilderPage() {
                 ))}
               </Select>
             </label>
-            {templates.error ? <p className="error" role="alert">{templates.error.message}</p> : null}
+            {templates.error ? <p className="text-danger" role="alert">{templates.error.message}</p> : null}
             <Button type="submit" variant="primary" loading={createForm.isPending}><IconPlus />Create Form</Button>
           </form>
         )}
       </section>
-      <section id="section-edit-form" className="card">
+      <section id="section-edit-form" className={cardStyles} data-ui="card">
         <h2>Inspect or Edit a Form</h2>
         <label>
           Form to edit
@@ -464,19 +467,20 @@ export function FormBuilderPage() {
               ) : null}
             </div>
             {selectedFormReadOnly ? (
-              <p className="muted">Templates are read-only unless you are an installation administrator.</p>
+              <p className="text-text-muted">Templates are read-only unless you are an installation administrator.</p>
             ) : null}
             <h3>Fields</h3>
-            {fields.error ? <p className="error" role="alert">{fields.error.message}</p> : null}
-            {fields.data?.length === 0 && selectedFormReadOnly ? <p className="muted">No fields added yet.</p> : (
-              <div className={cn(llmSchemaFieldsClass, 'form-editor-fields')}>
-                {fields.data?.length === 0 && !addingField ? <p className="muted">No fields added yet.</p> : null}
+            {fields.error ? <p className="text-danger" role="alert">{fields.error.message}</p> : null}
+            {fields.data?.length === 0 && selectedFormReadOnly ? <p className="text-text-muted">No fields added yet.</p> : (
+              <div className={llmSchemaFieldsClass}>
+                {fields.data?.length === 0 && !addingField ? <p className="text-text-muted">No fields added yet.</p> : null}
                 {orderedFields.map((field) => {
                   const editingOptions = parseOptions(editingOptionsText)
                   const fieldIndex = activeFields.findIndex((item) => item.stableKey === field.stableKey)
                   return (
                   <details
-                    className={cn(llmSchemaFieldClass({ dragging: draggedFieldKey === field.stableKey, dragOver: dragOverFieldKey === field.stableKey }), 'form-editor-field')}
+                    className={llmSchemaFieldClass({ dragging: draggedFieldKey === field.stableKey, dragOver: dragOverFieldKey === field.stableKey })}
+                    data-ui="form-editor-field"
                     data-dragging={draggedFieldKey === field.stableKey || undefined}
                     data-drag-over={dragOverFieldKey === field.stableKey || undefined}
                     key={field.id}
@@ -645,7 +649,7 @@ export function FormBuilderPage() {
                           {isQualityForm && editingType === 'single_select' ? (
                             <fieldset>
                               <legend>Score per option</legend>
-                              {editingOptions.length === 0 ? <p className="muted">Add options above first.</p> : null}
+                              {editingOptions.length === 0 ? <p className="text-text-muted">Add options above first.</p> : null}
                               {editingOptions.map((option) => (
                                 <label key={option}>
                                   {option}
@@ -684,7 +688,7 @@ export function FormBuilderPage() {
                               </label>
                             </div>
                           ) : null}
-                          <div className="toolbar">
+                          <div className={toolbarClass}>
                             <Button
                               type="button"
                               disabled={updateField.isPending}
@@ -728,7 +732,7 @@ export function FormBuilderPage() {
                           </div>
                         </>
                       ) : field.isArchived ? (
-                        <p className="muted">
+                        <p className="text-text-muted">
                           This field is no longer shown on new submissions. Previously recorded values are preserved.
                         </p>
                       ) : null}
@@ -747,7 +751,7 @@ export function FormBuilderPage() {
                   )
                 })}
                 {!selectedFormReadOnly && addingField ? (
-                  <div className={cn(llmSchemaFieldClass({ draft: true }), 'form-editor-field form-editor-field--draft')}>
+                  <div className={llmSchemaFieldClass({ draft: true })} data-ui="form-editor-field" data-draft="true">
                     <div className={cn(llmSchemaSummaryClass, 'cursor-default')}>
                       <span className={llmSchemaTitleClass}>
                         <strong>{fieldLabel.trim() || 'New field'}</strong>
@@ -760,7 +764,7 @@ export function FormBuilderPage() {
                       <span className={llmSchemaPreviewClass}>Configure the new response field below.</span>
                     </div>
                     <form
-                      className={cn(llmSchemaContentClass, 'form-editor-field__draft-form')}
+                      className={cn(llmSchemaContentClass, 'grid-cols-1')}
                       onSubmit={(event) => { event.preventDefault(); addField.mutate() }}
                     >
                       <label>
@@ -827,7 +831,7 @@ export function FormBuilderPage() {
                       {isQualityForm && fieldType === 'single_select' ? (
                         <fieldset>
                           <legend>Score per option</legend>
-                          {options.length === 0 ? <p className="muted">Add options above first.</p> : null}
+                          {options.length === 0 ? <p className="text-text-muted">Add options above first.</p> : null}
                           {options.map((option) => (
                             <label key={option}>
                               {option}
@@ -855,7 +859,7 @@ export function FormBuilderPage() {
                           </label>
                         </div>
                       ) : null}
-                      <div className="toolbar">
+                      <div className={toolbarClass}>
                         <Button
                           type="submit"
                           variant="primary"
@@ -880,7 +884,7 @@ export function FormBuilderPage() {
                   <IconButton
                     variant="secondary"
                     size="sm"
-                    className="size-[30px]! min-w-[30px]! min-h-[30px]! rounded-full! [&_svg]:size-4! form-editor-fields__add-button"
+                    className="size-[30px]! min-w-[30px]! min-h-[30px]! justify-self-start rounded-full! [&_svg]:size-4!"
                     aria-label="Add form field"
                     title="Add form field"
                     disabled={addingField || addField.isPending}
@@ -894,7 +898,7 @@ export function FormBuilderPage() {
             {!isTemplateSelected ? (
             <>
             <h3>Save as Reusable Template</h3>
-            <p className="muted">Saves the current fields as a new template. Later edits to this project form won't affect the template, or vice versa.</p>
+            <p className="text-text-muted">Saves the current fields as a new template. Later edits to this project form won't affect the template, or vice versa.</p>
             <form onSubmit={(event) => { event.preventDefault(); saveAsTemplate.mutate() }}>
               <label>
                 Template name
@@ -912,7 +916,7 @@ export function FormBuilderPage() {
             {activeFields.length ? (
               <>
                 <h3>Preview</h3>
-                <div className="card">
+                <div className={cardStyles} data-ui="card">
                   <DynamicForm
                     fields={activeFields.map((field) => ({
                       stableKey: field.stableKey,
@@ -930,7 +934,7 @@ export function FormBuilderPage() {
           </>
         ) : null}
       </section>
-      <section id="section-manage-templates" className="card">
+      <section id="section-manage-templates" className={cardStyles} data-ui="card">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
             <h2>Manage Templates</h2>
@@ -939,8 +943,8 @@ export function FormBuilderPage() {
             template{templateCatalog.length === 1 ? '' : 's'}
           </CountPill>
         </div>
-        {templates.error ? <p className="error" role="alert">{templates.error.message}</p> : null}
-        {templates.isLoading ? <p className="muted">Loading templates…</p> : null}
+        {templates.error ? <p className="text-danger" role="alert">{templates.error.message}</p> : null}
+        {templates.isLoading ? <p className="text-text-muted">Loading templates…</p> : null}
         {templateCatalog.length === 0 ? (
           <div className="grid justify-items-center rounded-md border border-dashed border-border-strong p-8 text-center">
             <h3>No reusable templates yet</h3>

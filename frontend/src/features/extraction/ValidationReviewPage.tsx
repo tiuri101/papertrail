@@ -1,9 +1,12 @@
+import { toolbarClass } from '../../components/layoutStyles'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useMemo, useState, type MouseEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Page } from '../../components/Page'
 import { Button } from '../../components/Button'
+import { cardStyles } from '../../components/Card'
 import { Badge, type BadgeVariant } from '../../components/Badge'
 import { CountPill } from '../../components/CountPill'
 import { DoiPill } from '../../components/DoiPill'
@@ -159,7 +162,7 @@ function ValidationRow({
         </span>
         <span className={reviewWorkStatusClass}><Badge variant={statusVariant(item)}>{statusLabel(item)}</Badge></span>
         <span className={reviewWorkDoiClass}>
-          {publication.doi ? <DoiPill doi={publication.doi} /> : <span className="muted">—</span>}
+          {publication.doi ? <DoiPill doi={publication.doi} /> : <span className="text-text-muted">—</span>}
         </span>
         <time className={reviewWorkSubmittedClass} dateTime={item.submittedAt ?? undefined}>
           {formatSubmittedAt(item.submittedAt)}
@@ -174,7 +177,7 @@ function ValidationRow({
       {item.issues.length > 0 || item.error || item.fullTextAvailable || ['failed', 'awaiting_validation'].includes(item.state) ? (
         <details data-validation-issues="true" className="mt-4 cursor-default border-t border-border pt-4 [&>summary]:w-fit [&>summary]:cursor-pointer [&>summary]:font-semibold [&>summary]:text-primary" open={item.issues.length > 0}>
           <summary>{item.issues.length > 0 ? `Validation findings (${item.issues.length})` : 'Validation details'}</summary>
-          {item.error ? <p className="error">{item.error}</p> : null}
+          {item.error ? <p className="text-danger">{item.error}</p> : null}
           {item.issues.map((result) => (
             <section className={llmValidationClass(result.assessment)} key={result.fieldKey}>
               <h3>{result.fieldLabel}</h3>
@@ -193,7 +196,7 @@ function ValidationRow({
               ) : null}
             </section>
           ))}
-          <div className="toolbar">
+          <div className={toolbarClass}>
             {item.fullTextAvailable ? (
               <a href={`/api/v1/projects/${projectId}/publications/${item.publicationId}/full-text/content`} target="_blank" rel="noreferrer">
                 View PDF
@@ -254,17 +257,17 @@ export function ValidationReviewPage() {
     }
   }
 
-  if (review.isLoading) return <main className="page"><p>Loading validation review…</p></main>
-  if (review.isError || !review.data) return <main className="page"><p className="error" role="alert">Validation review could not be loaded.</p></main>
+  if (review.isLoading) return <Page><p>Loading validation review…</p></Page>
+  if (review.isError || !review.data) return <Page><p className="text-danger" role="alert">Validation review could not be loaded.</p></Page>
   if (!review.data.enabled) {
-    return <main className="page"><StageEyebrow stage="extraction_quality" /><h1>LLM Extraction Validation</h1><p>LLM extraction validation is not enabled for this project.</p></main>
+    return <Page><StageEyebrow stage="extraction_quality" /><h1>LLM Extraction Validation</h1><p>LLM extraction validation is not enabled for this project.</p></Page>
   }
 
   return (
-    <main className="page">
+    <Page>
       <StageEyebrow stage="extraction_quality" />
       <h1>Review LLM Extraction Validation</h1>
-      <section className="card">
+      <section className={cardStyles} data-ui="card">
         <h2>Validation progress</h2>
         <CountPill count={review.data.progress.completed}>
           of {review.data.progress.total} validated
@@ -272,17 +275,17 @@ export function ValidationReviewPage() {
           {review.data.progress.failed ? ` · ${review.data.progress.failed} failed` : ''}
           {review.data.progress.unavailable ? ` · ${review.data.progress.unavailable} unavailable` : ''}
         </CountPill>
-        <p className="muted">Human extraction values remain authoritative. Review flagged fields, then correct the extraction if needed.</p>
+        <p className="text-text-muted">Human extraction values remain authoritative. Review flagged fields, then correct the extraction if needed.</p>
       </section>
 
-      {retry.error ? <p className="error" role="alert">{retry.error.message}</p> : null}
+      {retry.error ? <p className="text-danger" role="alert">{retry.error.message}</p> : null}
       {totalReviewItems > 0 ? (
         <>
           <CountPill count={search ? visibleItems.length : totalReviewItems}>
             {search ? `of ${totalReviewItems} publications match your filters` : `publication${totalReviewItems === 1 ? '' : 's'} need review`}
           </CountPill>
-          <div className="toolbar">
-            <label className="paper-search-field">
+          <div className={toolbarClass}>
+            <label className="w-full flex-[0_1_32rem] max-w-lg">
               Search papers
               <Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Title, author, DOI…" />
             </label>
@@ -310,9 +313,9 @@ export function ValidationReviewPage() {
       ) : null}
 
       {totalReviewItems === 0 ? (
-        <section className="card"><p>No validation mismatches require review.</p></section>
+        <section className={cardStyles} data-ui="card"><p>No validation mismatches require review.</p></section>
       ) : visibleItems.length === 0 ? (
-        <p className="muted">No validation items match your filters.</p>
+        <p className="text-text-muted">No validation items match your filters.</p>
       ) : (
         <>
           <div className={`${reviewWorkGridClass} mb-2 px-4 text-[0.72rem] font-bold tracking-[0.04em] text-text-muted uppercase max-[520px]:hidden`}>
@@ -333,6 +336,6 @@ export function ValidationReviewPage() {
           </ul>
         </>
       )}
-    </main>
+    </Page>
   )
 }

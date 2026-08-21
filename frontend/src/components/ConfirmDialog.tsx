@@ -1,6 +1,8 @@
+import { toolbarClass } from './layoutStyles'
 import type { ReactNode } from 'react'
 import { useEffect, useId, useRef } from 'react'
 import { Button } from './Button'
+import { Card } from './Card'
 
 interface ConfirmDialogProps {
   title: string
@@ -40,10 +42,10 @@ export function ConfirmDialog({
         if (event.target === event.currentTarget) onCancel()
       }}
     >
-      <div className="modal card" role="alertdialog" aria-modal="true" aria-labelledby={titleId}>
+      <Card className="w-[min(440px,100%)] max-h-[calc(100vh-2rem)] overflow-y-auto bg-surface-raised opacity-100" role="alertdialog" aria-modal="true" aria-labelledby={titleId}>
         <h2 id={titleId}>{title}</h2>
         <p>{message}</p>
-        <div className="toolbar">
+        <div className={toolbarClass}>
           <Button
             ref={confirmRef}
             type="button"
@@ -56,7 +58,7 @@ export function ConfirmDialog({
             {cancelLabel}
           </Button>
         </div>
-      </div>
+      </Card>
     </div>
   )
 }

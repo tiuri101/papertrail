@@ -36,7 +36,7 @@ describe('LlmAssistancePanel', () => {
     expect(screen.queryByLabelText('Context length')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Save Installation Settings' })).not.toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    expect(screen.getByText('Stages')).toHaveClass('subsection-heading')
+    expect(screen.getByText('Stages').tagName).toBe('LEGEND')
     const schemaSection = screen.getByRole('heading', { name: 'LLM Extraction Schema' }).closest('section')
     expect(schemaSection).toContainElement(
       screen.getByRole('button', { name: 'Create LLM schema from extraction form' }),

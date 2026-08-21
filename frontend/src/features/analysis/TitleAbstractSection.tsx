@@ -11,10 +11,10 @@ export function TitleAbstractSection({ projectId }: { projectId: string }) {
   return (
     <Card as="section" id="section-analysis-title-abstract">
       <h2>Title/Abstract Screening</h2>
-      {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
+      {query.error ? <p className="text-danger" role="alert">{query.error.message}</p> : null}
       {stats ? (
         <>
-          <p className="muted">
+          <p className="text-text-muted">
             {stats.recordsScreened} records screened &middot; {stats.recordsExcluded} excluded
           </p>
           <h3>Outcomes</h3>

@@ -1,3 +1,4 @@
+import { tableCompactClass, tableNarrowClass } from '../../components/layoutStyles'
 import { useQuery } from '@tanstack/react-query'
 
 import { apiRequest } from '../../api/client'
@@ -32,15 +33,15 @@ export function ReviewerProgressPanel({ projectId }: { projectId: string }) {
       <InfoBox icon={<IconChart />}>
         <p>How many papers each reviewer has been assigned per stage, and how many they've completed.</p>
       </InfoBox>
-      {progress.error ? <p className="error" role="alert">{progress.error.message}</p> : null}
+      {progress.error ? <p className="text-danger" role="alert">{progress.error.message}</p> : null}
       {progress.isLoading ? <p>Loading…</p> : null}
       {progress.data?.map((stage) => (
         <div key={stage.stage}>
           <h3>{stage.label}</h3>
           {stage.reviewers.length === 0 ? (
-            <p className="muted">No reviewers have been assigned work for this stage yet.</p>
+            <p className="text-text-muted">No reviewers have been assigned work for this stage yet.</p>
           ) : (
-            <table className="table-compact table-narrow">
+            <table className={`${tableCompactClass} ${tableNarrowClass}`}>
               <thead>
                 <tr>
                   <th scope="col">Reviewer</th>

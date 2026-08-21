@@ -8,6 +8,7 @@ import { Card } from '../../components/Card'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { IconInfo, IconRestart } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
+import { Page } from '../../components/Page'
 import { SectionNavigationLayout } from '../../components/SectionNavigationLayout'
 import { ProjectDashboard } from '../administration/ProjectDashboard'
 import { DuplicateDetectionAction } from '../duplicates/DuplicateDetectionAction'
@@ -296,14 +297,14 @@ export function ProjectPage() {
       + (pdfMatchSummary.unmatched ?? 0)
       + (pdfMatchSummary.conflict_existing_pdf ?? 0)
     : 0
-  if (project.isLoading) return <main className="page"><p>Loading…</p></main>
-  if (!project.data) return <main className="page"><p className="text-danger" role="alert">Project could not be loaded.</p></main>
+  if (project.isLoading) return <Page><p>Loading…</p></Page>
+  if (!project.data) return <Page><p className="text-danger" role="alert">Project could not be loaded.</p></Page>
 
   const currentIndex = STAGE_INDEX[project.data.stage] ?? 0
 
   return (
     <SectionNavigationLayout items={projectMainSections}>
-      <main className="page">
+      <Page>
         <p className="mb-1 block text-xs font-bold uppercase tracking-[0.08em] text-primary">
           Project workspace · {STAGES[currentIndex]?.label ?? project.data.stage}
         </p>
@@ -423,7 +424,7 @@ export function ProjectPage() {
         </nav>
       </Card>
         <ProjectDashboard projectId={projectId} />
-      </main>
+      </Page>
     </SectionNavigationLayout>
   )
 }

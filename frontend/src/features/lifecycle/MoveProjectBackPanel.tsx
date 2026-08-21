@@ -50,7 +50,7 @@ export function MoveProjectBackPanel({ projectId }: { projectId: string }) {
           (criteria, forms, members), are left untouched.
         </p>
       </InfoBox>
-      {moveBack.error ? <p className="error" role="alert">{moveBack.error.message}</p> : null}
+      {moveBack.error ? <p className="text-danger" role="alert">{moveBack.error.message}</p> : null}
       <label>
         Move back to
         <Select

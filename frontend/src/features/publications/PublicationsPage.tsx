@@ -1,3 +1,4 @@
+import { toolbarClass } from '../../components/layoutStyles'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
@@ -9,6 +10,8 @@ import { Button, IconButton } from '../../components/Button'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { CountPill } from '../../components/CountPill'
 import { DetailList, DetailListRow } from '../../components/DetailList'
+import { cardStyles } from '../../components/Card'
+import { Page } from '../../components/Page'
 import { HighlightedText } from '../../components/HighlightedText'
 import { Input } from '../../components/Input'
 import {
@@ -123,8 +126,8 @@ export function PublicationEditForm({
   return (
     <form onSubmit={(event) => { event.preventDefault(); update.mutate() }}>
       <PublicationFieldInputs draft={draft} setField={setField} />
-      {update.error ? <p className="error" role="alert">{update.error.message}</p> : null}
-      <div className="toolbar">
+      {update.error ? <p className="text-danger" role="alert">{update.error.message}</p> : null}
+      <div className={toolbarClass}>
         <Button type="submit" disabled={update.isPending}><IconCheckCircle />Save</Button>
         <Button type="button" variant="secondary" onClick={onDone}>Cancel</Button>
       </div>
@@ -323,9 +326,9 @@ function PublicationRow({
           onRemoved={refreshPublications}
         />
       ) : null}
-      {enrich.isSuccess ? <p className="muted">Enrichment queued.</p> : null}
-      {enrich.error ? <p className="error" role="alert">{enrich.error.message}</p> : null}
-      {remove.error ? <p className="error" role="alert">{remove.error.message}</p> : null}
+      {enrich.isSuccess ? <p className="text-text-muted">Enrichment queued.</p> : null}
+      {enrich.error ? <p className="text-danger" role="alert">{enrich.error.message}</p> : null}
+      {remove.error ? <p className="text-danger" role="alert">{remove.error.message}</p> : null}
     </li>
   )
 }
@@ -358,17 +361,17 @@ function MetadataConflictsPanel({ projectId }: { projectId: string }) {
   if (!conflicts.error && (!conflicts.data || conflicts.data.length === 0)) return null
 
   return (
-    <section className="card" id="metadata-conflicts">
+    <section className={cardStyles} data-ui="card" id="metadata-conflicts">
       <h2>Metadata Conflicts</h2>
-      <p className="muted">Enrichment or a duplicate merge proposed a different value for a field that already had one. Review each side by side and choose which value to keep.</p>
-      {conflicts.error ? <p className="error" role="alert">{conflicts.error.message}</p> : null}
-      {resolve.error ? <p className="error" role="alert">{resolve.error.message}</p> : null}
+      <p className="text-text-muted">Enrichment or a duplicate merge proposed a different value for a field that already had one. Review each side by side and choose which value to keep.</p>
+      {conflicts.error ? <p className="text-danger" role="alert">{conflicts.error.message}</p> : null}
+      {resolve.error ? <p className="text-danger" role="alert">{resolve.error.message}</p> : null}
       <ul className="mt-5 grid list-none gap-6 p-0">
         {conflicts.data?.map((conflict) => (
           <li key={conflict.id} className="overflow-hidden rounded-lg border border-border bg-[color-mix(in_srgb,var(--color-surface)_92%,transparent)] shadow-sm">
             <header className="flex items-center justify-between gap-4 border-b border-border bg-[color-mix(in_srgb,var(--color-surface-raised)_72%,transparent)] px-5 py-4 max-[680px]:flex-col max-[680px]:items-start max-[680px]:p-4 [&_h3]:mb-0 [&_h3]:mt-0.5 [&_h3]:text-base">
               <div>
-                <span className="eyebrow">Metadata conflict</span>
+                <span className="mb-1 block text-xs font-extrabold uppercase tracking-[0.08em] text-primary">Metadata conflict</span>
                 <h3>{conflict.publication?.title ?? conflict.currentValue ?? 'Publication'}</h3>
               </div>
               <span className="shrink-0 rounded-full bg-primary-container px-2.5 py-1 text-xs font-bold text-primary">
@@ -385,7 +388,7 @@ function MetadataConflictsPanel({ projectId }: { projectId: string }) {
                   </div>
                 </header>
                 <div className="min-w-0 whitespace-pre-wrap p-5 text-[0.96rem] font-semibold leading-normal text-text [overflow-wrap:anywhere]">
-                  {conflict.currentValue ?? <span className="muted">(empty)</span>}
+                  {conflict.currentValue ?? <span className="text-text-muted">(empty)</span>}
                 </div>
               </section>
               <aside className="[grid-area:reason] min-w-0 self-center rounded-md border border-[color-mix(in_srgb,var(--color-primary)_25%,var(--color-border))] bg-[color-mix(in_srgb,var(--color-primary-container)_52%,transparent)] p-4 text-center max-[1020px]:w-full max-[1020px]:text-left [&_h4]:mb-1 [&_h4]:mt-2 [&_h4]:text-sm [&_p]:m-0 [&_p]:text-[0.8rem] [&_p]:leading-normal [&_p]:text-text-secondary">
@@ -404,7 +407,7 @@ function MetadataConflictsPanel({ projectId }: { projectId: string }) {
                   </div>
                 </header>
                 <div className="min-w-0 whitespace-pre-wrap p-5 text-[0.96rem] font-semibold leading-normal text-text [overflow-wrap:anywhere]">
-                  {conflict.proposedValue ?? <span className="muted">(empty)</span>}
+                  {conflict.proposedValue ?? <span className="text-text-muted">(empty)</span>}
                 </div>
               </section>
             </div>
@@ -417,7 +420,7 @@ function MetadataConflictsPanel({ projectId }: { projectId: string }) {
                     return (
                       <DetailListRow key={field.label}>
                         <dt>{field.label}</dt>
-                        <dd>{value || <span className="muted">(empty)</span>}</dd>
+                        <dd>{value || <span className="text-text-muted">(empty)</span>}</dd>
                       </DetailListRow>
                     )
                   })}
@@ -619,10 +622,10 @@ export function PublicationsPage() {
   const visibleTabs = publicationsTabs.filter((tab) => tab.id !== 'metadata' || canManage)
 
   return (
-    <main className="page">
+    <Page>
       <AdministrationEyebrow />
       <h1>Publications</h1>
-      <p className="muted">
+      <p className="text-text-muted">
         Want to import a database export? Go to <Link to={`/projects/${projectId}/imports`}>Searches and Imports</Link>.
       </p>
       <TabList
@@ -645,7 +648,7 @@ export function PublicationsPage() {
                 publication{query.data.length === 1 ? '' : 's'} in this project
               </CountPill>
             ) : null}
-            {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
+            {query.error ? <p className="text-danger" role="alert">{query.error.message}</p> : null}
             {query.data ? (
               <div className="my-5 flex flex-wrap items-center gap-3">
                 <label className="w-full flex-[0_1_32rem]">
@@ -728,7 +731,7 @@ export function PublicationsPage() {
               </div>
             ) : null}
             {canManage && filteredPublications.length > 0 ? (
-              <div className="toolbar publication-list__bulk-actions">
+              <div className={`${toolbarClass} publication-list__bulk-actions`}>
                 <label>
                   <Input
                     type="checkbox"
@@ -739,7 +742,7 @@ export function PublicationsPage() {
                 </label>
                 {selectedIds.size > 0 ? (
                   <>
-                    <span className="muted">{selectedIds.size} selected</span>
+                    <span className="text-text-muted">{selectedIds.size} selected</span>
                     <Button
                       type="button"
                       variant="secondary"
@@ -761,7 +764,7 @@ export function PublicationsPage() {
                       Export Selected ({selectedIds.size})
                     </Button>
                     <ConfirmButton
-                      className="button-sm"
+                      size="sm"
                       label={`Delete Selected (${selectedIds.size})`}
                       variant="danger"
                       warning={`Delete ${selectedIds.size} selected publication${selectedIds.size === 1 ? '' : 's'}? This cannot be undone.`}
@@ -773,15 +776,15 @@ export function PublicationsPage() {
                 ) : null}
               </div>
             ) : null}
-            {bulkEnrich.error ? <p className="error" role="alert">{bulkEnrich.error.message}</p> : null}
+            {bulkEnrich.error ? <p className="text-danger" role="alert">{bulkEnrich.error.message}</p> : null}
             {bulkEnrich.isSuccess ? <p>Enrichment queued for {bulkEnrich.data.jobIds.length} publication{bulkEnrich.data.jobIds.length === 1 ? '' : 's'}.</p> : null}
-            {bulkDelete.error ? <p className="error" role="alert">{bulkDelete.error.message}</p> : null}
-            {bulkExport.error ? <p className="error" role="alert">{bulkExport.error.message}</p> : null}
+            {bulkDelete.error ? <p className="text-danger" role="alert">{bulkDelete.error.message}</p> : null}
+            {bulkExport.error ? <p className="text-danger" role="alert">{bulkExport.error.message}</p> : null}
             {pendingExportJob && isJobActive(pendingExportJob.status) ? (
-              <p className="muted" role="status">Preparing export bundle (metadata.bib + PDFs)…</p>
+              <p className="text-text-muted" role="status">Preparing export bundle (metadata.bib + PDFs)…</p>
             ) : null}
             {pendingExportJob && pendingExportJob.status === 'failed' ? (
-              <p className="error" role="alert">
+              <p className="text-danger" role="alert">
                 Export failed{pendingExportJob.errorMessage ? `: ${pendingExportJob.errorMessage}` : ''}
               </p>
             ) : null}
@@ -813,15 +816,15 @@ export function PublicationsPage() {
         ) : null}
         {activeTab === 'metadata' && canManage ? (
           <>
-            <section className="card" id="section-metadata-enrichment">
+            <section className={cardStyles} data-ui="card" id="section-metadata-enrichment">
               <h2>Metadata Enrichment</h2>
-              <p className="muted">
+              <p className="text-text-muted">
                 Fill in missing metadata from Crossref and Semantic Scholar for every record missing metadata.
                 <InfoTooltip text="Crossref and Semantic Scholar are free external scholarly databases. This looks up each publication there by DOI or title and fills in fields like abstract, venue, or citation count that are missing here — it doesn't overwrite fields you've already filled in." />
               </p>
-              {bulkEnrich.error ? <p className="error" role="alert">{bulkEnrich.error.message}</p> : null}
+              {bulkEnrich.error ? <p className="text-danger" role="alert">{bulkEnrich.error.message}</p> : null}
               {bulkEnrich.isSuccess ? <p>Enrichment queued for {bulkEnrich.data.jobIds.length} publication{bulkEnrich.data.jobIds.length === 1 ? '' : 's'}.</p> : null}
-              <div className="toolbar">
+              <div className={toolbarClass}>
                 <Button
                   type="button"
                   variant="secondary"
@@ -843,6 +846,6 @@ export function PublicationsPage() {
           </>
         ) : null}
       </TabPanel>
-    </main>
+    </Page>
   )
 }

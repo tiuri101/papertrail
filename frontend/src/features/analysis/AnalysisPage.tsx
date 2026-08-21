@@ -4,6 +4,7 @@ import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { IconChart, IconCheckCircle, IconCopy, IconFile, IconLightbulb } from '../../components/icons'
+import { Page } from '../../components/Page'
 import { useRegisterSectionItems } from '../../components/sectionNavigation'
 import type { SectionNavigationItem } from '../../components/SectionNavigationLayout'
 import { TabList, TabPanel } from '../../components/Tabs'
@@ -123,16 +124,16 @@ export function AnalysisPage() {
   ), [activeTab, availability.fullText, currentTab, reviewerAnalysisVisible])
   useRegisterSectionItems(currentSections)
 
-  if (project.isLoading) return <main className="page"><p>Loading analysis...</p></main>
+  if (project.isLoading) return <Page><p>Loading analysis...</p></Page>
   if (!project.data) {
-    return <main className="page"><p className="error" role="alert">Project could not be loaded.</p></main>
+    return <Page><p className="text-danger" role="alert">Project could not be loaded.</p></Page>
   }
 
   return (
-    <main className="page">
+    <Page>
       <StageEyebrow stage={project.data.stage} />
       <h1>Charts &amp; Analysis</h1>
-      <p className="muted">
+      <p className="text-text-muted">
         Visual summaries of validated results from each completed review stage.
       </p>
       <TabList
@@ -176,6 +177,6 @@ export function AnalysisPage() {
           <ResearchQuestionAnalysisSection projectId={projectId} />
         ) : null}
       </TabPanel>
-    </main>
+    </Page>
   )
 }

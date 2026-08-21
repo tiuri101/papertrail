@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useState } from 'react'
 import { useParams } from 'react-router-dom'
+import { Page } from '../../components/Page'
 
 import { apiRequest } from '../../api/client'
 import { CountPill } from '../../components/CountPill'
@@ -25,7 +26,7 @@ export function QualityPage() {
   })
 
   return (
-    <main className="page">
+    <Page>
       <StageEyebrow stage="extraction_quality" />
       <h1>Quality Assessment</h1>
       {progress.data ? (
@@ -51,6 +52,6 @@ export function QualityPage() {
           setLastScore(totalScore)
         }}
       />
-    </main>
+    </Page>
   )
 }

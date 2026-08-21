@@ -1,3 +1,4 @@
+import { toolbarClass } from '../../components/layoutStyles'
 import { useEffect, useRef } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 
@@ -51,11 +52,11 @@ export function LlmEvidence({
   projectId: string
   publicationId: string
 }) {
-  if (!evidence.length) return <p className="muted">No source evidence returned.</p>
+  if (!evidence.length) return <p className="text-text-muted">No source evidence returned.</p>
   return (
-    <div className="llm-evidence-list">
+    <div className="grid gap-3">
       {evidence.map((item, index) => (
-        <blockquote key={`${item.page}-${index}`}>
+        <blockquote className="m-0 rounded-md border border-border bg-bg-elevated px-4 py-3" key={`${item.page}-${index}`}>
           <p>
             Page {item.page}
             {item.section ? ` · ${item.section}` : ''}
@@ -165,7 +166,7 @@ export function ScreeningLlmPanel({
     return (
       <aside className={llmPanelClass} aria-label="LLM assistance">
         <LlmAssistanceHeading />
-        <p className="error">{query.error.message}</p>
+        <p className="text-danger">{query.error.message}</p>
       </aside>
     )
   }
@@ -174,7 +175,7 @@ export function ScreeningLlmPanel({
     return (
       <aside className={llmPanelClass} aria-label="LLM assistance">
         <LlmAssistanceHeading />
-        <p className="muted">Hidden until you submit your own screening decision.</p>
+        <p className="text-text-muted">Hidden until you submit your own screening decision.</p>
       </aside>
     )
   }
@@ -191,7 +192,7 @@ export function ScreeningLlmPanel({
     return (
       <aside className={llmPanelClass} aria-label="LLM assistance">
         <LlmAssistanceHeading />
-        <p className="muted">
+        <p className="text-text-muted">
           {data.state === 'missing_pdf'
             ? 'Unavailable because no PDF is attached.'
             : data.error ?? 'Usable full text is not available yet.'}
@@ -206,7 +207,7 @@ export function ScreeningLlmPanel({
     return (
       <aside className={llmPanelClass} aria-label="LLM assistance failed">
         <LlmAssistanceHeading qualifier="failed" />
-        <p className="error">{data.error ?? 'The model did not return a usable result.'}</p>
+        <p className="text-danger">{data.error ?? 'The model did not return a usable result.'}</p>
         <Button type="button" onClick={() => regenerate.mutate()} disabled={regenerate.isPending}>
           Retry
         </Button>
@@ -217,7 +218,7 @@ export function ScreeningLlmPanel({
     return (
       <aside className={llmPanelClass} aria-label="LLM assistance is stale">
         <LlmAssistanceHeading qualifier="is stale" />
-        <p className="muted">The source changed before this result completed.</p>
+        <p className="text-text-muted">The source changed before this result completed.</p>
         <Button
           type="button"
           onClick={() => regenerate.mutate()}
@@ -248,7 +249,7 @@ export function ScreeningLlmPanel({
           Regenerate
         </Button>
       </div>
-      {data.stale ? <p className="error">This result is stale. Regenerate it before relying on it.</p> : null}
+      {data.stale ? <p className="text-danger">This result is stale. Regenerate it before relying on it.</p> : null}
       {humanDecision ? <p><strong>Your decision:</strong> {humanDecision}</p> : null}
       <p>
         <strong>LLM suggestion:</strong> {data.suggestedDecision ?? 'uncertain'}
@@ -296,7 +297,7 @@ export function ScreeningLlmPanel({
             </summary>
             <p>{criterion.explanation}</p>
             {comparison === 'mismatch' && setCriteriaAnswers && criterion.criterionId ? (
-              <div className="toolbar">
+              <div className={toolbarClass}>
                 <Button
                   type="button"
                   variant="secondary"

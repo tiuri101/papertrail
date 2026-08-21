@@ -1,9 +1,11 @@
+import { toolbarClass } from '../../components/layoutStyles'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState, type MouseEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { Button } from '../../components/Button'
+import { Page } from '../../components/Page'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { CountPill } from '../../components/CountPill'
 import { DoiPill } from '../../components/DoiPill'
@@ -157,10 +159,10 @@ function DecisionEditForm({
         setCriteriaAnswers={setAnswers}
       />
       {!criteriaComplete ? (
-        <p className="muted">Answer every criterion before saving.</p>
+        <p className="text-text-muted">Answer every criterion before saving.</p>
       ) : null}
-      {save.error ? <p className="error" role="alert">{save.error.message}</p> : null}
-      <div className="toolbar">
+      {save.error ? <p className="text-danger" role="alert">{save.error.message}</p> : null}
+      <div className={toolbarClass}>
         {stageCompleted ? (
           <ConfirmButton
             label="Save Changes"
@@ -308,7 +310,7 @@ function DecisionRow({
           />
         </span>
         <span>
-          {publication.doi ? <DoiPill doi={publication.doi} /> : <span className="muted">—</span>}
+          {publication.doi ? <DoiPill doi={publication.doi} /> : <span className="text-text-muted">—</span>}
         </span>
         <time className="overflow-hidden text-ellipsis whitespace-nowrap text-sm text-text-muted" dateTime={item.submittedAt ?? undefined}>
           {formatSubmittedAt(item.submittedAt)}
@@ -373,12 +375,12 @@ export function MyDecisionsPage() {
   }, [query.data?.items, search, sortDirection, sortKey, statusFilter])
 
   return (
-    <main className="page">
+    <Page>
       <StageEyebrow
         stage={stage === 'full_text' ? 'full_text_screening' : 'title_abstract_screening'}
       />
       <h1>My {stageTitles[stage] ?? stage} Decisions</h1>
-      <p className="muted">
+      <p className="text-text-muted">
         Decisions you have already submitted for this stage. Open one to review or revise it.
       </p>
       <p>
@@ -386,7 +388,7 @@ export function MyDecisionsPage() {
           ← Back to screening queue
         </Link>
       </p>
-      {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
+      {query.error ? <p className="text-danger" role="alert">{query.error.message}</p> : null}
       {query.isLoading ? <p>Loading…</p> : null}
       {query.data ? (
         <>
@@ -401,7 +403,7 @@ export function MyDecisionsPage() {
             </InfoBox>
           ) : null}
           {workflowImpact ? (
-            <section className="error alert" role="alert" aria-labelledby="revision-impact-heading">
+            <section className="text-danger rounded-md border border-danger/30 bg-danger-container p-4" role="alert" aria-labelledby="revision-impact-heading">
               <h2 id="revision-impact-heading">Decision revised without changing the project stage</h2>
               <p>
                 The project remains in{' '}
@@ -474,9 +476,9 @@ export function MyDecisionsPage() {
             </>
           ) : null}
           {query.data.items.length === 0 ? (
-            <p className="muted">You have not submitted any decisions for this stage yet.</p>
+            <p className="text-text-muted">You have not submitted any decisions for this stage yet.</p>
           ) : filteredItems.length === 0 ? (
-            <p className="muted">No decisions match your filters.</p>
+            <p className="text-text-muted">No decisions match your filters.</p>
           ) : (
             <ul className="m-0 grid list-none gap-3 p-0" aria-label="Submitted decisions">
                 {filteredItems.map((item) => (
@@ -495,6 +497,6 @@ export function MyDecisionsPage() {
           )}
         </>
       ) : null}
-    </main>
+    </Page>
   )
 }

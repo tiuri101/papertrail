@@ -1,8 +1,10 @@
+import { tableScrollClass } from '../../components/layoutStyles'
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Page } from '../../components/Page'
 import { CountPill } from '../../components/CountPill'
 import { Input } from '../../components/Input'
 import { Select } from '../../components/Select'
@@ -105,24 +107,24 @@ export function AuditLogPage() {
   }
 
   if (canManageLoading) {
-    return <main className="page"><p>Loading…</p></main>
+    return <Page><p>Loading…</p></Page>
   }
   if (!canManage) {
     return (
-      <main className="page">
+      <Page>
         <h1>Audit Log</h1>
-        <p className="error" role="alert">
+        <p className="text-danger" role="alert">
           Only the project owner or an administrator can view the audit log.
         </p>
-      </main>
+      </Page>
     )
   }
 
   return (
-    <main className="page">
+    <Page>
       <h1>Audit Log</h1>
-      <p className="muted">A record of significant actions taken on this project, most recent first.</p>
-      {events.error ? <p className="error" role="alert">{events.error.message}</p> : null}
+      <p className="text-text-muted">A record of significant actions taken on this project, most recent first.</p>
+      {events.error ? <p className="text-danger" role="alert">{events.error.message}</p> : null}
       {events.isLoading ? <p>Loading…</p> : null}
       {events.data && events.data.length === 0 ? <p>No audit events recorded yet.</p> : null}
       {events.data && events.data.length > 0 ? (
@@ -173,9 +175,9 @@ export function AuditLogPage() {
         </CountPill>
       ) : null}
       {sortedEvents.length ? (
-        <div className="table-scroll">
+        <div className={tableScrollClass}>
           <table>
-            <caption className="visually-hidden">Audit events</caption>
+            <caption className="sr-only">Audit events</caption>
             <thead>
               <tr>
                 {COLUMNS.map((column) => (
@@ -196,7 +198,7 @@ export function AuditLogPage() {
               {sortedEvents.map((event) => (
                 <tr key={event.id}>
                   <td>{new Date(event.createdAt).toLocaleString()}</td>
-                  <td>{event.actorUsername ?? <span className="muted">System</span>}</td>
+                  <td>{event.actorUsername ?? <span className="text-text-muted">System</span>}</td>
                   <td>{event.action}</td>
                   <td>{event.entityType}{event.entityId ? ` (${event.entityId})` : ''}</td>
                   <td>{event.summary}</td>
@@ -207,8 +209,8 @@ export function AuditLogPage() {
         </div>
       ) : null}
       {events.data && events.data.length > 0 && sortedEvents.length === 0 ? (
-        <p className="muted">No audit events match your filters.</p>
+        <p className="text-text-muted">No audit events match your filters.</p>
       ) : null}
-    </main>
+    </Page>
   )
 }

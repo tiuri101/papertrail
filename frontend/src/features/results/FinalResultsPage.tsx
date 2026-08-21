@@ -6,6 +6,7 @@ import { apiRequest } from '../../api/client'
 import { Button } from '../../components/Button'
 import { CountPill } from '../../components/CountPill'
 import { Input } from '../../components/Input'
+import { Page } from '../../components/Page'
 import { Select } from '../../components/Select'
 import { StageEyebrow } from '../projects/StageEyebrow'
 
@@ -234,15 +235,15 @@ export function FinalResultsPage() {
   }
 
   return (
-    <main className="page">
+    <Page>
       <StageEyebrow stage="completed" />
       <h1>Final Results</h1>
-      <p className="muted">
+      <p className="text-text-muted">
         Every publication included in the review, with its data extraction
         {query.data?.qualityEnabled ? ' and quality assessment' : ''} results. This data can also
         be downloaded from the <Link to={`/projects/${projectId}/reporting`}>Reporting and Exports</Link> page.
       </p>
-      {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
+      {query.error ? <p className="text-danger" role="alert">{query.error.message}</p> : null}
       {query.isLoading ? <p>Loading…</p> : null}
       {query.data ? (
         <>
@@ -326,6 +327,6 @@ export function FinalResultsPage() {
           ) : null}
         </>
       ) : null}
-    </main>
+    </Page>
   )
 }

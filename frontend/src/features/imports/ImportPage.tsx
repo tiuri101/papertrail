@@ -12,6 +12,7 @@ import { CountPill } from '../../components/CountPill'
 import { DateField } from '../../components/DateField'
 import { IconClock, IconPerson, IconTrash, IconUpload } from '../../components/icons'
 import { Input } from '../../components/Input'
+import { Page } from '../../components/Page'
 import { useRegisterSectionItems } from '../../components/sectionNavigation'
 import { Textarea } from '../../components/Textarea'
 import { InfoTooltip } from '../../components/Tooltip'
@@ -231,7 +232,7 @@ export function ImportPage() {
   })
 
   return (
-    <main className="page">
+    <Page>
       <StageEyebrow stage="draft" />
       <h1>Searches and Imports</h1>
       <p className="text-text">
@@ -542,6 +543,6 @@ export function ImportPage() {
           )}
         />
       ) : null}
-    </main>
+    </Page>
   )
 }

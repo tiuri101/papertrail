@@ -70,7 +70,7 @@ export function ScreeningHotkeysSection() {
 
   return (
     <CollapsibleSection id="section-account-hotkeys" title="Screening Hotkeys" icon={<IconKeyboard />}>
-      <p className="muted">
+      <p className="text-text-muted">
         Assign a keyboard shortcut for each screening decision, plus one to submit or confirm it, so
         you can quickly move through papers. Click a field and press the key you
         want to use. Press Backspace to clear it.
@@ -100,16 +100,16 @@ export function ScreeningHotkeysSection() {
         })}
       </div>
       {conflicts.size > 0 ? (
-        <p className="error" role="alert">
+        <p className="text-danger" role="alert">
           Two actions share the same key. Only one will trigger when you press it.
         </p>
       ) : null}
-      <div className="toolbar">
+      <div className="flex flex-wrap items-center gap-3">
         <Button type="button" variant="secondary" onClick={() => update({ ...DEFAULT_SCREENING_HOTKEYS })}>
           Reset to defaults
         </Button>
       </div>
-      <p className="muted" aria-live="polite">{saved ? 'Saved.' : ' '}</p>
+      <p className="text-text-muted" aria-live="polite">{saved ? 'Saved.' : ' '}</p>
     </CollapsibleSection>
   )
 }

@@ -3,6 +3,7 @@ import { useState } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { Button } from '../../components/Button'
+import { Page } from '../../components/Page'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { IconCheckCircle, IconPerson, IconSettings } from '../../components/icons'
 import { Input } from '../../components/Input'
@@ -65,7 +66,7 @@ export function AccountSettingsPage() {
 
   return (
     <SectionNavigationLayout items={accountSections}>
-      <main className="page">
+      <Page>
         <p className="mb-1 text-xs font-bold uppercase tracking-[0.08em] text-primary">Personal settings</p>
         <h1>Account Settings</h1>
         <p className="text-text">Manage your profile, password, and personal preferences.</p>
@@ -154,7 +155,7 @@ export function AccountSettingsPage() {
         </CollapsibleSection>
         <ScreeningHotkeysSection />
         <BrowserHelpersSection />
-      </main>
+      </Page>
     </SectionNavigationLayout>
   )
 }

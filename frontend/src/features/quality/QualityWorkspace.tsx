@@ -1,9 +1,11 @@
+import { toolbarClass } from '../../components/layoutStyles'
 import { useMutation } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { Button } from '../../components/Button'
+import { cardStyles } from '../../components/Card'
 import { DoiPill } from '../../components/DoiPill'
 import { IconArrowRight, IconCheckCircle } from '../../components/icons'
 import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
@@ -190,7 +192,7 @@ export function QualityWorkspace({
           </>
         ) : null}
         {!loadingNext && nextError ? (
-          <p className="error" role="alert">{nextError}</p>
+          <p className="text-danger" role="alert">{nextError}</p>
         ) : null}
       </>
     )
@@ -201,11 +203,11 @@ export function QualityWorkspace({
       {variant !== 'inline' ? (
         <>
           <h2 ref={titleRef} className="publication-title">{item.publication.title}</h2>
-          <p className="muted">
+          <p className="text-text-muted">
             {item.publication.authors ?? 'Unknown authors'}
             {item.publication.publicationYear ? ` (${item.publication.publicationYear})` : ''}
           </p>
-          <div className="toolbar">
+          <div className={toolbarClass}>
             {fullTextDocument.data ? (
               <PdfAvailabilityPill
                 available={fullTextDocument.data.available}
@@ -239,11 +241,11 @@ export function QualityWorkspace({
           onChange={(key, value) => setAnswers((current) => ({ ...current, [key]: value }))}
         />
         {missingRequired ? (
-          <p className="muted">Answer every required field before submitting.</p>
+          <p className="text-text-muted">Answer every required field before submitting.</p>
         ) : null}
-        {submit.error ? <p className="error" role="alert">{submit.error.message}</p> : null}
-        {skip.error ? <p className="error" role="alert">{skip.error.message}</p> : null}
-        <div className="toolbar">
+        {submit.error ? <p className="text-danger" role="alert">{submit.error.message}</p> : null}
+        {skip.error ? <p className="text-danger" role="alert">{skip.error.message}</p> : null}
+        <div className={toolbarClass}>
           <Button type="submit" disabled={submit.isPending || skip.isPending || missingRequired}>
             <IconCheckCircle />
             {completedResponse ? 'Save corrected assessment' : 'Submit Assessment'}
@@ -274,5 +276,5 @@ export function QualityWorkspace({
     </>
   )
 
-  return variant === 'inline' ? body : <article className="card">{body}</article>
+  return variant === 'inline' ? body : <article className={cardStyles} data-ui="card">{body}</article>
 }

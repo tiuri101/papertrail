@@ -1,8 +1,10 @@
+import { toolbarClass } from '../../components/layoutStyles'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState, type MouseEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Page } from '../../components/Page'
 import { Button } from '../../components/Button'
 import { Badge } from '../../components/Badge'
 import { CountPill } from '../../components/CountPill'
@@ -103,7 +105,7 @@ function QualityRow({ projectId, entry, highlightKeywords }: {
           </Badge>
         </span>
         <span className={reviewWorkDoiClass}>
-          {publication.doi ? <DoiPill doi={publication.doi} /> : <span className="muted">—</span>}
+          {publication.doi ? <DoiPill doi={publication.doi} /> : <span className="text-text-muted">—</span>}
         </span>
         <time className={reviewWorkSubmittedClass} dateTime={entry.completedAt ?? undefined}>
           {formatSubmittedAt(entry.completedAt)}
@@ -156,12 +158,12 @@ export function MyQualityPage() {
   }, [query.data, search, sortDirection, sortKey])
 
   return (
-    <main className="page">
+    <Page>
       <StageEyebrow stage="extraction_quality" />
       <h1>My Submitted Quality Assessments</h1>
-      <p className="muted">Publications you have already assessed. Select a publication to view its details, or edit your assessment.</p>
+      <p className="text-text-muted">Publications you have already assessed. Select a publication to view its details, or edit your assessment.</p>
       <p><Link to={`/projects/${projectId}/quality`}>← Back to quality assessment queue</Link></p>
-      {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
+      {query.error ? <p className="text-danger" role="alert">{query.error.message}</p> : null}
       {query.isLoading ? <p>Loading…</p> : null}
       {query.data ? (
         <>
@@ -170,8 +172,8 @@ export function MyQualityPage() {
               <CountPill count={search ? filteredItems.length : query.data.length}>
                 {search ? `of ${query.data.length} assessments match your filters` : `assessment${query.data.length === 1 ? '' : 's'}`}
               </CountPill>
-              <div className="toolbar">
-                <label className="paper-search-field">
+              <div className={toolbarClass}>
+                <label className="w-full flex-[0_1_32rem] max-w-lg">
                   Search papers
                   <Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Title, author, DOI…" />
                 </label>
@@ -198,9 +200,9 @@ export function MyQualityPage() {
             </>
           ) : null}
           {query.data.length === 0 ? (
-            <p className="muted">You have not submitted any quality assessments yet.</p>
+            <p className="text-text-muted">You have not submitted any quality assessments yet.</p>
           ) : filteredItems.length === 0 ? (
-            <p className="muted">No assessments match your filters.</p>
+            <p className="text-text-muted">No assessments match your filters.</p>
           ) : (
             <ul className={reviewWorkListClass}>
                 {filteredItems.map((entry) => <QualityRow key={entry.id} projectId={projectId} entry={entry} highlightKeywords={highlightKeywords} />)}
@@ -208,6 +210,6 @@ export function MyQualityPage() {
           )}
         </>
       ) : null}
-    </main>
+    </Page>
   )
 }

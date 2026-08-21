@@ -1,3 +1,4 @@
+import { tableCompactClass, tableScrollClass } from '../../components/layoutStyles'
 import { Fragment, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
@@ -9,6 +10,7 @@ import { CountPill } from '../../components/CountPill'
 import { FormField } from '../../components/FormField'
 import { IconRestart } from '../../components/icons'
 import { Input } from '../../components/Input'
+import { Page } from '../../components/Page'
 import { Select } from '../../components/Select'
 import { SortableColumnHeader } from '../../components/SortableColumnHeader'
 import { InfoTooltip } from '../../components/Tooltip'
@@ -127,7 +129,7 @@ function JobFailureDetails({ job }: { job: BackgroundJob }) {
 
   return (
     <div className="grid gap-2">
-      <span className="error" role="alert">{job.errorMessage}</span>
+      <span className="text-danger" role="alert">{job.errorMessage}</span>
       <Button
         type="button"
         variant="text"
@@ -139,7 +141,7 @@ function JobFailureDetails({ job }: { job: BackgroundJob }) {
       {visible ? (
         <div className="rounded-md border border-danger/30 bg-danger-container p-4">
           {report.isLoading ? <p>Loading diagnostic report…</p> : null}
-          {report.error ? <p className="error" role="alert">{report.error.message}</p> : null}
+          {report.error ? <p className="text-danger" role="alert">{report.error.message}</p> : null}
           {report.data ? (
             <>
               <strong>Failure context</strong>
@@ -276,16 +278,16 @@ export function JobsPage() {
   })
 
   return (
-    <main className="page">
+    <Page>
       <AdministrationEyebrow />
       <h1>Jobs</h1>
-      <p className="muted">
+      <p className="text-text-muted">
         Background tasks for this project, such as imports, duplicate detection, and LLM-assisted
         extraction.
       </p>
-      {jobs.error ? <p className="error" role="alert">{jobs.error.message}</p> : null}
-      {restartOne.error ? <p className="error" role="alert">{restartOne.error.message}</p> : null}
-      {restartMany.error ? <p className="error" role="alert">{restartMany.error.message}</p> : null}
+      {jobs.error ? <p className="text-danger" role="alert">{jobs.error.message}</p> : null}
+      {restartOne.error ? <p className="text-danger" role="alert">{restartOne.error.message}</p> : null}
+      {restartMany.error ? <p className="text-danger" role="alert">{restartMany.error.message}</p> : null}
       {jobs.isLoading ? <p>Loading…</p> : null}
       {jobs.data ? (
         <CountPill count={sortedJobs.length}>
@@ -294,7 +296,7 @@ export function JobsPage() {
             : `job${jobs.data.length === 1 ? '' : 's'}`}
         </CountPill>
       ) : null}
-      {jobs.data && jobs.data.length === 0 ? <p className="muted">No background jobs have run for this project yet.</p> : null}
+      {jobs.data && jobs.data.length === 0 ? <p className="text-text-muted">No background jobs have run for this project yet.</p> : null}
       {jobs.data && jobs.data.length > 0 ? (
         <section className="grid grid-cols-2 gap-3 min-[681px]:grid-cols-5" aria-label="Job status summary">
           {jobStatusCounts.map(({ status, label, count }) => (
@@ -352,9 +354,9 @@ export function JobsPage() {
         </div>
       ) : null}
       {sortedJobs.length ? (
-        <div className="table-scroll">
-          <table className="table-compact jobs-table">
-            <caption className="visually-hidden">Background jobs</caption>
+        <div className={tableScrollClass}>
+          <table className={`${tableCompactClass} jobs-table`}>
+            <caption className="sr-only">Background jobs</caption>
             <thead>
               <tr>
                 {canManage ? (
@@ -380,7 +382,7 @@ export function JobsPage() {
                     ) : null}
                   />
                 ))}
-                {canManage ? <th scope="col"><span className="visually-hidden">Actions</span></th> : null}
+                {canManage ? <th scope="col"><span className="sr-only">Actions</span></th> : null}
               </tr>
             </thead>
             <tbody>
@@ -453,8 +455,8 @@ export function JobsPage() {
         </div>
       ) : null}
       {jobs.data && jobs.data.length > 0 && sortedJobs.length === 0 ? (
-        <p className="muted">No jobs match your filters.</p>
+        <p className="text-text-muted">No jobs match your filters.</p>
       ) : null}
-    </main>
+    </Page>
   )
 }

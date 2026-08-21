@@ -1,6 +1,7 @@
 import { type CSSProperties, type ReactNode, useState } from 'react'
 
 import { CollapsibleSection } from '../../components/CollapsibleSection'
+import { Page } from '../../components/Page'
 import {
   IconArrowRight,
   IconCheckCircle,
@@ -643,9 +644,9 @@ export function HelpPage() {
 
   return (
     <SectionNavigationLayout items={currentTab.sections} label="On this page">
-      <main className="page">
+      <Page>
         <h1>Help</h1>
-        <p className="muted">Documentation and guidance for using Papertrail.</p>
+        <p className="text-text-muted">Documentation and guidance for using Papertrail.</p>
         <TabList
           idPrefix="help"
           label="Help sections"
@@ -731,7 +732,7 @@ export function HelpPage() {
             </CollapsibleSection>
           ) : null}
         </TabPanel>
-      </main>
+      </Page>
     </SectionNavigationLayout>
   )
 }

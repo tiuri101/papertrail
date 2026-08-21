@@ -47,7 +47,7 @@ describe('FormBuilderPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Save Field' }))
 
     const fieldCard = (await screen.findByText('Main finding', { selector: 'details strong' })).closest('details')!
-    expect(fieldCard).toHaveClass('form-editor-field')
+    expect(fieldCard).toHaveAttribute('data-ui', 'form-editor-field')
     expect(within(fieldCard).getByText('Long text')).toBeInTheDocument()
     expect(within(fieldCard).getByText('Required')).toBeInTheDocument()
     const addButton = screen.getByRole('button', { name: 'Add form field' })

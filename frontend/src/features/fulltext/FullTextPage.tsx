@@ -9,6 +9,7 @@ import { CountPill } from '../../components/CountPill'
 import { DoiPill } from '../../components/DoiPill'
 import { GoBackButton } from '../../components/GoBackButton'
 import { InfoBox } from '../../components/InfoBox'
+import { Page } from '../../components/Page'
 import { IconAlertTriangle, IconArrowRight } from '../../components/icons'
 import { Select } from '../../components/Select'
 import { Textarea } from '../../components/Textarea'
@@ -91,7 +92,7 @@ export function FullTextPage() {
   }, [visibleItemId])
 
   return (
-    <main className="page">
+    <Page>
       <StageEyebrow stage="full_text_screening" />
       <h1>Full-Text</h1>
       {browserRetrieval.missingCount ? (
@@ -170,7 +171,7 @@ export function FullTextPage() {
           </Button>
         </>
       )}
-    </main>
+    </Page>
   )
 }
 

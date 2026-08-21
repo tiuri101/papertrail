@@ -61,7 +61,7 @@ export function DuplicateDetectionAction({
   })
 
   return (
-    <div className={cn('flex flex-wrap items-center gap-3 [&_.error]:m-0 [&_.success]:m-0', !compact && 'mb-5')}>
+    <div className={cn('flex flex-wrap items-center gap-3 [&_.text-danger]:m-0 [&_.text-success]:m-0', !compact && 'mb-5')}>
       <Button
         type="button"
         variant="secondary"
@@ -71,13 +71,13 @@ export function DuplicateDetectionAction({
         {detection.isPending ? 'Queueing…' : 'Re-run Duplicate Detection'}
       </Button>
       {detection.isSuccess ? (
-        <span className="success" role="status">
+        <span className="text-success" role="status">
           {detectionJob?.status === 'completed'
             ? 'Duplicate detection finished. Results refreshed.'
             : 'Duplicate detection queued.'}
         </span>
       ) : null}
-      {detection.error ? <span className="error" role="alert">{detection.error.message}</span> : null}
+      {detection.error ? <span className="text-danger" role="alert">{detection.error.message}</span> : null}
     </div>
   )
 }

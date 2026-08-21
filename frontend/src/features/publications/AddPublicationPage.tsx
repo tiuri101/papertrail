@@ -3,6 +3,9 @@ import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
+import { Card } from '../../components/Card'
+import { Page } from '../../components/Page'
 import { getCsrfToken } from '../auth/session'
 import { IconPlus } from '../../components/icons'
 import { BibtexPrefillPanel } from './BibtexPrefillPanel'
@@ -64,8 +67,8 @@ export function AddPublicationForm({ projectId }: { projectId: string }) {
   return (
     <>
       <BibtexPrefillPanel projectId={projectId} onPrefill={setDraft} />
-      <section className="card">
-        <p className="muted">Add a single record by hand, without importing an export file from a database.</p>
+      <Card as="section">
+        <p className="text-text-muted">Add a single record by hand, without importing an export file from a database.</p>
         <form onSubmit={(event) => { event.preventDefault(); create.mutate() }}>
           <PublicationFieldInputs draft={draft} setField={setField} />
           <FileDropZone
@@ -77,19 +80,19 @@ export function AddPublicationForm({ projectId }: { projectId: string }) {
             onChange={setPdfFile}
             disabled={create.isPending}
           />
-          {create.error ? <p className="error" role="alert">{create.error.message}</p> : null}
+          {create.error ? <p className="text-danger" role="alert">{create.error.message}</p> : null}
           {attachPdf.error ? (
-            <p className="error" role="alert">
+            <p className="text-danger" role="alert">
               Publication added, but the PDF could not be attached: {attachPdf.error.message}
             </p>
           ) : null}
           {create.isSuccess && !attachPdf.isPending && !attachPdf.error ? <p>Publication added.</p> : null}
-          <button type="submit" disabled={create.isPending || attachPdf.isPending || !draft.title.trim()}>
+          <Button type="submit" disabled={create.isPending || attachPdf.isPending || !draft.title.trim()}>
             <IconPlus />
             {attachPdf.isPending ? 'Attaching PDF…' : 'Add Publication'}
-          </button>
+          </Button>
         </form>
-      </section>
+      </Card>
     </>
   )
 }
@@ -97,9 +100,9 @@ export function AddPublicationForm({ projectId }: { projectId: string }) {
 export function AddPublicationPage() {
   const { projectId = '' } = useParams()
   return (
-    <main className="page add-publication-page">
+    <Page className="pt-12">
       <h1>Add a Publication</h1>
       <AddPublicationForm projectId={projectId} />
-    </main>
+    </Page>
   )
 }

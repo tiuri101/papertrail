@@ -26,7 +26,7 @@ test('administrator generates and downloads an Excel export', async ({ page }) =
   })
 
   await page.goto('/projects/project-1/reporting')
-  const counts = page.locator('.reporting-counts-card')
+  const counts = page.getByRole('region', { name: 'PRISMA Counts' })
   await expect(counts.getByText('Records Screened')).toBeVisible()
   await expect(counts.getByText('120', { exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Generate Excel Workbook' }).click()

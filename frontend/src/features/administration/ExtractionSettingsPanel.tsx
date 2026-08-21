@@ -78,7 +78,7 @@ export function ExtractionSettingsPanel({ projectId }: { projectId: string }) {
       <InfoBox icon={<IconDownload />}>
         <p>Configure how publications are handed out to reviewers for data extraction.</p>
       </InfoBox>
-      {config.error ? <p className="error" role="alert">{config.error.message}</p> : null}
+      {config.error ? <p className="text-danger" role="alert">{config.error.message}</p> : null}
       {config.isLoading ? <p>Loading…</p> : (
         <>
           <label>
@@ -92,7 +92,7 @@ export function ExtractionSettingsPanel({ projectId }: { projectId: string }) {
               ))}
             </Select>
           </label>
-          <p className="muted">{REQUIRED_REVIEWERS_LABELS[requiredReviewers]?.description}</p>
+          <p className="text-text-muted">{REQUIRED_REVIEWERS_LABELS[requiredReviewers]?.description}</p>
           <label>
             Allocation
             <Select
@@ -106,8 +106,8 @@ export function ExtractionSettingsPanel({ projectId }: { projectId: string }) {
           </label>
         </>
       )}
-      {save.error ? <p className="error" role="alert">{save.error.message}</p> : null}
-      {save.isPending || save.isSuccess ? <p className="muted" aria-live="polite">
+      {save.error ? <p className="text-danger" role="alert">{save.error.message}</p> : null}
+      {save.isPending || save.isSuccess ? <p className="text-text-muted" aria-live="polite">
         {save.isPending ? 'Saving…' : save.isSuccess ? 'Saved.' : ' '}
       </p> : null}
     </CollapsibleSection>

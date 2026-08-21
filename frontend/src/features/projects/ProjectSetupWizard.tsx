@@ -8,6 +8,7 @@ import { Button } from '../../components/Button'
 import { Card } from '../../components/Card'
 import { IconArrowRight, IconCheckCircle, IconFolder } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
+import { Page } from '../../components/Page'
 import { Input } from '../../components/Input'
 import { Select } from '../../components/Select'
 import { Textarea } from '../../components/Textarea'
@@ -227,7 +228,7 @@ export function ProjectSetupWizard() {
   }
 
   return (
-    <main className="page">
+    <Page>
       <div className="grid grid-cols-[max-content_minmax(0,1fr)] grid-rows-[auto_1fr] items-start gap-x-8 gap-y-6 max-[760px]:grid-cols-1 max-[760px]:grid-rows-none max-[760px]:gap-5">
         <div className="col-start-2 row-start-1 max-[760px]:col-start-1 max-[760px]:row-auto [&>h1]:m-0">
           <p className="mb-1 block text-xs font-bold uppercase tracking-[0.08em] text-primary">Project setup · Step {step + 1} of {WIZARD_STEPS.length}</p>
@@ -391,6 +392,6 @@ export function ProjectSetupWizard() {
           onCancel={() => setPendingAction(null)}
         />
       ) : null}
-    </main>
+    </Page>
   )
 }

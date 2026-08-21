@@ -1,3 +1,4 @@
+import { toolbarClass } from '../../components/layoutStyles'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
@@ -7,6 +8,7 @@ import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { Button } from '../../components/Button'
 import { InfoBox } from '../../components/InfoBox'
 import { Input } from '../../components/Input'
+import { Page } from '../../components/Page'
 import { SectionNavigationLayout } from '../../components/SectionNavigationLayout'
 import { Textarea } from '../../components/Textarea'
 import {
@@ -270,10 +272,10 @@ export function InstanceSettingsPage() {
 
   return (
     <SectionNavigationLayout items={instanceSettingsSections}>
-      <main className="page">
-        <p className="eyebrow">Installation administration</p>
+      <Page>
+        <p className="mb-1 block text-xs font-extrabold uppercase tracking-[0.08em] text-primary">Installation administration</p>
         <h1>Global Settings</h1>
-        <p className="muted">
+        <p className="text-text-muted">
           Settings shared across every project on this Papertrail installation.
         </p>
   
@@ -386,7 +388,7 @@ export function InstanceSettingsPage() {
                   />
                 </label>
               </div>
-              <div className="toolbar">
+              <div className={toolbarClass}>
                 <Button type="submit" loading={saveConnection.isPending}>
                   <IconCheckCircle />
                   {saveConnection.isPending ? 'Saving…' : 'Save Connection Settings'}
@@ -403,11 +405,11 @@ export function InstanceSettingsPage() {
             </form>
           ) : null}
           {testResult ? (
-            <p className={testResult.ok ? 'success' : 'error'} role={testResult.ok ? 'status' : 'alert'}>
+            <p className={testResult.ok ? 'text-success' : 'text-danger'} role={testResult.ok ? 'status' : 'alert'}>
               {testResult.message}
             </p>
           ) : null}
-          {saveConnection.error ? <p className="error" role="alert">{saveConnection.error.message}</p> : null}
+          {saveConnection.error ? <p className="text-danger" role="alert">{saveConnection.error.message}</p> : null}
         </CollapsibleSection>
   
         <CollapsibleSection id="section-instance-llm-prompts" title="AI Prompts" icon={<IconLightbulb />}>
@@ -418,7 +420,7 @@ export function InstanceSettingsPage() {
               settings.
             </p>
           </InfoBox>
-          {prompts.error ? <p className="error" role="alert">{prompts.error.message}</p> : null}
+          {prompts.error ? <p className="text-danger" role="alert">{prompts.error.message}</p> : null}
           {prompts.data?.flows.map((flow) => (
             <div data-prompt-flow={flow.key} className="border-t border-border pt-4 first:border-t-0 first:pt-0 [&>*+*]:mt-4" key={flow.key}>
               <h3>
@@ -435,7 +437,7 @@ export function InstanceSettingsPage() {
                   rows={8}
                 />
               </label>
-              <div className="toolbar">
+              <div className={toolbarClass}>
                 <Button
                   type="button"
                   variant="secondary"
@@ -447,13 +449,13 @@ export function InstanceSettingsPage() {
               </div>
             </div>
           ))}
-          <div className="toolbar">
+          <div className={toolbarClass}>
             <Button type="button" onClick={savePromptsIfChanged} loading={savePrompts.isPending} disabled={!prompts.data}>
               <IconCheckCircle />
               {savePrompts.isPending ? 'Saving…' : 'Save Prompts'}
             </Button>
           </div>
-          {savePrompts.error ? <p className="error" role="alert">{savePrompts.error.message}</p> : null}
+          {savePrompts.error ? <p className="text-danger" role="alert">{savePrompts.error.message}</p> : null}
         </CollapsibleSection>
   
         <CollapsibleSection id="section-instance-email" title="Email (SMTP)" icon={<IconMail />}>
@@ -563,7 +565,7 @@ export function InstanceSettingsPage() {
                   Use implicit SSL
                 </label>
               </div>
-              <div className="toolbar">
+              <div className={toolbarClass}>
                 <Button type="submit" loading={saveInstanceSettings.isPending}>
                   <IconCheckCircle />
                   {saveInstanceSettings.isPending ? 'Saving…' : 'Save Email Settings'}
@@ -580,12 +582,12 @@ export function InstanceSettingsPage() {
             </form>
           ) : null}
           {testEmailResult ? (
-            <p className={testEmailResult.ok ? 'success' : 'error'} role={testEmailResult.ok ? 'status' : 'alert'}>
+            <p className={testEmailResult.ok ? 'text-success' : 'text-danger'} role={testEmailResult.ok ? 'status' : 'alert'}>
               {testEmailResult.message}
             </p>
           ) : null}
           {saveInstanceSettings.error ? (
-            <p className="error" role="alert">{saveInstanceSettings.error.message}</p>
+            <p className="text-danger" role="alert">{saveInstanceSettings.error.message}</p>
           ) : null}
         </CollapsibleSection>
   
@@ -620,7 +622,7 @@ export function InstanceSettingsPage() {
                   />
                 </label>
               </div>
-              <div className="toolbar">
+              <div className={toolbarClass}>
                 <Button type="submit" loading={saveInstanceSettings.isPending}>
                   <IconCheckCircle />
                   {saveInstanceSettings.isPending ? 'Saving…' : 'Save Account Security Settings'}
@@ -664,7 +666,7 @@ export function InstanceSettingsPage() {
                   />
                 </label>
               </div>
-              <div className="toolbar">
+              <div className={toolbarClass}>
                 <Button type="submit" loading={saveInstanceSettings.isPending}>
                   <IconCheckCircle />
                   {saveInstanceSettings.isPending ? 'Saving…' : 'Save PDF Settings'}
@@ -719,7 +721,7 @@ export function InstanceSettingsPage() {
                   />
                 </label>
               </div>
-              <div className="toolbar">
+              <div className={toolbarClass}>
                 <Button type="submit" loading={saveInstanceSettings.isPending}>
                   <IconCheckCircle />
                   {saveInstanceSettings.isPending ? 'Saving…' : 'Save Background Job Settings'}
@@ -728,7 +730,7 @@ export function InstanceSettingsPage() {
             </form>
           ) : null}
         </CollapsibleSection>
-      </main>
+      </Page>
     </SectionNavigationLayout>
   )
 }

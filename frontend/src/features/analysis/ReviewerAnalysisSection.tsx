@@ -1,3 +1,4 @@
+import { tableScrollClass } from '../../components/layoutStyles'
 import { Fragment, useEffect, useState } from 'react'
 
 import { InfoTooltip } from '../../components/Tooltip'
@@ -38,7 +39,7 @@ function MetricCard({ label, value, detail, tone = 'default' }: {
 }
 
 function AgreementBar({ value }: { value: number | null }) {
-  if (value === null) return <span className="muted">N/A</span>
+  if (value === null) return <span className="text-text-muted">N/A</span>
   return (
     <span className="inline-flex min-w-[118px] items-center gap-2">
       <span className="inline-block h-[7px] w-16 overflow-hidden rounded-full bg-border" aria-hidden="true">
@@ -52,7 +53,7 @@ function AgreementBar({ value }: { value: number | null }) {
 function PairwiseTable({ pairs }: { pairs: PairwiseAgreement[] }) {
   const [expanded, setExpanded] = useState<number | null>(null)
   if (pairs.length === 0) {
-    return <p className="muted">No overlapping reviewer pairs yet.</p>
+    return <p className="text-text-muted">No overlapping reviewer pairs yet.</p>
   }
   return (
     <table className="min-w-[650px]">
@@ -128,7 +129,7 @@ function ConfusionMatrixTable({ pair }: { pair: PairwiseAgreement }) {
 
 function CriteriaTable({ criteria }: { criteria: CriterionAgreement[] }) {
   if (criteria.length === 0) {
-    return <p className="muted">No active criteria with comparable decisions yet.</p>
+    return <p className="text-text-muted">No active criteria with comparable decisions yet.</p>
   }
   return (
     <table className="min-w-[650px]">
@@ -178,10 +179,10 @@ function StageAnalysis({ projectId, stage, label, enabled }: {
   return (
     <div className="mt-7 border-t border-border pt-6">
       <h3 className="mb-3">{label}</h3>
-      {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
+      {query.error ? <p className="text-danger" role="alert">{query.error.message}</p> : null}
       {!data ? (query.isLoading ? <p>Loading…</p> : null) : (
         !hasComparablePublications ? (
-          <p className="muted">
+          <p className="text-text-muted">
             Agreement analysis will appear after at least two reviewers have completed the same publication.
           </p>
         ) : <>
@@ -219,7 +220,7 @@ function StageAnalysis({ projectId, stage, label, enabled }: {
           {data.pairwise.length > 0 ? (
             <div className="mt-7 overflow-hidden rounded-md border border-border bg-surface">
               <h4 className="m-0 border-b border-border px-4 py-3 text-[0.73rem] font-bold uppercase tracking-[0.08em] text-text-muted">Pairwise reviewer agreement</h4>
-              <div className="table-scroll m-0 p-4"><PairwiseTable pairs={data.pairwise} /></div>
+              <div className={`${tableScrollClass} m-0 p-4`}><PairwiseTable pairs={data.pairwise} /></div>
             </div>
           ) : null}
 
@@ -231,9 +232,9 @@ function StageAnalysis({ projectId, stage, label, enabled }: {
               </h4>
               <div className="p-4">
                 {data.multiReviewer.kappa !== null ? (
-                  <><strong className="text-[1.75rem] text-primary">{formatKappa(data.multiReviewer.kappa)}</strong><span className="muted"> Fleiss&apos; kappa</span></>
+                  <><strong className="text-[1.75rem] text-primary">{formatKappa(data.multiReviewer.kappa)}</strong><span className="text-text-muted"> Fleiss&apos; kappa</span></>
                 ) : (
-                  <p className="muted">Unavailable: {data.multiReviewer.unavailableReason ?? 'not enough data'}</p>
+                  <p className="text-text-muted">Unavailable: {data.multiReviewer.unavailableReason ?? 'not enough data'}</p>
                 )}
               </div>
             </div>
@@ -242,7 +243,7 @@ function StageAnalysis({ projectId, stage, label, enabled }: {
           {data.criteria.length > 0 ? (
             <div className="mt-4 overflow-hidden rounded-md border border-border bg-surface">
               <h4 className="m-0 border-b border-border px-4 py-3 text-[0.73rem] font-bold uppercase tracking-[0.08em] text-text-muted">Criterion-level agreement</h4>
-              <div className="table-scroll m-0 p-4"><CriteriaTable criteria={data.criteria} /></div>
+              <div className={`${tableScrollClass} m-0 p-4`}><CriteriaTable criteria={data.criteria} /></div>
             </div>
           ) : null}
 
@@ -304,7 +305,7 @@ export function ReviewerAnalysisSection({
   return (
     <Card as="section" id="section-analysis-reviewer-analysis" className="overflow-hidden">
       <h2>Reviewer Analysis</h2>
-      <p className="muted">
+      <p className="text-text-muted">
         Anonymized inter-rater agreement for completed screening stages.
       </p>
       <StageAnalysis
@@ -323,7 +324,7 @@ export function ReviewerAnalysisSection({
       {titleAbstractEnabled && fullTextEnabled && summary.length > 1 ? (
         <div className="mt-4 overflow-hidden rounded-md border border-border bg-surface p-4">
           <h3 className="mb-3 mt-0">Reviewer summary</h3>
-        <div className="table-scroll p-0"><table className="min-w-[650px]">
+        <div className={`${tableScrollClass} p-0`}><table className="min-w-[650px]">
           <thead>
             <tr>
               <th scope="col">Reviewer</th>

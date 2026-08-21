@@ -108,7 +108,7 @@ function StageConfigForm({
       }}
     >
       <fieldset>
-        <legend className="subsection-heading">{label}</legend>
+        <legend className="mb-3 text-base font-semibold leading-[1.2] text-text">{label}</legend>
         <FormField label="Reviewers required per publication">
           <Input
             type="number"
@@ -170,7 +170,7 @@ function StageConfigForm({
             ))}
           </Select>
         </FormField>
-        {error ? <p className="error" role="alert">{error.message}</p> : null}
+        {error ? <p className="text-danger" role="alert">{error.message}</p> : null}
         <Button type="submit" disabled={pending}><IconCheckCircle />Save {label} Settings</Button>
       </fieldset>
     </form>
@@ -215,7 +215,7 @@ export function ScreeningConfigPanel({
   if (project.isError || !project.data) {
     return (
       <CollapsibleSection id="section-screening-configuration" title="Screening Configuration" icon={<IconSettings />}>
-        <p className="error" role="alert">Screening configuration could not be loaded.</p>
+        <p className="text-danger" role="alert">Screening configuration could not be loaded.</p>
       </CollapsibleSection>
     )
   }
@@ -236,7 +236,7 @@ export function ScreeningConfigPanel({
         if (!config) return null
         return (
           <Fragment key={value}>
-            {index > 0 ? <hr className="section-divider" /> : null}
+            {index > 0 ? <hr className="mt-5 border-0 border-t border-border" /> : null}
             <StageConfigForm
               config={config}
               label={label}

@@ -3,8 +3,8 @@ import type { ReactNode } from 'react'
 
 import { api } from '../../api/client'
 import { Badge } from '../../components/Badge'
-import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { InfoBox } from '../../components/InfoBox'
+import { Card } from '../../components/Card'
 import {
   IconChart,
   IconCheckCircle,
@@ -15,7 +15,6 @@ import {
   IconInfo,
   IconXCircle,
 } from '../../components/icons'
-
 function humanizeKey(key: string): string {
   const spaced = key.replace(/([a-z0-9])([A-Z])/g, '$1 $2')
   return spaced.charAt(0).toUpperCase() + spaced.slice(1).toLowerCase()
@@ -98,7 +97,8 @@ export function ProjectDashboard({ projectId }: { projectId: string }) {
   const attentionEntries = entries.filter(([key]) => metaFor(key).group === 'attention')
 
   return (
-    <CollapsibleSection id="section-project-status" title="Project Status" icon={<IconChart />}>
+    <Card id="section-project-status" as="section">
+      <h2>Project Status</h2>
       {dashboard.isLoading ? <p>Loading project status…</p> : null}
       {dashboard.isError ? <p>Project status could not be loaded.</p> : null}
       {dashboard.data ? (
@@ -127,6 +127,6 @@ export function ProjectDashboard({ projectId }: { projectId: string }) {
           </div>
         </div>
       ) : null}
-    </CollapsibleSection>
+    </Card>
   )
 }

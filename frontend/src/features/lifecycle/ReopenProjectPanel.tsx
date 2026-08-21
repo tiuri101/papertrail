@@ -39,7 +39,7 @@ export function ReopenProjectPanel({ projectId }: { projectId: string }) {
           has reached Completed.
         </p>
       </InfoBox>
-      {reopen.error ? <p className="error" role="alert">{reopen.error.message}</p> : null}
+      {reopen.error ? <p className="text-danger" role="alert">{reopen.error.message}</p> : null}
       <label>
         Reopen at
         <Select

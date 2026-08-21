@@ -1,3 +1,4 @@
+import { toolbarClass } from '../../components/layoutStyles'
 import { useMutation } from '@tanstack/react-query'
 import { useState } from 'react'
 
@@ -65,11 +66,11 @@ export function BibtexPrefillPanel({
       title="Prefill from BibTeX"
       defaultExpanded={false}
     >
-      <p className="muted">
+      <p className="text-text-muted">
         Upload a .bib file or paste a BibTeX entry to fill in the fields below. Only the first
         entry is used — for adding many publications at once, use Import instead.
       </p>
-      {prefill.error ? <p className="error" role="alert">{prefill.error.message}</p> : null}
+      {prefill.error ? <p className="text-danger" role="alert">{prefill.error.message}</p> : null}
       <FileDropZone
         id="bibtex-prefill-file"
         label="BibTeX file"
@@ -95,7 +96,7 @@ export function BibtexPrefillPanel({
           placeholder="@article{..."
         />
       </label>
-      <div className="toolbar">
+      <div className={toolbarClass}>
         <button
           type="button"
           disabled={(!bibFile.length && !bibText.trim()) || prefill.isPending}

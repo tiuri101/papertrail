@@ -1,3 +1,4 @@
+import { toolbarClass } from '../../components/layoutStyles'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
@@ -64,7 +65,7 @@ function ResearchQuestionRow({
             }}
           >
             <Input value={draft} onChange={(event) => setDraft(event.target.value)} required />
-            <div className="toolbar">
+            <div className={toolbarClass}>
               <Button type="submit" disabled={pending}><IconCheckCircle />Save</Button>
               <Button type="button" variant="secondary" onClick={() => { setDraft(question.text); setEditing(false) }}>Cancel</Button>
             </div>
@@ -79,7 +80,7 @@ function ResearchQuestionRow({
       <td>{number}</td>
       <td>{question.text}</td>
       <td>
-        <div className="toolbar">
+        <div className={toolbarClass}>
           <Button type="button" variant="secondary" size="sm" onClick={() => setEditing(true)} disabled={pending}>Edit</Button>
           <ConfirmButton
             label="Delete"
@@ -88,7 +89,7 @@ function ResearchQuestionRow({
             disabled={pending}
             variant="danger"
             icon={<IconTrash />}
-            className="button-sm"
+            size="sm"
           />
         </div>
       </td>
@@ -138,7 +139,7 @@ function CriterionRow({
               </Select>
             </label>
             <Input value={draftText} onChange={(event) => setDraftText(event.target.value)} required />
-            <div className="toolbar">
+            <div className={toolbarClass}>
               <Button type="submit" disabled={pending}><IconCheckCircle />Save</Button>
               <Button
                 type="button"
@@ -161,7 +162,7 @@ function CriterionRow({
       </td>
       <td>{criterion.text}</td>
       <td>
-        <div className="toolbar">
+        <div className={toolbarClass}>
           <Button type="button" variant="secondary" size="sm" onClick={() => setEditing(true)} disabled={pending}>Edit</Button>
           <ConfirmButton
             label="Delete"
@@ -170,7 +171,7 @@ function CriterionRow({
             disabled={pending}
             variant="danger"
             icon={<IconTrash />}
-            className="button-sm"
+            size="sm"
           />
         </div>
       </td>
@@ -210,7 +211,7 @@ function InlineAgendaDraftRow({
             if (value.trim()) onSave()
           }}
         >
-          <label className="visually-hidden" htmlFor={`new-agenda-item-${kind ?? 'question'}`}>{label}</label>
+          <label className="sr-only" htmlFor={`new-agenda-item-${kind ?? 'question'}`}>{label}</label>
           <Input
             id={`new-agenda-item-${kind ?? 'question'}`}
             value={value}
@@ -219,7 +220,7 @@ function InlineAgendaDraftRow({
             autoFocus
             required
           />
-          <div className="toolbar flex-nowrap max-[680px]:justify-end">
+          <div className={`${toolbarClass} flex-nowrap max-[680px]:justify-end`}>
             <Button type="submit" size="sm" disabled={pending || !value.trim()}>
               <IconCheckCircle />Save
             </Button>
@@ -286,7 +287,7 @@ export function ResearchQuestionsPanel({
   }, [addingQuestion, inlineAdd, newQuestion, dirtyRows, onDirtyChange])
 
   if (project.isLoading) return <p>Loading research questions…</p>
-  if (project.isError || !project.data) return <p className="error" role="alert">Research questions could not be loaded.</p>
+  if (project.isError || !project.data) return <p className="text-danger" role="alert">Research questions could not be loaded.</p>
 
   const questionPending = updateQuestion.isPending || deleteQuestion.isPending
 
@@ -299,7 +300,7 @@ export function ResearchQuestionsPanel({
         </span>
       </h2>
 
-      {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
+      {mutationError ? <p className="text-danger" role="alert">{mutationError.message}</p> : null}
       <table className="w-full [&_td]:align-top [&_td:first-child]:w-16 [&_td:last-child]:w-px [&_td:last-child]:whitespace-nowrap">
         <thead>
           <tr>
@@ -354,7 +355,7 @@ export function ResearchQuestionsPanel({
       </table>
       {!inlineAdd ? (
         <>
-          <hr className="section-divider" />
+          <hr className="mt-5 border-0 border-t border-border" />
           <form onSubmit={(event) => { event.preventDefault(); addQuestion.mutate() }}>
             <label>
               New research question
@@ -431,7 +432,7 @@ export function CriteriaPanel({
   }, [addingCriterionKind, inlineAdd, newCriterionText, dirtyRows, onDirtyChange])
 
   if (project.isLoading) return <p>Loading criteria…</p>
-  if (project.isError || !project.data) return <p className="error" role="alert">Criteria could not be loaded.</p>
+  if (project.isError || !project.data) return <p className="text-danger" role="alert">Criteria could not be loaded.</p>
 
   const criterionPending = updateCriterion.isPending || deleteCriterion.isPending
 
@@ -456,7 +457,7 @@ export function CriteriaPanel({
           enabled, these criteria are part of the context for LLM-based content generation.
         </p>
       </InfoBox>
-      {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
+      {mutationError ? <p className="text-danger" role="alert">{mutationError.message}</p> : null}
       <table className="w-full [&_td]:align-top [&_td:first-child]:w-16 [&_td:last-child]:w-px [&_td:last-child]:whitespace-nowrap">
         <thead>
           <tr>
@@ -578,7 +579,7 @@ export function CriteriaPanel({
       </table>
       {!inlineAdd ? (
         <>
-          <hr className="section-divider" />
+          <hr className="mt-5 border-0 border-t border-border" />
           <form onSubmit={(event) => { event.preventDefault(); addCriterion.mutate() }}>
             <label>
               Kind

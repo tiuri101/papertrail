@@ -12,10 +12,10 @@ export function DuplicateReviewSection({ projectId }: { projectId: string }) {
   return (
     <Card as="section" id="section-analysis-duplicate-review">
       <h2>Deduplication</h2>
-      {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
+      {query.error ? <p className="text-danger" role="alert">{query.error.message}</p> : null}
       {stats ? (
         <>
-          <p className="muted">
+          <p className="text-text-muted">
             {stats.recordsIdentified} records identified &middot; {stats.duplicatesRemoved} removed
             as duplicates
           </p>

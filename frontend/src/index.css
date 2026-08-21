@@ -3,22 +3,11 @@
  * below: layer priority is fixed by each name's FIRST mention (across the
  * whole stylesheet, not physical rule position), so pre-declaring all five
  * names here — in this relative order — fixes it before `@import` re-mentions
- * its own four. `legacy` sits between `base` and `components`:
- *  - ABOVE `base` (Tailwind's Preflight reset) so a not-yet-migrated legacy
- *    rule's own margin/padding/border/etc. still applies — Preflight is a
- *    generic browser-consistency reset, not meant to compete with real
- *    application styles, and putting `legacy` below it (as an earlier,
- *    wrong version of this file did) meant Preflight's blanket
- *    `*, ::before, ::after { margin: 0; padding: 0 }` silently beat every
- *    legacy rule that ever set margin or padding, on every element, sitewide.
- *  - BELOW `components`/`utilities` so a Tailwind utility class still wins
- *    over legacy CSS on a migrated component (e.g. Button's own `min-h-*`
- *    overriding the legacy bare `button { min-height: 40px }` rule).
- * Every not-yet-migrated rule further down lives in `@layer legacy`; without
- * layering it at all, it would be unlayered CSS, and unlayered CSS always
- * beats layered CSS (i.e. Tailwind utilities) regardless of specificity.
+ * its own four. `papertrail` contains the intentional global and browser-level
+ * rules that remain after migration. It sits above Preflight but below
+ * component and utility classes, so local Tailwind styling stays authoritative.
  */
-@layer theme, base, legacy, components, utilities;
+@layer theme, base, papertrail, components, utilities;
 @import "tailwindcss";
 
 /*
@@ -274,7 +263,7 @@
   --radius-xl: var(--radius-xl);
 }
 
-@layer legacy {
+@layer papertrail {
 
 * {
   box-sizing: border-box;
@@ -364,8 +353,7 @@ h2 {
   letter-spacing: -0.018em;
 }
 
-h3,
-.subsection-heading {
+h3 {
   margin: 0;
   color: var(--color-text);
   font-size: 1rem;
@@ -395,25 +383,6 @@ a:hover {
   text-decoration: underline;
 }
 
-.page {
-  width: min(1180px, calc(100% - 40px));
-  margin: 0 auto;
-  padding: var(--space-10) 0 var(--space-12);
-}
-
-.add-publication-page {
-  padding-top: var(--space-12);
-}
-
-.page > h1 + .muted {
-  margin-top: calc(var(--space-4) * -1);
-  margin-bottom: var(--space-6);
-}
-
-.narrow {
-  max-width: 520px;
-}
-
 form {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -436,23 +405,6 @@ label {
   font-weight: 640;
 }
 
-.field {
-  display: grid;
-  gap: var(--space-2);
-}
-
-.field-label-row {
-  display: inline-flex;
-  align-items: center;
-  color: var(--color-text-secondary);
-  font-size: 0.9rem;
-  font-weight: 640;
-}
-
-.field-label-row label {
-  display: inline;
-}
-
 label:where(:has(> input[type='checkbox'])),
 label:where(:has(> input[type='radio'])) {
   display: flex;
@@ -470,7 +422,7 @@ fieldset {
 }
 
 /* Keep standalone form actions visually separated from the final field. */
-fieldset > button:not(.icon-button) {
+fieldset > button {
   margin-top: var(--space-2);
 }
 
@@ -480,10 +432,6 @@ legend {
   color: var(--color-text-secondary);
   font-size: 0.9rem;
   font-weight: 640;
-}
-
-fieldset > legend.subsection-heading {
-  margin-bottom: var(--space-3);
 }
 
 input,
@@ -564,52 +512,6 @@ button:not(:disabled) {
   cursor: pointer;
 }
 
-.icon-button svg {
-  width: 20px;
-  height: 20px;
-  fill: currentColor;
-}
-
-
-.toolbar {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: var(--space-3);
-  margin: var(--space-5) 0;
-}
-
-.paper-search-field {
-  flex: 0 1 32rem;
-  width: min(32rem, 100%);
-}
-
-.bulk-selection-panel__controls {
-  align-items: flex-end;
-}
-
-td .toolbar,
-form .toolbar,
-[role='alertdialog'].toolbar {
-  margin: 0;
-}
-
-.card {
-  position: relative;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  background: linear-gradient(180deg, var(--color-surface-raised), var(--color-surface));
-  padding: var(--space-6);
-  box-shadow: var(--shadow-sm);
-}
-
-.card > * + * {
-  margin-top: var(--space-5);
-}
-
-.card > h2 + * {
-  margin-top: var(--space-4);
-}
 
 .modal-backdrop {
   position: fixed;
@@ -622,83 +524,12 @@ form .toolbar,
   background: var(--color-bg);
 }
 
-.modal.card {
-  width: min(440px, 100%);
-  max-height: calc(100vh - var(--space-8));
-  overflow-y: auto;
-  background: var(--color-surface-raised);
-  opacity: 1;
-}
-.page > .card + .card {
-  margin-top: var(--space-6);
-}
-
-.button-sm {
-  min-height: 32px;
-  height: 32px;
-  padding: 5px 10px;
-  font-size: 0.82rem;
-}
-.button-md {
-  min-height: 40px;
-  height: 40px;
-  padding: 0 16px;
-  font-size: 14px;
-}
-
-.grid {
-  display: grid;
-  gap: var(--space-5);
-}
-
-.compare-columns {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-5);
-}
-
-.duplicate-publications {
-  grid-template-columns: 1fr;
-}
-
-.duplicate-publications > div + div {
-  padding-top: var(--space-5);
-}
-
-.error {
-  color: var(--color-danger);
-}
-
-.success {
-  color: var(--color-success);
-}
-
-.alert,
 [role='alertdialog'] {
   border: 1px solid rgba(255, 127, 130, 0.28);
   border-radius: var(--radius-md);
   background: var(--color-danger-container);
   padding: var(--space-4);
 }
-
-[role='alertdialog'].toolbar {
-  align-items: flex-start;
-}
-
-.muted {
-  color: var(--color-text);
-}
-
-.eyebrow {
-  display: block;
-  margin: 0 0 var(--space-1);
-  color: var(--color-primary);
-  font-size: 0.74rem;
-  font-weight: 750;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
 
 pre {
   overflow: auto;
@@ -716,16 +547,6 @@ table {
   width: 100%;
   border-collapse: collapse;
   border-spacing: 0;
-}
-
-.table-scroll {
-  overflow-x: auto;
-}
-
-.section-divider {
-  margin: var(--space-5) 0 0;
-  border: 0;
-  border-top: 1px solid var(--color-border);
 }
 
 mark {
@@ -778,8 +599,7 @@ mark {
   color: var(--kw-7-fg);
 }
 
-/* Button system: shared visual layer for legacy native button usages not yet migrated to <Button>. */
-.button,
+/* Temporary baseline for specialized native controls that have not moved to <Button>. */
 button {
   min-height: var(--button-height);
   height: var(--button-height);
@@ -797,21 +617,20 @@ button {
   transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease, transform 80ms ease, opacity 140ms ease;
 }
 
-.button svg,
-button:not(.icon-button) svg {
+button svg {
   width: 16px;
   height: 16px;
   flex: 0 0 auto;
 }
 
-button:not(.icon-button):not(.decision-button):not(.wizard-step__button):not(.hotkey-capture):not(.collapsible-section__toggle):not(.collapsible-section__indicator-toggle):not(.jobs-summary__item):not(.rq-source-badge) {
+button:not(.wizard-step__button):not(.collapsible-section__toggle):not(.collapsible-section__indicator-toggle):not(.jobs-summary__item):not(.rq-source-badge) {
   border-color: var(--button-primary-border);
   background: linear-gradient(180deg, var(--button-primary-bg-hover) 0%, var(--button-primary-bg) 100%);
   color: var(--button-primary-text);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.14);
 }
 
-button:not(.icon-button):not(.decision-button):not(.wizard-step__button):not(.hotkey-capture):not(.collapsible-section__toggle):not(.collapsible-section__indicator-toggle):not(.jobs-summary__item):not(.rq-source-badge):hover:not(:disabled) {
+button:not(.wizard-step__button):not(.collapsible-section__toggle):not(.collapsible-section__indicator-toggle):not(.jobs-summary__item):not(.rq-source-badge):hover:not(:disabled) {
   border-color: #a1b0ff;
   background: transparent;
   color: var(--button-primary-bg-hover);
@@ -819,70 +638,18 @@ button:not(.icon-button):not(.decision-button):not(.wizard-step__button):not(.ho
   transform: none;
 }
 
-.icon-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: var(--button-height);
-  min-width: var(--button-height);
-  height: var(--button-height);
-  min-height: var(--button-height);
-  padding: 0;
-  border-radius: var(--button-radius);
-  border-color: var(--button-secondary-border);
-  background: var(--button-secondary-bg);
-  color: var(--button-secondary-text);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.025);
-}
-
-.icon-button:hover:not(:disabled) {
-  border-color: var(--button-secondary-border-hover);
-  background: var(--button-secondary-bg-hover);
-  color: var(--button-secondary-text);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.035);
-  transform: none;
-}
-
-.button:disabled,
-button:disabled,
-.icon-button:disabled {
+button:disabled {
   opacity: var(--button-disabled-opacity);
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
 }
 
-.icon-button--round {
-  width: 30px;
-  min-width: 30px;
-  height: 30px;
-  min-height: 30px;
-  border-radius: 50%;
-}
-
-.button:focus,
 button:focus { outline: none; }
 
-.button:focus-visible,
-button:focus-visible,
-.icon-button:focus-visible {
+button:focus-visible {
   outline: 2px solid var(--button-focus);
   outline-offset: 2px;
-}
-
-.table-compact th,
-.table-compact td {
-  padding: 7px var(--space-3);
-  font-size: 0.85rem;
-}
-
-.table-compact thead th {
-  font-size: 0.68rem;
-}
-
-.table-narrow {
-  width: auto;
-  max-width: 100%;
 }
 
 th,
@@ -925,143 +692,10 @@ button:focus-visible {
 }
 
 /* Screening hotkey capture controls retain their compact neutral styling. */
-.hotkey-capture {
-  min-width: 96px;
-  min-height: 36px;
-  height: auto;
-  padding: 6px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface-raised);
-  color: var(--color-text-secondary);
-  font: inherit;
-  box-shadow: none;
-}
-
-.hotkey-capture:hover:not(:disabled) {
-  border-color: var(--color-border-strong);
-  background: var(--color-surface-hover);
-  color: var(--color-text);
-  box-shadow: none;
-  transform: none;
-}
-
-.hotkey-capture--active {
-  border-color: var(--color-primary);
-  color: var(--color-text);
-}
-
-.hotkey-capture--conflict {
-  border-color: var(--color-danger);
-  color: var(--color-danger);
-}
-
-.decision-field {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  margin: var(--space-4) 0;
-}
-
-.decision-field__label {
-  font-weight: 680;
-}
-
-.decision-group {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.decision-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-height: 40px;
-  padding: 9px 14px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface-raised);
-  color: var(--color-text-secondary);
-  font: inherit;
-  font-weight: 680;
-  box-shadow: none;
-}
-
-.decision-button:not(.decision-button--selected):hover:not(:disabled) {
-  border-color: var(--color-border-strong);
-  background: var(--color-surface-hover);
-  color: var(--color-text);
-  box-shadow: none;
-  transform: none;
-}
-
-.decision-button svg {
-  width: 18px;
-  height: 18px;
-  fill: currentColor;
-}
-
-.decision-button--include.decision-button--selected {
-  border-color: transparent;
-  background: var(--color-success);
-  color: var(--color-primary-contrast);
-}
-
-.decision-button--exclude.decision-button--selected {
-  border-color: transparent;
-  background: var(--color-danger);
-  color: var(--color-primary-contrast);
-}
-
-.decision-button--uncertain.decision-button--selected {
-  border-color: transparent;
-  background: var(--color-warning);
-  color: var(--color-primary-contrast);
-}
-
 /* Repeats each selected background at :hover with matching specificity
    (class + two pseudo-classes) so it beats the global `button:hover`
    rule, which would otherwise repaint a hovered-but-selected button with
    the generic primary hover fill instead of its decision color. */
-.decision-button--include.decision-button--selected:hover:not(:disabled) {
-  background: var(--color-success);
-  filter: brightness(1.08);
-  box-shadow: none;
-  transform: none;
-}
-
-.decision-button--exclude.decision-button--selected:hover:not(:disabled) {
-  background: var(--color-danger);
-  filter: brightness(1.08);
-  box-shadow: none;
-  transform: none;
-}
-
-.decision-button--uncertain.decision-button--selected:hover:not(:disabled) {
-  background: var(--color-warning);
-  filter: brightness(1.08);
-  box-shadow: none;
-  transform: none;
-}
-
-.decision-button--duplicate.decision-button--selected {
-  border-color: transparent;
-  background: var(--color-primary);
-  color: var(--color-primary-contrast);
-}
-
-.decision-button--duplicate.decision-button--selected:hover:not(:disabled) {
-  background: var(--color-primary);
-  filter: brightness(1.08);
-  box-shadow: none;
-  transform: none;
-}
-
-.decision-button__hotkey {
-  margin-left: 2px;
-}
-
 kbd {
   display: inline-flex;
   align-items: center;
@@ -1078,57 +712,6 @@ kbd {
   font-weight: 700;
   line-height: 1;
   opacity: 0.85;
-}
-
-.decision-button--selected kbd,
-.submit-button__hotkey {
-  border-color: rgba(255, 255, 255, 0.5);
-  background: rgba(255, 255, 255, 0.16);
-  color: inherit;
-}
-
-.hotkey-list {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  max-width: 320px;
-}
-
-.hotkey-row {
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-2);
-}
-
-.hotkey-row__label {
-  font-weight: 600;
-}
-
-
-
-.app-background-illustration {
-  position: fixed;
-  left: max(var(--space-4), env(safe-area-inset-left));
-  bottom: calc(4.5rem + env(safe-area-inset-bottom));
-  width: clamp(150px, 14vw, 210px);
-  max-width: calc(100vw - var(--space-4) - var(--space-4));
-  max-height: calc(100vh - 7rem);
-  height: auto;
-  opacity: 0.42;
-  pointer-events: none;
-  z-index: 0;
-}
-
-.visually-hidden {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
 }
 
 @media (max-width: 760px) {
@@ -1163,44 +746,10 @@ kbd {
     display: none;
   }
 
-  .page {
-    width: min(100% - 28px, 1180px);
-  }
-
-  .page {
-    padding-top: var(--space-8);
-  }
-
-  .add-publication-page {
-    padding-top: var(--space-10);
-  }
-
-  .card {
-    padding: var(--space-5);
-  }
-
-  .compare-columns {
-    grid-template-columns: 1fr;
-  }
-
   table {
     display: block;
     overflow-x: auto;
     white-space: normal;
-  }
-
-  td .toolbar {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  td .toolbar button,
-  td .toolbar [role='alertdialog'] {
-    width: 100%;
-  }
-
-  .toolbar {
-    gap: var(--space-2);
   }
 
 }
@@ -1229,26 +778,7 @@ kbd {
     font-size: 0.86rem;
   }
 
-  .icon-button {
-    width: 36px;
-    min-width: 36px;
-    min-height: 36px;
-  }
-
-  .page {
-    width: min(100% - 24px, 1180px);
-  }
-
-  .page {
-    padding-bottom: var(--space-8);
-  }
-
-  .card {
-    border-radius: var(--radius-md);
-    padding: var(--space-4);
-  }
-
-  button:not(.icon-button) {
+  button {
     max-width: 100%;
   }
 
@@ -1279,34 +809,4 @@ kbd {
     animation-iteration-count: 1 !important;
   }
 }
-.dynamic-field {
-  margin-block: var(--space-3);
-}
-
-.llm-evidence-list blockquote {
-  margin-inline: 0;
-}
-
-.form-editor-field__draft-form {
-  grid-template-columns: 1fr;
-}
-
-.form-editor-fields__add-button {
-  justify-self: start;
-}
-
-.form-editor-fields__add-button svg {
-  width: 16px;
-  height: 16px;
-  fill: currentColor;
-}
-
-/* Compact action size must win over the shared 40px button baseline. */
-.button-sm {
-  min-height: 32px;
-  height: 32px;
-  padding: 5px 10px;
-  font-size: 0.82rem;
-}
-
 }
