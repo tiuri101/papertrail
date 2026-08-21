@@ -691,47 +691,14 @@ input[type='radio'] {
   transform: none;
 }
 
-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-2);
-  width: fit-content;
-  height: 40px;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  padding: 0 16px;
-  background: var(--color-primary);
-  color: var(--color-primary-contrast);
-  font-weight: 600;
-  line-height: 1.2;
+/*
+ * Native <button> elements default to `cursor: default`, not `pointer` — components migrated
+ * to <Button>/<Tabs> set their own `cursor-pointer` via Tailwind, but this covers every
+ * not-yet-migrated raw button (decision-button, criterion-toggle, icon-button, etc.) that
+ * doesn't declare its own cursor.
+ */
+button:not(:disabled) {
   cursor: pointer;
-  box-shadow: var(--shadow-sm);
-  transition: transform 120ms ease, background-color 140ms ease, border-color 140ms ease, box-shadow 140ms ease, opacity 140ms ease;
-}
-
-button:not(.icon-button) svg {
-  width: 18px;
-  height: 18px;
-  flex: 0 0 auto;
-  fill: currentColor;
-}
-
-button:hover:not(:disabled) {
-  background: var(--color-primary-strong);
-  box-shadow: var(--shadow-md);
-  transform: translateY(-1px);
-}
-
-button:active:not(:disabled) {
-  transform: translateY(0);
-  box-shadow: var(--shadow-sm);
-}
-
-button:disabled {
-  opacity: 0.48;
-  cursor: not-allowed;
-  box-shadow: none;
 }
 
 .icon-button svg {
