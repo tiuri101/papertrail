@@ -235,7 +235,7 @@ export function ReportingPage() {
             <span className="eyebrow">Download library</span>
             <h2 id="available-exports-heading">Available Exports</h2>
           </div>
-          <CountPill count={artifacts.length}>ready</CountPill>
+          <CountPill count={artifacts.length} className="mb-0">ready</CountPill>
         </header>
         {exportsQuery.isLoading ? <p>Loading exports…</p> : null}
         {!exportsQuery.isLoading && artifacts.length === 0 ? (
