@@ -400,16 +400,27 @@ export function PublicationDetailPage() {
                   ) : publicationHistory.length === 0 ? (
                     <p className="muted">No recorded history for this publication yet.</p>
                   ) : (
-                    <ul className="card-list stacked">
-                      {publicationHistory.map((event) => (
-                        <li key={event.id} className="card">
-                          <p className="muted publication-detail__history-meta">
-                            {new Date(event.createdAt).toLocaleString()} · {event.actorUsername ?? 'System'}
-                          </p>
-                          <p>{event.summary}</p>
-                        </li>
-                      ))}
-                    </ul>
+                    <div className="table-scroll">
+                      <table>
+                        <caption className="visually-hidden">Activity log</caption>
+                        <thead>
+                          <tr>
+                            <th scope="col">Timestamp</th>
+                            <th scope="col">User</th>
+                            <th scope="col">Summary</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {publicationHistory.map((event) => (
+                            <tr key={event.id}>
+                              <td>{new Date(event.createdAt).toLocaleString()}</td>
+                              <td>{event.actorUsername ?? <span className="muted">System</span>}</td>
+                              <td>{event.summary}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   )}
                 </section>
               </div>
