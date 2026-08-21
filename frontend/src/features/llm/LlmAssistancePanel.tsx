@@ -13,6 +13,7 @@ import { Input } from '../../components/Input'
 import { Select } from '../../components/Select'
 import { Textarea } from '../../components/Textarea'
 import { InfoTooltip } from '../../components/Tooltip'
+import { cn } from '../../lib/cn'
 import { STAGES } from '../projects/StageProgress'
 
 const stageColors = Object.fromEntries(STAGES.map((stage) => [stage.value, stage.color]))
@@ -352,14 +353,20 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
         ) : (
           <>
           <p>Version {currentSchema.versionNumber} · {currentSchema.status}</p>
-          <div className="llm-schema-fields">
+          <div className="my-4 grid gap-3">
           {fields.map((field, index) => {
             const mappedField = schema.data?.extractionFields.find(
               (item) => item.stableKey === field.mappedExtractionFieldKey,
             )
             return (
             <details
-              className={`llm-schema-field${draggedFieldKey === field.stableKey ? ' llm-schema-field--dragging' : ''}${dragOverFieldKey === field.stableKey ? ' llm-schema-field--drag-over' : ''}`}
+              className={cn(
+                'overflow-hidden rounded-md border border-border bg-bg-elevated open:border-border-strong open:bg-surface-raised open:shadow-sm',
+                draggedFieldKey === field.stableKey && 'opacity-55',
+                dragOverFieldKey === field.stableKey && 'border-primary shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-primary)_18%,transparent)]',
+              )}
+              data-dragging={draggedFieldKey === field.stableKey || undefined}
+              data-drag-over={dragOverFieldKey === field.stableKey || undefined}
               key={field.stableKey}
               data-field-sort-key={field.stableKey}
               onDragOver={(event) => {
@@ -376,16 +383,16 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
                 setDragOverFieldKey(null)
               }}
             >
-              <summary className="llm-schema-field__summary">
-                <span className="llm-schema-field__title">
+              <summary className="grid cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-2 p-4 marker:text-primary">
+                <span className="col-start-1 flex flex-wrap items-center gap-2">
                   <strong>{field.label || `Field ${index + 1}`}</strong>
                   <Badge variant="plain">{field.fieldType.replaceAll('_', ' ')}</Badge>
                   {!field.enabled ? <Badge variant="plain">Disabled</Badge> : null}
                 </span>
-                <span className="llm-schema-field__mapping">
+                <span className="col-start-1 text-sm text-text-secondary">
                   {mappedField ? `Maps to ${mappedField.label}` : 'LLM-only helper field'}
                 </span>
-                <span className="llm-schema-field__preview">
+                <span className="col-start-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm text-text-secondary">
                   {field.instruction || 'No extraction instruction provided.'}
                 </span>
                 <DragHandle
@@ -421,7 +428,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
                   }}
                 />
               </summary>
-              <div className="llm-schema-field__content">
+              <div className="grid gap-4 border-t border-border p-5">
               <label>Label
                 <Input value={field.label} onChange={(event) => edit(index, { label: event.target.value })} />
               </label>
@@ -464,7 +471,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
               {field.mappingState && !['active', 'helper'].includes(field.mappingState) ? (
                 <p className="error">Mapping is {field.mappingState}; resolve it before publishing.</p>
               ) : null}
-              <div className="llm-schema-field__toggle-setting">
+              <div className="relative w-fit [&>label]:flex [&>label]:items-center [&>label]:gap-2">
                 <label>
                   <Input
                     type="checkbox"
@@ -479,7 +486,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
                   text="Require the LLM to support a returned value with a quote from the publication. Papertrail verifies the quote against the cited PDF page and flags missing or unverifiable evidence."
                 />
               </div>
-              <div className="llm-schema-field__toggle-setting">
+              <div className="relative w-fit [&>label]:flex [&>label]:items-center [&>label]:gap-2">
                 <label>
                   <Input
                     type="checkbox"
@@ -538,8 +545,8 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
         </InfoBox>
           {overview.data ? (
             <>
-              <div className="llm-processing-status">
-                <table className="table-compact table-narrow llm-processing-status__table">
+              <div className="flex flex-wrap items-start gap-5">
+                <table className="table-compact table-narrow min-w-0 flex-[0_1_auto]">
                   <thead>
                     <tr>
                       <th scope="col">Metric</th>
@@ -558,10 +565,10 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
                     <tr><th scope="row">Average generated tokens</th><td>{Math.round(overview.data.statistics.averageGeneratedTokens ?? 0)}</td></tr>
                   </tbody>
                 </table>
-                <div className="llm-rerun-actions">
+                <div data-llm-rerun-actions="true" className="flex shrink-0 flex-col items-start gap-2">
                   <button
                     type="button"
-                    className="llm-stage-button"
+                    className="border-[color-mix(in_srgb,var(--stage-color)_35%,transparent)] bg-none bg-[color-mix(in_srgb,var(--stage-color)_14%,transparent)] text-(--stage-color) shadow-none hover:not-disabled:border-(--stage-color) hover:not-disabled:bg-[color-mix(in_srgb,var(--stage-color)_22%,transparent)] hover:not-disabled:text-(--stage-color) hover:not-disabled:shadow-none"
                     style={stageButtonStyle('title_abstract_screening')}
                     onClick={() => reanalyze.mutate('title_abstract_screening')}
                     disabled={reanalyze.isPending || !settings.data?.titleAbstractScreeningEnabled}
@@ -570,7 +577,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
                   </button>
                   <button
                     type="button"
-                    className="llm-stage-button"
+                    className="border-[color-mix(in_srgb,var(--stage-color)_35%,transparent)] bg-none bg-[color-mix(in_srgb,var(--stage-color)_14%,transparent)] text-(--stage-color) shadow-none hover:not-disabled:border-(--stage-color) hover:not-disabled:bg-[color-mix(in_srgb,var(--stage-color)_22%,transparent)] hover:not-disabled:text-(--stage-color) hover:not-disabled:shadow-none"
                     style={stageButtonStyle('full_text_screening')}
                     onClick={() => reanalyze.mutate('full_text_screening')}
                     disabled={reanalyze.isPending || !settings.data?.fullTextScreeningEnabled}
@@ -579,7 +586,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
                   </button>
                   <button
                     type="button"
-                    className="llm-stage-button"
+                    className="border-[color-mix(in_srgb,var(--stage-color)_35%,transparent)] bg-none bg-[color-mix(in_srgb,var(--stage-color)_14%,transparent)] text-(--stage-color) shadow-none hover:not-disabled:border-(--stage-color) hover:not-disabled:bg-[color-mix(in_srgb,var(--stage-color)_22%,transparent)] hover:not-disabled:text-(--stage-color) hover:not-disabled:shadow-none"
                     style={stageButtonStyle('extraction_quality')}
                     onClick={() => reanalyze.mutate('data_extraction')}
                     disabled={reanalyze.isPending || !settings.data?.enabled}
@@ -588,7 +595,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
                   </button>
                   <button
                     type="button"
-                    className="llm-stage-button"
+                    className="border-[color-mix(in_srgb,var(--stage-color)_35%,transparent)] bg-none bg-[color-mix(in_srgb,var(--stage-color)_14%,transparent)] text-(--stage-color) shadow-none hover:not-disabled:border-(--stage-color) hover:not-disabled:bg-[color-mix(in_srgb,var(--stage-color)_22%,transparent)] hover:not-disabled:text-(--stage-color) hover:not-disabled:shadow-none"
                     style={stageButtonStyle('extraction_quality')}
                     onClick={() => reanalyze.mutate('extraction_validation')}
                     disabled={reanalyze.isPending || !settings.data?.extractionValidationEnabled}

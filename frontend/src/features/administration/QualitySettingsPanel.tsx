@@ -66,7 +66,7 @@ export function QualitySettingsPanel({ projectId }: { projectId: string }) {
       </InfoBox>
       {config.error ? <p className="error" role="alert">{config.error.message}</p> : null}
       {config.isLoading ? <p>Loadingâ€¦</p> : (
-        <div className="quality-settings-fields">
+        <div data-quality-settings="true" className="grid gap-5">
           <label>
             <Input
               type="checkbox"
@@ -75,7 +75,7 @@ export function QualitySettingsPanel({ projectId }: { projectId: string }) {
             />
             Enable quality assessment
           </label>
-          <div className="quality-settings-selects">
+          <div data-quality-settings-selects="true" className="grid grid-cols-1 gap-4 min-[561px]:grid-cols-2">
             <label>
               Mode
               <Select

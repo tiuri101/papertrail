@@ -59,7 +59,7 @@ describe('LlmAssistancePanel', () => {
     const rerunActions = screen.getByRole('button', {
       name: 'Re-Run LLM Title/Abstract Screening',
     }).parentElement
-    expect(rerunActions).toHaveClass('llm-rerun-actions')
+    expect(rerunActions).toHaveAttribute('data-llm-rerun-actions', 'true')
     expect(rerunActions?.children).toHaveLength(4)
     expect(rerunActions?.children[0]).toHaveStyle({ '--stage-color': '#1baf7a' })
     expect(rerunActions?.children[1]).toHaveStyle({ '--stage-color': '#eda100' })

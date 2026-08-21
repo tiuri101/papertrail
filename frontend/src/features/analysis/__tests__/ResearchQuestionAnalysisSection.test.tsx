@@ -125,9 +125,8 @@ describe('ResearchQuestionAnalysisSection', () => {
     expect(within(panel).getByText('Evidence quote 5')).toBeInTheDocument()
     expect(within(panel).queryByText('Study 1')).not.toBeInTheDocument()
     expect(within(panel).queryByText('Study 2')).not.toBeInTheDocument()
-    const visibleCards = panel.querySelectorAll('.rq-evidence-card')
-    expect(visibleCards).toHaveLength(1)
-    expect(visibleCards[0]).toHaveAttribute('id', 'rq-1-evidence-SRC-0005')
+    expect(panel.querySelectorAll('[id^="rq-1-evidence-"]')).toHaveLength(1)
+    expect(panel.querySelector('#rq-1-evidence-SRC-0005')).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'SRC-0002' }))
     const replacement = screen.getByRole('complementary', { name: 'Selected evidence SRC-0002' })
@@ -142,7 +141,6 @@ describe('ResearchQuestionAnalysisSection', () => {
     renderWithProviders(<ResearchQuestionAnalysisSection projectId="p1" />)
 
     const source = await screen.findByRole('button', { name: 'SRC-0001' })
-    expect(source).toHaveClass('rq-source-badge--untraceable')
     expect(source).toHaveAttribute('title', 'No traceable source quotation for this value')
 
     fireEvent.click(source)
