@@ -8,7 +8,7 @@ import { Badge } from '../../components/Badge'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { Button, IconButton } from '../../components/Button'
 import { CountPill } from '../../components/CountPill'
-import { cardStyles } from '../../components/Card'
+import { Card, cardStyles } from '../../components/Card'
 import { pageStyles } from '../../components/Page'
 import { DragHandle } from '../../components/DragHandle'
 import { IconCheckCircle, IconPlus, IconTrash } from '../../components/icons'
@@ -951,36 +951,38 @@ export function FormBuilderPage() {
             <p>Open a project form above and save it as a template to build your catalog.</p>
           </div>
         ) : (
-          <ul className="m-0 grid list-none gap-3 p-0" aria-label="Form templates">
+          <ul className="m-0 grid list-none gap-4 p-0" aria-label="Form templates">
             {templateCatalog.map((template) => (
-              <li className="grid min-w-0 grid-cols-1 items-center gap-5 rounded-md border border-border bg-surface-raised p-5 min-[681px]:grid-cols-[minmax(0,1fr)_auto]" key={template.id}>
-                <div>
-                  <span className="text-[0.72rem] font-bold uppercase tracking-[0.07em] text-primary">
-                    {template.kind === 'quality' ? 'Quality assessment' : 'Extraction'}
-                  </span>
-                  <h3 className="my-2">{template.name}</h3>
+              <Card as="li" key={template.id}>
+                <div className="grid min-w-0 grid-cols-1 items-center gap-5 min-[681px]:grid-cols-[minmax(0,1fr)_auto]">
+                  <div>
+                    <span className="text-[0.72rem] font-bold uppercase tracking-[0.07em] text-primary">
+                      {template.kind === 'quality' ? 'Quality assessment' : 'Extraction'}
+                    </span>
+                    <h3 className="my-2">{template.name}</h3>
+                  </div>
+                  <div className="flex flex-wrap gap-3 min-[681px]:justify-self-end" data-template-actions>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => setSelectedForm(template.id)}
+                    >
+                      {isAdmin ? 'Inspect & Edit' : 'Inspect'}
+                    </Button>
+                    {isAdmin ? (
+                      <ConfirmButton
+                        label="Remove"
+                        confirmLabel="Remove Template"
+                        warning={`Remove the "${template.name}" template? Existing project forms created from it won't be affected.`}
+                        onConfirm={() => deleteForm.mutate(template.id)}
+                        disabled={deleteForm.isPending}
+                        variant="danger"
+                        icon={<IconTrash />}
+                      />
+                    ) : null}
+                  </div>
                 </div>
-                <div className="flex flex-wrap gap-3 min-[681px]:justify-self-end" data-template-actions>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={() => setSelectedForm(template.id)}
-                  >
-                    {isAdmin ? 'Inspect & Edit' : 'Inspect'}
-                  </Button>
-                  {isAdmin ? (
-                    <ConfirmButton
-                      label="Remove"
-                      confirmLabel="Remove Template"
-                      warning={`Remove the "${template.name}" template? Existing project forms created from it won't be affected.`}
-                      onConfirm={() => deleteForm.mutate(template.id)}
-                      disabled={deleteForm.isPending}
-                      variant="danger"
-                      icon={<IconTrash />}
-                    />
-                  ) : null}
-                </div>
-              </li>
+              </Card>
             ))}
           </ul>
         )}
