@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { ConfirmButton } from '../../components/ConfirmButton'
-import { Button } from '../../components/Button'
+import { Button, IconButton } from '../../components/Button'
 import { DragHandle } from '../../components/DragHandle'
 import { IconCheckCircle, IconDownload, IconPlus, IconTrash } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
@@ -795,7 +795,7 @@ export function FormFieldsPanel({
                             </div>
                           ) : null}
                           <div className="toolbar">
-                            <button
+                            <Button
                               type="button"
                               disabled={updateField.isPending}
                               onClick={() => {
@@ -823,17 +823,17 @@ export function FormFieldsPanel({
                             >
                               <IconCheckCircle />
                               Save
-                            </button>
-                            <button
+                            </Button>
+                            <Button
                               type="button"
-                              className="button-secondary"
+                              variant="secondary"
                               onClick={() => {
                                 setEditingKey(null)
                                 setFieldOrder(fields.data?.map((item) => item.stableKey) ?? [])
                               }}
                             >
                               Cancel
-                            </button>
+                            </Button>
                           </div>
                           <ConfirmButton
                             label="Remove"
@@ -960,22 +960,23 @@ export function FormFieldsPanel({
                       >
                         <IconCheckCircle />Save Field
                       </Button>
-                      <button
+                      <Button
                         type="button"
-                        className="button-secondary"
+                        variant="secondary"
                         disabled={addField.isPending}
                         onClick={() => { addField.reset(); resetNewField(); setAddingField(false) }}
                       >
                         Cancel
-                      </button>
+                      </Button>
                     </div>
                   </form>
                 </div>
               ) : null}
               {inlineAdd ? (
-                <button
-                  type="button"
-                  className="icon-button icon-button--round form-editor-fields__add-button"
+                <IconButton
+                  variant="ghost"
+                  size="sm"
+                  className="size-[30px] min-w-[30px] rounded-full [&_svg]:size-4 form-editor-fields__add-button"
                   aria-label="Add form field"
                   title="Add form field"
                   disabled={addingField || addField.isPending || createForm.isPending}
@@ -987,7 +988,7 @@ export function FormFieldsPanel({
                   }}
                 >
                   <IconPlus />
-                </button>
+                </IconButton>
               ) : null}
             </div>
           )}

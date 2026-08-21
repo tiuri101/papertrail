@@ -4,7 +4,7 @@ import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { ConfirmButton } from '../../components/ConfirmButton'
-import { Button } from '../../components/Button'
+import { Button, IconButton } from '../../components/Button'
 import { CountPill } from '../../components/CountPill'
 import { DragHandle } from '../../components/DragHandle'
 import { IconCheckCircle, IconPlus, IconTrash } from '../../components/icons'
@@ -677,7 +677,7 @@ export function FormBuilderPage() {
                             </div>
                           ) : null}
                           <div className="toolbar">
-                            <button
+                            <Button
                               type="button"
                               disabled={updateField.isPending}
                               onClick={() => {
@@ -706,17 +706,17 @@ export function FormBuilderPage() {
                             >
                               <IconCheckCircle />
                               Save
-                            </button>
-                            <button
+                            </Button>
+                            <Button
                               type="button"
-                              className="button-secondary"
+                              variant="secondary"
                               onClick={() => {
                                 setEditingKey(null)
                                 setFieldOrder(fields.data?.map((item) => item.stableKey) ?? [])
                               }}
                             >
                               Cancel
-                            </button>
+                            </Button>
                           </div>
                         </>
                       ) : field.isArchived ? (
@@ -856,29 +856,30 @@ export function FormBuilderPage() {
                         >
                           <IconCheckCircle />Save Field
                         </Button>
-                        <button
+                        <Button
                           type="button"
-                          className="button-secondary"
+                          variant="secondary"
                           disabled={addField.isPending}
                           onClick={() => { addField.reset(); resetNewField(); setAddingField(false) }}
                         >
                           Cancel
-                        </button>
+                        </Button>
                       </div>
                     </form>
                   </div>
                 ) : null}
                 {!selectedFormReadOnly ? (
-                  <button
-                    type="button"
-                    className="icon-button icon-button--round form-editor-fields__add-button"
+                  <IconButton
+                    variant="ghost"
+                    size="sm"
+                    className="size-[30px] min-w-[30px] rounded-full [&_svg]:size-4 form-editor-fields__add-button"
                     aria-label="Add form field"
                     title="Add form field"
                     disabled={addingField || addField.isPending}
                     onClick={() => { addField.reset(); resetNewField(); setAddingField(true) }}
                   >
                     <IconPlus />
-                  </button>
+                  </IconButton>
                 ) : null}
               </div>
             )}
@@ -948,13 +949,13 @@ export function FormBuilderPage() {
                   <h3>{template.name}</h3>
                 </div>
                 <div className="toolbar form-template-card__actions">
-                  <button
+                  <Button
                     type="button"
-                    className="button-secondary"
+                    variant="secondary"
                     onClick={() => setSelectedForm(template.id)}
                   >
                     {isAdmin ? 'Inspect & Edit' : 'Inspect'}
-                  </button>
+                  </Button>
                   {isAdmin ? (
                     <ConfirmButton
                       label="Remove"
