@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
+import { Card } from '../../components/Card'
 import { IconFile } from '../../components/icons'
 import { LlmEvidence } from '../llm/LlmTaskComponents'
 import { type BackgroundJob, findJob, hasActiveJob, isJobActive } from '../jobs/jobStatus'
@@ -127,13 +129,14 @@ function SourceEvidenceCard({
         </span>
         <span>{sourceTypeLabel}</span>
       </div>
-      <button
+      <Button
         type="button"
-        className="link-button rq-evidence-card__toggle"
+        variant="text"
+        className="rq-evidence-card__toggle"
         onClick={onClose}
       >
         Close evidence
-      </button>
+      </Button>
     </article>
   )
 }
@@ -201,14 +204,14 @@ function ResearchQuestionCard({
           <span className="rq-card__number">{questionLabel}</span>
           <h3>{data.researchQuestionText}</h3>
         </div>
-        <button
+        <Button
           type="button"
-          className="button-secondary"
+          variant="secondary"
           onClick={() => regenerate.mutate()}
           disabled={isGenerating || !data.synthesisEnabled}
         >
           {isGenerating ? 'Generating…' : run ? 'Regenerate' : 'Generate synthesis'}
-        </button>
+        </Button>
       </div>
       {!data.synthesisEnabled ? (
         <p className="muted">AI-generated interpretive analysis is disabled for this project.</p>
@@ -293,7 +296,7 @@ export function ResearchQuestionAnalysisSection({ projectId }: { projectId: stri
   const researchQuestions = questions.data?.researchQuestions ?? []
 
   return (
-    <section id="section-analysis-research-question" className="card">
+    <Card as="section" id="section-analysis-research-question">
       <h2>Research Question Analysis</h2>
       <p className="muted">
         AI-generated synthesis of the authoritative extraction and quality-assessment results for
@@ -311,6 +314,6 @@ export function ResearchQuestionAnalysisSection({ projectId }: { projectId: stri
           questionNumber={index + 1}
         />
       ))}
-    </section>
+    </Card>
   )
 }

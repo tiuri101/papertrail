@@ -1,9 +1,14 @@
-import type { HTMLAttributes } from 'react'
+import type { ElementType, HTMLAttributes } from 'react'
 import { cn } from '../lib/cn'
 
-export function Card({ className, ...props }: HTMLAttributes<HTMLDivElement>) {
+export interface CardProps extends HTMLAttributes<HTMLElement> {
+  /** Render as a `<section>` where the card is a semantic landmark, not just visual grouping. */
+  as?: ElementType
+}
+
+export function Card({ as: Component = 'div', className, ...props }: CardProps) {
   return (
-    <div
+    <Component
       className={cn(
         'relative rounded-lg border border-border bg-linear-to-b from-surface-raised to-surface p-6 shadow-sm',
         '[&>*+*]:mt-5 [&>h2+*]:mt-4',

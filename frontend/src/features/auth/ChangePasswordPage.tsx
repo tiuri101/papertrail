@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { IconCheckCircle } from '../../components/icons'
 import { ThemeToggle } from '../../components/ThemeToggle'
@@ -96,11 +97,11 @@ export function ChangePasswordPage() {
           ) : null}
           {passwordsMismatch ? <p className="error alert" role="alert">New passwords do not match.</p> : null}
           {updatePassword.error ? <p className="error alert" role="alert">{updatePassword.error.message}</p> : null}
-          <button
+          <Button
             type="submit"
+            loading={updatePassword.isPending}
             disabled={
-              updatePassword.isPending
-              || !currentPassword
+              !currentPassword
               || newPassword.length < 8
               || passwordUnchanged
               || passwordsMismatch
@@ -108,16 +109,16 @@ export function ChangePasswordPage() {
           >
             <IconCheckCircle />
             {updatePassword.isPending ? 'Updating…' : 'Set Password'}
-          </button>
+          </Button>
         </form>
-        <button
+        <Button
           type="button"
-          className="button-secondary"
+          variant="secondary"
           onClick={() => logout.mutate()}
           disabled={logout.isPending}
         >
           Sign Out
-        </button>
+        </Button>
       </section>
       {showWelcomeDialog ? (
         <ConfirmDialog

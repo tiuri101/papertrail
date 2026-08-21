@@ -1,3 +1,4 @@
+import { Card } from '../../components/Card'
 import { FieldBarChart } from './FieldBarChart'
 import { StageNarrativePanel } from './StageNarrativePanel'
 import type { FullTextStats } from './types'
@@ -8,7 +9,7 @@ export function FullTextSection({ projectId }: { projectId: string }) {
   const stats = query.data?.stats
 
   return (
-    <section id="section-analysis-full-text" className="card">
+    <Card as="section" id="section-analysis-full-text">
       <h2>Full-Text Screening</h2>
       {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
       {stats ? (
@@ -52,6 +53,6 @@ export function FullTextSection({ projectId }: { projectId: string }) {
           isStale={query.data.isStale}
         />
       ) : null}
-    </section>
+    </Card>
   )
 }

@@ -1,3 +1,4 @@
+import { Card } from '../../components/Card'
 import { CompletionBar } from './CompletionBar'
 import { FieldBarChart } from './FieldBarChart'
 import { StageNarrativePanel } from './StageNarrativePanel'
@@ -51,7 +52,7 @@ export function ExtractionQualitySection({ projectId }: { projectId: string }) {
   const stats = query.data?.stats
 
   return (
-    <section id="section-analysis-extraction-quality" className="card">
+    <Card as="section" id="section-analysis-extraction-quality">
       <h2>Extraction &amp; Quality</h2>
       {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
       {stats ? (
@@ -81,6 +82,6 @@ export function ExtractionQualitySection({ projectId }: { projectId: string }) {
           isStale={query.data.isStale}
         />
       ) : null}
-    </section>
+    </Card>
   )
 }

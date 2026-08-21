@@ -2,6 +2,7 @@ import { Fragment, useEffect, useState } from 'react'
 
 import { InfoTooltip } from '../../components/Tooltip'
 import { Button } from '../../components/Button'
+import { Card } from '../../components/Card'
 import {
   type CriterionAgreement,
   type PairwiseAgreement,
@@ -296,7 +297,7 @@ export function ReviewerAnalysisSection({
   if (configsLoaded && !hasMultiReviewerStage) return null
 
   return (
-    <section id="section-analysis-reviewer-analysis" className="card reviewer-analysis-card">
+    <Card as="section" id="section-analysis-reviewer-analysis" className="reviewer-analysis-card">
       <h2>Reviewer Analysis</h2>
       <p className="muted">
         Anonymized inter-rater agreement for completed screening stages.
@@ -343,6 +344,6 @@ export function ReviewerAnalysisSection({
         </table></div>
         </div>
       ) : null}
-    </section>
+    </Card>
   )
 }

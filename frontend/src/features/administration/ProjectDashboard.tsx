@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 
 import { api } from '../../api/client'
+import { Badge } from '../../components/Badge'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { InfoBox } from '../../components/InfoBox'
 import {
@@ -69,9 +70,9 @@ function MetricTable({ entries }: { entries: [string, number | string][] }) {
               </th>
               <td>
                 {flagged ? (
-                  <span className={`status-badge ${meta.danger ? 'status-badge--danger' : 'status-badge--warning'}`}>
+                  <Badge variant={meta.danger ? 'danger' : 'warning'}>
                     {value}
-                  </span>
+                  </Badge>
                 ) : (
                   <span className="project-status__value">{value}</span>
                 )}

@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react'
 
+import { Button } from '../../components/Button'
+import { Card } from '../../components/Card'
 import { CountPill } from '../../components/CountPill'
 import { LlmEvidence } from '../llm/LlmTaskComponents'
 import {
@@ -205,7 +207,7 @@ function CellDetailPanel({
     <aside className="evidence-matrix__detail nested-card" aria-label="Field evidence detail">
       <div className="toolbar">
         <h3>{selection.publicationTitle}</h3>
-        <button type="button" className="button-secondary" onClick={onClose}>Close</button>
+        <Button type="button" variant="secondary" onClick={onClose}>Close</Button>
       </div>
       {query.isLoading ? <p>Loading…</p> : null}
       {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
@@ -292,7 +294,7 @@ export function EvidenceMatrixSection({ projectId }: { projectId: string }) {
   }
 
   return (
-    <section id="section-analysis-evidence-matrix" className="card">
+    <Card as="section" id="section-analysis-evidence-matrix">
       <h2>Evidence Matrix</h2>
       <p className="muted">
         Every included publication against every extraction and quality field, with the
@@ -386,9 +388,9 @@ export function EvidenceMatrixSection({ projectId }: { projectId: string }) {
                         className={`evidence-matrix__cell evidence-matrix__cell--${state}`}
                       >
                         {clickable ? (
-                          <button
+                          <Button
                             type="button"
-                            className="link-button"
+                            variant="text"
                             onClick={() => setSelection({
                               publicationId: item.publication.id,
                               publicationTitle: item.publication.title,
@@ -402,7 +404,7 @@ export function EvidenceMatrixSection({ projectId }: { projectId: string }) {
                             {cell?.hasEvidence ? (
                               <span aria-hidden="true" title="Has a traceable source quotation"> ✦</span>
                             ) : null}
-                          </button>
+                          </Button>
                         ) : (
                           '—'
                         )}
@@ -417,18 +419,18 @@ export function EvidenceMatrixSection({ projectId }: { projectId: string }) {
       ) : null}
       {data && pageCount > 1 ? (
         <div className="toolbar">
-          <button type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page <= 1}>
+          <Button type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page <= 1}>
             Previous
-          </button>
+          </Button>
           <span>Page {page} of {pageCount}</span>
-          <button type="button" onClick={() => setPage((current) => Math.min(pageCount, current + 1))} disabled={page >= pageCount}>
+          <Button type="button" onClick={() => setPage((current) => Math.min(pageCount, current + 1))} disabled={page >= pageCount}>
             Next
-          </button>
+          </Button>
         </div>
       ) : null}
       {selection ? (
         <CellDetailPanel projectId={projectId} selection={selection} onClose={() => setSelection(null)} />
       ) : null}
-    </section>
+    </Card>
   )
 }

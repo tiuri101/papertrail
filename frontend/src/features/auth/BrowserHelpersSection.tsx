@@ -1,5 +1,7 @@
 import { useState } from 'react'
 
+import { Button } from '../../components/Button'
+import { Card } from '../../components/Card'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { IconCopy, IconPlus, IconTrash, IconUpload } from '../../components/icons'
@@ -72,7 +74,7 @@ export function BrowserHelpersSection() {
       {revoke.error ? <p className="error" role="alert">{revoke.error.message}</p> : null}
 
       {pairingSecret ? (
-        <div className="card" role="region" aria-label="Pairing secret">
+        <Card role="region" aria-label="Pairing secret">
           <p>
             Papertrail server:
             <br />
@@ -88,24 +90,24 @@ export function BrowserHelpersSection() {
             paste it into the Chrome extension&apos;s setup page now.
           </p>
           <div className="toolbar">
-            <button type="button" onClick={handleCopy}>
+            <Button type="button" onClick={handleCopy}>
               <IconCopy />
               {copied ? 'Copied' : 'Copy'}
-            </button>
-            <button type="button" className="button-secondary" onClick={() => setPairingSecret(null)}>
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => setPairingSecret(null)}>
               Done
-            </button>
+            </Button>
           </div>
-        </div>
+        </Card>
       ) : (
         <>
           {createPairingSecret.error ? (
             <p className="error" role="alert">{createPairingSecret.error.message}</p>
           ) : null}
-          <button type="button" onClick={handleCreatePairingSecret} disabled={createPairingSecret.isPending}>
+          <Button type="button" onClick={handleCreatePairingSecret} loading={createPairingSecret.isPending}>
             <IconPlus />
             Pair new browser helper
-          </button>
+          </Button>
         </>
       )}
     </CollapsibleSection>

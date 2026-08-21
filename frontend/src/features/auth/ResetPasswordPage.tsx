@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
 import { IconCheckCircle } from '../../components/icons'
 import { ThemeToggle } from '../../components/ThemeToggle'
 import { setCsrfToken } from './session'
@@ -71,17 +72,14 @@ export function ResetPasswordPage() {
             {resetPassword.error ? (
               <p className="error alert" role="alert">{resetPassword.error.message}</p>
             ) : null}
-            <button
+            <Button
               type="submit"
-              disabled={
-                resetPassword.isPending
-                || newPassword.length < 8
-                || passwordsMismatch
-              }
+              loading={resetPassword.isPending}
+              disabled={newPassword.length < 8 || passwordsMismatch}
             >
               <IconCheckCircle />
               {resetPassword.isPending ? 'Updating…' : 'Set New Password'}
-            </button>
+            </Button>
           </form>
         ) : (
           <p className="error alert" role="alert">

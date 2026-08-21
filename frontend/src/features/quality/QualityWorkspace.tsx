@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
 import { DoiPill } from '../../components/DoiPill'
 import { IconArrowRight, IconCheckCircle } from '../../components/icons'
 import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
@@ -183,9 +184,9 @@ export function QualityWorkspace({
         {!loadingNext && queueEmpty ? (
           <>
             <p>You have completed all of your assigned assessment work.</p>
-            <button type="button" className="button-secondary" onClick={() => navigate(`/projects/${projectId}`)}>
+            <Button type="button" variant="secondary" onClick={() => navigate(`/projects/${projectId}`)}>
               Back to project
-            </button>
+            </Button>
           </>
         ) : null}
         {!loadingNext && nextError ? (
@@ -241,30 +242,30 @@ export function QualityWorkspace({
         {submit.error ? <p className="error" role="alert">{submit.error.message}</p> : null}
         {skip.error ? <p className="error" role="alert">{skip.error.message}</p> : null}
         <div className="toolbar">
-          <button type="submit" disabled={submit.isPending || skip.isPending || missingRequired}>
+          <Button type="submit" disabled={submit.isPending || skip.isPending || missingRequired}>
             <IconCheckCircle />
             {completedResponse ? 'Save corrected assessment' : 'Submit Assessment'}
-          </button>
+          </Button>
           {!itemId ? (
-            <button
+            <Button
               type="button"
-              className="button-secondary"
+              variant="secondary"
               onClick={() => skip.mutate()}
               disabled={submit.isPending || skip.isPending}
             >
               <IconArrowRight />
               Skip for now
-            </button>
+            </Button>
           ) : null}
           {variant === 'inline' && onCancel ? (
-            <button
+            <Button
               type="button"
-              className="button-secondary"
+              variant="secondary"
               onClick={onCancel}
               disabled={submit.isPending}
             >
               Cancel
-            </button>
+            </Button>
           ) : null}
         </div>
       </form>

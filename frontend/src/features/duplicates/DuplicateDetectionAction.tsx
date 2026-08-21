@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
 import { type BackgroundJob, findJob, isJobActive } from '../jobs/jobStatus'
 
 interface DetectionJob {
@@ -60,14 +61,14 @@ export function DuplicateDetectionAction({
 
   return (
     <div className={`duplicate-detection-action${compact ? ' duplicate-detection-action--compact' : ''}`}>
-      <button
+      <Button
         type="button"
-        className="button-secondary"
+        variant="secondary"
         onClick={() => detection.mutate()}
-        disabled={detection.isPending}
+        loading={detection.isPending}
       >
         {detection.isPending ? 'Queueing…' : 'Re-run Duplicate Detection'}
-      </button>
+      </Button>
       {detection.isSuccess ? (
         <span className="success" role="status">
           {detectionJob?.status === 'completed'

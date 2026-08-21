@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
 import { CountPill } from '../../components/CountPill'
 import { DoiPill } from '../../components/DoiPill'
 import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
@@ -121,9 +122,9 @@ export function ReconciliationPage() {
               />
             ) : (
               <div className="toolbar">
-                <button type="button" onClick={() => setExpandedPublicationId(item.publication.id)}>
+                <Button type="button" onClick={() => setExpandedPublicationId(item.publication.id)}>
                   Reconcile
-                </button>
+                </Button>
               </div>
             )}
           </li>
@@ -211,27 +212,27 @@ function ReconciliationForm({ projectId, publicationId, onDone, onCancel }: {
                 <td>{formatValue(comparison.valueB, comparison.fieldType)}</td>
                 <td>
                   <div className="toolbar">
-                    <button
+                    <Button
                       type="button"
-                      className={current?.choice === 'response_a' ? undefined : 'button-secondary'}
+                      variant={current?.choice === 'response_a' ? 'primary' : 'secondary'}
                       onClick={() => setChoices((prev) => ({ ...prev, [comparison.stableKey]: { choice: 'response_a' } }))}
                     >
                       Use A
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
-                      className={current?.choice === 'response_b' ? undefined : 'button-secondary'}
+                      variant={current?.choice === 'response_b' ? 'primary' : 'secondary'}
                       onClick={() => setChoices((prev) => ({ ...prev, [comparison.stableKey]: { choice: 'response_b' } }))}
                     >
                       Use B
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
-                      className={current?.choice === 'manual' ? undefined : 'button-secondary'}
+                      variant={current?.choice === 'manual' ? 'primary' : 'secondary'}
                       onClick={() => setChoices((prev) => ({ ...prev, [comparison.stableKey]: { choice: 'manual', value: prev[comparison.stableKey]?.value ?? '' } }))}
                     >
                       Manual
-                    </button>
+                    </Button>
                   </div>
                   {current?.choice === 'manual' ? (
                     <label>
@@ -257,16 +258,16 @@ function ReconciliationForm({ projectId, publicationId, onDone, onCancel }: {
       </label>
       {submit.error ? <p className="error" role="alert">{submit.error.message}</p> : null}
       <div className="toolbar">
-        <button
+        <Button
           type="button"
           onClick={() => submit.mutate()}
           disabled={submit.isPending || missingChoice || !note.trim()}
         >
           Submit Reconciliation
-        </button>
-        <button type="button" className="button-secondary" onClick={onCancel} disabled={submit.isPending}>
+        </Button>
+        <Button type="button" variant="secondary" onClick={onCancel} disabled={submit.isPending}>
           Cancel
-        </button>
+        </Button>
       </div>
     </div>
   )
