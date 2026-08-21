@@ -2636,6 +2636,7 @@ form .toolbar,
 .row-actions-menu__item:hover:not(:disabled) {
   background: var(--color-surface-hover) !important;
   color: var(--color-text) !important;
+  text-decoration: underline;
 }
 
 .row-actions-menu__item:disabled {
@@ -3044,6 +3045,7 @@ form .toolbar,
 .publication-detail__quick-action:hover:not(:disabled) {
   background: var(--color-surface-hover) !important;
   color: var(--color-text) !important;
+  text-decoration: underline;
 }
 
 .publication-detail__quick-action:disabled {
