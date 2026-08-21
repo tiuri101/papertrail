@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { Button } from '../../components/Button'
+import { cn } from '../../lib/cn'
 import { type BackgroundJob, findJob, isJobActive } from '../jobs/jobStatus'
 
 interface DetectionJob {
@@ -60,7 +61,7 @@ export function DuplicateDetectionAction({
   })
 
   return (
-    <div className={`duplicate-detection-action${compact ? ' duplicate-detection-action--compact' : ''}`}>
+    <div className={cn('flex flex-wrap items-center gap-3 [&_.error]:m-0 [&_.success]:m-0', !compact && 'mb-5')}>
       <Button
         type="button"
         variant="secondary"

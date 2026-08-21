@@ -281,39 +281,39 @@ function DecisionRow({
   const detailHref = `/projects/${projectId}/publications/${publication.id}`
 
   const openPublication = (event: MouseEvent<HTMLLIElement>) => {
-    if ((event.target as HTMLElement).closest('a, button, input, select, textarea, label, .decision-card__editor')) return
+    if ((event.target as HTMLElement).closest('a, button, input, select, textarea, label, [data-decision-editor]')) return
     navigate(detailHref)
   }
 
   return (
-    <li className="card publication-card decision-card decision-card--clickable" onClick={openPublication}>
-      <div className="publication-card__summary my-decisions-row-grid">
-        <div className="my-decisions-row-grid__title">
-          <Link className="publication-card__title-button" to={detailHref}>
-            <h2 className="decision-card__title">
+    <li className="cursor-pointer overflow-hidden rounded-lg border border-border bg-surface shadow-sm transition-colors hover:border-border-strong" onClick={openPublication}>
+      <div className="grid grid-cols-1 items-center gap-x-4 gap-y-2 p-4 min-[861px]:grid-cols-[minmax(14rem,2fr)_minmax(8rem,1fr)_minmax(8rem,auto)_minmax(8rem,auto)_minmax(8rem,auto)_auto]">
+        <div className="min-w-0">
+          <Link className="block text-inherit no-underline hover:text-primary" to={detailHref}>
+            <h2 className="m-0 text-base leading-snug">
               <HighlightedText text={publication.title} keywords={highlightKeywords} />
             </h2>
           </Link>
-          <div className="my-decisions-row-grid__authors">
+          <div className="mt-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm text-text-muted">
             {publication.authors ?? 'Unknown authors'}
           </div>
         </div>
-        <span className="my-decisions-row-grid__venue" title={publication.venue ?? undefined}>
+        <span className="overflow-hidden text-ellipsis whitespace-nowrap text-sm text-text-muted" title={publication.venue ?? undefined}>
           {publication.venue ?? '—'}
         </span>
-        <span className="my-decisions-row-grid__decision">
+        <span>
           <OutcomeBadge
             outcome={decision?.outcome ?? 'exclude'}
             label={decision && decision.version > 1 ? `${itemStatusLabel(item)} · v${decision.version}` : itemStatusLabel(item)}
           />
         </span>
-        <span className="my-decisions-row-grid__doi">
+        <span>
           {publication.doi ? <DoiPill doi={publication.doi} /> : <span className="muted">—</span>}
         </span>
-        <time className="my-decisions-row-grid__submitted" dateTime={item.submittedAt ?? undefined}>
+        <time className="overflow-hidden text-ellipsis whitespace-nowrap text-sm text-text-muted" dateTime={item.submittedAt ?? undefined}>
           {formatSubmittedAt(item.submittedAt)}
         </time>
-        <span className="my-decisions-row-grid__actions">
+        <span className="flex justify-start min-[861px]:justify-end">
           {!editing && decision ? (
             <Button type="button" variant="secondary" size="sm" onClick={() => setEditing(true)}>
               Edit Decision
@@ -322,7 +322,7 @@ function DecisionRow({
         </span>
       </div>
       {editing && decision ? (
-        <div className="decision-card__editor">
+        <div className="border-t border-border bg-bg-elevated p-4" data-decision-editor>
           <DecisionEditForm
             projectId={projectId}
             stage={stage}
@@ -430,8 +430,8 @@ export function MyDecisionsPage() {
                   ? `of ${query.data.items.length} decisions match your filters`
                   : `decision${query.data.items.length === 1 ? '' : 's'}`}
               </CountPill>
-              <div className="toolbar">
-                <label className="paper-search-field">
+              <div className="flex flex-wrap items-end gap-3">
+                <label className="grid min-w-[min(20rem,100%)] flex-1 gap-1 text-sm font-semibold text-text-secondary">
                   Search papers
                   <Input
                     type="search"
@@ -440,7 +440,7 @@ export function MyDecisionsPage() {
                     placeholder="Title, author, DOI, note…"
                   />
                 </label>
-                <label>
+                <label className="grid gap-1 text-sm font-semibold text-text-secondary">
                   Decision
                   <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
                     {decisionFilterOptions
@@ -448,7 +448,7 @@ export function MyDecisionsPage() {
                       .map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </Select>
                 </label>
-                <label>
+                <label className="grid gap-1 text-sm font-semibold text-text-secondary">
                   Sort by
                   <Select
                     value={`${sortKey}:${sortDirection}`}
@@ -478,7 +478,7 @@ export function MyDecisionsPage() {
           ) : filteredItems.length === 0 ? (
             <p className="muted">No decisions match your filters.</p>
           ) : (
-            <ul className="card-list stacked publication-list my-decisions-list">
+            <ul className="m-0 grid list-none gap-3 p-0" aria-label="Submitted decisions">
                 {filteredItems.map((item) => (
                   <DecisionRow
                     key={item.workItemId}

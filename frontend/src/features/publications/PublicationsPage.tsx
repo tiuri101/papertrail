@@ -357,60 +357,60 @@ function MetadataConflictsPanel({ projectId }: { projectId: string }) {
   if (!conflicts.error && (!conflicts.data || conflicts.data.length === 0)) return null
 
   return (
-    <section className="card metadata-conflicts" id="metadata-conflicts">
+    <section className="card" id="metadata-conflicts">
       <h2>Metadata Conflicts</h2>
       <p className="muted">Enrichment or a duplicate merge proposed a different value for a field that already had one. Review each side by side and choose which value to keep.</p>
       {conflicts.error ? <p className="error" role="alert">{conflicts.error.message}</p> : null}
       {resolve.error ? <p className="error" role="alert">{resolve.error.message}</p> : null}
-      <ul className="metadata-conflict-list">
+      <ul className="mt-5 grid list-none gap-6 p-0">
         {conflicts.data?.map((conflict) => (
-          <li key={conflict.id} className="metadata-conflict-card">
-            <header className="metadata-conflict-card__header">
+          <li key={conflict.id} className="overflow-hidden rounded-lg border border-border bg-[color-mix(in_srgb,var(--color-surface)_92%,transparent)] shadow-sm">
+            <header className="flex items-center justify-between gap-4 border-b border-border bg-[color-mix(in_srgb,var(--color-surface-raised)_72%,transparent)] px-5 py-4 max-[680px]:flex-col max-[680px]:items-start max-[680px]:p-4 [&_h3]:mb-0 [&_h3]:mt-0.5 [&_h3]:text-base">
               <div>
                 <span className="eyebrow">Metadata conflict</span>
                 <h3>{conflict.publication?.title ?? conflict.currentValue ?? 'Publication'}</h3>
               </div>
-              <span className="metadata-conflict-card__source">
+              <span className="shrink-0 rounded-full bg-primary-container px-2.5 py-1 text-xs font-bold text-primary">
                 Proposed by {metadataSourceLabel(conflict.sourceName)}
               </span>
             </header>
-            <div className="metadata-conflict-comparison">
-              <section className="metadata-conflict-value metadata-conflict-value--current">
-                <header>
-                  <span className="metadata-conflict-value__label" aria-hidden="true">A</span>
+            <div className="grid grid-cols-[minmax(0,1fr)_minmax(13rem,0.62fr)_minmax(0,1fr)] [grid-template-areas:'current_reason_proposed'] items-stretch gap-5 p-5 max-[1020px]:grid-cols-2 max-[1020px]:[grid-template-areas:'current_proposed'_'reason_reason'] max-[680px]:grid-cols-1 max-[680px]:[grid-template-areas:'current'_'proposed'_'reason'] max-[680px]:p-4">
+              <section className="[--metadata-accent:var(--kw-1-fg)] [grid-area:current] min-w-0 overflow-hidden rounded-md border border-[color-mix(in_srgb,var(--metadata-accent)_32%,var(--color-border))] bg-bg-elevated">
+                <header className="flex items-center gap-3 border-b border-border bg-[color-mix(in_srgb,var(--metadata-accent)_8%,var(--color-surface-raised))] p-4 [&_h4]:m-0 [&_h4]:text-[0.95rem] [&_p]:mb-0 [&_p]:mt-0.5 [&_p]:text-xs [&_p]:text-text-muted">
+                  <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-sm border border-[color-mix(in_srgb,var(--metadata-accent)_55%,var(--color-border))] bg-[color-mix(in_srgb,var(--metadata-accent)_14%,transparent)] text-[1.05rem] font-extrabold text-(--metadata-accent) shadow-[0_0_0_3px_color-mix(in_srgb,var(--metadata-accent)_8%,transparent)]" aria-hidden="true">A</span>
                   <div>
                     <h4>Current Value</h4>
                     <p>{humanizeMetadataField(conflict.fieldName)}</p>
                   </div>
                 </header>
-                <div className="metadata-conflict-value__content">
+                <div className="min-w-0 whitespace-pre-wrap p-5 text-[0.96rem] font-semibold leading-normal text-text [overflow-wrap:anywhere]">
                   {conflict.currentValue ?? <span className="muted">(empty)</span>}
                 </div>
               </section>
-              <aside className="metadata-conflict-reason">
-                <span className="metadata-conflict-reason__icon" aria-hidden="true">
+              <aside className="[grid-area:reason] min-w-0 self-center rounded-md border border-[color-mix(in_srgb,var(--color-primary)_25%,var(--color-border))] bg-[color-mix(in_srgb,var(--color-primary-container)_52%,transparent)] p-4 text-center max-[1020px]:w-full max-[1020px]:text-left [&_h4]:mb-1 [&_h4]:mt-2 [&_h4]:text-sm [&_p]:m-0 [&_p]:text-[0.8rem] [&_p]:leading-normal [&_p]:text-text-secondary">
+                <span className="inline-flex size-8 items-center justify-center rounded-full bg-primary-container-hover text-primary [&_svg]:size-4 [&_svg]:fill-current" aria-hidden="true">
                   <IconSparkle />
                 </span>
                 <h4>Why was this proposed?</h4>
                 <p>{metadataConflictExplanation(conflict)}</p>
               </aside>
-              <section className="metadata-conflict-value metadata-conflict-value--proposed">
-                <header>
-                  <span className="metadata-conflict-value__label" aria-hidden="true">B</span>
+              <section className="[--metadata-accent:var(--kw-4-fg)] [grid-area:proposed] min-w-0 overflow-hidden rounded-md border border-[color-mix(in_srgb,var(--metadata-accent)_32%,var(--color-border))] bg-bg-elevated">
+                <header className="flex items-center gap-3 border-b border-border bg-[color-mix(in_srgb,var(--metadata-accent)_8%,var(--color-surface-raised))] p-4 [&_h4]:m-0 [&_h4]:text-[0.95rem] [&_p]:mb-0 [&_p]:mt-0.5 [&_p]:text-xs [&_p]:text-text-muted">
+                  <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-sm border border-[color-mix(in_srgb,var(--metadata-accent)_55%,var(--color-border))] bg-[color-mix(in_srgb,var(--metadata-accent)_14%,transparent)] text-[1.05rem] font-extrabold text-(--metadata-accent) shadow-[0_0_0_3px_color-mix(in_srgb,var(--metadata-accent)_8%,transparent)]" aria-hidden="true">B</span>
                   <div>
                     <h4>Proposed Value</h4>
                     <p>{humanizeMetadataField(conflict.fieldName)}</p>
                   </div>
                 </header>
-                <div className="metadata-conflict-value__content">
+                <div className="min-w-0 whitespace-pre-wrap p-5 text-[0.96rem] font-semibold leading-normal text-text [overflow-wrap:anywhere]">
                   {conflict.proposedValue ?? <span className="muted">(empty)</span>}
                 </div>
               </section>
             </div>
             {conflict.publication ? (
-              <details className="metadata-conflict-card__details">
+              <details className="mx-5 mb-5 rounded-md border border-border bg-bg-elevated px-4 py-3 max-[680px]:mx-4 max-[680px]:mb-4 [&>summary]:cursor-pointer [&>summary]:text-[0.86rem] [&>summary]:font-semibold [&>summary]:text-primary">
                 <summary>All publication metadata</summary>
-                <dl className="detail-list metadata-conflict__metadata">
+                <dl className="detail-list [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]">
                   {PUBLICATION_METADATA_FIELDS.map((field) => {
                     const value = field.value(conflict.publication!)
                     return (
@@ -423,38 +423,40 @@ function MetadataConflictsPanel({ projectId }: { projectId: string }) {
                 </dl>
               </details>
             ) : null}
-            <section className="metadata-conflict-decision">
+            <section className="flex items-center justify-between gap-5 border-t border-border bg-[color-mix(in_srgb,var(--color-surface-raised)_52%,transparent)] px-5 py-4 max-[1020px]:flex-col max-[1020px]:items-start max-[680px]:p-4 [&_h4]:m-0 [&_p]:mb-0 [&_p]:mt-0.5 [&_p]:text-[0.8rem] [&_p]:text-text-muted">
               <div>
                 <h4>Your Decision</h4>
                 <p>Choose which value Papertrail should keep for this publication.</p>
               </div>
-              <div className="metadata-conflict-decision__actions">
-              <button
+              <div className="grid grid-cols-2 gap-3 max-[1020px]:w-full max-[680px]:grid-cols-1">
+              <Button
                 type="button"
-                className="metadata-conflict-decision__option metadata-conflict-decision__option--current"
+                variant="secondary"
+                className="h-auto min-h-17 min-w-0 justify-start whitespace-normal px-4 py-3 text-left hover:not-disabled:border-(--kw-1-fg)"
                 aria-label="Keep Current Value"
                 disabled={resolve.isPending}
                 onClick={() => resolve.mutate({ conflictId: conflict.id, acceptProposed: false })}
               >
-                <span className="metadata-conflict-decision__marker" aria-hidden="true" />
-                <span>
-                  <strong>Keep Current Value</strong>
-                  <small>Retain Value A</small>
+                <span className="inline-flex size-[1.4rem] shrink-0 items-center justify-center rounded-full border-2 border-[color-mix(in_srgb,var(--kw-1-fg)_62%,var(--color-border))] text-(--kw-1-fg)" aria-hidden="true" />
+                <span className="grid min-w-0 gap-1">
+                  <strong className="text-text">Keep Current Value</strong>
+                  <small className="text-xs font-medium text-text-muted">Retain Value A</small>
                 </span>
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                className="metadata-conflict-decision__option metadata-conflict-decision__option--proposed"
+                variant="secondary"
+                className="h-auto min-h-17 min-w-0 justify-start whitespace-normal px-4 py-3 text-left hover:not-disabled:border-(--kw-4-fg)"
                 aria-label="Use Proposed Value"
                 disabled={resolve.isPending}
                 onClick={() => resolve.mutate({ conflictId: conflict.id, acceptProposed: true })}
               >
-                <span className="metadata-conflict-decision__marker"><IconCheckCircle /></span>
-                <span>
-                  <strong>Use Proposed Value</strong>
-                  <small>Replace it with Value B</small>
+                <span className="inline-flex size-[1.4rem] shrink-0 items-center justify-center rounded-full border-2 border-[color-mix(in_srgb,var(--kw-4-fg)_62%,var(--color-border))] text-(--kw-4-fg) [&_svg]:size-3 [&_svg]:fill-current"><IconCheckCircle /></span>
+                <span className="grid min-w-0 gap-1">
+                  <strong className="text-text">Use Proposed Value</strong>
+                  <small className="text-xs font-medium text-text-muted">Replace it with Value B</small>
                 </span>
-              </button>
+              </Button>
               </div>
             </section>
           </li>

@@ -52,14 +52,14 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
       <p>{item.publication.authors ?? 'Unknown authors'}</p>
       {item.publication.venue ? <p className="muted">{item.publication.venue}</p> : null}
       {isFullTextStage ? (
-        <details className="publication-card__abstract">
+        <details className="rounded-md border border-border bg-bg-elevated px-4 py-3 [&_summary]:cursor-pointer [&_summary]:font-semibold [&_p]:mb-0 [&_p]:mt-3">
           <summary>Abstract</summary>
           <p>{abstractContent}</p>
         </details>
       ) : (
         <p>{abstractContent}</p>
       )}
-      <div className="toolbar">
+      <div className="flex flex-wrap items-center gap-3">
         {isFullTextStage && fullTextDocument.data ? (
           <PdfAvailabilityPill
             available={fullTextDocument.data.available}
@@ -99,7 +99,7 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
       {decisionError ? (
         <p className="error" role="alert">{decisionError.message}</p>
       ) : null}
-      <div className="toolbar">
+      <div className="flex flex-wrap items-center gap-3">
         <Button
           type="button"
           variant="primary"

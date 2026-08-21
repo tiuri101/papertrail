@@ -1,5 +1,7 @@
 import { type ReactNode, useId, useState } from 'react'
 
+import { cn } from '../lib/cn'
+
 interface CollapsibleSectionProps {
   id?: string
   title: string
@@ -28,11 +30,11 @@ export function CollapsibleSection({
   const Heading = headingLevel === 3 ? 'h3' : 'h2'
   const toggle = () => setExpanded((current) => !current)
   const titleContent = (
-    <span className="collapsible-section__title">
-      {icon ? <span className="collapsible-section__icon" aria-hidden="true">{icon}</span> : null}
+    <span className="collapsible-section__title inline-flex items-center gap-2">
+      {icon ? <span className="collapsible-section__icon inline-flex shrink-0 text-primary [&_svg]:size-5 [&_svg]:fill-current" aria-hidden="true">{icon}</span> : null}
       {subtitle ? (
-        <span className="collapsible-section__title-text">
-          <span className="collapsible-section__subtitle" aria-hidden="true">{subtitle}</span>
+        <span className="collapsible-section__title-text grid">
+          <span className="collapsible-section__subtitle text-xs font-bold uppercase leading-[1.35] tracking-[0.08em] text-text-secondary" aria-hidden="true">{subtitle}</span>
           <span>{title}</span>
         </span>
       ) : title}
@@ -42,45 +44,49 @@ export function CollapsibleSection({
   return (
     <section
       id={id}
-      className={['card', 'collapsible-section', className].filter(Boolean).join(' ')}
+      className={cn(
+        'collapsible-section relative rounded-lg border border-border bg-linear-to-b from-surface-raised to-surface shadow-sm',
+        expanded ? 'p-6' : 'p-0',
+        className,
+      )}
       data-expanded={expanded}
     >
       {headingAccessory ? (
-        <Heading className="collapsible-section__heading collapsible-section__heading--with-accessory" aria-label={title}>
+        <Heading className={cn('collapsible-section__heading collapsible-section__heading--with-accessory m-0 flex items-center gap-2', expanded ? '-m-6 mb-0 min-h-[88px] p-6' : 'min-h-[88px] p-6')} aria-label={title}>
           <button
             type="button"
-            className="collapsible-section__toggle"
+            className="collapsible-section__toggle inline-flex h-auto min-h-0 w-auto cursor-pointer items-center justify-between border-0 bg-transparent p-0 text-left font-[inherit] text-[inherit] shadow-none hover:text-primary focus-visible:rounded-sm focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-focus"
             aria-expanded={expanded}
             aria-controls={contentId}
             onClick={toggle}
           >
             {titleContent}
           </button>
-          <span className="collapsible-section__heading-accessory">{headingAccessory}</span>
+          <span className="collapsible-section__heading-accessory inline-flex shrink-0">{headingAccessory}</span>
           <button
             type="button"
-            className="collapsible-section__indicator-toggle"
+            className="collapsible-section__indicator-toggle ml-auto inline-flex h-auto min-h-0 w-auto shrink-0 cursor-pointer border-0 bg-transparent p-0 text-[inherit] shadow-none hover:text-primary focus-visible:rounded-sm focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-focus"
             aria-label={`${expanded ? 'Collapse' : 'Expand'} ${title}`}
             aria-expanded={expanded}
             aria-controls={contentId}
             onClick={toggle}
           >
-            <span className="collapsible-section__indicator" aria-hidden="true">
+            <span className="collapsible-section__indicator shrink-0 text-[1.4rem] leading-none text-text-secondary" aria-hidden="true">
               {expanded ? '−' : '+'}
             </span>
           </button>
         </Heading>
       ) : (
-        <Heading className="collapsible-section__heading">
+        <Heading className={cn('collapsible-section__heading m-0', expanded && '-m-6 mb-0')}>
           <button
             type="button"
-            className="collapsible-section__toggle"
+            className="collapsible-section__toggle inline-flex h-auto min-h-[88px] w-full cursor-pointer items-center justify-between border-0 bg-transparent p-6 text-left font-[inherit] text-[inherit] shadow-none hover:text-primary focus-visible:rounded-sm focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-focus"
             aria-expanded={expanded}
             aria-controls={contentId}
             onClick={toggle}
           >
             {titleContent}
-            <span className="collapsible-section__indicator" aria-hidden="true">
+            <span className="collapsible-section__indicator shrink-0 text-[1.4rem] leading-none text-text-secondary" aria-hidden="true">
               {expanded ? '−' : '+'}
             </span>
           </button>
@@ -88,12 +94,15 @@ export function CollapsibleSection({
       )}
       <div
         id={contentId}
-        className="collapsible-section__content"
+        className={cn(
+          'collapsible-section__content grid transition-[grid-template-rows,margin-top,opacity,visibility] duration-100',
+          expanded ? 'visible mt-4 grid-rows-[1fr] opacity-100' : 'invisible mt-0 grid-rows-[0fr] opacity-0',
+        )}
         data-expanded={expanded}
         aria-hidden={!expanded}
         inert={!expanded}
       >
-        <div className="collapsible-section__content-inner">
+        <div className="collapsible-section__content-inner min-h-0 overflow-hidden [&>*+*]:mt-5">
           {children}
         </div>
       </div>

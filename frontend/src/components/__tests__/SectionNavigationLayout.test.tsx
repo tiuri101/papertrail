@@ -40,7 +40,7 @@ describe('SectionNavigationLayout', () => {
   })
 
   it('expands the selected section when a page-section link is activated', () => {
-    const { container } = renderWithProviders(
+    renderWithProviders(
       <SectionNavigationLayout
         items={[{ id: 'section-details', label: 'Project Details' }]}
       >
@@ -55,8 +55,8 @@ describe('SectionNavigationLayout', () => {
     )
 
     // Without AppShell's mobile-menu slot mounted, the section links render inline as a
-    // fallback (see mobile-drawer__section-links); the desktop aside renders its own copy too.
-    const fallbackLinks = container.querySelector('.mobile-drawer__section-links') as HTMLElement
+    // fallback; the desktop aside renders its own copy too.
+    const fallbackLinks = screen.getAllByRole('navigation', { name: 'Page sections' })[1]
     fireEvent.click(within(fallbackLinks).getByRole('link', { name: 'Project Details' }))
 
     expect(screen.getByRole('button', { name: 'Project Details' })).toHaveAttribute(
@@ -91,7 +91,7 @@ describe('SectionNavigationLayout', () => {
       return <main>Jobs content</main>
     }
 
-    const { container } = renderWithProviders(
+    renderWithProviders(
       <Routes>
         <Route element={<ProjectSectionLayout />}>
           <Route path="/projects/:projectId/jobs" element={<JobsChildPage />} />
@@ -100,7 +100,7 @@ describe('SectionNavigationLayout', () => {
       { route: '/projects/42/jobs' },
     )
 
-    const headerControls = container.querySelector('.section-navigation__mobile-bar') as HTMLElement
+    const headerControls = screen.getByTestId('section-navigation-header-controls')
     expect(within(headerControls).getByRole('link', { name: '← Back to Project' })).toHaveAttribute(
       'href',
       '/projects/42',
