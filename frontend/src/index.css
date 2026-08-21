@@ -52,9 +52,9 @@
   --color-overlay: rgba(3, 7, 18, 0.64);
 
   /* Tooltips stay neutral grey/white regardless of the app's blue-tinted surface tokens. */
-  --tooltip-bg: #2b2f38;
-  --tooltip-border: #4b525c;
-  --tooltip-text: #f5f6f7;
+  --tooltip-bg: #4a4e57;
+  --tooltip-border: #6b7078;
+  --tooltip-text: #ffffff;
 
   /* Shared button system */
   --button-height: 40px;

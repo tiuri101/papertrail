@@ -16,7 +16,7 @@ export function PublicationListSortHeader<TKey extends string>({
   return (
     <button
       type="button"
-      className="h-auto min-h-0 border-0 bg-transparent p-0 text-text-muted shadow-none hover:not-disabled:bg-transparent hover:not-disabled:text-text"
+      className="h-auto min-h-0 border-0 bg-none bg-transparent p-0 text-text-muted shadow-none hover:not-disabled:bg-transparent hover:not-disabled:text-text"
       aria-pressed={active}
       onClick={() => onToggle(sortKey)}
     >

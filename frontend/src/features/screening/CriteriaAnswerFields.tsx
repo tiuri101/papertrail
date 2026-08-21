@@ -106,7 +106,7 @@ export function CriteriaAnswerFields({
                 <button
                   type="button"
                   role="checkbox"
-                  className="inline-flex size-9 min-h-9 items-center justify-center rounded-md border border-border bg-bg-elevated p-0 text-text-muted shadow-none transition-colors hover:border-border-strong hover:bg-surface-hover aria-checked:border-success aria-checked:bg-success-container aria-checked:text-success [&_svg]:size-[18px] [&_svg]:fill-current"
+                  className="inline-flex size-9 min-h-9 items-center justify-center rounded-md border border-border bg-none bg-bg-elevated p-0 text-text-muted shadow-none transition-colors hover:border-border-strong hover:bg-surface-hover aria-checked:border-success aria-checked:bg-success-container aria-checked:text-success [&_svg]:size-[18px] [&_svg]:fill-current"
                   aria-checked={answers[criterion.id] === true}
                   aria-label={`${capitalize(criterion.kind)}: ${criterion.text} — Fulfilled`}
                   tabIndex={focusedCell.row === row && focusedCell.column === 0 ? 0 : -1}
@@ -128,7 +128,7 @@ export function CriteriaAnswerFields({
                 <button
                   type="button"
                   role="checkbox"
-                  className="inline-flex size-9 min-h-9 items-center justify-center rounded-md border border-border bg-bg-elevated p-0 text-text-muted shadow-none transition-colors hover:border-border-strong hover:bg-surface-hover aria-checked:border-danger aria-checked:bg-danger-container aria-checked:text-danger [&_svg]:size-[18px] [&_svg]:fill-current"
+                  className="inline-flex size-9 min-h-9 items-center justify-center rounded-md border border-border bg-none bg-bg-elevated p-0 text-text-muted shadow-none transition-colors hover:border-border-strong hover:bg-surface-hover aria-checked:border-danger aria-checked:bg-danger-container aria-checked:text-danger [&_svg]:size-[18px] [&_svg]:fill-current"
                   aria-checked={answers[criterion.id] === false}
                   aria-label={`${capitalize(criterion.kind)}: ${criterion.text} — Not fulfilled`}
                   tabIndex={focusedCell.row === row && focusedCell.column === 1 ? 0 : -1}
@@ -180,7 +180,7 @@ export function CriteriaAnswerFields({
                 type="button"
                 role="radio"
                 aria-checked={outcome === value}
-                className={`relative inline-flex min-h-10 items-center justify-center gap-2 rounded-md border px-3 py-2 text-sm font-semibold transition-colors [&_svg]:size-4 [&_svg]:fill-current ${selected ? selectedClasses : `border-border bg-surface-raised text-text-secondary ${hoverClasses}`}`}
+                className={`relative inline-flex min-h-10 items-center justify-center gap-2 rounded-md border bg-none px-3 py-2 text-sm font-semibold transition-colors [&_svg]:size-4 [&_svg]:fill-current ${selected ? selectedClasses : `border-border bg-surface-raised text-text-secondary ${hoverClasses}`}`}
                 onClick={() => setOutcome(value)}
               >
                 {value === 'include' ? <IconCheckCircle /> : value === 'exclude' ? <IconXCircle /> : null}

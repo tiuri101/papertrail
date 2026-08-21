@@ -135,7 +135,7 @@ export function InfoTooltip({
     <span ref={anchorRef} className={cn('relative inline-flex items-center rounded-sm', className)} data-tooltip-anchor>
       <button
         type="button"
-        className="ml-[5px] inline-flex size-4 min-h-0 cursor-help items-center justify-center border-0 bg-none p-0 text-text-muted shadow-none hover:text-primary focus-visible:rounded-full focus-visible:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus [&_svg]:size-full"
+        className="ml-[5px] inline-flex size-4 min-h-0 cursor-help items-center justify-center border-0 bg-none p-0 text-text-muted shadow-none hover:text-primary focus-visible:rounded-full focus-visible:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus [&_svg]:size-full [&_svg]:fill-current"
         aria-describedby={tooltipId}
         aria-label={label}
         {...handlers}

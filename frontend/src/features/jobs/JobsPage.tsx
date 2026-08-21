@@ -313,7 +313,7 @@ export function JobsPage() {
               type="button"
               key={status}
               className={cn(
-                'grid min-h-20 cursor-pointer gap-1 rounded-md border p-3 text-left shadow-none transition-[filter,background-color] hover:brightness-110 aria-pressed:ring-2 [&_strong]:text-xl [&_span]:text-xs [&_span]:font-semibold [&_span]:text-text-muted',
+                'grid min-h-20 cursor-pointer gap-1 rounded-md border bg-none p-3 text-left shadow-none transition-[filter,background-color] hover:brightness-110 aria-pressed:ring-2 [&_strong]:text-xl [&_span]:text-xs [&_span]:font-semibold [&_span]:text-text-muted',
                 STATUS_CARD_STYLES[status] ?? STATUS_CARD_STYLES.cancelled,
               )}
               aria-label={`${count} ${status} job${count === 1 ? '' : 's'}`}
