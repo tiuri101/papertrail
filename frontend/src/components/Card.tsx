@@ -11,9 +11,11 @@ export function Card({ as: Component = 'div', className, ...props }: CardProps) 
     <Component
       className={cn(
         'relative rounded-lg border border-border bg-linear-to-b from-surface-raised to-surface p-6 shadow-sm',
+        '[.page_>_[data-ui=card]+&]:mt-6',
         '[&>*+*]:mt-5 [&>h2+*]:mt-4',
         className,
       )}
+      data-ui="card"
       {...props}
     />
   )
