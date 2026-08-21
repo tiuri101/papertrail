@@ -1,3 +1,27 @@
+/*
+ * Cascade layer order. This bare declaration must come before the Tailwind
+ * import below: layer priority is fixed by each name's FIRST mention, so
+ * registering `legacy` here — before `@import` first mentions theme/base/
+ * components/utilities — pins it as the lowest-priority layer. Every
+ * not-yet-migrated rule further down lives in `@layer legacy`; without this,
+ * it would be unlayered CSS, and unlayered CSS always beats layered CSS
+ * (i.e. Tailwind utilities) regardless of selector specificity. This is what
+ * lets a Tailwind utility class win over legacy CSS on a migrated component.
+ */
+@layer legacy;
+
+@import "tailwindcss";
+
+/*
+ * Papertrail design tokens.
+ *
+ * The concrete values below live on `:root` (and are overridden per
+ * `data-theme`) so JS-driven theme switching (see app/theme.ts, which sets
+ * `<html data-theme="dark|light">`) only ever touches these two blocks.
+ * The `@theme inline` block below does not redeclare values — it exposes
+ * the same runtime variables as Tailwind utilities (bg-surface, text-muted,
+ * rounded-md, shadow-lg, ...) so both themes stay derived from one source.
+ */
 :root,
 :root[data-theme='dark'] {
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -182,6 +206,66 @@
   color: var(--color-text);
   background: var(--color-bg);
 }
+
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+@theme inline {
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  --color-bg: var(--color-bg);
+  --color-bg-elevated: var(--color-bg-elevated);
+  --color-surface: var(--color-surface);
+  --color-surface-raised: var(--color-surface-raised);
+  --color-surface-hover: var(--color-surface-hover);
+  --color-surface-active: var(--color-surface-active);
+  --color-border: var(--color-border);
+  --color-border-strong: var(--color-border-strong);
+  --color-text: var(--color-text);
+  --color-text-secondary: var(--color-text-secondary);
+  --color-text-muted: var(--color-text-muted);
+  --color-primary: var(--color-primary);
+  --color-primary-strong: var(--color-primary-strong);
+  --color-primary-contrast: var(--color-primary-contrast);
+  --color-primary-container: var(--color-primary-container);
+  --color-primary-container-hover: var(--color-primary-container-hover);
+  --color-success: var(--color-success);
+  --color-success-container: var(--color-success-container);
+  --color-warning: var(--color-warning);
+  --color-warning-container: var(--color-warning-container);
+  --color-danger: var(--color-danger);
+  --color-danger-strong: var(--color-danger-strong);
+  --color-danger-container: var(--color-danger-container);
+  --color-focus: var(--color-focus);
+  --color-overlay: var(--color-overlay);
+
+  --color-kw-0-fg: var(--kw-0-fg);
+  --color-kw-0-bg: var(--kw-0-bg);
+  --color-kw-1-fg: var(--kw-1-fg);
+  --color-kw-1-bg: var(--kw-1-bg);
+  --color-kw-2-fg: var(--kw-2-fg);
+  --color-kw-2-bg: var(--kw-2-bg);
+  --color-kw-3-fg: var(--kw-3-fg);
+  --color-kw-3-bg: var(--kw-3-bg);
+  --color-kw-4-fg: var(--kw-4-fg);
+  --color-kw-4-bg: var(--kw-4-bg);
+  --color-kw-5-fg: var(--kw-5-fg);
+  --color-kw-5-bg: var(--kw-5-bg);
+  --color-kw-6-fg: var(--kw-6-fg);
+  --color-kw-6-bg: var(--kw-6-bg);
+  --color-kw-7-fg: var(--kw-7-fg);
+  --color-kw-7-bg: var(--kw-7-bg);
+
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+}
+
+@layer legacy {
 
 * {
   box-sizing: border-box;
@@ -3528,8 +3612,7 @@ mark {
   font-size: 0.82rem;
 }
 
-/* Button system: final shared visual layer for Button and legacy native usages. */
-.pt-button,
+/* Button system: shared visual layer for legacy native button usages not yet migrated to <Button>. */
 .button,
 button {
   min-height: var(--button-height);
@@ -3548,37 +3631,23 @@ button {
   transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease, box-shadow 140ms ease, transform 80ms ease, opacity 140ms ease;
 }
 
-.pt-button svg,
 .button svg,
-button:not(.icon-button) svg,
-.pt-button__icon,
-.pt-button__icon svg {
+button:not(.icon-button) svg {
   width: 16px;
   height: 16px;
   flex: 0 0 auto;
 }
 
-.pt-button__icon { display: inline-flex; }
-
-.pt-button--sm {
-  min-height: 32px;
-  height: 32px;
-  padding-inline: 12px;
-  font-size: 13px;
-}
-
-.pt-button--primary,
 .button--primary,
-button:not(.pt-button--secondary):not(.pt-button--ghost):not(.pt-button--text):not(.pt-button--destructive):not(.button-secondary):not(.button-danger):not(.button-success):not(.icon-button):not(.link-button):not(.decision-button):not(.criterion-toggle):not(.llm-stage-button):not(.wizard-step__button):not(.date-field__link):not(.date-field__day):not(.hotkey-capture):not(.info-tooltip__trigger):not(.page-tab):not(.collapsible-section__toggle):not(.collapsible-section__indicator-toggle):not(.publications-page__pdf-indicator):not(.jobs-summary__item):not(.rq-source-badge) {
+button:not(.button-secondary):not(.button-danger):not(.button-success):not(.icon-button):not(.link-button):not(.decision-button):not(.criterion-toggle):not(.llm-stage-button):not(.wizard-step__button):not(.date-field__link):not(.date-field__day):not(.hotkey-capture):not(.info-tooltip__trigger):not(.page-tab):not(.collapsible-section__toggle):not(.collapsible-section__indicator-toggle):not(.publications-page__pdf-indicator):not(.jobs-summary__item):not(.rq-source-badge) {
   border-color: var(--button-primary-border);
   background: linear-gradient(180deg, var(--button-primary-bg-hover) 0%, var(--button-primary-bg) 100%);
   color: var(--button-primary-text);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.14);
 }
 
-.pt-button--primary:hover:not(:disabled),
 .button--primary:hover:not(:disabled),
-button:not(.pt-button--secondary):not(.pt-button--ghost):not(.pt-button--text):not(.pt-button--destructive):not(.button-secondary):not(.button-danger):not(.button-success):not(.icon-button):not(.link-button):not(.decision-button):not(.criterion-toggle):not(.llm-stage-button):not(.wizard-step__button):not(.date-field__link):not(.date-field__day):not(.hotkey-capture):not(.info-tooltip__trigger):not(.page-tab):not(.collapsible-section__toggle):not(.collapsible-section__indicator-toggle):not(.publications-page__pdf-indicator):not(.jobs-summary__item):not(.rq-source-badge):hover:not(:disabled) {
+button:not(.button-secondary):not(.button-danger):not(.button-success):not(.icon-button):not(.link-button):not(.decision-button):not(.criterion-toggle):not(.llm-stage-button):not(.wizard-step__button):not(.date-field__link):not(.date-field__day):not(.hotkey-capture):not(.info-tooltip__trigger):not(.page-tab):not(.collapsible-section__toggle):not(.collapsible-section__indicator-toggle):not(.publications-page__pdf-indicator):not(.jobs-summary__item):not(.rq-source-badge):hover:not(:disabled) {
   border-color: #a1b0ff;
   background: transparent;
   color: var(--button-primary-bg-hover);
@@ -9116,4 +9185,6 @@ button.rq-source-badge--untraceable:hover:not(:disabled),
   height: 32px;
   padding: 5px 10px;
   font-size: 0.82rem;
+}
+
 }
