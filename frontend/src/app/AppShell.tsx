@@ -111,7 +111,10 @@ export function AppShell() {
             </Button>
             <IconButton
               variant="secondary"
-              className="hidden max-md:inline-flex"
+              // `!` is needed here: Button's own base class always includes `inline-flex`,
+              // and Tailwind v4 doesn't resolve two same-property utilities by className
+              // order, so a plain `hidden` never wins against it at any viewport width.
+              className="hidden! max-md:inline-flex!"
               aria-expanded={mobileMenuOpen}
               aria-controls={mobileMenuId}
               aria-label="Main menu"

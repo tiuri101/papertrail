@@ -338,7 +338,7 @@ export function ResearchQuestionsPanel({
                 <IconButton
                   variant="secondary"
                   size="sm"
-                  className="size-[30px] min-w-[30px] rounded-full [&_svg]:size-4"
+                  className="size-[30px]! min-w-[30px]! min-h-[30px]! rounded-full! [&_svg]:size-4!"
                   aria-label="Add research question"
                   title="Add research question"
                   onClick={() => { addQuestion.reset(); setNewQuestion(''); setAddingQuestion(true) }}
@@ -502,7 +502,7 @@ export function CriteriaPanel({
                 <IconButton
                   variant="secondary"
                   size="sm"
-                  className="size-[30px] min-w-[30px] rounded-full [&_svg]:size-4"
+                  className="size-[30px]! min-w-[30px]! min-h-[30px]! rounded-full! [&_svg]:size-4!"
                   aria-label="Add inclusion criterion"
                   title="Add inclusion criterion"
                   onClick={() => {
@@ -556,7 +556,7 @@ export function CriteriaPanel({
                 <IconButton
                   variant="secondary"
                   size="sm"
-                  className="size-[30px] min-w-[30px] rounded-full [&_svg]:size-4"
+                  className="size-[30px]! min-w-[30px]! min-h-[30px]! rounded-full! [&_svg]:size-4!"
                   aria-label="Add exclusion criterion"
                   title="Add exclusion criterion"
                   onClick={() => {
