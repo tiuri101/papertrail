@@ -7,6 +7,8 @@ import { Button } from '../../components/Button'
 import { CountPill } from '../../components/CountPill'
 import { DoiPill } from '../../components/DoiPill'
 import { HighlightedText } from '../../components/HighlightedText'
+import { Input } from '../../components/Input'
+import { Select } from '../../components/Select'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 import { StageEyebrow } from '../projects/StageEyebrow'
 import { QualityWorkspace } from './QualityWorkspace'
@@ -169,11 +171,11 @@ export function MyQualityPage() {
               <div className="toolbar">
                 <label className="paper-search-field">
                   Search papers
-                  <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Title, author, DOI…" />
+                  <Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Title, author, DOI…" />
                 </label>
                 <label>
                   Sort by
-                  <select value={`${sortKey}:${sortDirection}`} onChange={(event) => {
+                  <Select value={`${sortKey}:${sortDirection}`} onChange={(event) => {
                     const [key, direction] = event.target.value.split(':') as [QualitySortKey, SortDirection]
                     setSortKey(key)
                     setSortDirection(direction)
@@ -188,7 +190,7 @@ export function MyQualityPage() {
                     <option value="venue:desc">Venue Z–A</option>
                     <option value="score:desc">Highest score</option>
                     <option value="score:asc">Lowest score</option>
-                  </select>
+                  </Select>
                 </label>
               </div>
             </>

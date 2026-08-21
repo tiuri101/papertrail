@@ -7,6 +7,9 @@ import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { Button } from '../../components/Button'
 import { IconArrowRight, IconCheckCircle, IconFolder } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
+import { Input } from '../../components/Input'
+import { Select } from '../../components/Select'
+import { Textarea } from '../../components/Textarea'
 import { CriteriaPanel, ResearchQuestionsPanel } from '../administration/ResearchAgendaPanel'
 import { HighlightKeywordsPanel } from '../administration/HighlightKeywordsPanel'
 import { MembersPanel } from '../administration/MembersPanel'
@@ -131,7 +134,7 @@ function ProjectDetailsStep({
         >
           <label>
             Project name
-            <input
+            <Input
               value={name}
               onChange={(event) => setName(event.target.value)}
               required
@@ -140,7 +143,7 @@ function ProjectDetailsStep({
           </label>
           <label>
             Description
-            <textarea
+            <Textarea
               value={description}
               onChange={(event) => setDescription(event.target.value)}
               rows={3}
@@ -148,7 +151,7 @@ function ProjectDetailsStep({
           </label>
           <label>
             Review type
-            <select
+            <Select
               value={reviewType}
               onChange={(event) => setReviewType(event.target.value)}
               disabled={Boolean(projectId)}
@@ -156,7 +159,7 @@ function ProjectDetailsStep({
               {reviewTypeOptions.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
               ))}
-            </select>
+            </Select>
           </label>
           {projectId ? <p className="muted">Review type can&apos;t be changed after the project is created.</p> : null}
           {error ? <p className="error" role="alert">{error.message}</p> : null}

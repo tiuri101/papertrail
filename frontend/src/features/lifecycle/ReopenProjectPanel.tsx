@@ -6,6 +6,7 @@ import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { IconAlertTriangle, IconRestart } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
+import { Select } from '../../components/Select'
 import { humanizeStage, stageOrder, stages } from './lifecycleStages'
 
 export function ReopenProjectPanel({ projectId }: { projectId: string }) {
@@ -41,12 +42,12 @@ export function ReopenProjectPanel({ projectId }: { projectId: string }) {
       {reopen.error ? <p className="error" role="alert">{reopen.error.message}</p> : null}
       <label>
         Reopen at
-        <select
+        <Select
           value={targetStage}
           onChange={(event) => setTargetStage(event.target.value)}
         >
           {reopenOptions.map((stage) => <option key={stage} value={stage}>{humanizeStage(stage)}</option>)}
-        </select>
+        </Select>
       </label>
       <ConfirmButton
         label="Reopen Project"
