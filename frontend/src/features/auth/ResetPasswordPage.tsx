@@ -5,6 +5,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { apiRequest } from '../../api/client'
 import { Button } from '../../components/Button'
 import { IconCheckCircle } from '../../components/icons'
+import { Input } from '../../components/Input'
 import { ThemeToggle } from '../../components/ThemeToggle'
 import { setCsrfToken } from './session'
 import type { LoginResponse } from './types'
@@ -46,7 +47,7 @@ export function ResetPasswordPage() {
           <form onSubmit={(event) => { event.preventDefault(); resetPassword.mutate() }}>
             <label>
               New password
-              <input
+              <Input
                 type="password"
                 value={newPassword}
                 onChange={(event) => setNewPassword(event.target.value)}
@@ -57,7 +58,7 @@ export function ResetPasswordPage() {
             </label>
             <label>
               Confirm new password
-              <input
+              <Input
                 type="password"
                 value={confirmPassword}
                 onChange={(event) => setConfirmPassword(event.target.value)}
@@ -87,7 +88,7 @@ export function ResetPasswordPage() {
             continue.
           </p>
         )}
-        <Link to="/forgot-password" className="link-button">Request a new link</Link>
+        <Button as={Link} to="/forgot-password" variant="text" className="mt-6">Request a new link</Button>
       </section>
     </main>
   )

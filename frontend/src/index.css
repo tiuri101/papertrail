@@ -3591,7 +3591,7 @@ button:not(.icon-button) svg {
 }
 
 .button--primary,
-button:not(.button-secondary):not(.button-danger):not(.button-success):not(.icon-button):not(.link-button):not(.decision-button):not(.criterion-toggle):not(.llm-stage-button):not(.wizard-step__button):not(.date-field__link):not(.date-field__day):not(.hotkey-capture):not(.info-tooltip__trigger):not(.collapsible-section__toggle):not(.collapsible-section__indicator-toggle):not(.publications-page__pdf-indicator):not(.jobs-summary__item):not(.rq-source-badge) {
+button:not(.button-secondary):not(.button-danger):not(.button-success):not(.icon-button):not(.decision-button):not(.criterion-toggle):not(.llm-stage-button):not(.wizard-step__button):not(.date-field__link):not(.date-field__day):not(.hotkey-capture):not(.info-tooltip__trigger):not(.collapsible-section__toggle):not(.collapsible-section__indicator-toggle):not(.publications-page__pdf-indicator):not(.jobs-summary__item):not(.rq-source-badge) {
   border-color: var(--button-primary-border);
   background: linear-gradient(180deg, var(--button-primary-bg-hover) 0%, var(--button-primary-bg) 100%);
   color: var(--button-primary-text);
@@ -3599,7 +3599,7 @@ button:not(.button-secondary):not(.button-danger):not(.button-success):not(.icon
 }
 
 .button--primary:hover:not(:disabled),
-button:not(.button-secondary):not(.button-danger):not(.button-success):not(.icon-button):not(.link-button):not(.decision-button):not(.criterion-toggle):not(.llm-stage-button):not(.wizard-step__button):not(.date-field__link):not(.date-field__day):not(.hotkey-capture):not(.info-tooltip__trigger):not(.collapsible-section__toggle):not(.collapsible-section__indicator-toggle):not(.publications-page__pdf-indicator):not(.jobs-summary__item):not(.rq-source-badge):hover:not(:disabled) {
+button:not(.button-secondary):not(.button-danger):not(.button-success):not(.icon-button):not(.decision-button):not(.criterion-toggle):not(.llm-stage-button):not(.wizard-step__button):not(.date-field__link):not(.date-field__day):not(.hotkey-capture):not(.info-tooltip__trigger):not(.collapsible-section__toggle):not(.collapsible-section__indicator-toggle):not(.publications-page__pdf-indicator):not(.jobs-summary__item):not(.rq-source-badge):hover:not(:disabled) {
   border-color: #a1b0ff;
   background: transparent;
   color: var(--button-primary-bg-hover);
@@ -3654,28 +3654,6 @@ button:not(.button-secondary):not(.button-danger):not(.button-success):not(.icon
 .button--ghost:active:not(:disabled) {
   background: var(--button-ghost-bg-active);
   transform: translateY(1px);
-}
-
-.button--text,
-.link-button {
-  min-height: var(--button-height);
-  height: var(--button-height);
-  padding-inline: 8px;
-  border-color: transparent;
-  background: transparent;
-  color: var(--button-text-color);
-  box-shadow: none;
-}
-
-.button--text:hover:not(:disabled),
-.link-button:hover:not(:disabled) {
-  border-color: transparent;
-  background: transparent;
-  color: var(--button-text-hover);
-  text-decoration: underline;
-  text-underline-offset: 3px;
-  box-shadow: none;
-  transform: none;
 }
 
 .button--destructive,
@@ -3966,24 +3944,6 @@ button:focus-visible,
   text-transform: uppercase;
 }
 
-.link-button {
-  min-height: auto;
-  border: 0;
-  padding: 0;
-  background: none;
-  color: var(--color-primary);
-  box-shadow: none;
-  font-weight: 620;
-  text-decoration: none;
-}
-
-.link-button:hover:not(:disabled) {
-  background: none;
-  color: var(--color-primary-strong);
-  box-shadow: none;
-  text-decoration: underline;
-  transform: none;
-}
 
 pre {
   overflow: auto;
@@ -4079,15 +4039,6 @@ button:focus-visible {
   color: var(--color-text);
   box-shadow: none;
 }
-.link-button {
-  min-height: 40px;
-  border-color: transparent;
-  padding-inline: 4px;
-  background: transparent;
-  color: var(--color-primary);
-  box-shadow: none;
-}
-.link-button:hover:not(:disabled) { background: transparent; color: var(--color-primary-strong); text-decoration: underline; box-shadow: none; transform: none; }
 .button-danger {
   border-color: rgba(255, 127, 130, 0.28);
   background: var(--color-danger-container);
@@ -7124,12 +7075,6 @@ kbd {
 
 .login-card .alert {
   margin: 0;
-}
-
-.login-card > .link-button,
-.login-card > .button-secondary {
-  display: block;
-  margin-top: var(--space-6);
 }
 
 .login-card .success.alert {

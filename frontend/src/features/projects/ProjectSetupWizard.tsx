@@ -343,9 +343,11 @@ export function ProjectSetupWizard() {
                   </Button>
                 )}
               </div>
-              <Link
+              <Button
+                as={Link}
                 to={`/projects/${projectId}`}
-                className="link-button wizard-exit"
+                variant="text"
+                className="wizard-exit"
                 onClick={(event) => {
                   if (!stepDirty) return
                   event.preventDefault()
@@ -353,12 +355,12 @@ export function ProjectSetupWizard() {
                 }}
               >
                 Finish later
-              </Link>
+              </Button>
             </div>
           ) : (
             !projectId ? (
               <div className="toolbar wizard-nav">
-                <Link to="/projects" className="link-button">Cancel</Link>
+                <Button as={Link} to="/projects" variant="text">Cancel</Button>
               </div>
             ) : null
           )}

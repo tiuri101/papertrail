@@ -6,6 +6,7 @@ import { apiRequest } from '../../api/client'
 import { IconArrowRight, IconEye, IconEyeOff } from '../../components/icons'
 import { Button, IconButton } from '../../components/Button'
 import { DecorativeDocTrail } from '../../components/DecorativeDocTrail'
+import { Input } from '../../components/Input'
 import { ThemeToggle } from '../../components/ThemeToggle'
 import { setCsrfToken } from './session'
 import type { LoginResponse } from './types'
@@ -65,7 +66,7 @@ export function LoginPage() {
             <form onSubmit={(event) => { event.preventDefault(); login.mutate() }}>
               <label>
                 Username
-                <input
+                <Input
                   value={username}
                   onChange={(event) => setUsername(event.target.value)}
                   autoComplete="username"
@@ -75,8 +76,9 @@ export function LoginPage() {
               <label>
                 Password
                 <div className="login-password-field">
-                  <input
+                  <Input
                     type={showPassword ? 'text' : 'password'}
+                    className="pr-12"
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                     autoComplete="current-password"
@@ -95,14 +97,14 @@ export function LoginPage() {
               </label>
               <div className="login-field-row">
                 <label className="login-remember">
-                  <input
+                  <Input
                     type="checkbox"
                     checked={rememberMe}
                     onChange={(event) => setRememberMe(event.target.checked)}
                   />
                   Remember me
                 </label>
-                <Link to="/forgot-password" className="link-button">Forgot password?</Link>
+                <Button as={Link} to="/forgot-password" variant="text">Forgot password?</Button>
               </div>
               {login.error ? <p className="error alert" role="alert">{login.error.message}</p> : null}
               <Button type="submit" className="relative [&_svg]:absolute [&_svg]:right-4" loading={login.isPending}>
