@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { Badge } from '../../components/Badge'
 import { Button } from '../../components/Button'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { DragHandle } from '../../components/DragHandle'
@@ -378,8 +379,8 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
               <summary className="llm-schema-field__summary">
                 <span className="llm-schema-field__title">
                   <strong>{field.label || `Field ${index + 1}`}</strong>
-                  <span className="status-badge">{field.fieldType.replaceAll('_', ' ')}</span>
-                  {!field.enabled ? <span className="status-badge">Disabled</span> : null}
+                  <Badge variant="plain">{field.fieldType.replaceAll('_', ' ')}</Badge>
+                  {!field.enabled ? <Badge variant="plain">Disabled</Badge> : null}
                 </span>
                 <span className="llm-schema-field__mapping">
                   {mappedField ? `Maps to ${mappedField.label}` : 'LLM-only helper field'}

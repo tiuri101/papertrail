@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { Badge } from '../../components/Badge'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { Button } from '../../components/Button'
 import { InfoBox } from '../../components/InfoBox'
@@ -422,7 +423,7 @@ export function InstanceSettingsPage() {
             <div className="prompt-flow" key={flow.key}>
               <h3>
                 {flow.label}
-                {flow.isOverridden ? <span className="status-badge">Customized</span> : null}
+                {flow.isOverridden ? <Badge variant="plain">Customized</Badge> : null}
               </h3>
               <label>
                 Base prompt

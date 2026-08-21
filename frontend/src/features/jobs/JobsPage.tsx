@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Badge, type BadgeVariant } from '../../components/Badge'
 import { Button, IconButton } from '../../components/Button'
 import { CountPill } from '../../components/CountPill'
 import { FormField } from '../../components/FormField'
@@ -41,7 +42,7 @@ const COLUMN_HELP: Partial<Record<SortKey, string>> = {
   status: 'Queued: waiting for a worker to pick it up. Running: in progress. Completed: finished successfully. Failed: hit an error — use Restart to try again. Cancelled: stopped before it finished.',
 }
 
-const STATUS_BADGE_VARIANT: Record<string, string> = {
+const STATUS_BADGE_VARIANT: Record<string, BadgeVariant> = {
   completed: 'success',
   running: 'primary',
   queued: 'warning',
@@ -401,9 +402,9 @@ export function JobsPage() {
                     ) : null}
                     <th scope="row" className="jobs-table__jobtype">{job.jobType}</th>
                     <td>
-                      <span className={`status-badge jobs-status status-badge--${STATUS_BADGE_VARIANT[job.status] ?? 'neutral'}`}>
+                      <Badge variant={STATUS_BADGE_VARIANT[job.status] ?? 'neutral'} className="capitalize">
                         {job.status}
-                      </span>
+                      </Badge>
                     </td>
                     <td>
                       {job.progressTotal ? (

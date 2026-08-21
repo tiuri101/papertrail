@@ -2,7 +2,7 @@ import type { AnchorHTMLAttributes, HTMLAttributes } from 'react'
 
 import { cn } from '../lib/cn'
 
-export type BadgeVariant = 'info' | 'primary' | 'success' | 'danger' | 'warning' | 'neutral'
+export type BadgeVariant = 'info' | 'primary' | 'success' | 'danger' | 'warning' | 'neutral' | 'plain'
 
 const base =
   'inline-flex min-h-[22px] items-center gap-1 whitespace-nowrap rounded-full py-0.5 pl-[7px] pr-[9px] text-[0.78rem] font-bold [&_svg]:size-3.5 [&_svg]:shrink-0 [&_svg]:fill-current'
@@ -14,6 +14,10 @@ const variants: Record<BadgeVariant, string> = {
   danger: 'bg-danger-container text-danger',
   warning: 'bg-warning-container text-warning',
   neutral: 'bg-surface-hover text-text-secondary',
+  // No background/text color of its own: matches the legacy bare `.status-badge`
+  // (no `--modifier`), which only ever set shape, not color, and let the
+  // surrounding context's inherited text color show through.
+  plain: '',
 }
 
 export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {
