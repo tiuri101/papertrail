@@ -17,8 +17,8 @@ function AttentionJob({ job }: { job: RetrievalJobSummary }) {
     <li>
       <strong>{job.title}</strong>
       {' -- '}
-      <span className="muted">{formatStatus(job.status)}</span>
-      {job.errorMessage ? <span className="muted"> ({job.errorMessage})</span> : null}
+      <span className="text-text">{formatStatus(job.status)}</span>
+      {job.errorMessage ? <span className="text-text"> ({job.errorMessage})</span> : null}
       {url ? (
         <>
           {' '}
@@ -52,7 +52,7 @@ function BatchProgressView({ batch, onCancel, cancelling }: {
   return (
     <>
       <p>{progress.processed} / {progress.total} processed</p>
-      <ul className="compact-list">
+      <ul className="mb-0 list-disc pl-6">
         <li>{progress.succeeded} retrieved{progress.skippedExisting > 0 ? ` (${progress.skippedExisting} already had a PDF)` : ''}</li>
         <li>{progress.needsAuthentication} authentication required</li>
         <li>{progress.notFound} not found</li>
@@ -68,7 +68,7 @@ function BatchProgressView({ batch, onCancel, cancelling }: {
       {batch.attentionJobs.length > 0 ? (
         <details>
           <summary>Publications needing attention ({batch.attentionJobs.length})</summary>
-          <ul className="compact-list">
+          <ul className="mb-0 list-disc pl-6">
             {batch.attentionJobs.map((job) => <AttentionJob key={job.jobId} job={job} />)}
           </ul>
         </details>
@@ -97,9 +97,9 @@ export function BrowserPdfRetrievalPanel({ projectId }: { projectId: string }) {
 
   return (
     <CollapsibleSection id="section-pdf-retrieval" title="PDF retrieval" defaultExpanded={false}>
-      {agents.isLoading ? <p className="muted">Checking for a paired browser helper…</p> : null}
+      {agents.isLoading ? <p className="text-text">Checking for a paired browser helper…</p> : null}
       {agents.data && !pairedAgent ? (
-        <p className="muted">
+        <p className="text-text">
           No browser helper is paired with your account. Pair the Chrome extension from{' '}
           <Link to="/account">Account Settings</Link> to retrieve publisher PDFs using this
           computer&apos;s institutional access.
@@ -108,14 +108,14 @@ export function BrowserPdfRetrievalPanel({ projectId }: { projectId: string }) {
       {pairedAgent ? (
         <>
           {missingCount !== null ? (
-            <p className="muted">
+            <p className="text-text">
               {missingCount} publication{missingCount === 1 ? '' : 's'} {missingCount === 1 ? 'is' : 'are'} missing full text.
             </p>
           ) : null}
-          <p className="muted">Browser helper: ✓ {pairedAgent.displayName}</p>
-          {createBatch.error ? <p className="error" role="alert">{createBatch.error.message}</p> : null}
-          {cancelBatch.error ? <p className="error" role="alert">{cancelBatch.error.message}</p> : null}
-          {retryFailed.error ? <p className="error" role="alert">{retryFailed.error.message}</p> : null}
+          <p className="text-text">Browser helper: ✓ {pairedAgent.displayName}</p>
+          {createBatch.error ? <p className="text-danger" role="alert">{createBatch.error.message}</p> : null}
+          {cancelBatch.error ? <p className="text-danger" role="alert">{cancelBatch.error.message}</p> : null}
+          {retryFailed.error ? <p className="text-danger" role="alert">{retryFailed.error.message}</p> : null}
           {activeBatch ? (
             <BatchProgressView
               batch={activeBatch}
@@ -131,7 +131,7 @@ export function BrowserPdfRetrievalPanel({ projectId }: { projectId: string }) {
                   cancelling={false}
                 />
               ) : null}
-              <div className="toolbar">
+              <div className="flex flex-wrap items-center gap-3">
                 <Button
                   type="button"
                   onClick={() => createBatch.mutate(undefined)}

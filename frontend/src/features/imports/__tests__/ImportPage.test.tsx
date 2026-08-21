@@ -322,7 +322,7 @@ describe('ImportPage', () => {
     })
     renderWithProviders(<ImportPage />, { route: '/projects/project-1/imports', path: '/projects/:projectId/imports' })
 
-    const importFile = (await screen.findByText('records.csv')).closest('.search-history__import-details') as HTMLElement
+    const importFile = (await screen.findByText('records.csv')).closest('li') as HTMLElement
     expect(within(importFile).getByText(/12 records · 4 papers with PDF/)).toBeInTheDocument()
     fireEvent.click(screen.getByRole('button', { name: 'Attach PDFs' }))
 

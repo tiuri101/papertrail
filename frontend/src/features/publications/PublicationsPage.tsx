@@ -29,6 +29,7 @@ import { FullTextDocumentPanel } from '../fulltext/FullTextDocumentPanel'
 import { AdministrationEyebrow } from '../projects/StageEyebrow'
 import { useCanManagePublications } from '../../hooks/useCanManageProject'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
+import { cn } from '../../lib/cn'
 import { BackgroundJob, findJob, hasActiveJob, isJobActive } from '../jobs/jobStatus'
 import { BrowserPdfRetrievalPanel } from '../fulltext/BrowserPdfRetrievalPanel'
 import { AddPublicationForm } from './AddPublicationPage'
@@ -217,12 +218,15 @@ function PublicationRow({
   const detailHref = `/projects/${projectId}/publications/${publication.id}`
 
   return (
-    <li className={`card publication-card${canManage ? ' publication-card--manageable' : ''}${selected ? ' publication-card--selected' : ''}`}>
-      <div className="publication-card__summary publication-row-grid">
-        <span className="publication-row-grid__checkbox">
+    <li data-publication-row="true" data-selected={selected || undefined} className={cn(
+      'relative rounded-md border border-border bg-linear-to-b from-surface-raised to-surface px-4 py-3 shadow-sm transition-[border-color,background-color,transform,box-shadow] duration-150 hover:-translate-y-0.5 hover:border-border-strong hover:shadow-md max-[600px]:px-3',
+      selected && 'border-primary bg-none bg-primary-container hover:border-primary',
+    )}>
+      <div className="grid grid-cols-[1.5rem_minmax(0,1fr)_3.25rem_9rem_6.5rem_4.5rem_4.5rem] items-center gap-3 [&>*]:min-w-0 max-[900px]:grid-cols-[1.5rem_auto_minmax(0,1fr)_auto_auto] max-[900px]:grid-rows-2 max-[900px]:[grid-template-areas:'checkbox_title_title_title_actions'_'._year_source_stage_pdf'] max-[900px]:gap-y-2 max-[600px]:grid-cols-[1.5rem_minmax(0,1fr)_auto] max-[600px]:grid-rows-4 max-[600px]:[grid-template-areas:'checkbox_title_actions'_'._source_source'_'._year_stage'_'._pdf_pdf']">
+        <span className="flex items-center max-[900px]:[grid-area:checkbox]">
           {canManage ? (
             <Input
-              className="publication-card__checkbox"
+              className="shrink-0"
               type="checkbox"
               checked={selected}
               onChange={onToggleSelected}
@@ -230,20 +234,20 @@ function PublicationRow({
             />
           ) : null}
         </span>
-        <div className="publication-row-grid__title">
-          <Link className="publication-card__title-button" to={detailHref}>
+        <div className="min-w-0 max-[900px]:[grid-area:title]">
+          <Link className="h-auto min-h-0 whitespace-normal text-left text-text [overflow-wrap:anywhere] hover:text-primary hover:no-underline" to={detailHref}>
             <strong><HighlightedText text={publication.title} keywords={highlightKeywords} /></strong>
           </Link>
-          <div className="publication-row-grid__authors">{publication.authors ?? 'Unknown authors'}</div>
+          <div className="overflow-hidden text-ellipsis whitespace-nowrap text-[0.86rem] text-text-secondary">{publication.authors ?? 'Unknown authors'}</div>
         </div>
-        <span className="publication-row-grid__year">{publication.publicationYear ?? '—'}</span>
-        <span className="publication-row-grid__source" title={publication.venue ?? undefined}>
+        <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[0.86rem] text-text-secondary max-[900px]:[grid-area:year]">{publication.publicationYear ?? '—'}</span>
+        <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[0.86rem] text-text-secondary max-[900px]:[grid-area:source] max-[600px]:w-full" title={publication.venue ?? undefined}>
           {publication.venue ?? '—'}
         </span>
-        <span className="publication-row-grid__stage">
+        <span className="max-[900px]:[grid-area:stage]">
           <Badge variant={stage.variant}>{stage.label}</Badge>
         </span>
-        <span className="publication-row-grid__pdf">
+        <span className="mr-2 flex items-center max-[900px]:[grid-area:pdf] max-[600px]:mr-0">
           <PdfAvailabilityPill
             available={Boolean(publication.fullText?.available)}
             href={`/api/v1/projects/${projectId}/publications/${publication.id}/full-text/content`}
@@ -251,7 +255,7 @@ function PublicationRow({
             compact
           />
         </span>
-        <span className="publication-row-grid__actions">
+        <span className="flex items-center justify-end gap-1 max-[900px]:[grid-area:actions] max-[600px]:self-start">
           <IconButton
             as={Link}
             variant="secondary"
@@ -318,7 +322,7 @@ function PublicationRow({
           onRemoved={refreshPublications}
         />
       ) : null}
-      {enrich.isSuccess ? <p className="muted publication-row__message">Enrichment queued.</p> : null}
+      {enrich.isSuccess ? <p className="muted">Enrichment queued.</p> : null}
       {enrich.error ? <p className="error" role="alert">{enrich.error.message}</p> : null}
       {remove.error ? <p className="error" role="alert">{remove.error.message}</p> : null}
     </li>
@@ -640,8 +644,8 @@ export function PublicationsPage() {
             ) : null}
             {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
             {query.data ? (
-              <div className="toolbar publications-page__filters">
-                <label className="paper-search-field">
+              <div className="my-5 flex flex-wrap items-center gap-3">
+                <label className="w-full flex-[0_1_32rem]">
                   Search publications
                   <Input
                     type="search"
@@ -676,7 +680,13 @@ export function PublicationsPage() {
                 </label>
                 <button
                   type="button"
-                  className={`publications-page__pdf-indicator${missingPdfCount ? ' publications-page__pdf-indicator--missing' : ''}${pdfStatusFilter === 'unavailable' ? ' publications-page__pdf-indicator--active' : ''}`}
+                  className={cn(
+                    'inline-flex min-h-11 w-fit items-center gap-2 self-end rounded-full border bg-none px-[11px] py-1.5 text-[0.82rem] font-bold shadow-none transition-colors hover:not-disabled:border-primary hover:not-disabled:bg-primary-container-hover hover:not-disabled:text-primary [&_svg]:size-4 [&_svg]:fill-current',
+                    missingPdfCount
+                      ? 'border-[color-mix(in_srgb,var(--color-warning)_32%,var(--color-border))] bg-warning-container text-warning'
+                      : 'border-[color-mix(in_srgb,var(--color-success)_28%,var(--color-border))] bg-success-container text-success',
+                    pdfStatusFilter === 'unavailable' && 'border-primary bg-primary-container text-primary shadow-[inset_0_0_0_1px_var(--color-primary)]',
+                  )}
                   aria-pressed={pdfStatusFilter === 'unavailable'}
                   disabled={missingPdfCount === 0}
                   onClick={() => setPdfStatusFilter((current) => (
@@ -780,7 +790,7 @@ export function PublicationsPage() {
                 </a>
               </p>
             ) : null}
-            <ul className="card-list stacked publication-list">
+        <ul className="m-0 grid list-none gap-2 p-0">
               {sortedPublications.map((publication) => (
                 <PublicationRow
                   key={publication.id}

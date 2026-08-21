@@ -117,15 +117,15 @@ function ScreeningResponseForm({
 }) {
   const responseCriteria = criteria.filter((criterion) => criterion.id in decision.criteriaAnswers)
   return (
-    <div className="publication-review-details__screening-form">
-      <div className="publication-review-details__response-heading">
+    <div className="overflow-x-auto border-t border-border pt-2">
+      <div className="mb-2 flex items-center justify-between gap-2">
         <strong>{decision.reviewerName} <span className="muted">(v{decision.version})</span></strong>
         <OutcomeBadge outcome={decision.outcome} label={outcomeLabel(decision.outcome)} />
       </div>
       {formatDate(decision.createdAt) ? (
-        <p className="muted publication-review-details__meta">Decided {formatDate(decision.createdAt)}</p>
+        <p className="muted my-1 text-[0.8rem]">Decided {formatDate(decision.createdAt)}</p>
       ) : null}
-      <table className="criteria-table publication-review-details__criteria">
+      <table className="criteria-table m-0 w-full text-[0.82rem] [&_td]:px-[7px] [&_td]:py-[5px] [&_th]:px-[7px] [&_th]:py-[5px] [&_th:first-child]:min-w-64 [&_th:first-child]:text-left">
         <thead>
           <tr>
             <th scope="col">Criterion</th>
@@ -146,12 +146,12 @@ function ScreeningResponseForm({
                 </th>
                 <td aria-label={`${criterion.number}: Fulfilled`}>
                   {answer === true ? (
-                    <span className="criterion-response criterion-response--fulfilled">Yes</span>
+                    <span className="inline-flex min-w-[2.2rem] items-center justify-center rounded-full border border-current bg-success-container px-[7px] py-0.5 text-[0.72rem] font-extrabold text-success">Yes</span>
                   ) : null}
                 </td>
                 <td aria-label={`${criterion.number}: Not fulfilled`}>
                   {answer === false ? (
-                    <span className="criterion-response criterion-response--not-fulfilled">Yes</span>
+                    <span className="inline-flex min-w-[2.2rem] items-center justify-center rounded-full border border-current bg-danger-container px-[7px] py-0.5 text-[0.72rem] font-extrabold text-danger">Yes</span>
                   ) : null}
                 </td>
               </tr>
@@ -159,7 +159,7 @@ function ScreeningResponseForm({
           })}
         </tbody>
       </table>
-      <p className="publication-review-details__form-notes">
+      <p className="mb-0 mt-2">
         <strong>Notes:</strong> {decision.notes || 'None'}
       </p>
       {canManage ? (
@@ -259,13 +259,13 @@ export function PublicationReviewDetails({
     const criteria = stageDetails.criteria ?? []
     const reviewerDecisions = stageDetails.reviewerDecisions ?? []
     return (
-      <section className="publication-review-details__stage" key={stage}>
-        <div className="publication-review-details__heading">
+      <section className="rounded-sm border border-border bg-[color-mix(in_srgb,var(--color-surface-hover)_55%,transparent)] p-3" key={stage}>
+        <div className="flex items-center justify-between gap-2">
           <h4>{label}</h4>
           {final ? <OutcomeBadge outcome={final.outcome} label={outcomeLabel(final.outcome)} /> : null}
         </div>
         {final ? (
-          <p className="muted publication-review-details__meta">
+          <p className="muted my-1 text-[0.8rem]">
             Final via {final.resolutionMethod.replaceAll('_', ' ')}
             {final.resolvedBy ? ` by ${final.resolvedBy}` : ''}
             {formatDate(final.resolvedAt) ? ` on ${formatDate(final.resolvedAt)}` : ''}
@@ -273,7 +273,7 @@ export function PublicationReviewDetails({
           </p>
         ) : <p className="muted">No final decision yet.</p>}
         {reviewerDecisions.length ? (
-          <div className="publication-review-details__responses">
+          <div className="mb-2 mt-3 grid gap-2">
             {reviewerDecisions.map((decision, index) => (
               <ScreeningResponseForm
                 key={`${decision.reviewerName}-${index}`}
@@ -305,13 +305,13 @@ export function PublicationReviewDetails({
   const response = extraction?.response
 
   return (
-    <div className="publication-review-details">
-      <div className="publication-review-details__content">
+    <div className="ml-0 mt-2 text-[0.86rem] text-text-secondary">
+      <div className="mt-2 grid gap-3 border-t border-border pt-3">
         {details.isLoading ? <p className="muted">Loading review details…</p> : null}
         {details.error ? <p className="error" role="alert">{details.error.message}</p> : null}
         {details.data ? (
           <>
-            <div className="publication-review-details__screening">
+            <div className="grid grid-cols-1 gap-3">
               {renderScreeningStage(
                 'title_abstract',
                 'Title/Abstract',
@@ -324,22 +324,22 @@ export function PublicationReviewDetails({
             ) : null}
 
             {extraction ? (
-              <section className="publication-review-details__extraction">
-                <div className="publication-review-details__heading">
+              <section className="rounded-sm border border-border bg-[color-mix(in_srgb,var(--color-surface-hover)_55%,transparent)] p-3">
+                <div className="flex items-center justify-between gap-2">
                   <h4>Data extraction</h4>
                   <Badge variant="plain">{extraction.status.replaceAll('_', ' ')}</Badge>
                 </div>
                 {response ? (
                   <>
-                    <p className="muted publication-review-details__meta">
+                    <p className="muted my-1 text-[0.8rem]">
                       Version {response.version}{response.reviewerName ? ` by ${response.reviewerName}` : ''}
                       {formatDate(extraction.completedAt) ? ` on ${formatDate(extraction.completedAt)}` : ''}
                     </p>
-                    <dl className="publication-review-details__values">
+                    <dl className="my-2 grid grid-cols-1 gap-x-4 min-[681px]:grid-cols-2">
                       {response.fields.map((field) => (
-                        <div key={field.stableKey}>
-                          <dt>{field.label}</dt>
-                          <dd>{valueLabel(response.answers[field.stableKey])}</dd>
+                        <div className="flex justify-between gap-2 border-b border-border py-1" key={field.stableKey}>
+                          <dt className="text-text-muted">{field.label}</dt>
+                          <dd className="m-0 text-right font-semibold text-text">{valueLabel(response.answers[field.stableKey])}</dd>
                         </div>
                       ))}
                     </dl>
@@ -364,7 +364,7 @@ export function PublicationReviewDetails({
 
             {responseOverride ? (
               <form
-                className="publication-review-details__override"
+                className="grid gap-3 overflow-x-auto rounded-sm border border-[color-mix(in_srgb,var(--color-primary)_30%,var(--color-border))] bg-primary-container p-3 [&_h4]:m-0 [&_input[type=radio]]:accent-primary"
                 onSubmit={(event) => {
                   event.preventDefault()
                   overrideScreeningResponse.mutate(responseOverride)
@@ -375,7 +375,7 @@ export function PublicationReviewDetails({
                   Editing the response submitted by {responseOverride.reviewerName}. The previous
                   version will remain in the audit history.
                 </p>
-                <table className="criteria-table publication-review-details__criteria">
+                <table className="criteria-table m-0 w-full text-[0.82rem] [&_td]:px-[7px] [&_td]:py-[5px] [&_th]:px-[7px] [&_th]:py-[5px] [&_th:first-child]:min-w-64 [&_th:first-child]:text-left">
                   <thead>
                     <tr>
                       <th scope="col">Criterion</th>
@@ -485,7 +485,7 @@ export function PublicationReviewDetails({
 
             {editingExtraction && response ? (
               <form
-                className="publication-review-details__override"
+                className="grid gap-3 overflow-x-auto rounded-sm border border-[color-mix(in_srgb,var(--color-primary)_30%,var(--color-border))] bg-primary-container p-3 [&_h4]:m-0"
                 onSubmit={(event) => { event.preventDefault(); overrideExtraction.mutate() }}
               >
                 <h4>Override data extraction</h4>

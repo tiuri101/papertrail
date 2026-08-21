@@ -3,6 +3,8 @@ import { useState } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { Button } from '../../components/Button'
+import { Badge } from '../../components/Badge'
+import { Card } from '../../components/Card'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { CountPill } from '../../components/CountPill'
 import { IconFile, IconUpload } from '../../components/icons'
@@ -139,10 +141,14 @@ export function PdfMatchReview({ projectId, importBatchId }: {
   )) ?? []
 
   return (
-    <section className="card pdf-match-review" id={importBatchId ? undefined : 'section-pdf-review'}>
+    <Card
+      as="section"
+      className={importBatchId ? 'mt-3' : 'mt-6'}
+      id={importBatchId ? undefined : 'section-pdf-review'}
+    >
       <h2>Review PDF matches</h2>
-      {review.error ? <p className="error" role="alert">{review.error.message}</p> : null}
-      <label>
+      {review.error ? <p className="text-danger" role="alert">{review.error.message}</p> : null}
+      <label className="grid gap-2 text-sm font-semibold text-text-secondary">
         PDF match filter
         <Select value={filter} onChange={(event) => setFilter(event.target.value)}>
           <option value="needs_review">Needs review{needsReviewCount !== undefined ? ` (${needsReviewCount})` : ''}</option>
@@ -158,7 +164,7 @@ export function PdfMatchReview({ projectId, importBatchId }: {
             : `of ${counts?.total ?? review.data.items.length} PDF files match the current filter`}
         </CountPill>
       ) : null}
-      <div className="card-list stacked">
+      <div className="mt-4 grid grid-cols-1 items-start gap-5">
         {items.map((item) => {
           const selected = selections[item.id]
             ?? item.matchedPublicationId
@@ -170,17 +176,17 @@ export function PdfMatchReview({ projectId, importBatchId }: {
           const conflictTitle = isConflict ? publicationTitle(item.matchedPublicationId) : null
           const matchedTitle = item.status === 'matched' ? publicationTitle(item.matchedPublicationId) : null
           return (
-            <article className="nested-card pdf-match-item" key={item.id}>
-              <header className="pdf-match-item__header">
-                <span className="pdf-match-item__icon" aria-hidden="true"><IconFile /></span>
-                <div className="pdf-match-item__identity">
-                  <h3>{item.originalFilename}</h3>
-                  {item.fileSize ? <span className="muted pdf-match-item__size">{formatFileSize(item.fileSize)}</span> : null}
+            <article className="rounded-md border border-border p-4 [&>*+*]:mt-3" key={item.id}>
+              <header className="flex items-start gap-3">
+                <span className="inline-flex size-[38px] shrink-0 items-center justify-center rounded-sm bg-primary-container text-primary [&_svg]:size-5 [&_svg]:fill-current" aria-hidden="true"><IconFile /></span>
+                <div className="min-w-0 flex-1">
+                  <h3 className="wrap-anywhere">{item.originalFilename}</h3>
+                  {item.fileSize ? <span className="mt-0.5 block text-[0.78rem] text-text">{formatFileSize(item.fileSize)}</span> : null}
                 </div>
-                <span className={`status-pill status-pill--${meta.tone}`}>{meta.label}</span>
+                <Badge variant={meta.tone}>{meta.label}</Badge>
               </header>
 
-              <dl className="pdf-match-item__detected">
+              <dl className="grid grid-cols-[repeat(auto-fit,minmax(9rem,1fr))] gap-x-4 gap-y-1 border-t border-border pt-3 text-[0.86rem] [&_dd]:mt-0.5 [&_dd]:wrap-anywhere [&_dd]:text-text-secondary [&_dt]:text-xs [&_dt]:font-bold [&_dt]:uppercase [&_dt]:tracking-[0.04em] [&_dt]:text-text-muted">
                 <div>
                   <dt>Detected title</dt>
                   <dd>{item.detectedTitle ?? 'Not detected'}</dd>
@@ -196,10 +202,10 @@ export function PdfMatchReview({ projectId, importBatchId }: {
                 ) : null}
               </dl>
 
-              {item.errorMessage ? <p className="error">{item.errorMessage}</p> : null}
+              {item.errorMessage ? <p className="text-danger">{item.errorMessage}</p> : null}
 
               {matchedTitle ? (
-                <p className="pdf-match-item__note">
+                <p className="text-[0.88rem]">
                   Attached to <strong>{matchedTitle}</strong>
                 </p>
               ) : null}
@@ -207,19 +213,19 @@ export function PdfMatchReview({ projectId, importBatchId }: {
               {unresolved.has(item.status) ? (
                 <>
                   {isConflict ? (
-                    <p className="pdf-match-item__note pdf-match-item__note--warning">
+                    <p className="border-l-[3px] border-warning bg-warning-container px-3 py-2 text-[0.88rem] text-text-secondary">
                       A PDF is already attached to{' '}
                       <strong>{conflictTitle ?? 'this publication'}</strong>. Replacing it keeps the
                       previous file in history.
                     </p>
                   ) : null}
                   {item.candidates.length ? (
-                    <p className="muted pdf-match-item__hint">
+                    <p className="text-[0.84rem] text-text">
                       Suggested {item.candidates.length > 1 ? 'matches' : 'match'}:{' '}
                       {item.candidates.map(candidateDescription).join('; ')}
                     </p>
                   ) : null}
-                  <label>
+                  <label className="grid gap-2 text-sm font-semibold text-text-secondary">
                     Publication match for {item.originalFilename}
                     <Select
                       value={selected}
@@ -238,7 +244,7 @@ export function PdfMatchReview({ projectId, importBatchId }: {
                       ))}
                     </Select>
                   </label>
-                  <div className="toolbar">
+                  <div className="flex flex-wrap items-center gap-3">
                     <Button
                       type="button"
                       disabled={!selected || resolve.isPending || isConflict}
@@ -276,7 +282,7 @@ export function PdfMatchReview({ projectId, importBatchId }: {
           )
         })}
       </div>
-      {items.length === 0 && review.data ? <p className="muted">No PDF matches in this view.</p> : null}
-    </section>
+      {items.length === 0 && review.data ? <p className="text-text">No PDF matches in this view.</p> : null}
+    </Card>
   )
 }
