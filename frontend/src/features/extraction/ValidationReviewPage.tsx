@@ -3,6 +3,7 @@ import { useMemo, useState, type MouseEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
 import { CountPill } from '../../components/CountPill'
 import { DoiPill } from '../../components/DoiPill'
 import { HighlightedText } from '../../components/HighlightedText'
@@ -194,7 +195,7 @@ function ValidationRow({
               </a>
             ) : null}
             {['failed', 'awaiting_validation'].includes(item.state) ? (
-              <button type="button" className="button-secondary" onClick={() => retry(item)}>Retry validation</button>
+              <Button type="button" variant="secondary" onClick={() => retry(item)}>Retry validation</Button>
             ) : null}
           </div>
         </details>

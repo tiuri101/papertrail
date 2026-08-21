@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
 import { CountPill } from '../../components/CountPill'
 import { StageEyebrow } from '../projects/StageEyebrow'
 
@@ -286,13 +287,13 @@ export function FinalResultsPage() {
                       const isSorted = sortKey === column.key
                       return (
                         <th key={column.key} scope="col" aria-sort={isSorted ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}>
-                          <button
+                          <Button
                             type="button"
-                            className="link-button"
+                            variant="text"
                             onClick={() => toggleSort(column.key)}
                           >
                             {column.label}{isSorted ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
-                          </button>
+                          </Button>
                         </th>
                       )
                     })}
@@ -312,13 +313,13 @@ export function FinalResultsPage() {
           )}
           {pageCount > 1 ? (
             <div className="toolbar">
-              <button type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={currentPage <= 1}>
+              <Button type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={currentPage <= 1}>
                 Previous
-              </button>
+              </Button>
               <span>Page {currentPage} of {pageCount}</span>
-              <button type="button" onClick={() => setPage((current) => Math.min(pageCount, current + 1))} disabled={currentPage >= pageCount}>
+              <Button type="button" onClick={() => setPage((current) => Math.min(pageCount, current + 1))} disabled={currentPage >= pageCount}>
                 Next
-              </button>
+              </Button>
             </div>
           ) : null}
         </>

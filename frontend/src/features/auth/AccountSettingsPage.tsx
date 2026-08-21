@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { IconCheckCircle, IconPerson, IconSettings } from '../../components/icons'
 import { SectionNavigationLayout } from '../../components/SectionNavigationLayout'
@@ -135,11 +136,11 @@ export function AccountSettingsPage() {
             {passwordsMismatch ? <p className="error" role="alert">New passwords do not match.</p> : null}
             {updatePassword.error ? <p className="error" role="alert">{updatePassword.error.message}</p> : null}
             {updatePassword.isSuccess ? <p>Password updated.</p> : null}
-            <button
+            <Button
               type="submit"
+              loading={updatePassword.isPending}
               disabled={
-                updatePassword.isPending
-                || !currentPassword
+                !currentPassword
                 || newPassword.length < 8
                 || passwordUnchanged
                 || passwordsMismatch
@@ -147,7 +148,7 @@ export function AccountSettingsPage() {
             >
               <IconCheckCircle />
               Change Password
-            </button>
+            </Button>
           </form>
         </CollapsibleSection>
         <ScreeningHotkeysSection />

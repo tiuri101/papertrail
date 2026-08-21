@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { CountPill } from '../../components/CountPill'
 import { IconDownload, IconTrash } from '../../components/icons'
@@ -215,14 +216,14 @@ export function ReportingPage() {
                 <h3>{option.title}</h3>
               </div>
               <p>{option.description}</p>
-              <button
+              <Button
                 type="button"
                 onClick={() => createExport.mutate(option.type)}
                 disabled={createExport.isPending}
               >
                 <IconDownload />
                 {option.buttonLabel}
-              </button>
+              </Button>
             </article>
           ))}
         </div>
@@ -258,15 +259,15 @@ export function ReportingPage() {
                   </span>
                 </div>
                 {canManage ? (
-                  <button
+                  <Button
                     type="button"
-                    className="button-danger"
+                    variant="destructive"
                     disabled={deleteExport.isPending}
                     onClick={() => setExportToDelete(artifact)}
                   >
                     <IconTrash />
                     Delete
-                  </button>
+                  </Button>
                 ) : null}
               </li>
             ))}

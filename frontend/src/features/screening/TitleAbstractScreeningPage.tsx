@@ -1,5 +1,6 @@
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
+import { Button } from '../../components/Button'
 import { CountPill } from '../../components/CountPill'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 import { StageEyebrow } from '../projects/StageEyebrow'
@@ -32,14 +33,15 @@ export function TitleAbstractScreeningPage() {
       <p><Link to={`/projects/${projectId}/screening/${STAGE}/my-decisions`}>Review or change my past decisions</Link></p>
       {!queue.previousItem && queue.lastCompletedItem ? (
         <div className="toolbar">
-          <button
+          <Button
             type="button"
-            className="button-secondary go-back-button"
+            variant="secondary"
+            className="go-back-button"
             onClick={() => queue.goBack.mutate()}
             disabled={queue.goBack.isPending}
           >
             ← Go back to “{queue.lastCompletedItem.title}”
-          </button>
+          </Button>
         </div>
       ) : null}
       {queue.goBack.error ? <p className="error" role="alert">{queue.goBack.error.message}</p> : null}
@@ -58,9 +60,9 @@ export function TitleAbstractScreeningPage() {
           {!queue.loadingNext && queue.queueEmpty ? (
             <>
               <p>You have completed all of your assigned screening work.</p>
-              <button type="button" className="button-secondary" onClick={() => navigate(`/projects/${projectId}`)}>
+              <Button type="button" variant="secondary" onClick={() => navigate(`/projects/${projectId}`)}>
                 Back to project
-              </button>
+              </Button>
             </>
           ) : null}
           {!queue.loadingNext && queue.nextError ? (

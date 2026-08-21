@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from 'react'
 
+import { Card } from '../../components/Card'
 import { IconCheckCircle, IconClock, IconCopy, IconXCircle } from '../../components/icons'
 import type {
   DuplicateReviewStats,
@@ -158,20 +159,20 @@ export function GeneralAnalysisSection({
 
   if (error) {
     return (
-      <section id="section-analysis-general" className="card">
+      <Card as="section" id="section-analysis-general">
         <h2>General Overview</h2>
         <p className="error" role="alert">{error.message}</p>
-      </section>
+      </Card>
     )
   }
   if (!availability.duplicateReview) {
     return (
-      <section id="section-analysis-general" className="card">
+      <Card as="section" id="section-analysis-general">
         <h2>General Overview</h2>
         <p className="muted">
           Analysis will appear here after the first review stage, deduplication, is complete.
         </p>
-      </section>
+      </Card>
     )
   }
   const hasAllAvailableStats = (
@@ -182,10 +183,10 @@ export function GeneralAnalysisSection({
   )
   if (isLoading || !hasAllAvailableStats || !stats.duplicateReview) {
     return (
-      <section id="section-analysis-general" className="card">
+      <Card as="section" id="section-analysis-general">
         <h2>General Overview</h2>
         <p>Loading review overview…</p>
-      </section>
+      </Card>
     )
   }
 
@@ -262,7 +263,7 @@ export function GeneralAnalysisSection({
   })
 
   return (
-    <section id="section-analysis-general" className="card general-analysis">
+    <Card as="section" id="section-analysis-general" className="general-analysis">
       <h2>General Overview</h2>
       <p className="muted">A summary of results from completed review stages.</p>
       <dl className="general-analysis__metrics">
@@ -272,6 +273,6 @@ export function GeneralAnalysisSection({
         <ReviewFunnel stages={funnelStages} />
         <StageDetails details={stageDetails} />
       </div>
-    </section>
+    </Card>
   )
 }

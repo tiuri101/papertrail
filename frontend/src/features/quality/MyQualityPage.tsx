@@ -3,6 +3,7 @@ import { useMemo, useState, type MouseEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
 import { CountPill } from '../../components/CountPill'
 import { DoiPill } from '../../components/DoiPill'
 import { HighlightedText } from '../../components/HighlightedText'
@@ -105,7 +106,7 @@ function QualityRow({ projectId, entry, highlightKeywords }: {
         </time>
         <span className="review-work-row-grid__actions">
           {!editing ? (
-            <button type="button" className="button-secondary button-sm" onClick={() => setEditing(true)}>Edit Quality Assessment</button>
+            <Button type="button" variant="secondary" size="sm" onClick={() => setEditing(true)}>Edit Quality Assessment</Button>
           ) : null}
         </span>
       </div>

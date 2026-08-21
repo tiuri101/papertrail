@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { CountPill } from '../../components/CountPill'
 import { IconPlus, IconRestart, IconTrash } from '../../components/icons'
@@ -87,14 +88,14 @@ export function UsersPage() {
               />
             </label>
             <div className="toolbar">
-              <button type="submit" disabled={create.isPending}><IconPlus />Create Reviewer</button>
-              <button type="button" className="button-secondary" onClick={() => setShowCreateForm(false)}>Cancel</button>
+              <Button type="submit" loading={create.isPending}><IconPlus />Create Reviewer</Button>
+              <Button type="button" variant="secondary" onClick={() => setShowCreateForm(false)}>Cancel</Button>
             </div>
           </form>
         </section>
       ) : (
         <div className="toolbar">
-          <button type="button" onClick={() => setShowCreateForm(true)}><IconPlus />Add Reviewer</button>
+          <Button type="button" onClick={() => setShowCreateForm(true)}><IconPlus />Add Reviewer</Button>
         </div>
       )}
       {create.error ? <p className="error" role="alert">{create.error.message}</p> : null}
@@ -133,14 +134,14 @@ export function UsersPage() {
                       icon={<IconTrash />}
                     />
                   ) : (
-                    <button
+                    <Button
                       type="button"
                       onClick={() => setActive.mutate({ id: user.id, isActive: true })}
-                      disabled={setActive.isPending}
+                      loading={setActive.isPending}
                     >
                       <IconRestart />
                       Reactivate
-                    </button>
+                    </Button>
                   )}
                 </td>
               </tr>

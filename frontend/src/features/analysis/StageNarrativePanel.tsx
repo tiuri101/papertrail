@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
 import { type BackgroundJob, findJob, hasActiveJob, isJobActive } from '../jobs/jobStatus'
 import type { StageNarrative } from './types'
 
@@ -80,9 +81,9 @@ export function StageNarrativePanel({
         </p>
       ) : null}
       <div className="stage-narrative__footer">
-        <button type="button" className="button-secondary" onClick={() => regenerate.mutate()} disabled={isGenerating}>
+        <Button type="button" variant="secondary" onClick={() => regenerate.mutate()} disabled={isGenerating}>
         {isGenerating ? 'Generating…' : narrative ? 'Regenerate summary' : 'Generate summary'}
-        </button>
+        </Button>
       </div>
     </div>
   )

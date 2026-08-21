@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
 import { IconArrowRight } from '../../components/icons'
 import { ThemeToggle } from '../../components/ThemeToggle'
 
@@ -49,10 +50,10 @@ export function ForgotPasswordPage() {
             {requestReset.error ? (
               <p className="error alert" role="alert">{requestReset.error.message}</p>
             ) : null}
-            <button type="submit" disabled={requestReset.isPending || !email}>
+            <Button type="submit" loading={requestReset.isPending} disabled={!email}>
               {requestReset.isPending ? 'Sending…' : 'Send Reset Link'}
               <IconArrowRight />
-            </button>
+            </Button>
           </form>
         )}
         <Link to="/login" className="link-button">Back to sign in</Link>

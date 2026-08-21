@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { Button, IconButton } from '../../components/Button'
+import { Card } from '../../components/Card'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { IconCheckCircle, IconHelpCircle, IconPlus, IconTrash } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
@@ -60,8 +62,8 @@ function ResearchQuestionRow({
           >
             <input value={draft} onChange={(event) => setDraft(event.target.value)} required />
             <div className="toolbar">
-              <button type="submit" disabled={pending}><IconCheckCircle />Save</button>
-              <button type="button" className="button-secondary" onClick={() => { setDraft(question.text); setEditing(false) }}>Cancel</button>
+              <Button type="submit" disabled={pending}><IconCheckCircle />Save</Button>
+              <Button type="button" variant="secondary" onClick={() => { setDraft(question.text); setEditing(false) }}>Cancel</Button>
             </div>
           </form>
         </td>
@@ -75,7 +77,7 @@ function ResearchQuestionRow({
       <td>{question.text}</td>
       <td>
         <div className="toolbar">
-          <button type="button" className="button-secondary button-sm" onClick={() => setEditing(true)} disabled={pending}>Edit</button>
+          <Button type="button" variant="secondary" size="sm" onClick={() => setEditing(true)} disabled={pending}>Edit</Button>
           <ConfirmButton
             label="Delete"
             warning="Delete this research question? This cannot be undone."
@@ -134,14 +136,14 @@ function CriterionRow({
             </label>
             <input value={draftText} onChange={(event) => setDraftText(event.target.value)} required />
             <div className="toolbar">
-              <button type="submit" disabled={pending}><IconCheckCircle />Save</button>
-              <button
+              <Button type="submit" disabled={pending}><IconCheckCircle />Save</Button>
+              <Button
                 type="button"
-                className="button-secondary"
+                variant="secondary"
                 onClick={() => { setDraftKind(criterion.kind); setDraftText(criterion.text); setEditing(false) }}
               >
                 Cancel
-              </button>
+              </Button>
             </div>
           </form>
         </td>
@@ -157,7 +159,7 @@ function CriterionRow({
       <td>{criterion.text}</td>
       <td>
         <div className="toolbar">
-          <button type="button" className="button-secondary button-sm" onClick={() => setEditing(true)} disabled={pending}>Edit</button>
+          <Button type="button" variant="secondary" size="sm" onClick={() => setEditing(true)} disabled={pending}>Edit</Button>
           <ConfirmButton
             label="Delete"
             warning="Delete this criterion? This cannot be undone."
@@ -215,12 +217,12 @@ function InlineAgendaDraftRow({
             required
           />
           <div className="toolbar">
-            <button type="submit" className="button-sm" disabled={pending || !value.trim()}>
+            <Button type="submit" size="sm" disabled={pending || !value.trim()}>
               <IconCheckCircle />Save
-            </button>
-            <button type="button" className="button-secondary button-sm" onClick={onCancel} disabled={pending}>
+            </Button>
+            <Button type="button" variant="secondary" size="sm" onClick={onCancel} disabled={pending}>
               Cancel
-            </button>
+            </Button>
           </div>
         </form>
       </td>
@@ -286,7 +288,7 @@ export function ResearchQuestionsPanel({
   const questionPending = updateQuestion.isPending || deleteQuestion.isPending
 
   return (
-    <section id="section-research-questions" className="card">
+    <Card as="section" id="section-research-questions">
       <h2>
         <span className="collapsible-section__title">
           <span className="collapsible-section__icon" aria-hidden="true"><IconHelpCircle /></span>
@@ -331,16 +333,17 @@ export function ResearchQuestionsPanel({
           {inlineAdd ? (
             <tr className="research-agenda-table__add-row">
               <td colSpan={3}>
-                <button
-                  type="button"
-                  className="icon-button icon-button--round research-agenda__add-button"
+                <IconButton
+                  variant="ghost"
+                  size="sm"
+                  className="size-[30px] min-w-[30px] rounded-full [&_svg]:size-4"
                   aria-label="Add research question"
                   title="Add research question"
                   onClick={() => { addQuestion.reset(); setNewQuestion(''); setAddingQuestion(true) }}
                   disabled={addingQuestion || addQuestion.isPending}
                 >
                   <IconPlus />
-                </button>
+                </IconButton>
               </td>
             </tr>
           ) : null}
@@ -362,7 +365,7 @@ export function ResearchQuestionsPanel({
           </form>
         </>
       ) : null}
-    </section>
+    </Card>
   )
 }
 
@@ -435,7 +438,7 @@ export function CriteriaPanel({
     .map((criterion, index) => ({ criterion, number: `EC${index + 1}` }))
 
   return (
-    <section id="section-screening-criteria" className="card">
+    <Card as="section" id="section-screening-criteria">
       <h2>
         <span className="collapsible-section__title">
           <span className="collapsible-section__icon" aria-hidden="true"><IconCheckCircle /></span>
@@ -494,9 +497,10 @@ export function CriteriaPanel({
           {inlineAdd ? (
             <tr className="research-agenda-table__add-row">
               <td colSpan={3}>
-                <button
-                  type="button"
-                  className="icon-button icon-button--round research-agenda__add-button"
+                <IconButton
+                  variant="ghost"
+                  size="sm"
+                  className="size-[30px] min-w-[30px] rounded-full [&_svg]:size-4"
                   aria-label="Add inclusion criterion"
                   title="Add inclusion criterion"
                   onClick={() => {
@@ -507,7 +511,7 @@ export function CriteriaPanel({
                   disabled={addingCriterionKind !== null || addCriterion.isPending}
                 >
                   <IconPlus />
-                </button>
+                </IconButton>
               </td>
             </tr>
           ) : null}
@@ -547,9 +551,10 @@ export function CriteriaPanel({
           {inlineAdd ? (
             <tr className="research-agenda-table__add-row">
               <td colSpan={3}>
-                <button
-                  type="button"
-                  className="icon-button icon-button--round research-agenda__add-button"
+                <IconButton
+                  variant="ghost"
+                  size="sm"
+                  className="size-[30px] min-w-[30px] rounded-full [&_svg]:size-4"
                   aria-label="Add exclusion criterion"
                   title="Add exclusion criterion"
                   onClick={() => {
@@ -560,7 +565,7 @@ export function CriteriaPanel({
                   disabled={addingCriterionKind !== null || addCriterion.isPending}
                 >
                   <IconPlus />
-                </button>
+                </IconButton>
               </td>
             </tr>
           ) : null}
@@ -592,7 +597,7 @@ export function CriteriaPanel({
           </form>
         </>
       ) : null}
-    </section>
+    </Card>
   )
 }
 
