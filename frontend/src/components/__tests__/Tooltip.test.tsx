@@ -11,7 +11,7 @@ describe('Tooltip', () => {
       </Tooltip>,
     )
 
-    const anchor = screen.getByText('Background jobs').closest('.tooltip-anchor')!
+    const anchor = screen.getByText('Background jobs').closest('[data-tooltip-anchor]')!
     const tooltip = screen.getByText('Explains the wrapped content')
     expect(tooltip).not.toBeVisible()
     expect(tooltip.parentElement).toBe(document.body)
@@ -43,6 +43,6 @@ describe('InfoTooltip', () => {
   it('opens downward instead of upward when placement is "bottom"', () => {
     render(<InfoTooltip text="Opens below the trigger" placement="bottom" />)
 
-    expect(screen.getByText('Opens below the trigger')).toHaveClass('tooltip-bubble--bottom')
+    expect(screen.getByText('Opens below the trigger')).toHaveAttribute('data-placement', 'bottom')
   })
 })

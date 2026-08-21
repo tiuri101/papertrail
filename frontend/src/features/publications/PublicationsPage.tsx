@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { actionListItemClass } from '../../components/actionListStyles'
 import { Badge } from '../../components/Badge'
 import { Button, IconButton } from '../../components/Button'
 import { ConfirmButton } from '../../components/ConfirmButton'
@@ -33,6 +34,7 @@ import { BrowserPdfRetrievalPanel } from '../fulltext/BrowserPdfRetrievalPanel'
 import { AddPublicationForm } from './AddPublicationPage'
 import { BulkPdfUploadPanel } from './BulkPdfUploadPanel'
 import { PublicationFieldInputs } from './publicationFields'
+
 import { PublicationDraft, toPayload } from './publicationFieldsData'
 import {
   primaryStage,
@@ -41,6 +43,9 @@ import {
   type PublicationSortKey,
   type SortDirection,
 } from './publicationShared'
+
+const rowActionItemClass = actionListItemClass()
+const dangerRowActionItemClass = actionListItemClass({ danger: true })
 
 const SCREENING_FILTER_OPTIONS = [
   { value: '', label: 'All' },
@@ -258,10 +263,10 @@ function PublicationRow({
           </IconButton>
           {canManage ? (
             <RowActionsMenu label={`More actions for ${publication.title}`}>
-              <Link className="row-actions-menu__item" to={`${detailHref}?edit=1`}>Edit Metadata</Link>
+              <Link className={rowActionItemClass} to={`${detailHref}?edit=1`}>Edit Metadata</Link>
               <button
                 type="button"
-                className="row-actions-menu__item"
+                className={rowActionItemClass}
                 onClick={() => enrich.mutate()}
                 disabled={enrich.isPending || !publication.doi}
               >
@@ -269,13 +274,13 @@ function PublicationRow({
               </button>
               <button
                 type="button"
-                className="row-actions-menu__item"
+                className={rowActionItemClass}
                 onClick={() => setShowFullText((current) => !current)}
               >
                 {showFullText ? 'Hide PDF' : publication.fullText?.available ? 'Manage PDF' : 'Attach PDF'}
               </button>
               <a
-                className="row-actions-menu__item"
+                className={rowActionItemClass}
                 href={`/api/v1/projects/${projectId}/publications/${publication.id}/export/bib`}
                 target="_blank"
                 rel="noreferrer"
@@ -284,7 +289,7 @@ function PublicationRow({
               </a>
               {publication.fullText?.available ? (
                 <a
-                  className="row-actions-menu__item"
+                  className={rowActionItemClass}
                   href={`/api/v1/projects/${projectId}/publications/${publication.id}/export/pdf`}
                   target="_blank"
                   rel="noreferrer"
@@ -295,7 +300,7 @@ function PublicationRow({
               <ConfirmButton
                 label="Delete"
                 variant="danger"
-                className="row-actions-menu__item row-actions-menu__item--danger"
+                className={dangerRowActionItemClass}
                 warning={`Delete "${publication.title}"? This cannot be undone.`}
                 onConfirm={() => remove.mutate()}
                 disabled={remove.isPending}

@@ -176,7 +176,7 @@ export function DuplicateReviewPage() {
                     </li>
                   ))}
                 </ul>
-                <Tooltip text="How closely the two records match across signals like DOI, title, authors, and publication year. A high score is a strong hint, not proof — always compare the details before merging.">
+                <Tooltip className="mt-5 flex" text="How closely the two records match across signals like DOI, title, authors, and publication year. A high score is a strong hint, not proof — always compare the details before merging.">
                   <span className="duplicate-comparison__confidence">
                     <span>Match confidence</span>
                     <span>

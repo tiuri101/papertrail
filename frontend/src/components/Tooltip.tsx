@@ -1,6 +1,7 @@
 import { type ReactNode, type RefObject, useId, useLayoutEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 
+import { cn } from '../lib/cn'
 import { IconHelpCircle } from './icons'
 
 type TooltipPlacement = 'top' | 'bottom'
@@ -15,8 +16,6 @@ interface TooltipBubbleProps {
 
 function TooltipBubble({ anchorRef, id, text, visible, placement }: TooltipBubbleProps) {
   const bubbleRef = useRef<HTMLSpanElement>(null)
-  const className = placement === 'bottom' ? 'tooltip-bubble tooltip-bubble--bottom' : 'tooltip-bubble'
-
   useLayoutEffect(() => {
     if (!visible) return
 
@@ -63,7 +62,13 @@ function TooltipBubble({ anchorRef, id, text, visible, placement }: TooltipBubbl
       ref={bubbleRef}
       role="tooltip"
       id={id}
-      className={className}
+      className={cn(
+        "pointer-events-none fixed top-0 left-0 z-[2147483647] w-max max-w-[260px] -translate-x-1/2 rounded-sm border border-border-strong bg-surface-raised px-2.5 py-2 text-[0.78rem] leading-[1.4] font-medium tracking-normal text-text normal-case shadow-[0_6px_18px_rgba(0,0,0,0.28)] invisible after:absolute after:top-full after:left-(--tooltip-arrow-left) after:-translate-x-1/2 after:border-5 after:border-transparent after:border-t-border-strong after:content-['']",
+        placement === 'top'
+          ? '-translate-y-full'
+          : 'after:top-auto after:bottom-full after:border-t-transparent after:border-b-border-strong',
+      )}
+      data-placement={placement}
       hidden={!visible}
       style={{ visibility: 'hidden' }}
     >
@@ -91,17 +96,19 @@ export function Tooltip({
   text,
   children,
   placement = 'top',
+  className,
 }: {
   text: string
   children: ReactNode
   placement?: TooltipPlacement
+  className?: string
 }) {
   const tooltipId = useId()
   const anchorRef = useRef<HTMLSpanElement>(null)
   const { visible, handlers } = useHoverable()
 
   return (
-    <span ref={anchorRef} className="tooltip-anchor" tabIndex={0} aria-describedby={tooltipId} {...handlers}>
+    <span ref={anchorRef} className={cn('relative inline-flex items-center rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus', className)} tabIndex={0} aria-describedby={tooltipId} data-tooltip-anchor {...handlers}>
       {children}
       <TooltipBubble anchorRef={anchorRef} id={tooltipId} text={text} visible={visible} placement={placement} />
     </span>
@@ -113,20 +120,22 @@ export function InfoTooltip({
   text,
   label = 'More information',
   placement = 'top',
+  className,
 }: {
   text: string
   label?: string
   placement?: TooltipPlacement
+  className?: string
 }) {
   const tooltipId = useId()
   const anchorRef = useRef<HTMLSpanElement>(null)
   const { visible, handlers } = useHoverable()
 
   return (
-    <span ref={anchorRef} className="tooltip-anchor">
+    <span ref={anchorRef} className={cn('relative inline-flex items-center rounded-sm', className)} data-tooltip-anchor>
       <button
         type="button"
-        className="info-tooltip__trigger"
+        className="ml-[5px] inline-flex size-4 min-h-0 cursor-help items-center justify-center border-0 bg-none p-0 text-text-muted shadow-none hover:text-primary focus-visible:rounded-full focus-visible:text-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-focus [&_svg]:size-full"
         aria-describedby={tooltipId}
         aria-label={label}
         {...handlers}

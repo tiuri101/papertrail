@@ -2406,69 +2406,6 @@ form .toolbar,
   font-size: 0.86rem;
 }
 
-.row-actions-menu {
-  position: fixed;
-  z-index: 1000;
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 11rem;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-raised);
-  padding: var(--space-2);
-  box-shadow: var(--shadow-lg, var(--shadow-md));
-}
-
-/*
- * Every menu item -- plain <a>/<button> as well as ConfirmButton's <Button> --
- * must look identical. Button variants carry their own background/border/
- * shadow with enough specificity to survive a plain class override, so this
- * resets those specific properties with !important rather than relying on
- * selector-specificity or source-order races against the shared button styles.
- */
-.row-actions-menu__item {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: flex-start !important;
-  gap: var(--space-2);
-  width: 100%;
-  min-height: 34px !important;
-  height: auto !important;
-  border: none !important;
-  border-radius: var(--radius-sm);
-  background: transparent !important;
-  box-shadow: none !important;
-  padding: 0 var(--space-2) !important;
-  color: var(--color-text) !important;
-  font-size: 0.86rem;
-  font-weight: 500;
-  text-align: left;
-  text-decoration: none;
-  transform: none !important;
-}
-
-.row-actions-menu__item:hover:not(:disabled) {
-  background: var(--color-surface-hover) !important;
-  color: var(--color-text) !important;
-  text-decoration: underline;
-}
-
-.row-actions-menu__item:disabled {
-  opacity: var(--button-disabled-opacity);
-}
-
-.row-actions-menu__item svg {
-  width: 16px;
-  height: 16px;
-  flex: 0 0 auto;
-}
-
-.row-actions-menu__item--danger,
-.row-actions-menu__item--danger:hover:not(:disabled) {
-  color: var(--color-danger) !important;
-}
-
 @media (max-width: 900px) {
   .publication-list__header {
     display: none;
@@ -2817,60 +2754,6 @@ form .toolbar,
 .publication-detail__screening-note {
   margin-top: var(--space-2);
   font-size: 0.82rem;
-}
-
-.publication-detail__quick-actions {
-  display: grid;
-  gap: 2px;
-}
-
-/*
- * Same situation as .row-actions-menu__item: ConfirmButton renders a
- * <Button> whose variant classes carry background/color with more than
- * enough specificity to survive a plain class override, so those specific
- * properties are reset with !important here too.
- */
-.publication-detail__quick-action {
-  display: flex !important;
-  align-items: center !important;
-  justify-content: flex-start !important;
-  gap: var(--space-2);
-  width: 100%;
-  min-height: 38px !important;
-  height: auto !important;
-  border: none !important;
-  border-radius: var(--radius-sm);
-  background: transparent !important;
-  box-shadow: none !important;
-  padding: var(--space-2) !important;
-  color: var(--color-text) !important;
-  font-weight: 560;
-  font-size: 0.9rem;
-  text-align: left;
-  text-decoration: none;
-  transform: none !important;
-}
-
-.publication-detail__quick-action:hover:not(:disabled) {
-  background: var(--color-surface-hover) !important;
-  color: var(--color-text) !important;
-  text-decoration: underline;
-}
-
-.publication-detail__quick-action:disabled {
-  opacity: var(--button-disabled-opacity);
-}
-
-.publication-detail__quick-action--danger,
-.publication-detail__quick-action--danger:hover:not(:disabled) {
-  color: var(--color-danger) !important;
-}
-
-.publication-detail__quick-actions svg {
-  width: 18px;
-  height: 18px;
-  flex: 0 0 auto;
-  fill: currentColor;
 }
 
 .publication-detail__history {
@@ -3321,14 +3204,14 @@ button:not(.icon-button) svg {
   flex: 0 0 auto;
 }
 
-button:not(.icon-button):not(.decision-button):not(.criterion-toggle):not(.llm-stage-button):not(.wizard-step__button):not(.hotkey-capture):not(.info-tooltip__trigger):not(.collapsible-section__toggle):not(.collapsible-section__indicator-toggle):not(.publications-page__pdf-indicator):not(.jobs-summary__item):not(.rq-source-badge) {
+button:not(.icon-button):not(.decision-button):not(.criterion-toggle):not(.llm-stage-button):not(.wizard-step__button):not(.hotkey-capture):not(.collapsible-section__toggle):not(.collapsible-section__indicator-toggle):not(.publications-page__pdf-indicator):not(.jobs-summary__item):not(.rq-source-badge) {
   border-color: var(--button-primary-border);
   background: linear-gradient(180deg, var(--button-primary-bg-hover) 0%, var(--button-primary-bg) 100%);
   color: var(--button-primary-text);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.14);
 }
 
-button:not(.icon-button):not(.decision-button):not(.criterion-toggle):not(.llm-stage-button):not(.wizard-step__button):not(.hotkey-capture):not(.info-tooltip__trigger):not(.collapsible-section__toggle):not(.collapsible-section__indicator-toggle):not(.publications-page__pdf-indicator):not(.jobs-summary__item):not(.rq-source-badge):hover:not(:disabled) {
+button:not(.icon-button):not(.decision-button):not(.criterion-toggle):not(.llm-stage-button):not(.wizard-step__button):not(.hotkey-capture):not(.collapsible-section__toggle):not(.collapsible-section__indicator-toggle):not(.publications-page__pdf-indicator):not(.jobs-summary__item):not(.rq-source-badge):hover:not(:disabled) {
   border-color: #a1b0ff;
   background: transparent;
   color: var(--button-primary-bg-hover);
@@ -5939,11 +5822,6 @@ kbd {
   fill: var(--color-success);
 }
 
-.duplicate-comparison__evidence > .tooltip-anchor {
-  display: flex;
-  margin-top: var(--space-5);
-}
-
 .duplicate-comparison__confidence {
   display: grid;
   width: 100%;
@@ -6242,91 +6120,6 @@ kbd {
   font-weight: 500;
 }
 
-.tooltip-anchor {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
-  border-radius: var(--radius-sm);
-}
-
-.tooltip-anchor:focus-visible {
-  outline: 2px solid var(--color-focus);
-  outline-offset: 2px;
-}
-
-.info-tooltip__trigger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 16px;
-  height: 16px;
-  margin-left: 5px;
-  border: none;
-  background: none;
-  padding: 0;
-  color: var(--color-text-muted);
-  cursor: help;
-}
-
-.info-tooltip__trigger svg {
-  width: 100%;
-  height: 100%;
-}
-
-.info-tooltip__trigger:hover,
-.info-tooltip__trigger:focus-visible {
-  color: var(--color-primary);
-}
-
-.info-tooltip__trigger:focus-visible {
-  outline: 2px solid var(--color-focus);
-  outline-offset: 2px;
-  border-radius: 50%;
-}
-
-.tooltip-bubble {
-  position: fixed;
-  top: 0;
-  left: 0;
-  transform: translate(-50%, -100%);
-  z-index: 2147483647;
-  width: max-content;
-  max-width: 260px;
-  border: 1px solid var(--color-border-strong);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface-raised);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
-  padding: 8px 10px;
-  color: var(--color-text);
-  font-size: 0.78rem;
-  font-weight: 500;
-  line-height: 1.4;
-  text-transform: none;
-  letter-spacing: normal;
-  pointer-events: none;
-}
-
-.tooltip-bubble::after {
-  content: '';
-  position: absolute;
-  top: 100%;
-  left: var(--tooltip-arrow-left, 50%);
-  transform: translateX(-50%);
-  border: 5px solid transparent;
-  border-top-color: var(--color-border-strong);
-}
-
-.tooltip-bubble--bottom {
-  transform: translateX(-50%);
-}
-
-.tooltip-bubble--bottom::after {
-  top: auto;
-  bottom: 100%;
-  border-top-color: transparent;
-  border-bottom-color: var(--color-border-strong);
-}
-
 .nav-group .toolbar a,
 .nav-link-disabled {
   display: inline-flex;
@@ -6580,116 +6373,6 @@ kbd {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
-}
-
-.dropzone-field {
-  display: grid;
-  gap: var(--space-2);
-}
-
-.dropzone {
-  display: grid;
-  gap: var(--space-1);
-  justify-items: center;
-  min-height: 92px;
-  border: 2px dashed var(--color-border-strong);
-  border-radius: var(--radius-md);
-  background: var(--color-bg-elevated);
-  padding: var(--space-4);
-  color: var(--color-text-secondary);
-  text-align: center;
-  font-size: 0.88rem;
-  cursor: pointer;
-  transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease;
-}
-
-.dropzone:hover {
-  border-color: var(--color-primary);
-  background: var(--color-surface-hover);
-  color: var(--color-text);
-}
-
-.dropzone--active {
-  border-color: var(--color-primary);
-  background: var(--color-primary-container);
-  color: var(--color-primary);
-}
-
-.dropzone-field:has(input:focus-visible) .dropzone {
-  outline: 3px solid var(--color-focus);
-  outline-offset: 2px;
-}
-
-.dropzone__browse {
-  color: var(--color-primary);
-  font-weight: 640;
-}
-
-.dropzone__hint {
-  font-size: 0.78rem;
-}
-
-.file-list {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-2);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.file-chip {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  min-width: 0;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface);
-  padding: var(--space-2) var(--space-3);
-}
-
-.file-chip__name {
-  flex: 1 1 auto;
-  min-width: 0;
-  overflow: hidden;
-  color: var(--color-text);
-  font-weight: 620;
-  font-size: 0.88rem;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.file-chip__size {
-  flex: 0 0 auto;
-  font-size: 0.78rem;
-}
-
-.file-chip__remove {
-  width: 26px;
-  min-width: 26px;
-  height: 26px;
-  min-height: 26px;
-  flex: 0 0 auto;
-  border: 0;
-  border-radius: 50%;
-  background: transparent;
-  padding: 0;
-  color: var(--color-text-muted);
-  box-shadow: none;
-}
-
-.file-chip__remove:hover:not(:disabled) {
-  background: var(--color-danger-container);
-  color: var(--color-danger);
-  box-shadow: none;
-  transform: none;
-}
-
-.file-chip__remove svg {
-  width: 14px;
-  height: 14px;
-  fill: currentColor;
 }
 
 .full-text-document {
@@ -7572,38 +7255,6 @@ kbd {
   font-size: 0.9rem;
 }
 
-.field-drag-handle {
-  grid-row: 1 / span 3;
-  grid-column: 2;
-  align-self: center;
-  width: 32px;
-  min-width: 32px;
-  height: 32px;
-  min-height: 32px;
-  border-color: transparent;
-  cursor: grab;
-  touch-action: none;
-  user-select: none;
-}
-
-.field-drag-handle:active {
-  cursor: grabbing;
-}
-
-.field-drag-handle svg {
-  width: 18px;
-  height: 18px;
-}
-
-@media (pointer: coarse) {
-  .field-drag-handle {
-    width: 44px;
-    min-width: 44px;
-    height: 44px;
-    min-height: 44px;
-  }
-}
-
 .llm-schema-field--dragging {
   opacity: 0.55;
 }
@@ -7635,13 +7286,6 @@ kbd {
   display: flex;
   align-items: center;
   gap: var(--space-2);
-}
-
-.llm-schema-field__toggle-setting > .tooltip-anchor {
-  position: absolute;
-  top: 50%;
-  left: 100%;
-  transform: translateY(-50%);
 }
 
 .form-editor-field__settings-row {
