@@ -6,8 +6,10 @@ import { apiRequest } from '../../api/client'
 import { Button } from '../../components/Button'
 import { CountPill } from '../../components/CountPill'
 import { DoiPill } from '../../components/DoiPill'
+import { Input } from '../../components/Input'
 import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
 import { PublisherLinkPill } from '../../components/PublisherLinkPill'
+import { Textarea } from '../../components/Textarea'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { useCanReconcileExtractionState } from '../../hooks/useCanManageProject'
 import { fullTextDocumentEndpoint, useFullTextDocument } from '../fulltext/useFullTextDocument'
@@ -237,7 +239,7 @@ function ReconciliationForm({ projectId, publicationId, onDone, onCancel }: {
                   {current?.choice === 'manual' ? (
                     <label>
                       Manual value
-                      <input
+                      <Input
                         value={typeof current.value === 'string' ? current.value : String(current.value ?? '')}
                         onChange={(event) => setChoices((prev) => ({
                           ...prev,
@@ -254,7 +256,7 @@ function ReconciliationForm({ projectId, publicationId, onDone, onCancel }: {
       </table>
       <label>
         Reconciliation note
-        <textarea value={note} onChange={(event) => setNote(event.target.value)} required />
+        <Textarea value={note} onChange={(event) => setNote(event.target.value)} required />
       </label>
       {submit.error ? <p className="error" role="alert">{submit.error.message}</p> : null}
       <div className="toolbar">

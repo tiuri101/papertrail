@@ -5,6 +5,8 @@ import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { IconCheckCircle, IconFolder } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
+import { Input } from '../../components/Input'
+import { Textarea } from '../../components/Textarea'
 
 interface ProjectDetails {
   id: string
@@ -60,7 +62,7 @@ export function ProjectDetailsPanel({ projectId }: { projectId: string }) {
       >
         <label>
           Name
-          <input
+          <Input
             type="text"
             value={name}
             onChange={(event) => setName(event.target.value)}
@@ -70,7 +72,7 @@ export function ProjectDetailsPanel({ projectId }: { projectId: string }) {
         </label>
         <label>
           Description
-          <textarea
+          <Textarea
             value={description}
             onChange={(event) => setDescription(event.target.value)}
             rows={3}

@@ -7,6 +7,8 @@ import { Button } from '../../components/Button'
 import { CountPill } from '../../components/CountPill'
 import { DoiPill } from '../../components/DoiPill'
 import { HighlightedText } from '../../components/HighlightedText'
+import { Input } from '../../components/Input'
+import { Select } from '../../components/Select'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 import { StageEyebrow } from '../projects/StageEyebrow'
 import { ExtractionWorkspace } from './ExtractionWorkspace'
@@ -164,11 +166,11 @@ export function MyExtractionsPage() {
               <div className="toolbar">
                 <label className="paper-search-field">
                   Search papers
-                  <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Title, author, DOI…" />
+                  <Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Title, author, DOI…" />
                 </label>
                 <label>
                   Sort by
-                  <select value={`${sortKey}:${sortDirection}`} onChange={(event) => {
+                  <Select value={`${sortKey}:${sortDirection}`} onChange={(event) => {
                     const [key, direction] = event.target.value.split(':') as [ExtractionSortKey, SortDirection]
                     setSortKey(key)
                     setSortDirection(direction)
@@ -183,7 +185,7 @@ export function MyExtractionsPage() {
                     <option value="venue:desc">Venue Z–A</option>
                     <option value="version:desc">Newest version</option>
                     <option value="version:asc">Oldest version</option>
-                  </select>
+                  </Select>
                 </label>
               </div>
             </>

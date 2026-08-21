@@ -4,6 +4,8 @@ import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { CountPill } from '../../components/CountPill'
+import { Input } from '../../components/Input'
+import { Select } from '../../components/Select'
 import { SortableColumnHeader } from '../../components/SortableColumnHeader'
 import { InfoTooltip } from '../../components/Tooltip'
 import { useProjectManageState } from '../../hooks/useCanManageProject'
@@ -127,34 +129,34 @@ export function AuditLogPage() {
         <div className="toolbar">
           <label>
             Action
-            <select value={actionFilter} onChange={(event) => setActionFilter(event.target.value)}>
+            <Select value={actionFilter} onChange={(event) => setActionFilter(event.target.value)}>
               <option value="">All</option>
               {actionOptions.map((action) => (
                 <option key={action} value={action}>{action}</option>
               ))}
-            </select>
+            </Select>
           </label>
           <label>
             Entity
-            <select value={entityTypeFilter} onChange={(event) => setEntityTypeFilter(event.target.value)}>
+            <Select value={entityTypeFilter} onChange={(event) => setEntityTypeFilter(event.target.value)}>
               <option value="">All</option>
               {entityTypeOptions.map((entityType) => (
                 <option key={entityType} value={entityType}>{entityType}</option>
               ))}
-            </select>
+            </Select>
           </label>
           <label>
             User
-            <select value={actorFilter} onChange={(event) => setActorFilter(event.target.value)}>
+            <Select value={actorFilter} onChange={(event) => setActorFilter(event.target.value)}>
               <option value="">All</option>
               {actorOptions.map((actor) => (
                 <option key={actor} value={actor}>{actor}</option>
               ))}
-            </select>
+            </Select>
           </label>
           <label>
             Search
-            <input
+            <Input
               type="search"
               value={searchText}
               onChange={(event) => setSearchText(event.target.value)}

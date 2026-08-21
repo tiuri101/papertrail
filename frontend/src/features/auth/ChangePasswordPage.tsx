@@ -6,6 +6,7 @@ import { apiRequest } from '../../api/client'
 import { Button } from '../../components/Button'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { IconCheckCircle } from '../../components/icons'
+import { Input } from '../../components/Input'
 import { ThemeToggle } from '../../components/ThemeToggle'
 import { setCsrfToken } from './session'
 import { sessionQueryOptions } from './sessionQuery'
@@ -60,7 +61,7 @@ export function ChangePasswordPage() {
         <form onSubmit={(event) => { event.preventDefault(); updatePassword.mutate() }}>
           <label>
             Current password
-            <input
+            <Input
               type="password"
               value={currentPassword}
               onChange={(event) => setCurrentPassword(event.target.value)}
@@ -70,7 +71,7 @@ export function ChangePasswordPage() {
           </label>
           <label>
             New password
-            <input
+            <Input
               type="password"
               value={newPassword}
               onChange={(event) => setNewPassword(event.target.value)}
@@ -81,7 +82,7 @@ export function ChangePasswordPage() {
           </label>
           <label>
             Confirm new password
-            <input
+            <Input
               type="password"
               value={confirmPassword}
               onChange={(event) => setConfirmPassword(event.target.value)}
