@@ -17,7 +17,7 @@ import { ResearchAgendaPanel } from '../features/administration/ResearchAgendaPa
 import { AuditLogPage } from '../features/audit/AuditLogPage'
 import { Button } from '../components/Button'
 import { CollapsibleSection } from '../components/CollapsibleSection'
-import { pageStyles } from '../components/Page'
+import { Page, pageStyles } from '../components/Page'
 import { IconClock, IconSettings, IconSparkle, IconSwap, IconTrash } from '../components/icons'
 import { InfoBox } from '../components/InfoBox'
 import { useRegisterSectionItems } from '../components/sectionNavigation'
@@ -234,7 +234,7 @@ function ResearchAgendaPage() {
   const { projectId = '' } = useParams()
   useRegisterSectionItems(researchAgendaSections)
   return (
-    <main className={pageStyles}>
+    <Page>
       <StageEyebrow stage="draft" />
       <h1>Research Agenda</h1>
       <p className="text-text-muted">
@@ -242,7 +242,7 @@ function ResearchAgendaPage() {
         will screen against.
       </p>
       <ResearchAgendaPanel projectId={projectId} />
-    </main>
+    </Page>
   )
 }
 
