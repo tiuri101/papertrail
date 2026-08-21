@@ -2,9 +2,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { CountPill } from '../../components/CountPill'
 import { IconFile, IconUpload } from '../../components/icons'
+import { Select } from '../../components/Select'
 
 interface MatchCandidate {
   publicationId: string
@@ -219,7 +221,7 @@ export function PdfMatchReview({ projectId, importBatchId }: {
                   ) : null}
                   <label>
                     Publication match for {item.originalFilename}
-                    <select
+                    <Select
                       value={selected}
                       onChange={(event) => setSelections((current) => ({
                         ...current,
@@ -234,17 +236,17 @@ export function PdfMatchReview({ projectId, importBatchId }: {
                           {publication.hasPdf ? ' · PDF attached' : ''}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                   </label>
                   <div className="toolbar">
-                    <button
+                    <Button
                       type="button"
                       disabled={!selected || resolve.isPending || isConflict}
                       onClick={() => resolve.mutate({ itemId: item.id, publicationId: selected, action: 'attach' })}
                     >
                       <IconUpload />
                       Attach
-                    </button>
+                    </Button>
                     {isConflict ? (
                       <ConfirmButton
                         label="Replace existing"
@@ -255,9 +257,9 @@ export function PdfMatchReview({ projectId, importBatchId }: {
                         icon={<IconUpload />}
                       />
                     ) : null}
-                    <button
+                    <Button
                       type="button"
-                      className="button-secondary"
+                      variant="secondary"
                       disabled={resolve.isPending}
                       onClick={() => resolve.mutate({
                         itemId: item.id,
@@ -266,7 +268,7 @@ export function PdfMatchReview({ projectId, importBatchId }: {
                       })}
                     >
                       {isConflict ? 'Keep existing' : 'Skip'}
-                    </button>
+                    </Button>
                   </div>
                 </>
               ) : null}

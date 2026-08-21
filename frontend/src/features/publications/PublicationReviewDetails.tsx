@@ -2,8 +2,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
 import { IconCheckCircle } from '../../components/icons'
+import { Input } from '../../components/Input'
 import { OutcomeBadge } from '../../components/OutcomeBadge'
+import { Select } from '../../components/Select'
+import { Textarea } from '../../components/Textarea'
 import { DynamicForm, type DynamicFormField } from '../forms/DynamicForm'
 
 interface FinalDecision {
@@ -158,9 +162,9 @@ function ScreeningResponseForm({
         <strong>Notes:</strong> {decision.notes || 'None'}
       </p>
       {canManage ? (
-        <button type="button" className="button-secondary button-sm" onClick={onOverride}>
+        <Button type="button" variant="secondary" size="sm" onClick={onOverride}>
           Override {label}
-        </button>
+        </Button>
       ) : null}
     </div>
   )
@@ -339,9 +343,10 @@ export function PublicationReviewDetails({
                       ))}
                     </dl>
                     {canManage ? (
-                      <button
+                      <Button
                         type="button"
-                        className="button-secondary button-sm"
+                        variant="secondary"
+                        size="sm"
                         onClick={() => {
                           setExtractionAnswers({ ...response.answers })
                           setExtractionReason('')
@@ -349,7 +354,7 @@ export function PublicationReviewDetails({
                         }}
                       >
                         Override data extraction
-                      </button>
+                      </Button>
                     ) : null}
                   </>
                 ) : <p className="muted">No completed data extraction is available.</p>}
@@ -387,7 +392,7 @@ export function PublicationReviewDetails({
                           {criterion.text}
                         </th>
                         <td>
-                          <input
+                          <Input
                             type="radio"
                             name={`criterion-${criterion.id}`}
                             aria-label={`${criterion.number}: Set fulfilled`}
@@ -402,7 +407,7 @@ export function PublicationReviewDetails({
                           />
                         </td>
                         <td>
-                          <input
+                          <Input
                             type="radio"
                             name={`criterion-${criterion.id}`}
                             aria-label={`${criterion.number}: Set not fulfilled`}
@@ -422,7 +427,7 @@ export function PublicationReviewDetails({
                 </table>
                 <label>
                   Decision
-                  <select
+                  <Select
                     value={responseOverride.outcome}
                     onChange={(event) => setResponseOverride({
                       ...responseOverride,
@@ -432,11 +437,11 @@ export function PublicationReviewDetails({
                     {OUTCOMES.map((outcome) => (
                       <option key={outcome} value={outcome}>{outcomeLabel(outcome)}</option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
                 <label>
                   Notes
-                  <textarea
+                  <Textarea
                     value={responseOverride.notes}
                     onChange={(event) => setResponseOverride({
                       ...responseOverride,
@@ -446,7 +451,7 @@ export function PublicationReviewDetails({
                 </label>
                 <label>
                   Reason for override
-                  <textarea
+                  <Textarea
                     value={responseOverride.reason}
                     onChange={(event) => setResponseOverride({
                       ...responseOverride,
@@ -456,20 +461,20 @@ export function PublicationReviewDetails({
                   />
                 </label>
                 <div className="toolbar">
-                  <button
+                  <Button
                     type="submit"
                     disabled={overrideScreeningResponse.isPending || !responseOverride.reason.trim()}
                   >
                     <IconCheckCircle />
                     Save override
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
-                    className="button-secondary"
+                    variant="secondary"
                     onClick={() => setResponseOverride(null)}
                   >
                     Cancel
-                  </button>
+                  </Button>
                 </div>
               </form>
             ) : null}
@@ -493,23 +498,23 @@ export function PublicationReviewDetails({
                 />
                 <label>
                   Reason for override
-                  <textarea
+                  <Textarea
                     value={extractionReason}
                     onChange={(event) => setExtractionReason(event.target.value)}
                     required
                   />
                 </label>
                 <div className="toolbar">
-                  <button
+                  <Button
                     type="submit"
                     disabled={overrideExtraction.isPending || !extractionReason.trim()}
                   >
                     <IconCheckCircle />
                     Save extraction override
-                  </button>
-                  <button type="button" className="button-secondary" onClick={() => setEditingExtraction(false)}>
+                  </Button>
+                  <Button type="button" variant="secondary" onClick={() => setEditingExtraction(false)}>
                     Cancel
-                  </button>
+                  </Button>
                 </div>
               </form>
             ) : null}

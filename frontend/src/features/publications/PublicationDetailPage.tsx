@@ -474,9 +474,9 @@ export function PublicationDetailPage() {
             {activeStage ? (
               screeningActionable ? (
                 <>
-                  <Link className="button-secondary button-md publication-detail__screening-link" to={screeningHref}>
+                  <Button as={Link} variant="secondary" className="w-full" to={screeningHref}>
                     Open Screening Queue
-                  </Link>
+                  </Button>
                   <p className="muted publication-detail__screening-note">
                     Claims the next item in the {screeningStageLabel(activeStage)} queue -- not
                     guaranteed to be this publication.

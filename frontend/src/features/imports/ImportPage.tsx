@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { CountPill } from '../../components/CountPill'
@@ -287,10 +288,10 @@ export function ImportPage() {
             files={pdfArchives}
             onChange={setPdfArchives}
           />
-          <button type="submit" disabled={!file || submit.isPending}>
+          <Button type="submit" disabled={!file || submit.isPending}>
             <IconUpload />
             Upload
-          </button>
+          </Button>
           {submit.isPending ? (
             <p role="status">
               Uploading metadata
@@ -319,14 +320,14 @@ export function ImportPage() {
                     </h3>
                     <p>{pdfSummary.total} files processed · {pdfSummary.matched ?? 0} matched · {needsReview} need review · {pdfSummary.duplicate ?? 0} duplicate · {pdfSummary.invalid ?? 0} invalid</p>
                     {needsReview ? (
-                      <button
+                      <Button
                         type="button"
                         onClick={() => document
                           .getElementById('section-pdf-review')
                           ?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
                       >
                         Review PDF matches
-                      </button>
+                      </Button>
                     ) : null}
                   </div>
                 )
@@ -386,15 +387,15 @@ export function ImportPage() {
                         <strong>{paperCount}</strong>
                         <span>{paperCount === 1 ? 'paper' : 'papers'}</span>
                       </div>
-                      <button
+                      <Button
                         type="button"
-                        className="button-danger"
+                        variant="destructive"
                         onClick={() => previewDeleteSearch.mutate(search)}
                         disabled={previewDeleteSearch.isPending && previewDeleteSearch.variables?.id === search.id}
                       >
                         <IconTrash />
                         Delete search
-                      </button>
+                      </Button>
                     </header>
                     {previewDeleteSearch.error && previewDeleteSearch.variables?.id === search.id ? (
                       <p className="error" role="alert">{previewDeleteSearch.error.message}</p>
@@ -457,15 +458,15 @@ export function ImportPage() {
                                 {formatImportStatus(batch.status)}
                               </span>
                               {batch.status === 'completed' ? (
-                                <button
+                                <Button
                                   type="button"
-                                  className="button-secondary"
+                                  variant="secondary"
                                   onClick={() => setAttachBatchId(
                                     attachBatchId === batch.id ? null : batch.id,
                                   )}
                                 >
                                   {attachBatchId === batch.id ? 'Cancel' : 'Attach PDFs'}
-                                </button>
+                                </Button>
                               ) : null}
                             </li>
                           ))}

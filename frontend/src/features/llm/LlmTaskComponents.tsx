@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
 import { IconRestart } from '../../components/icons'
 import { criterionNumbers, criterionOrderIndex } from '../screening/criteriaNumbering'
 import type { CriterionAnswer, ScreeningCriterion } from '../screening/useScreeningQueue'
@@ -192,9 +193,9 @@ export function ScreeningLlmPanel({
             ? 'Unavailable because no PDF is attached.'
             : data.error ?? 'Usable full text is not available yet.'}
         </p>
-        <button type="button" className="button-secondary" onClick={() => regenerate.mutate()} disabled={regenerate.isPending}>
+        <Button type="button" variant="secondary" onClick={() => regenerate.mutate()} disabled={regenerate.isPending}>
           Try again
-        </button>
+        </Button>
       </aside>
     )
   }
@@ -233,9 +234,9 @@ export function ScreeningLlmPanel({
     >
       <div ref={headingRef} className="llm-task-panel__heading">
         <LlmAssistanceHeading />
-        <button type="button" className="button-secondary" onClick={() => regenerate.mutate()} disabled={regenerate.isPending}>
+        <Button type="button" variant="secondary" onClick={() => regenerate.mutate()} disabled={regenerate.isPending}>
           Regenerate
-        </button>
+        </Button>
       </div>
       {data.stale ? <p className="error">This result is stale. Regenerate it before relying on it.</p> : null}
       {humanDecision ? <p><strong>Your decision:</strong> {humanDecision}</p> : null}
@@ -278,9 +279,9 @@ export function ScreeningLlmPanel({
             <p>{criterion.explanation}</p>
             {comparison === 'mismatch' && setCriteriaAnswers && criterion.criterionId ? (
               <div className="toolbar">
-                <button
+                <Button
                   type="button"
-                  className="button-secondary"
+                  variant="secondary"
                   onClick={() => {
                     const criterionId = criterion.criterionId!
                     const met = criterion.assessment === 'met'
@@ -288,7 +289,7 @@ export function ScreeningLlmPanel({
                   }}
                 >
                   Apply suggestion
-                </button>
+                </Button>
               </div>
             ) : null}
             {stage === 'full_text' ? (

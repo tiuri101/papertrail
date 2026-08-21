@@ -3,9 +3,11 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Button, IconButton } from '../../components/Button'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { CountPill } from '../../components/CountPill'
 import { HighlightedText } from '../../components/HighlightedText'
+import { Input } from '../../components/Input'
 import {
   IconCheckCircle,
   IconDownload,
@@ -114,8 +116,8 @@ export function PublicationEditForm({
       <PublicationFieldInputs draft={draft} setField={setField} />
       {update.error ? <p className="error" role="alert">{update.error.message}</p> : null}
       <div className="toolbar">
-        <button type="submit" disabled={update.isPending}><IconCheckCircle />Save</button>
-        <button type="button" className="button-secondary" onClick={onDone}>Cancel</button>
+        <Button type="submit" disabled={update.isPending}><IconCheckCircle />Save</Button>
+        <Button type="button" variant="secondary" onClick={onDone}>Cancel</Button>
       </div>
     </form>
   )
@@ -243,14 +245,15 @@ function PublicationRow({
           />
         </span>
         <span className="publication-row-grid__actions">
-          <Link
-            className="icon-button"
+          <IconButton
+            as={Link}
+            variant="outline"
             to={detailHref}
             aria-label={`View ${publication.title}`}
             title="View details"
           >
             <IconEye />
-          </Link>
+          </IconButton>
           {canManage ? (
             <RowActionsMenu label={`More actions for ${publication.title}`}>
               <Link className="row-actions-menu__item" to={`${detailHref}?edit=1`}>Edit Metadata</Link>
@@ -707,7 +710,7 @@ export function PublicationsPage() {
             {canManage && filteredPublications.length > 0 ? (
               <div className="toolbar publication-list__bulk-actions">
                 <label>
-                  <input
+                  <Input
                     type="checkbox"
                     checked={allFilteredSelected}
                     onChange={toggleSelectAll}
@@ -717,24 +720,26 @@ export function PublicationsPage() {
                 {selectedIds.size > 0 ? (
                   <>
                     <span className="muted">{selectedIds.size} selected</span>
-                    <button
+                    <Button
                       type="button"
-                      className="button-secondary button-sm"
+                      variant="secondary"
+                      size="sm"
                       disabled={bulkEnrich.isPending}
                       onClick={() => bulkEnrich.mutate({ publicationIds: Array.from(selectedIds), missingOnly: false })}
                     >
                       <IconSparkle />
                       Enrich Selected Metadata ({selectedIds.size})
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
-                      className="button-secondary button-sm"
+                      variant="secondary"
+                      size="sm"
                       disabled={bulkExport.isPending || (pendingExportJob ? isJobActive(pendingExportJob.status) : false)}
                       onClick={() => bulkExport.mutate(Array.from(selectedIds))}
                     >
                       <IconDownload />
                       Export Selected ({selectedIds.size})
-                    </button>
+                    </Button>
                     <ConfirmButton
                       className="button-sm"
                       label={`Delete Selected (${selectedIds.size})`}
@@ -797,15 +802,15 @@ export function PublicationsPage() {
               {bulkEnrich.error ? <p className="error" role="alert">{bulkEnrich.error.message}</p> : null}
               {bulkEnrich.isSuccess ? <p>Enrichment queued for {bulkEnrich.data.jobIds.length} publication{bulkEnrich.data.jobIds.length === 1 ? '' : 's'}.</p> : null}
               <div className="toolbar">
-                <button
+                <Button
                   type="button"
-                  className="button-secondary button-md"
+                  variant="secondary"
                   disabled={bulkEnrich.isPending}
                   onClick={() => bulkEnrich.mutate({ missingOnly: true })}
                 >
                   <IconSparkle />
                   Enrich All Records with Missing Metadata
-                </button>
+                </Button>
               </div>
             </section>
             <MetadataConflictsPanel projectId={projectId} />

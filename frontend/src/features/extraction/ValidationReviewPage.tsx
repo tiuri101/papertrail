@@ -160,9 +160,9 @@ function ValidationRow({
           {formatSubmittedAt(item.submittedAt)}
         </time>
         <span className="review-work-row-grid__actions">
-          <Link className="button-secondary button-sm" to={`/projects/${projectId}/extraction/review/${item.workItemId}`}>
+          <Button as={Link} variant="secondary" size="sm" to={`/projects/${projectId}/extraction/review/${item.workItemId}`}>
             Review and correct extraction
-          </Link>
+          </Button>
         </span>
       </div>
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
+import { Button } from '../../components/Button'
 import { DoiPill } from '../../components/DoiPill'
 import { HighlightedText } from '../../components/HighlightedText'
 import { PublisherLinkPill } from '../../components/PublisherLinkPill'
@@ -93,24 +94,24 @@ export function PreviousItemCard({
           {!criteriaComplete ? <p className="muted">Answer every criterion before saving.</p> : null}
           {save.error ? <p className="error" role="alert">{save.error.message}</p> : null}
           <div className="toolbar">
-            <button
+            <Button
               type="button"
               onClick={() => save.mutate({ outcome, criteriaAnswers: answers, notes: notes || null })}
               disabled={save.isPending || !criteriaComplete}
             >
               Save Changes
               {submitHotkey ? <kbd className="submit-button__hotkey" aria-hidden="true">{submitHotkey}</kbd> : null}
-            </button>
-            <button type="button" className="button-secondary" onClick={onClose} disabled={save.isPending}>
+            </Button>
+            <Button type="button" variant="secondary" onClick={onClose} disabled={save.isPending}>
               Continue to current paper
-            </button>
+            </Button>
           </div>
         </>
       ) : (
         <div className="toolbar">
-          <button type="button" className="button-secondary" onClick={onClose}>
+          <Button type="button" variant="secondary" onClick={onClose}>
             Continue to current paper
-          </button>
+          </Button>
         </div>
       )}
     </article>

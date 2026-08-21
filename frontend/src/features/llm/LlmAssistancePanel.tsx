@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { DragHandle } from '../../components/DragHandle'
 import { InfoBox } from '../../components/InfoBox'
@@ -488,32 +489,32 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
                 />
               </div>
               <label><input type="checkbox" checked={field.enabled} onChange={(event) => edit(index, { enabled: event.target.checked })} /> Enabled</label>
-              <button type="button" className="button-danger" onClick={() => setFields((current) => current.filter((_, i) => i !== index))}>
+              <Button type="button" variant="destructive" onClick={() => setFields((current) => current.filter((_, i) => i !== index))}>
                 <IconTrash />
                 Remove field
-              </button>
+              </Button>
               </div>
             </details>
             )
           })}
           </div>
           <div className="toolbar">
-            <button type="button" className="button-secondary" onClick={addHelper}>Add helper field</button>
+            <Button type="button" variant="secondary" onClick={addHelper}>Add helper field</Button>
             {!setupMode ? (
-              <button type="button" onClick={() => save.mutate()} disabled={save.isPending}>Save draft</button>
+              <Button type="button" onClick={() => save.mutate()} disabled={save.isPending}>Save draft</Button>
             ) : null}
           </div>
           {!setupMode ? (
             <div className="toolbar">
-              <button
+              <Button
                 type="button"
-                className="button-success"
+                variant="success"
                 onClick={() => publish.mutate()}
                 disabled={publish.isPending || currentSchema.status !== 'draft'}
               >
                 <IconCheckCircle />
                 Publish version
-              </button>
+              </Button>
             </div>
           ) : null}
           </>
