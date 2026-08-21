@@ -3,10 +3,14 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
 import { CountPill } from '../../components/CountPill'
 import { DoiPill } from '../../components/DoiPill'
+import { GoBackButton } from '../../components/GoBackButton'
 import { InfoBox } from '../../components/InfoBox'
 import { IconAlertTriangle, IconArrowRight } from '../../components/icons'
+import { Select } from '../../components/Select'
+import { Textarea } from '../../components/Textarea'
 import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
 import { PublisherLinkPill } from '../../components/PublisherLinkPill'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
@@ -119,14 +123,9 @@ export function FullTextPage() {
       ) : null}
       {!queue.previousItem && queue.lastCompletedItem ? (
         <div className="toolbar">
-          <button
-            type="button"
-            className="button-secondary go-back-button"
-            onClick={() => queue.goBack.mutate()}
-            disabled={queue.goBack.isPending}
-          >
+          <GoBackButton onClick={() => queue.goBack.mutate()} disabled={queue.goBack.isPending}>
             ← Go back to “{queue.lastCompletedItem.title}”
-          </button>
+          </GoBackButton>
         </div>
       ) : null}
       {queue.goBack.error ? <p className="error" role="alert">{queue.goBack.error.message}</p> : null}
@@ -165,9 +164,9 @@ export function FullTextPage() {
       ) : (
         <>
           <p className="muted">No full-text work is currently available for you.</p>
-          <button type="button" className="button-secondary" onClick={() => navigate(`/projects/${projectId}`)}>
+          <Button type="button" variant="secondary" onClick={() => navigate(`/projects/${projectId}`)}>
             Back to project
-          </button>
+          </Button>
         </>
       )}
     </main>
@@ -214,14 +213,16 @@ function RetrievalCard({ projectId, retrieval, saving, onSubmit, onSkip, skippin
         ) : null}
       </div>
       {fullTextDocument.data?.available ? (
-        <a
-          className="button-secondary button-sm"
+        <Button
+          as="a"
+          variant="secondary"
+          size="sm"
           href={`${fullTextDocumentEndpoint(projectId, publication.id)}/content`}
           target="_blank"
           rel="noreferrer"
         >
           Open PDF
-        </a>
+        </Button>
       ) : null}
       <FullTextDocumentPanel
         projectId={projectId}
@@ -231,18 +232,18 @@ function RetrievalCard({ projectId, retrieval, saving, onSubmit, onSkip, skippin
       />
       <label>
         Retrieval status for {publication.title}
-        <select
+        <Select
           value={status}
           onChange={(event) => setStatus(event.target.value)}
         >
           {retrievalStatusOptions.map((statusOption) => (
             <option value={statusOption} key={statusOption}>{formatStatus(statusOption)}</option>
           ))}
-        </select>
+        </Select>
       </label>
       <label>
         Note for {publication.title}
-        <textarea value={note} onChange={(event) => setNote(event.target.value)} />
+        <Textarea value={note} onChange={(event) => setNote(event.target.value)} />
       </label>
       {isAvailable ? (
         <p className="muted">
@@ -251,22 +252,22 @@ function RetrievalCard({ projectId, retrieval, saving, onSubmit, onSkip, skippin
       ) : null}
       {skipError ? <p className="error" role="alert">{skipError}</p> : null}
       <div className="toolbar">
-        <button
+        <Button
           type="button"
           onClick={handleSubmit}
           disabled={saving || skipping}
         >
           {isAvailable ? 'Save and start screening' : 'Submit'}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
-          className="button-secondary"
+          variant="secondary"
           onClick={onSkip}
           disabled={saving || skipping}
         >
           <IconArrowRight />
           Skip for now
-        </button>
+        </Button>
       </div>
     </article>
   )

@@ -1,20 +1,30 @@
-import type { ButtonHTMLAttributes, ReactNode, Ref } from 'react'
+import type { ButtonHTMLAttributes, ComponentPropsWithoutRef, ElementType, ReactNode, Ref } from 'react'
 
 import { cn } from '../lib/cn'
 
 export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'text' | 'destructive' | 'outline'
 export type ButtonSize = 'sm' | 'md'
 
-export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
+interface ButtonOwnProps {
   variant?: ButtonVariant
   size?: ButtonSize
   startIcon?: ReactNode
   endIcon?: ReactNode
   iconOnly?: boolean
   loading?: boolean
+  disabled?: boolean
+  className?: string
   children?: ReactNode
-  ref?: Ref<HTMLButtonElement>
 }
+
+/**
+ * `as` renders the button's visual chrome on a different element — typically react-router's
+ * `Link`, for a same-styled action that navigates instead of handling a click. Defaults to a
+ * native `<button>`, matching `ButtonHTMLAttributes` for that case.
+ */
+export type ButtonProps<C extends ElementType = 'button'> = ButtonOwnProps & { as?: C; ref?: Ref<Element> } & (
+  C extends 'button' ? ButtonHTMLAttributes<HTMLButtonElement> : Omit<ComponentPropsWithoutRef<C>, keyof ButtonOwnProps | 'as' | 'ref'>
+)
 
 const base =
   'inline-flex items-center justify-center gap-2 rounded-sm text-sm font-semibold leading-none whitespace-nowrap select-none transition-[background-color,border-color,color,box-shadow,transform,opacity] duration-150 disabled:opacity-[.48] disabled:cursor-not-allowed [&_svg]:shrink-0 [&_svg]:fill-current'
@@ -77,7 +87,8 @@ const textPaddingX: Record<ButtonSize, string> = {
   sm: 'px-1',
 }
 
-export function Button({
+export function Button<C extends ElementType = 'button'>({
+  as,
   variant = 'primary',
   size = 'md',
   startIcon,
@@ -88,9 +99,10 @@ export function Button({
   className,
   children,
   ...props
-}: ButtonProps) {
+}: ButtonProps<C>) {
+  const Component: ElementType = as ?? 'button'
   return (
-    <button
+    <Component
       {...props}
       className={cn(
         base,
@@ -113,10 +125,10 @@ export function Button({
       ) : null}
       {children}
       {endIcon ? <span className="inline-flex shrink-0" aria-hidden="true">{endIcon}</span> : null}
-    </button>
+    </Component>
   )
 }
 
-export function IconButton(props: Omit<ButtonProps, 'iconOnly'>) {
+export function IconButton<C extends ElementType = 'button'>(props: Omit<ButtonProps<C>, 'iconOnly'>) {
   return <Button {...props} iconOnly />
 }

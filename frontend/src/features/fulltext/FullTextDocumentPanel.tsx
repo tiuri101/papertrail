@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useRef, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { IconTrash, IconUpload } from '../../components/icons'
@@ -84,7 +85,7 @@ export function FullTextDocumentPanel({ projectId, publicationId, onAvailable, o
             </span>
           </p>
           <div className="toolbar">
-            <a className="button-primary button-sm" href={`${endpoint}/content`} target="_blank" rel="noreferrer">View PDF</a>
+            <Button as="a" variant="primary" size="sm" href={`${endpoint}/content`} target="_blank" rel="noreferrer">View PDF</Button>
             <ConfirmButton
               className="button-sm"
               label="Replace PDF"
@@ -95,13 +96,14 @@ export function FullTextDocumentPanel({ projectId, publicationId, onAvailable, o
               variant="secondary"
               icon={<IconUpload />}
             />
-            <button
+            <Button
               type="button"
-              className="button-secondary button-sm"
+              variant="secondary"
+              size="sm"
               onClick={() => setShowHistory(!showHistory)}
             >
               {showHistory ? 'Hide document history' : 'Document history'}
-            </button>
+            </Button>
             <ConfirmButton
               className="button-sm"
               label="Remove PDF"
@@ -118,17 +120,18 @@ export function FullTextDocumentPanel({ projectId, publicationId, onAvailable, o
         <>
           <p className="muted">No PDF attached</p>
           <div className="toolbar">
-            <button type="button" className="button-sm" onClick={openFilePicker} disabled={upload.isPending}>
+            <Button type="button" size="sm" onClick={openFilePicker} disabled={upload.isPending}>
               <IconUpload />
               Upload PDF
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
-              className="button-secondary button-sm full-text-history-toggle"
+              variant="secondary"
+              size="sm"
               onClick={() => setShowHistory(!showHistory)}
             >
               {showHistory ? 'Hide document history' : 'Document history'}
-            </button>
+            </Button>
           </div>
         </>
       ) : null}
