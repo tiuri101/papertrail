@@ -1,3 +1,5 @@
+import { Badge, BadgeLink } from './Badge'
+
 export function PdfAvailabilityPill({ available, href, pageCount, compact = false }: {
   available: boolean
   href: string
@@ -8,12 +10,10 @@ export function PdfAvailabilityPill({ available, href, pageCount, compact = fals
   if (available) {
     const label = compact || !pageCount ? 'PDF' : `PDF (${pageCount} page${pageCount === 1 ? '' : 's'})`
     return (
-      <a className="status-badge status-badge--success" href={href} target="_blank" rel="noreferrer">
+      <BadgeLink variant="success" href={href} target="_blank" rel="noreferrer">
         {label}
-      </a>
+      </BadgeLink>
     )
   }
-  return (
-    <span className="status-badge status-badge--neutral">No PDF</span>
-  )
+  return <Badge variant="neutral">No PDF</Badge>
 }

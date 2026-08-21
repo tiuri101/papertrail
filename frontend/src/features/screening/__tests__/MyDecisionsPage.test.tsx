@@ -56,7 +56,7 @@ describe('MyDecisionsPage', () => {
     )
     expect(screen.getByText('A. Author')).toBeInTheDocument()
     expect(screen.getByText('Journal of Immersive Analytics')).toBeInTheDocument()
-    expect(screen.getByText('Include', { selector: '.status-badge' })).toBeInTheDocument()
+    expect(screen.getByText('Include', { selector: '.my-decisions-row-grid__decision *' })).toBeInTheDocument()
     expect(screen.getByText(new Date(baseItem.submittedAt).toLocaleString(), { selector: 'time' })).toHaveAttribute(
       'datetime',
       baseItem.submittedAt,
@@ -84,7 +84,7 @@ describe('MyDecisionsPage', () => {
     }, 'full_text')
 
     expect(
-      await screen.findByText('Full text inaccessible', { selector: '.status-badge' }),
+      await screen.findByText('Full text inaccessible', { selector: '.my-decisions-row-grid__decision *' }),
     ).toBeInTheDocument()
     expect(screen.getByText(new Date(baseItem.submittedAt).toLocaleString(), { selector: 'time' })).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Edit Decision' })).not.toBeInTheDocument()
