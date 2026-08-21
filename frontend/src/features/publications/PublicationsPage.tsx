@@ -13,6 +13,7 @@ import { DetailList, DetailListRow } from '../../components/DetailList'
 import { cardStyles } from '../../components/Card'
 import { Page } from '../../components/Page'
 import { HighlightedText } from '../../components/HighlightedText'
+import { reviewWorkTitleTextClass } from '../../components/reviewWorkStyles'
 import { Input } from '../../components/Input'
 import {
   IconCheckCircle,
@@ -243,7 +244,7 @@ function PublicationRow({
         </span>
         <div className="min-w-0 max-[900px]:[grid-area:title]">
           <Link className="h-auto min-h-0 whitespace-normal text-left text-text [overflow-wrap:anywhere] hover:text-primary hover:no-underline" to={detailHref}>
-            <strong><HighlightedText text={publication.title} keywords={highlightKeywords} /></strong>
+            <h2 className={reviewWorkTitleTextClass}><HighlightedText text={publication.title} keywords={highlightKeywords} /></h2>
           </Link>
           <div className="overflow-hidden text-ellipsis whitespace-nowrap text-[0.86rem] text-text-secondary">{publication.authors ?? 'Unknown authors'}</div>
         </div>

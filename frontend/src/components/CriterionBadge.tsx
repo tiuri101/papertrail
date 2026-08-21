@@ -6,7 +6,7 @@ export function CriterionBadge({ kind, children, className }: { kind?: string; c
   return (
     <span
       className={cn(
-        'inline-flex min-w-[2.25rem] items-center justify-center rounded-full border px-2 py-0.5 text-xs font-extrabold leading-[1.4]',
+        'inline-flex min-w-[2.25rem] items-center justify-center rounded-full border px-2 py-0.5 text-[length:inherit] font-extrabold leading-[1.4]',
         kind === 'inclusion'
           ? 'border-[color-mix(in_srgb,var(--color-success)_35%,transparent)] bg-success-container text-success'
           : kind === 'exclusion'
