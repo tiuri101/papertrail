@@ -51,6 +51,11 @@
   --color-focus: rgba(143, 166, 255, 0.35);
   --color-overlay: rgba(3, 7, 18, 0.64);
 
+  /* Tooltips stay neutral grey/white regardless of the app's blue-tinted surface tokens. */
+  --tooltip-bg: #2b2f38;
+  --tooltip-border: #4b525c;
+  --tooltip-text: #f5f6f7;
+
   /* Shared button system */
   --button-height: 40px;
   --button-radius: 8px;
@@ -155,6 +160,11 @@
   --color-danger-container: rgba(191, 63, 70, 0.09);
   --color-focus: rgba(83, 105, 216, 0.25);
   --color-overlay: rgba(21, 29, 43, 0.4);
+
+  /* Tooltips stay neutral grey/white regardless of the app's blue-tinted surface tokens. */
+  --tooltip-bg: #ffffff;
+  --tooltip-border: #c8ccd2;
+  --tooltip-text: #23262b;
 
   --button-primary-bg: #5369d8;
   --button-primary-bg-hover: #6176e4;

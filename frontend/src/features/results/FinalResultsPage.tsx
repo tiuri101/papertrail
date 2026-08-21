@@ -8,6 +8,7 @@ import { CountPill } from '../../components/CountPill'
 import { Input } from '../../components/Input'
 import { Page } from '../../components/Page'
 import { Select } from '../../components/Select'
+import { SortableColumnHeader } from '../../components/SortableColumnHeader'
 import { StageEyebrow } from '../projects/StageEyebrow'
 
 interface FieldMeta {
@@ -286,20 +287,15 @@ export function FinalResultsPage() {
               <table>
                 <thead>
                   <tr>
-                    {columns.map((column) => {
-                      const isSorted = sortKey === column.key
-                      return (
-                        <th key={column.key} scope="col" aria-sort={isSorted ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}>
-                          <Button
-                            type="button"
-                            variant="text"
-                            onClick={() => toggleSort(column.key)}
-                          >
-                            {column.label}{isSorted ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
-                          </Button>
-                        </th>
-                      )
-                    })}
+                    {columns.map((column) => (
+                      <SortableColumnHeader
+                        key={column.key}
+                        label={column.label}
+                        active={sortKey === column.key}
+                        direction={sortDirection}
+                        onSort={() => toggleSort(column.key)}
+                      />
+                    ))}
                   </tr>
                 </thead>
                 <tbody>

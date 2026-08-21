@@ -14,7 +14,9 @@ import { IconAlertTriangle } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
 import { Input } from '../../components/Input'
 import { OutcomeBadge } from '../../components/OutcomeBadge'
+import { PublicationListSortHeader } from '../../components/PublicationListSortHeader'
 import { Select } from '../../components/Select'
+import { reviewWorkActionsClass, reviewWorkCardClass, reviewWorkDoiClass, reviewWorkEditorClass, reviewWorkGridClass, reviewWorkListClass, reviewWorkMetadataClass, reviewWorkStatusClass, reviewWorkSubmittedClass, reviewWorkTitleClass, reviewWorkTitleLinkClass, reviewWorkVenueClass } from '../../components/reviewWorkStyles'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 import { ScreeningLlmPanel } from '../llm/LlmTaskComponents'
 import { StageEyebrow } from '../projects/StageEyebrow'
@@ -288,34 +290,34 @@ function DecisionRow({
   }
 
   return (
-    <li className="cursor-pointer overflow-hidden rounded-lg border border-border bg-surface shadow-sm transition-colors hover:border-border-strong" onClick={openPublication}>
-      <div className="grid grid-cols-1 items-center gap-x-4 gap-y-2 p-4 min-[861px]:grid-cols-[minmax(14rem,2fr)_minmax(8rem,1fr)_minmax(8rem,auto)_minmax(8rem,auto)_minmax(8rem,auto)_auto]">
-        <div className="min-w-0">
-          <Link className="block text-inherit no-underline hover:text-primary" to={detailHref}>
-            <h2 className="m-0 text-base leading-snug">
+    <li className={reviewWorkCardClass} onClick={openPublication}>
+      <div className={reviewWorkGridClass}>
+        <div className={reviewWorkTitleClass}>
+          <Link className={reviewWorkTitleLinkClass} to={detailHref}>
+            <h2 className="m-0 inline text-[inherit] leading-[inherit]">
               <HighlightedText text={publication.title} keywords={highlightKeywords} />
             </h2>
           </Link>
-          <div className="mt-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm text-text-muted">
+          <div className={reviewWorkMetadataClass}>
             {publication.authors ?? 'Unknown authors'}
           </div>
         </div>
-        <span className="overflow-hidden text-ellipsis whitespace-nowrap text-sm text-text-muted" title={publication.venue ?? undefined}>
+        <span className={reviewWorkVenueClass} title={publication.venue ?? undefined}>
           {publication.venue ?? '—'}
         </span>
-        <span>
+        <span className={reviewWorkStatusClass}>
           <OutcomeBadge
             outcome={decision?.outcome ?? 'exclude'}
             label={decision && decision.version > 1 ? `${itemStatusLabel(item)} · v${decision.version}` : itemStatusLabel(item)}
           />
         </span>
-        <span>
+        <span className={reviewWorkDoiClass}>
           {publication.doi ? <DoiPill doi={publication.doi} /> : <span className="text-text-muted">—</span>}
         </span>
-        <time className="overflow-hidden text-ellipsis whitespace-nowrap text-sm text-text-muted" dateTime={item.submittedAt ?? undefined}>
+        <time className={reviewWorkSubmittedClass} dateTime={item.submittedAt ?? undefined}>
           {formatSubmittedAt(item.submittedAt)}
         </time>
-        <span className="flex justify-start min-[861px]:justify-end">
+        <span className={reviewWorkActionsClass}>
           {!editing && decision ? (
             <Button type="button" variant="secondary" size="sm" onClick={() => setEditing(true)}>
               Edit Decision
@@ -324,7 +326,7 @@ function DecisionRow({
         </span>
       </div>
       {editing && decision ? (
-        <div className="border-t border-border bg-bg-elevated p-4" data-decision-editor>
+        <div className={reviewWorkEditorClass} data-decision-editor>
           <DecisionEditForm
             projectId={projectId}
             stage={stage}
@@ -373,6 +375,14 @@ export function MyDecisionsPage() {
     })
     return sortDecisionItems(items, sortKey, sortDirection)
   }, [query.data?.items, search, sortDirection, sortKey, statusFilter])
+
+  const toggleSort = (key: DecisionSortKey) => {
+    if (key === sortKey) setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+    else {
+      setSortKey(key)
+      setSortDirection(key === 'submitted' ? 'desc' : 'asc')
+    }
+  }
 
   return (
     <Page>
@@ -450,7 +460,7 @@ export function MyDecisionsPage() {
                       .map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                   </Select>
                 </label>
-                <label className="grid gap-1 text-sm font-semibold text-text-secondary">
+                <label className="grid gap-1 text-sm font-semibold text-text-secondary hidden max-[520px]:grid">
                   Sort by
                   <Select
                     value={`${sortKey}:${sortDirection}`}
@@ -480,7 +490,19 @@ export function MyDecisionsPage() {
           ) : filteredItems.length === 0 ? (
             <p className="text-text-muted">No decisions match your filters.</p>
           ) : (
-            <ul className="m-0 grid list-none gap-3 p-0" aria-label="Submitted decisions">
+            <>
+              <div className={`${reviewWorkGridClass} mb-2 px-4 text-[0.72rem] font-bold tracking-[0.04em] text-text-muted uppercase max-[520px]:hidden`}>
+                <span className="flex items-center gap-0.5">
+                  <PublicationListSortHeader label="Title" sortKey="title" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />{' / '}
+                  <PublicationListSortHeader label="Authors" sortKey="authors" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+                </span>
+                <PublicationListSortHeader label="Venue" sortKey="venue" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+                <PublicationListSortHeader label="Decision" sortKey="decision" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+                <PublicationListSortHeader label="DOI" sortKey="doi" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+                <PublicationListSortHeader label="Submitted" sortKey="submitted" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+                <span className={reviewWorkActionsClass}>Actions</span>
+              </div>
+              <ul className={reviewWorkListClass} aria-label="Submitted decisions">
                 {filteredItems.map((item) => (
                   <DecisionRow
                     key={item.workItemId}
@@ -493,7 +515,8 @@ export function MyDecisionsPage() {
                     onWorkflowImpact={setWorkflowImpact}
                   />
                 ))}
-            </ul>
+              </ul>
+            </>
           )}
         </>
       ) : null}

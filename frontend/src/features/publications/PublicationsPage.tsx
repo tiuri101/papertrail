@@ -25,6 +25,7 @@ import {
   IconUpload,
 } from '../../components/icons'
 import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
+import { PublicationListSortHeader } from '../../components/PublicationListSortHeader'
 import { RowActionsMenu } from '../../components/RowActionsMenu'
 import { Select } from '../../components/Select'
 import { InfoTooltip } from '../../components/Tooltip'
@@ -51,6 +52,8 @@ import {
 
 const rowActionItemClass = actionListItemClass()
 const dangerRowActionItemClass = actionListItemClass({ danger: true })
+
+const publicationRowGridClass = "grid grid-cols-[1.5rem_minmax(0,1fr)_3.25rem_9rem_6.5rem_4.5rem_4.5rem] items-center gap-3 [&>*]:min-w-0 max-[900px]:grid-cols-[1.5rem_auto_minmax(0,1fr)_auto_auto] max-[900px]:grid-rows-2 max-[900px]:[grid-template-areas:'checkbox_title_title_title_actions'_'._year_source_stage_pdf'] max-[900px]:gap-y-2 max-[600px]:grid-cols-[1.5rem_minmax(0,1fr)_auto] max-[600px]:grid-rows-4 max-[600px]:[grid-template-areas:'checkbox_title_actions'_'._source_source'_'._year_stage'_'._pdf_pdf']"
 
 const SCREENING_FILTER_OPTIONS = [
   { value: '', label: 'All' },
@@ -226,7 +229,7 @@ function PublicationRow({
       'relative rounded-md border border-border bg-linear-to-b from-surface-raised to-surface px-4 py-3 shadow-sm transition-[border-color,background-color,transform,box-shadow] duration-150 hover:-translate-y-0.5 hover:border-border-strong hover:shadow-md max-[600px]:px-3',
       selected && 'border-primary bg-none bg-primary-container hover:border-primary',
     )}>
-      <div className="grid grid-cols-[1.5rem_minmax(0,1fr)_3.25rem_9rem_6.5rem_4.5rem_4.5rem] items-center gap-3 [&>*]:min-w-0 max-[900px]:grid-cols-[1.5rem_auto_minmax(0,1fr)_auto_auto] max-[900px]:grid-rows-2 max-[900px]:[grid-template-areas:'checkbox_title_title_title_actions'_'._year_source_stage_pdf'] max-[900px]:gap-y-2 max-[600px]:grid-cols-[1.5rem_minmax(0,1fr)_auto] max-[600px]:grid-rows-4 max-[600px]:[grid-template-areas:'checkbox_title_actions'_'._source_source'_'._year_stage'_'._pdf_pdf']">
+      <div className={publicationRowGridClass}>
         <span className="flex items-center max-[900px]:[grid-area:checkbox]">
           {canManage ? (
             <Input
@@ -540,6 +543,14 @@ export function PublicationsPage() {
     [filteredPublications, sortKey, sortDirection],
   )
 
+  const toggleSort = (key: PublicationSortKey) => {
+    if (key === sortKey) setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+    else {
+      setSortKey(key)
+      setSortDirection('asc')
+    }
+  }
+
   const bulkEnrich = useMutation({
     mutationFn: (variables: { publicationIds?: string[]; missingOnly: boolean }) => apiRequest<{ jobIds: string[] }>(
       `/api/v1/projects/${projectId}/publications/enrich`,
@@ -704,7 +715,7 @@ export function PublicationsPage() {
                     ? `${missingPdfCount} paper${missingPdfCount === 1 ? '' : 's'} missing a PDF`
                     : 'All papers have a PDF'}
                 </button>
-                <label>
+                <label className="hidden max-[900px]:block">
                   Sort by
                   <Select
                     value={`${sortKey}:${sortDirection}`}
@@ -796,6 +807,18 @@ export function PublicationsPage() {
                 </a>
               </p>
             ) : null}
+        <div className={cn(publicationRowGridClass, 'mb-2 px-4 text-[0.72rem] font-bold tracking-[0.04em] text-text-muted uppercase max-[900px]:hidden')}>
+              <span aria-hidden="true" />
+              <span className="flex items-center gap-0.5">
+                <PublicationListSortHeader label="Title" sortKey="title" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />{' / '}
+                <PublicationListSortHeader label="Authors" sortKey="authors" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+              </span>
+              <PublicationListSortHeader label="Year" sortKey="year" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+              <PublicationListSortHeader label="Source" sortKey="source" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+              <PublicationListSortHeader label="Stage" sortKey="stage" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+              <PublicationListSortHeader label="PDF" sortKey="pdf" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+              <span aria-hidden="true" />
+        </div>
         <ul className="m-0 grid list-none gap-2 p-0">
               {sortedPublications.map((publication) => (
                 <PublicationRow

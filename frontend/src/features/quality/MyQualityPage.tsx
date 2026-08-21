@@ -11,6 +11,7 @@ import { CountPill } from '../../components/CountPill'
 import { DoiPill } from '../../components/DoiPill'
 import { HighlightedText } from '../../components/HighlightedText'
 import { Input } from '../../components/Input'
+import { PublicationListSortHeader } from '../../components/PublicationListSortHeader'
 import { Select } from '../../components/Select'
 import { reviewWorkActionsClass, reviewWorkCardClass, reviewWorkDoiClass, reviewWorkEditorClass, reviewWorkGridClass, reviewWorkListClass, reviewWorkMetadataClass, reviewWorkStatusClass, reviewWorkSubmittedClass, reviewWorkTitleClass, reviewWorkTitleLinkClass, reviewWorkVenueClass } from '../../components/reviewWorkStyles'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
@@ -157,6 +158,14 @@ export function MyQualityPage() {
     return sortItems(items, sortKey, sortDirection)
   }, [query.data, search, sortDirection, sortKey])
 
+  const toggleSort = (key: QualitySortKey) => {
+    if (key === sortKey) setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+    else {
+      setSortKey(key)
+      setSortDirection(key === 'submitted' ? 'desc' : 'asc')
+    }
+  }
+
   return (
     <Page>
       <StageEyebrow stage="extraction_quality" />
@@ -177,7 +186,7 @@ export function MyQualityPage() {
                   Search papers
                   <Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Title, author, DOI…" />
                 </label>
-                <label>
+                <label className="hidden max-[520px]:block">
                   Sort by
                   <Select value={`${sortKey}:${sortDirection}`} onChange={(event) => {
                     const [key, direction] = event.target.value.split(':') as [QualitySortKey, SortDirection]
@@ -204,9 +213,22 @@ export function MyQualityPage() {
           ) : filteredItems.length === 0 ? (
             <p className="text-text-muted">No assessments match your filters.</p>
           ) : (
-            <ul className={reviewWorkListClass}>
+            <>
+              <div className={`${reviewWorkGridClass} mb-2 px-4 text-[0.72rem] font-bold tracking-[0.04em] text-text-muted uppercase max-[520px]:hidden`}>
+                <span className="flex items-center gap-0.5">
+                  <PublicationListSortHeader label="Title" sortKey="title" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />{' / '}
+                  <PublicationListSortHeader label="Authors" sortKey="authors" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+                </span>
+                <PublicationListSortHeader label="Venue" sortKey="venue" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+                <PublicationListSortHeader label="Score" sortKey="score" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+                <PublicationListSortHeader label="DOI" sortKey="doi" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+                <PublicationListSortHeader label="Submitted" sortKey="submitted" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+                <span className={reviewWorkActionsClass}>Actions</span>
+              </div>
+              <ul className={reviewWorkListClass}>
                 {filteredItems.map((entry) => <QualityRow key={entry.id} projectId={projectId} entry={entry} highlightKeywords={highlightKeywords} />)}
-            </ul>
+              </ul>
+            </>
           )}
         </>
       ) : null}

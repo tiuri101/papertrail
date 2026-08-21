@@ -15,6 +15,7 @@ import { Select } from '../../components/Select'
 import { SortableColumnHeader } from '../../components/SortableColumnHeader'
 import { InfoTooltip } from '../../components/Tooltip'
 import { useCanManageProject } from '../../hooks/useCanManageProject'
+import { cn } from '../../lib/cn'
 import { AdministrationEyebrow } from '../projects/StageEyebrow'
 import { BackgroundJob, hasActiveJob } from './jobStatus'
 
@@ -59,6 +60,14 @@ const STATUS_SUMMARY_ITEMS = [
   { status: 'failed', label: 'Failed' },
   { status: 'cancelled', label: 'Cancelled' },
 ] as const
+
+const STATUS_CARD_STYLES: Record<string, string> = {
+  running: 'border-primary/35 bg-primary-container aria-pressed:ring-primary/50 [&_strong]:text-primary',
+  queued: 'border-warning/35 bg-warning-container aria-pressed:ring-warning/50 [&_strong]:text-warning',
+  completed: 'border-success/35 bg-success-container aria-pressed:ring-success/50 [&_strong]:text-success',
+  failed: 'border-danger/35 bg-danger-container aria-pressed:ring-danger/50 [&_strong]:text-danger',
+  cancelled: 'border-border bg-bg-elevated aria-pressed:ring-border-strong/60 [&_strong]:text-text',
+}
 
 function sortValue(job: BackgroundJob, key: SortKey): string | number | null {
   if (key === 'progress') {
@@ -303,7 +312,10 @@ export function JobsPage() {
             <button
               type="button"
               key={status}
-              className={`grid min-h-20 cursor-pointer gap-1 rounded-md border bg-bg-elevated p-3 text-left shadow-none transition-colors hover:bg-surface-hover aria-pressed:ring-2 aria-pressed:ring-primary-container [&_strong]:text-xl [&_span]:text-xs [&_span]:font-semibold [&_span]:text-text-muted ${status === 'running' ? 'border-primary/35 [&_strong]:text-primary' : status === 'queued' ? 'border-warning/35 [&_strong]:text-warning' : status === 'completed' ? 'border-success/35 [&_strong]:text-success' : status === 'failed' ? 'border-danger/35 [&_strong]:text-danger' : 'border-border [&_strong]:text-text'}`}
+              className={cn(
+                'grid min-h-20 cursor-pointer gap-1 rounded-md border p-3 text-left shadow-none transition-[filter,background-color] hover:brightness-110 aria-pressed:ring-2 [&_strong]:text-xl [&_span]:text-xs [&_span]:font-semibold [&_span]:text-text-muted',
+                STATUS_CARD_STYLES[status] ?? STATUS_CARD_STYLES.cancelled,
+              )}
               aria-label={`${count} ${status} job${count === 1 ? '' : 's'}`}
               aria-pressed={statusFilter === status}
               onClick={() => setStatusFilter(status)}

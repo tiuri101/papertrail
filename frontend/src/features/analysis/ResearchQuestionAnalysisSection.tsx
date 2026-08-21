@@ -102,7 +102,7 @@ function SourceEvidenceCard({
   return (
     <article
       id={evidenceId}
-      className="min-w-0 rounded-md border border-primary/50 bg-surface-raised p-4 shadow-[0_0_0_2px_var(--color-primary-container)] transition-[border-color,box-shadow] duration-150"
+      className="min-w-0 rounded-md border border-border-strong bg-surface-raised p-4 shadow-md transition-[border-color,box-shadow] duration-150"
     >
       <header className="flex items-center gap-2">
         <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-primary-container text-primary [&_svg]:size-3.5 [&_svg]:fill-current" aria-hidden="true"><IconFile /></span>
