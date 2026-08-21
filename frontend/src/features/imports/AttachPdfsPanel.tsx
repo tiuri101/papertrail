@@ -2,6 +2,8 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
+import { Card } from '../../components/Card'
 import { IconUpload } from '../../components/icons'
 import { FileDropZone } from './FileDropZone'
 import { PdfMatchReview, type PdfSummary } from './PdfMatchReview'
@@ -40,9 +42,9 @@ export function AttachPdfsPanel({ projectId, importBatchId, onClose }: {
   })
 
   return (
-    <section className="card nested-card">
+    <Card as="section" className="rounded-md p-4 [&>*+*]:mt-3">
       <h3>Attach PDFs</h3>
-      {upload.error ? <p className="error" role="alert">{upload.error.message}</p> : null}
+      {upload.error ? <p className="text-danger" role="alert">{upload.error.message}</p> : null}
       <FileDropZone
         id={`attach-pdfs-${importBatchId}`}
         label="PDF files"
@@ -63,17 +65,17 @@ export function AttachPdfsPanel({ projectId, importBatchId, onClose }: {
         onChange={setPdfArchives}
         disabled={upload.isPending}
       />
-      <div className="toolbar">
-        <button
+      <div className="flex flex-wrap items-center gap-3">
+        <Button
           type="button"
-          className="button-sm"
+          size="sm"
           disabled={(!pdfFiles.length && !pdfArchives.length) || upload.isPending}
           onClick={() => upload.mutate()}
         >
           <IconUpload />
           {upload.isPending ? 'Uploading…' : 'Upload PDFs'}
-        </button>
-        <button type="button" className="button-sm" onClick={onClose}>Close</button>
+        </Button>
+        <Button type="button" size="sm" variant="secondary" onClick={onClose}>Close</Button>
       </div>
       {upload.data ? (
         <p>
@@ -81,6 +83,6 @@ export function AttachPdfsPanel({ projectId, importBatchId, onClose }: {
         </p>
       ) : null}
       {showReview ? <PdfMatchReview projectId={projectId} importBatchId={importBatchId} /> : null}
-    </section>
+    </Card>
   )
 }

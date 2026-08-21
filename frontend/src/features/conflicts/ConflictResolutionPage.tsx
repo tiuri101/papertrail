@@ -4,6 +4,7 @@ import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { Button } from '../../components/Button'
+import { Card } from '../../components/Card'
 import { CountPill } from '../../components/CountPill'
 import { Textarea } from '../../components/Textarea'
 import { useProjectManageState } from '../../hooks/useCanManageProject'
@@ -112,7 +113,7 @@ export function ConflictResolutionPage() {
       {resolve.error ? <p className="error" role="alert">{resolve.error.message}</p> : null}
       {addReviewer.error ? <p className="error" role="alert">{addReviewer.error.message}</p> : null}
       <CountPill count={list.length}>unresolved conflicts</CountPill>
-      <ul className="card-list stacked">
+      <ul className="m-0 grid list-none gap-5 p-0" aria-label="Unresolved conflicts">
         {list.map((conflict) => (
           <ConflictCard
             key={conflict.publicationId}
@@ -142,13 +143,14 @@ function ConflictCard({ conflict, resolving, addingReviewer, onResolve, onAddRev
     : isSafeHttpUrl(publication.publisherUrl) ? publication.publisherUrl : null
 
   return (
-    <li className="card">
+    <Card as="li">
       <h2>{publication.title}</h2>
       <p className="muted">{publication.authors ?? 'Unknown authors'}</p>
       {publication.abstract ? <p>{publication.abstract}</p> : null}
       {link ? <p><a href={link} target="_blank" rel="noreferrer">View publication</a></p> : null}
       <h3>Reviewer Decisions</h3>
-      <table>
+      <div className="overflow-x-auto">
+      <table className="min-w-[36rem]">
         <thead>
           <tr>
             <th scope="col">Reviewer</th>
@@ -166,11 +168,12 @@ function ConflictCard({ conflict, resolving, addingReviewer, onResolve, onAddRev
           ))}
         </tbody>
       </table>
-      <label>
+      </div>
+      <label className="grid gap-2 text-sm font-semibold text-text-secondary">
         Resolution note
         <Textarea value={note} onChange={(event) => setNote(event.target.value)} />
       </label>
-      <div className="toolbar">
+      <div className="flex flex-wrap gap-3">
         {outcomes.map((outcome) => (
           <Button
             type="button"
@@ -183,11 +186,11 @@ function ConflictCard({ conflict, resolving, addingReviewer, onResolve, onAddRev
           </Button>
         ))}
       </div>
-      <div className="toolbar">
+      <div className="flex flex-wrap gap-3">
         <Button type="button" variant="secondary" onClick={onAddReviewer} disabled={addingReviewer}>
           Add Another Reviewer
         </Button>
       </div>
-    </li>
+    </Card>
   )
 }

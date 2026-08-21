@@ -242,7 +242,7 @@ describe('PublicationsPage', () => {
     const card = screen.getByText('Urban Data in VR').closest('li') as HTMLElement
     expect(checkbox.compareDocumentPosition(screen.getByText('Urban Data in VR')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     fireEvent.click(checkbox)
-    expect(card).toHaveClass('publication-card--selected')
+    expect(card).toHaveAttribute('data-selected', 'true')
     fireEvent.click(screen.getByRole('button', { name: 'Enrich Selected Metadata (1)' }))
 
     await waitFor(() => {
@@ -655,8 +655,8 @@ describe('PublicationsPage', () => {
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
 
     await screen.findByText('Urban Data in VR')
-    const titles = () => screen.getAllByRole('listitem').map(
-      (item) => item.querySelector('.publication-row-grid__title a')?.textContent,
+    const titles = () => Array.from(document.querySelectorAll('[data-publication-row]')).map(
+      (item) => item.querySelector('a')?.textContent,
     )
 
     // Default: title ascending -- "Paper without DOI" sorts before "Urban Data in VR".

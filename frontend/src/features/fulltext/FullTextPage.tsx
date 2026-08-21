@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { Button } from '../../components/Button'
+import { Card } from '../../components/Card'
 import { CountPill } from '../../components/CountPill'
 import { DoiPill } from '../../components/DoiPill'
 import { GoBackButton } from '../../components/GoBackButton'
@@ -104,13 +105,13 @@ export function FullTextPage() {
           </p>
         </InfoBox>
       ) : null}
-      {retrievalQueue.nextError ? <p className="error" role="alert">{retrievalQueue.nextError}</p> : null}
-      {updateRetrieval.error ? <p className="error" role="alert">{updateRetrieval.error.message}</p> : null}
-      {queue.nextError ? <p className="error" role="alert">{queue.nextError}</p> : null}
+      {retrievalQueue.nextError ? <p className="text-danger" role="alert">{retrievalQueue.nextError}</p> : null}
+      {updateRetrieval.error ? <p className="text-danger" role="alert">{updateRetrieval.error.message}</p> : null}
+      {queue.nextError ? <p className="text-danger" role="alert">{queue.nextError}</p> : null}
       {progress ? (
         <CountPill
           count={progress.addressed}
-          className="full-text-retrieval-progress"
+          className="mt-5"
           prefix="Retrieval status recorded for"
         >
           of {progress.total} publications
@@ -122,13 +123,13 @@ export function FullTextPage() {
         </CountPill>
       ) : null}
       {!queue.previousItem && queue.lastCompletedItem ? (
-        <div className="toolbar">
+        <div className="flex flex-wrap items-center gap-3">
           <GoBackButton onClick={() => queue.goBack.mutate()} disabled={queue.goBack.isPending}>
             ← Go back to “{queue.lastCompletedItem.title}”
           </GoBackButton>
         </div>
       ) : null}
-      {queue.goBack.error ? <p className="error" role="alert">{queue.goBack.error.message}</p> : null}
+      {queue.goBack.error ? <p className="text-danger" role="alert">{queue.goBack.error.message}</p> : null}
       {queue.previousItem ? (
         <PreviousItemCard
           projectId={projectId}
@@ -150,7 +151,7 @@ export function FullTextPage() {
       ) : isLoading ? (
         <p>Loading…</p>
       ) : progress?.total === 0 ? (
-        <p className="muted">No publications require full-text retrieval.</p>
+        <p className="text-text">No publications require full-text retrieval.</p>
       ) : retrievalQueue.item ? (
         <RetrievalCard
           projectId={projectId}
@@ -163,7 +164,7 @@ export function FullTextPage() {
         />
       ) : (
         <>
-          <p className="muted">No full-text work is currently available for you.</p>
+          <p className="text-text">No full-text work is currently available for you.</p>
           <Button type="button" variant="secondary" onClick={() => navigate(`/projects/${projectId}`)}>
             Back to project
           </Button>
@@ -193,13 +194,13 @@ function RetrievalCard({ projectId, retrieval, saving, onSubmit, onSkip, skippin
   }
 
   return (
-    <article className="card">
+    <Card as="article">
       <h2>{publication.title}</h2>
-      <p className="muted">
+      <p className="text-text">
         {publication.authors ?? 'Unknown authors'}
         {publication.publicationYear ? ` (${publication.publicationYear})` : ''}
       </p>
-      <div className="toolbar">
+      <div className="flex flex-wrap items-center gap-3">
         {fullTextDocument.data ? (
           <PdfAvailabilityPill
             available={fullTextDocument.data.available}
@@ -230,7 +231,7 @@ function RetrievalCard({ projectId, retrieval, saving, onSubmit, onSkip, skippin
         onAvailable={() => setStatus('available')}
         collapsible
       />
-      <label>
+      <label className="grid gap-2 text-sm font-semibold text-text-secondary">
         Retrieval status for {publication.title}
         <Select
           value={status}
@@ -241,17 +242,17 @@ function RetrievalCard({ projectId, retrieval, saving, onSubmit, onSkip, skippin
           ))}
         </Select>
       </label>
-      <label>
+      <label className="grid gap-2 text-sm font-semibold text-text-secondary">
         Note for {publication.title}
         <Textarea value={note} onChange={(event) => setNote(event.target.value)} />
       </label>
       {isAvailable ? (
-        <p className="muted">
+        <p className="text-text">
           Save the available status to open full-text screening and its LLM evidence panel.
         </p>
       ) : null}
-      {skipError ? <p className="error" role="alert">{skipError}</p> : null}
-      <div className="toolbar">
+      {skipError ? <p className="text-danger" role="alert">{skipError}</p> : null}
+      <div className="flex flex-wrap items-center gap-3">
         <Button
           type="button"
           onClick={handleSubmit}
@@ -269,6 +270,6 @@ function RetrievalCard({ projectId, retrieval, saving, onSubmit, onSkip, skippin
           Skip for now
         </Button>
       </div>
-    </article>
+    </Card>
   )
 }

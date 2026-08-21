@@ -69,25 +69,25 @@ export function FullTextDocumentPanel({ projectId, publicationId, onAvailable, o
   }
 
   const content = (
-    <>
-      {document.isLoading ? <p className="muted">Checking PDF…</p> : null}
-      {document.error ? <p className="error" role="alert">{document.error.message}</p> : null}
-      {upload.error ? <p className="error" role="alert">{upload.error.message}</p> : null}
-      {remove.error ? <p className="error" role="alert">{remove.error.message}</p> : null}
+    <div className="grid gap-3">
+      {document.isLoading ? <p className="text-text">Checking PDF…</p> : null}
+      {document.error ? <p className="text-danger" role="alert">{document.error.message}</p> : null}
+      {upload.error ? <p className="text-danger" role="alert">{upload.error.message}</p> : null}
+      {remove.error ? <p className="text-danger" role="alert">{remove.error.message}</p> : null}
       {active ? (
         <>
           <p><strong>✓ PDF available</strong></p>
           <p>
             {active.originalFilename} · {formatSize(active.fileSize)}
-            <span className="muted">
+            <span className="text-text">
               {' · '}Uploaded {new Date(active.uploadedAt).toLocaleDateString()}
               {active.uploadedBy ? ` by ${active.uploadedBy.displayName}` : ''}
             </span>
           </p>
-          <div className="toolbar">
+          <div className="flex flex-wrap items-center gap-3">
             <Button as="a" variant="primary" size="sm" href={`${endpoint}/content`} target="_blank" rel="noreferrer">View PDF</Button>
             <ConfirmButton
-              className="button-sm"
+              className="h-8 min-h-8 px-3 text-[13px]"
               label="Replace PDF"
               confirmLabel="Replace PDF"
               warning="Replace full text? The previous PDF will be retained in document history."
@@ -105,7 +105,7 @@ export function FullTextDocumentPanel({ projectId, publicationId, onAvailable, o
               {showHistory ? 'Hide document history' : 'Document history'}
             </Button>
             <ConfirmButton
-              className="button-sm"
+              className="h-8 min-h-8 px-3 text-[13px]"
               label="Remove PDF"
               confirmLabel="Remove PDF"
               warning="Remove the active PDF? Document history will be retained."
@@ -118,8 +118,8 @@ export function FullTextDocumentPanel({ projectId, publicationId, onAvailable, o
         </>
       ) : document.data ? (
         <>
-          <p className="muted">No PDF attached</p>
-          <div className="toolbar">
+          <p className="text-text">No PDF attached</p>
+          <div className="flex flex-wrap items-center gap-3">
             <Button type="button" size="sm" onClick={openFilePicker} disabled={upload.isPending}>
               <IconUpload />
               Upload PDF
@@ -137,7 +137,7 @@ export function FullTextDocumentPanel({ projectId, publicationId, onAvailable, o
       ) : null}
       <input
         ref={inputRef}
-        className="visually-hidden"
+        className="sr-only"
         aria-label={active ? 'Choose replacement PDF' : 'Choose PDF'}
         type="file"
         accept="application/pdf,.pdf"
@@ -145,7 +145,7 @@ export function FullTextDocumentPanel({ projectId, publicationId, onAvailable, o
       />
       {upload.isPending ? <p role="status">Uploading…</p> : null}
       {showHistory ? (
-        <ul className="compact-list">
+        <ul className="mb-0 list-disc pl-6">
           {history.data?.map((item) => (
             <li key={item.id}>
               {item.isActive ? 'Current' : 'Previous'}: {item.originalFilename}
@@ -156,7 +156,7 @@ export function FullTextDocumentPanel({ projectId, publicationId, onAvailable, o
           {history.data?.length === 0 ? <li>No document history.</li> : null}
         </ul>
       ) : null}
-    </>
+    </div>
   )
 
   // Wait for the query to settle before mounting the (uncontrolled)
@@ -165,7 +165,7 @@ export function FullTextDocumentPanel({ projectId, publicationId, onAvailable, o
   const settled = !document.isLoading || Boolean(document.error)
   if (!collapsible || !settled) {
     return (
-      <section className="full-text-document" aria-label="Full text document">
+      <section className="my-4 rounded-md border border-border bg-bg-elevated p-4" aria-label="Full text document">
         {content}
       </section>
     )
@@ -175,7 +175,7 @@ export function FullTextDocumentPanel({ projectId, publicationId, onAvailable, o
     <CollapsibleSection
       title="Full text"
       headingLevel={3}
-      className="full-text-document"
+      className="my-4 rounded-md bg-none bg-bg-elevated p-4 shadow-none"
       defaultExpanded={!active}
     >
       {content}

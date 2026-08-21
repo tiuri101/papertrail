@@ -258,7 +258,7 @@ export function PublicationDetailPage() {
       }
     }
     return (
-      <main className="page publication-detail">
+      <main className="page">
         <AdministrationEyebrow />
         <p>
           {openedFromList ? (
@@ -292,22 +292,22 @@ export function PublicationDetailPage() {
     : `/projects/${projectId}/full-text`
 
   return (
-    <main className="page publication-detail">
+    <main className="page">
       <AdministrationEyebrow />
       <p><Link to={`/projects/${projectId}/publications`}>← Back to Publications</Link></p>
 
-      <div className="publication-detail__layout">
-        <div className="publication-detail__main">
-          <header className="publication-detail__header">
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 min-[961px]:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="min-w-0 max-[960px]:contents">
+          <header className="mb-5 max-[960px]:order-1">
             <h1>{publication.title}</h1>
-            <p className="publication-detail__authors">{publication.authors ?? 'Unknown authors'}</p>
-            <p className="muted publication-detail__meta">
+            <p className="mb-0 mt-1 text-text-secondary">{publication.authors ?? 'Unknown authors'}</p>
+            <p className="muted mb-3 mt-1">
               {[
                 [publication.publicationYear, publication.venue].filter(Boolean).join(', '),
                 publication.publicationType,
               ].filter(Boolean).join(' · ')}
             </p>
-            <div className="publication-card__workflow">
+            <div className="mt-3 flex flex-wrap items-center gap-2">
               <Badge variant={stage.variant}>{stage.label}</Badge>
               <PdfAvailabilityPill
                 available={Boolean(publication.fullText?.available)}
@@ -337,20 +337,20 @@ export function PublicationDetailPage() {
             className="max-[960px]:order-4 max-[960px]:min-w-0 max-[960px]:max-w-full"
           >
             {activeTab === 'overview' ? (
-              <div className="publication-detail__overview">
-                <section>
-                  <h3>Abstract</h3>
-                  <p className="publication-detail__full-abstract">
+              <div className="grid min-w-0 max-w-full gap-5">
+                <section className="min-w-0 max-w-full">
+                  <h3 className="mb-2 mt-0">Abstract</h3>
+                  <p className="max-w-full leading-relaxed [overflow-wrap:anywhere]">
                     {publication.abstract?.trim() || 'No abstract available.'}
                   </p>
                 </section>
                 {subjects.length ? (
-                  <section>
-                    <h3>Subjects</h3>
+                  <section className="min-w-0 max-w-full">
+                    <h3 className="mb-2 mt-0">Subjects</h3>
                     {/* `!` needed on whitespace-normal: Badge's own base class always sets
                         `whitespace-nowrap`, and Tailwind v4 doesn't resolve two same-property
                         utilities by className order. */}
-                    <div className="publication-detail__subjects">
+                    <div className="flex min-w-0 max-w-full flex-wrap gap-2">
                       {subjects.map((subject) => (
                         <Badge key={subject} variant="primary" className="max-w-full [overflow-wrap:anywhere] whitespace-normal!">
                           {subject}
@@ -396,7 +396,7 @@ export function PublicationDetailPage() {
             ) : null}
 
             {activeTab === 'history' ? (
-              <div className="publication-detail__history">
+              <div className="grid gap-6 [&_h3]:mb-3 [&_h3]:mt-0">
                 <section>
                   <h3>Screening &amp; Extraction Decisions</h3>
                   <PublicationReviewDetails
@@ -460,18 +460,18 @@ export function PublicationDetailPage() {
           </TabPanel>
         </div>
 
-        <aside className="publication-detail__sidebar">
-          <section className="card publication-detail__sidebar-card">
+        <aside className="sticky top-[92px] grid gap-4 max-[960px]:static max-[960px]:order-2 max-[960px]:min-w-0 max-[960px]:max-w-full">
+          <section className="card [&_h2]:mb-3 [&_h2]:mt-0">
             <h2>Review Status</h2>
-            <dl className="publication-detail__status-list">
-              <div>
-                <dt>Stage</dt>
-                <dd><Badge variant={stage.variant}>{stage.label}</Badge></dd>
+            <dl className="mb-4 grid gap-3">
+              <div className="flex items-center justify-between gap-2">
+                <dt className="text-[0.85rem] text-text-muted">Stage</dt>
+                <dd className="m-0"><Badge variant={stage.variant}>{stage.label}</Badge></dd>
               </div>
               {activeStage ? (
-                <div>
-                  <dt>Your decision</dt>
-                  <dd>
+                <div className="flex items-center justify-between gap-2">
+                  <dt className="text-[0.85rem] text-text-muted">Your decision</dt>
+                  <dd className="m-0">
                     <OutcomeBadge
                       outcome={yourDecision?.outcome}
                       label={screeningLabel(yourDecision?.outcome)}
@@ -486,22 +486,22 @@ export function PublicationDetailPage() {
                   <Button as={Link} variant="secondary" className="w-full" to={screeningHref}>
                     Open Screening Queue
                   </Button>
-                  <p className="muted publication-detail__screening-note">
+                  <p className="muted mt-2 text-[0.82rem]">
                     Claims the next item in the {screeningStageLabel(activeStage)} queue -- not
                     guaranteed to be this publication.
                   </p>
                 </>
               ) : (
-                <p className="muted publication-detail__screening-note">
+                <p className="muted mt-2 text-[0.82rem]">
                   Awaiting full-text retrieval before it can be screened.
                 </p>
               )
             ) : (
-              <p className="muted publication-detail__screening-note">Screening complete.</p>
+              <p className="muted mt-2 text-[0.82rem]">Screening complete.</p>
             )}
           </section>
 
-          <section className="card publication-detail__sidebar-card">
+          <section className="card [&_h2]:mb-3 [&_h2]:mt-0">
             <h2>Quick Actions</h2>
             <div className="grid gap-0.5">
               {publication.fullText?.available ? (
