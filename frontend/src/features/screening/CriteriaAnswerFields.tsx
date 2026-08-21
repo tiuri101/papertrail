@@ -6,6 +6,7 @@ import { formatHotkey, loadScreeningHotkeys, type ScreeningHotkeyAction } from '
 import { criterionNumbers, sortedByKind } from './criteriaNumbering'
 import type { CriterionAnswer, ScreeningCriterion } from './useScreeningQueue'
 import {InfoBox} from "../../components/InfoBox";
+import { Textarea } from '../../components/Textarea'
 
 function capitalize(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1)
@@ -178,7 +179,7 @@ export function CriteriaAnswerFields({
       </div>
       <label>
         Notes
-        <textarea
+        <Textarea
           value={notes}
           onChange={(event) => setNotes(event.target.value)}
         />

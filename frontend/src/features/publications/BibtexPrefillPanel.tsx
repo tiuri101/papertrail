@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { getCsrfToken } from '../auth/session'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { IconSparkle } from '../../components/icons'
+import { Textarea } from '../../components/Textarea'
 import { FileDropZone } from '../imports/FileDropZone'
 import { applyBibtexFields, PublicationDraft } from './publicationFieldsData'
 
@@ -83,7 +84,7 @@ export function BibtexPrefillPanel({
       />
       <label>
         Or paste BibTeX
-        <textarea
+        <Textarea
           value={bibText}
           onChange={(event) => {
             setBibText(event.target.value)

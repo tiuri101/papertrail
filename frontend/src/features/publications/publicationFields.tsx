@@ -1,3 +1,5 @@
+import { Input } from '../../components/Input'
+import { Textarea } from '../../components/Textarea'
 import type { PublicationDraft } from './publicationFieldsData'
 
 export function PublicationFieldInputs({
@@ -11,55 +13,55 @@ export function PublicationFieldInputs({
     <>
       <label>
         Title
-        <input value={draft.title} onChange={setField('title')} required />
+        <Input value={draft.title} onChange={setField('title')} required />
       </label>
       <label>
         Authors
-        <input value={draft.authors} onChange={setField('authors')} />
+        <Input value={draft.authors} onChange={setField('authors')} />
       </label>
       <label>
         Abstract
-        <textarea value={draft.abstract} onChange={setField('abstract')} rows={4} />
+        <Textarea value={draft.abstract} onChange={setField('abstract')} rows={4} />
       </label>
       <label>
         Year
-        <input type="number" value={draft.publicationYear} onChange={setField('publicationYear')} />
+        <Input type="number" value={draft.publicationYear} onChange={setField('publicationYear')} />
       </label>
       <label>
         Venue
-        <input value={draft.venue} onChange={setField('venue')} />
+        <Input value={draft.venue} onChange={setField('venue')} />
       </label>
       <label>
         Publication type
-        <input value={draft.publicationType} onChange={setField('publicationType')} />
+        <Input value={draft.publicationType} onChange={setField('publicationType')} />
       </label>
       <label>
         DOI
-        <input value={draft.doi} onChange={setField('doi')} />
+        <Input value={draft.doi} onChange={setField('doi')} />
       </label>
       <label>
         Publisher URL
-        <input value={draft.publisherUrl} onChange={setField('publisherUrl')} />
+        <Input value={draft.publisherUrl} onChange={setField('publisherUrl')} />
       </label>
       <label>
         Keywords
-        <input value={draft.keywords} onChange={setField('keywords')} />
+        <Input value={draft.keywords} onChange={setField('keywords')} />
       </label>
       <label>
         ISBN
-        <input value={draft.isbn} onChange={setField('isbn')} />
+        <Input value={draft.isbn} onChange={setField('isbn')} />
       </label>
       <label>
         ISSN
-        <input value={draft.issn} onChange={setField('issn')} />
+        <Input value={draft.issn} onChange={setField('issn')} />
       </label>
       <label>
         PubMed ID
-        <input value={draft.pubmedId} onChange={setField('pubmedId')} />
+        <Input value={draft.pubmedId} onChange={setField('pubmedId')} />
       </label>
       <label>
         arXiv ID
-        <input value={draft.arxivId} onChange={setField('arxivId')} />
+        <Input value={draft.arxivId} onChange={setField('arxivId')} />
       </label>
     </>
   )

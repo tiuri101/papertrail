@@ -8,6 +8,9 @@ import { Button, IconButton } from '../../components/Button'
 import { CountPill } from '../../components/CountPill'
 import { DragHandle } from '../../components/DragHandle'
 import { IconCheckCircle, IconPlus, IconTrash } from '../../components/icons'
+import { Input } from '../../components/Input'
+import { Select } from '../../components/Select'
+import { Textarea } from '../../components/Textarea'
 import { useRegisterSectionItems } from '../../components/sectionNavigation'
 import { useProjectManageState } from '../../hooks/useCanManageProject'
 import { useSession } from '../auth/sessionQuery'
@@ -355,13 +358,13 @@ export function FormBuilderPage() {
         </InfoBox>
         <label>
           Kind
-          <select
+          <Select
             value={kind}
             onChange={(event) => { setKind(event.target.value); setTemplateId('') }}
           >
             <option value="extraction">Extraction</option>
             <option value="quality">Quality assessment</option>
-          </select>
+          </Select>
         </label>
         {existingFormOfKind ? (
           <div className="form-editor-existing-form">
@@ -388,16 +391,16 @@ export function FormBuilderPage() {
           <form onSubmit={(event) => { event.preventDefault(); createForm.mutate() }}>
             <label>
               Name
-              <input value={name} onChange={(event) => setName(event.target.value)} />
+              <Input value={name} onChange={(event) => setName(event.target.value)} />
             </label>
             <label>
               Start from template (optional)
-              <select value={templateId} onChange={(event) => setTemplateId(event.target.value)}>
+              <Select value={templateId} onChange={(event) => setTemplateId(event.target.value)}>
                 <option value="">From scratch</option>
                 {templatesForKind.map((template) => (
                   <option key={template.id} value={template.id}>{template.name}</option>
                 ))}
-              </select>
+              </Select>
             </label>
             {templates.error ? <p className="error" role="alert">{templates.error.message}</p> : null}
             <Button type="submit" variant="primary" loading={createForm.isPending}><IconPlus />Create Form</Button>
@@ -408,7 +411,7 @@ export function FormBuilderPage() {
         <h2>Inspect or Edit a Form</h2>
         <label>
           Form to edit
-          <select
+          <Select
             value={selectedForm}
             onChange={(event) => setSelectedForm(event.target.value)}
           >
@@ -427,7 +430,7 @@ export function FormBuilderPage() {
                 </option>
               ))}
             </optgroup>
-          </select>
+          </Select>
         </label>
         {selectedForm ? (
           <>
@@ -445,7 +448,7 @@ export function FormBuilderPage() {
                 >
                   <label>
                     Name
-                    <input
+                    <Input
                       value={selectedFormName}
                       onChange={(event) => setSelectedFormName(event.target.value)}
                       required
@@ -563,7 +566,7 @@ export function FormBuilderPage() {
                         <>
                           <label>
                             Label
-                            <input
+                            <Input
                               aria-label={`Edit label for ${field.label}`}
                               value={editingLabel}
                               onChange={(event) => setEditingLabel(event.target.value)}
@@ -571,7 +574,7 @@ export function FormBuilderPage() {
                           </label>
                           <label>
                             Type
-                            <select
+                            <Select
                               aria-label={`Edit type for ${field.label}`}
                               value={editingType}
                               onChange={(event) => setEditingType(event.target.value)}
@@ -579,10 +582,10 @@ export function FormBuilderPage() {
                               {fieldTypes.map((type) => (
                                 <option key={type} value={type}>{fieldTypeLabels[type] ?? type}</option>
                               ))}
-                            </select>
+                            </Select>
                           </label>
                           <label>
-                            <input
+                            <Input
                               type="checkbox"
                               aria-label={`Edit required for ${field.label}`}
                               checked={editingRequired}
@@ -593,7 +596,7 @@ export function FormBuilderPage() {
                           {selectFieldTypes.has(editingType) ? (
                             <label>
                               Options (one per line)
-                              <textarea
+                              <Textarea
                                 aria-label={`Edit options for ${field.label}`}
                                 value={editingOptionsText}
                                 onChange={(event) => setEditingOptionsText(event.target.value)}
@@ -605,7 +608,7 @@ export function FormBuilderPage() {
                             <div className="form-editor-field__settings-row">
                               <label>
                                 Scale minimum
-                                <input
+                                <Input
                                   type="number"
                                   aria-label={`Edit scale minimum for ${field.label}`}
                                   value={editingRatingMin}
@@ -614,7 +617,7 @@ export function FormBuilderPage() {
                               </label>
                               <label>
                                 Scale maximum
-                                <input
+                                <Input
                                   type="number"
                                   aria-label={`Edit scale maximum for ${field.label}`}
                                   value={editingRatingMax}
@@ -626,7 +629,7 @@ export function FormBuilderPage() {
                           {isQualityForm && weightedFieldTypes.has(editingType) ? (
                             <label>
                               Score weight
-                              <input
+                              <Input
                                 type="number"
                                 aria-label={`Edit score weight for ${field.label}`}
                                 value={editingWeight}
@@ -641,7 +644,7 @@ export function FormBuilderPage() {
                               {editingOptions.map((option) => (
                                 <label key={option}>
                                   {option}
-                                  <input
+                                  <Input
                                     type="number"
                                     aria-label={`Edit score for ${option}`}
                                     value={editingOptionScores[option] ?? ''}
@@ -658,7 +661,7 @@ export function FormBuilderPage() {
                             <div className="form-editor-field__settings-row">
                               <label>
                                 Score if checked
-                                <input
+                                <Input
                                   type="number"
                                   aria-label={`Edit checked score for ${field.label}`}
                                   value={editingTrueScore}
@@ -667,7 +670,7 @@ export function FormBuilderPage() {
                               </label>
                               <label>
                                 Score if unchecked
-                                <input
+                                <Input
                                   type="number"
                                   aria-label={`Edit unchecked score for ${field.label}`}
                                   value={editingFalseScore}
@@ -757,7 +760,7 @@ export function FormBuilderPage() {
                     >
                       <label>
                         Label
-                        <input
+                        <Input
                           value={fieldLabel}
                           onChange={(event) => setFieldLabel(event.target.value)}
                           autoFocus
@@ -766,14 +769,14 @@ export function FormBuilderPage() {
                       </label>
                       <label>
                         Type
-                        <select value={fieldType} onChange={(event) => setFieldType(event.target.value)}>
+                        <Select value={fieldType} onChange={(event) => setFieldType(event.target.value)}>
                           {fieldTypes.map((type) => (
                             <option key={type} value={type}>{fieldTypeLabels[type] ?? type}</option>
                           ))}
-                        </select>
+                        </Select>
                       </label>
                       <label>
-                        <input
+                        <Input
                           type="checkbox"
                           checked={required}
                           onChange={(event) => setRequired(event.target.checked)}
@@ -783,7 +786,7 @@ export function FormBuilderPage() {
                       {showOptions ? (
                         <label>
                           Options (one per line)
-                          <textarea
+                          <Textarea
                             value={optionsText}
                             onChange={(event) => setOptionsText(event.target.value)}
                             rows={4}
@@ -794,7 +797,7 @@ export function FormBuilderPage() {
                         <div className="form-editor-field__settings-row">
                           <label>
                             Scale minimum
-                            <input
+                            <Input
                               type="number"
                               value={ratingMin}
                               onChange={(event) => setRatingMin(event.target.value)}
@@ -802,7 +805,7 @@ export function FormBuilderPage() {
                           </label>
                           <label>
                             Scale maximum
-                            <input
+                            <Input
                               type="number"
                               value={ratingMax}
                               onChange={(event) => setRatingMax(event.target.value)}
@@ -813,7 +816,7 @@ export function FormBuilderPage() {
                       {isQualityForm && weightedFieldTypes.has(fieldType) ? (
                         <label>
                           Score weight
-                          <input type="number" value={weight} onChange={(event) => setWeight(event.target.value)} />
+                          <Input type="number" value={weight} onChange={(event) => setWeight(event.target.value)} />
                         </label>
                       ) : null}
                       {isQualityForm && fieldType === 'single_select' ? (
@@ -823,7 +826,7 @@ export function FormBuilderPage() {
                           {options.map((option) => (
                             <label key={option}>
                               {option}
-                              <input
+                              <Input
                                 type="number"
                                 value={optionScores[option] ?? ''}
                                 onChange={(event) => setOptionScores((current) => ({
@@ -839,11 +842,11 @@ export function FormBuilderPage() {
                         <div className="form-editor-field__settings-row">
                           <label>
                             Score if checked
-                            <input type="number" value={trueScore} onChange={(event) => setTrueScore(event.target.value)} />
+                            <Input type="number" value={trueScore} onChange={(event) => setTrueScore(event.target.value)} />
                           </label>
                           <label>
                             Score if unchecked
-                            <input type="number" value={falseScore} onChange={(event) => setFalseScore(event.target.value)} />
+                            <Input type="number" value={falseScore} onChange={(event) => setFalseScore(event.target.value)} />
                           </label>
                         </div>
                       ) : null}
@@ -890,7 +893,7 @@ export function FormBuilderPage() {
             <form onSubmit={(event) => { event.preventDefault(); saveAsTemplate.mutate() }}>
               <label>
                 Template name
-                <input
+                <Input
                   value={templateName}
                   onChange={(event) => setTemplateName(event.target.value)}
                   placeholder={forms.data?.find((form) => form.id === selectedForm)?.name ?? ''}

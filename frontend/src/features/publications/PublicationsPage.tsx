@@ -20,6 +20,7 @@ import {
 } from '../../components/icons'
 import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
 import { RowActionsMenu } from '../../components/RowActionsMenu'
+import { Select } from '../../components/Select'
 import { InfoTooltip } from '../../components/Tooltip'
 import { TabList, TabPanel } from '../../components/Tabs'
 import { FullTextDocumentPanel } from '../fulltext/FullTextDocumentPanel'
@@ -214,7 +215,7 @@ function PublicationRow({
       <div className="publication-card__summary publication-row-grid">
         <span className="publication-row-grid__checkbox">
           {canManage ? (
-            <input
+            <Input
               className="publication-card__checkbox"
               type="checkbox"
               checked={selected}
@@ -636,7 +637,7 @@ export function PublicationsPage() {
               <div className="toolbar publications-page__filters">
                 <label className="paper-search-field">
                   Search publications
-                  <input
+                  <Input
                     type="search"
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
@@ -645,27 +646,27 @@ export function PublicationsPage() {
                 </label>
                 <label>
                   Title/Abstract stage
-                  <select value={titleAbstractFilter} onChange={(event) => setTitleAbstractFilter(event.target.value)}>
+                  <Select value={titleAbstractFilter} onChange={(event) => setTitleAbstractFilter(event.target.value)}>
                     {SCREENING_FILTER_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>{option.label}</option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
                 <label>
                   Full-text stage
-                  <select value={fullTextFilter} onChange={(event) => setFullTextFilter(event.target.value)}>
+                  <Select value={fullTextFilter} onChange={(event) => setFullTextFilter(event.target.value)}>
                     {SCREENING_FILTER_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>{option.label}</option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
                 <label>
                   PDF status
-                  <select value={pdfStatusFilter} onChange={(event) => setPdfStatusFilter(event.target.value)}>
+                  <Select value={pdfStatusFilter} onChange={(event) => setPdfStatusFilter(event.target.value)}>
                     {PDF_STATUS_FILTER_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>{option.label}</option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
                 <button
                   type="button"
@@ -683,7 +684,7 @@ export function PublicationsPage() {
                 </button>
                 <label>
                   Sort by
-                  <select
+                  <Select
                     value={`${sortKey}:${sortDirection}`}
                     onChange={(event) => {
                       const [key, direction] = event.target.value.split(':') as [PublicationSortKey, SortDirection]
@@ -703,7 +704,7 @@ export function PublicationsPage() {
                     <option value="stage:desc">Stage Z–A</option>
                     <option value="pdf:desc">PDF available first</option>
                     <option value="pdf:asc">PDF missing first</option>
-                  </select>
+                  </Select>
                 </label>
               </div>
             ) : null}

@@ -6,6 +6,7 @@ import { Button } from '../../components/Button'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { CountPill } from '../../components/CountPill'
 import { IconPlus, IconRestart, IconTrash } from '../../components/icons'
+import { Input } from '../../components/Input'
 import type { LoginResponse, User } from '../auth/types'
 
 export function UsersPage() {
@@ -53,7 +54,7 @@ export function UsersPage() {
           <form onSubmit={(event) => { event.preventDefault(); create.mutate() }}>
             <label>
               Username
-              <input
+              <Input
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
                 required
@@ -61,7 +62,7 @@ export function UsersPage() {
             </label>
             <label>
               Display name
-              <input
+              <Input
                 value={displayName}
                 onChange={(event) => setDisplayName(event.target.value)}
                 required
@@ -69,7 +70,7 @@ export function UsersPage() {
             </label>
             <label>
               Email address
-              <input
+              <Input
                 type="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
@@ -79,7 +80,7 @@ export function UsersPage() {
             </label>
             <label>
               Temporary password
-              <input
+              <Input
                 type="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
