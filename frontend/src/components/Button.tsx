@@ -2,7 +2,7 @@ import type { ButtonHTMLAttributes, ComponentPropsWithoutRef, ElementType, React
 
 import { cn } from '../lib/cn'
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'text' | 'destructive' | 'outline' | 'success'
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'text' | 'destructive' | 'success'
 export type ButtonSize = 'sm' | 'md'
 
 interface ButtonOwnProps {
@@ -75,11 +75,6 @@ const variants: Record<ButtonVariant, string> = {
     'border border-[rgba(255,127,130,0.28)] bg-danger-container text-danger ' +
     'hover:not-disabled:border-danger hover:not-disabled:bg-danger-strong hover:not-disabled:text-white ' +
     'active:not-disabled:bg-danger-strong active:not-disabled:text-white active:not-disabled:translate-y-px',
-  // The legacy `.icon-button` look: a visible border at rest (unlike `ghost`, which is
-  // borderless until hover) over a transparent background. Mainly used for icon-only actions.
-  outline:
-    'border border-border bg-transparent text-text-secondary ' +
-    'hover:not-disabled:border-border-strong hover:not-disabled:bg-surface-hover hover:not-disabled:text-text',
   success:
     'border border-transparent bg-success text-primary-contrast shadow-md ' +
     'hover:not-disabled:bg-[color-mix(in_srgb,var(--color-success)_85%,black)] hover:not-disabled:shadow-lg',

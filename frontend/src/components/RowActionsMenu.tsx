@@ -52,7 +52,7 @@ export function RowActionsMenu({ label, children }: { label: string; children: R
   return (
     <>
       <IconButton
-        variant="outline"
+        variant="secondary"
         ref={triggerRef}
         aria-label={label}
         aria-haspopup="menu"
