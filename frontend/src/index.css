@@ -555,142 +555,6 @@ input[type='radio'] {
   box-shadow: none;
 }
 
-.date-field {
-  position: relative;
-  width: min(14rem, 100%);
-}
-
-.date-field__control {
-  position: relative;
-}
-
-.date-field__control input {
-  cursor: pointer;
-  padding-right: 44px;
-}
-
-.date-field__control input:disabled {
-  cursor: not-allowed;
-}
-
-.date-field__icon {
-  position: absolute;
-  top: 50%;
-  right: var(--space-3);
-  width: 20px;
-  height: 20px;
-  fill: var(--color-text-secondary);
-  transform: translateY(-50%);
-  pointer-events: none;
-}
-
-.date-field__popover {
-  position: absolute;
-  z-index: 50;
-  top: calc(100% + var(--space-2));
-  left: 0;
-  width: min(300px, 88vw);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-raised);
-  padding: var(--space-4);
-  box-shadow: var(--shadow-lg);
-}
-
-.date-field__header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--space-3);
-}
-
-.date-field__header .icon-button {
-  width: 32px;
-  min-width: 32px;
-  min-height: 32px;
-  border-radius: 50%;
-  background: transparent;
-}
-
-.date-field__month {
-  color: var(--color-text);
-  font-weight: 650;
-}
-
-.date-field__weekdays,
-.date-field__days {
-  display: grid;
-  grid-template-columns: repeat(7, 1fr);
-}
-
-.date-field__weekdays {
-  margin-bottom: var(--space-1);
-  color: var(--color-text-muted);
-  font-size: 0.75rem;
-  font-weight: 700;
-  letter-spacing: 0.04em;
-  text-align: center;
-  text-transform: uppercase;
-}
-
-.date-field__popover .date-field__day {
-  width: 100%;
-  min-height: 36px;
-  padding: 0;
-  border: 1px solid transparent;
-  border-radius: 50%;
-  background: transparent;
-  color: var(--color-text);
-  font-weight: 560;
-}
-
-.date-field__popover .date-field__day:hover:not(:disabled) {
-  border-color: transparent;
-  background: var(--color-surface-hover);
-  box-shadow: none;
-  transform: none;
-}
-
-.date-field__popover .date-field__day--outside {
-  color: var(--color-text-muted);
-}
-
-.date-field__popover .date-field__day--today {
-  border-color: var(--color-primary);
-}
-
-.date-field__popover .date-field__day--selected,
-.date-field__popover .date-field__day--selected:hover {
-  background: var(--color-primary);
-  color: var(--color-primary-contrast);
-}
-
-.date-field__footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: var(--space-3);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--color-border);
-}
-
-.date-field__popover .date-field__link {
-  min-height: auto;
-  border: 0;
-  padding: 0;
-  background: transparent;
-  color: var(--color-primary);
-  font-weight: 640;
-}
-
-.date-field__popover .date-field__link:hover {
-  background: transparent;
-  color: var(--color-primary-strong);
-  text-decoration: underline;
-  box-shadow: none;
-  transform: none;
-}
-
 /*
  * Native <button> elements default to `cursor: default`, not `pointer` — components migrated
  * to <Button>/<Tabs> set their own `cursor-pointer` via Tailwind, but this covers every
@@ -3479,14 +3343,14 @@ button:not(.icon-button) svg {
   flex: 0 0 auto;
 }
 
-button:not(.icon-button):not(.decision-button):not(.criterion-toggle):not(.llm-stage-button):not(.wizard-step__button):not(.date-field__link):not(.date-field__day):not(.hotkey-capture):not(.info-tooltip__trigger):not(.collapsible-section__toggle):not(.collapsible-section__indicator-toggle):not(.publications-page__pdf-indicator):not(.jobs-summary__item):not(.rq-source-badge) {
+button:not(.icon-button):not(.decision-button):not(.criterion-toggle):not(.llm-stage-button):not(.wizard-step__button):not(.hotkey-capture):not(.info-tooltip__trigger):not(.collapsible-section__toggle):not(.collapsible-section__indicator-toggle):not(.publications-page__pdf-indicator):not(.jobs-summary__item):not(.rq-source-badge) {
   border-color: var(--button-primary-border);
   background: linear-gradient(180deg, var(--button-primary-bg-hover) 0%, var(--button-primary-bg) 100%);
   color: var(--button-primary-text);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.14);
 }
 
-button:not(.icon-button):not(.decision-button):not(.criterion-toggle):not(.llm-stage-button):not(.wizard-step__button):not(.date-field__link):not(.date-field__day):not(.hotkey-capture):not(.info-tooltip__trigger):not(.collapsible-section__toggle):not(.collapsible-section__indicator-toggle):not(.publications-page__pdf-indicator):not(.jobs-summary__item):not(.rq-source-badge):hover:not(:disabled) {
+button:not(.icon-button):not(.decision-button):not(.criterion-toggle):not(.llm-stage-button):not(.wizard-step__button):not(.hotkey-capture):not(.info-tooltip__trigger):not(.collapsible-section__toggle):not(.collapsible-section__indicator-toggle):not(.publications-page__pdf-indicator):not(.jobs-summary__item):not(.rq-source-badge):hover:not(:disabled) {
   border-color: #a1b0ff;
   background: transparent;
   color: var(--button-primary-bg-hover);
