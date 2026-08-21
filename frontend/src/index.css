@@ -1,14 +1,24 @@
 /*
- * Cascade layer order. This bare declaration must come before the Tailwind
- * import below: layer priority is fixed by each name's FIRST mention, so
- * registering `legacy` here — before `@import` first mentions theme/base/
- * components/utilities — pins it as the lowest-priority layer. Every
- * not-yet-migrated rule further down lives in `@layer legacy`; without this,
- * it would be unlayered CSS, and unlayered CSS always beats layered CSS
- * (i.e. Tailwind utilities) regardless of selector specificity. This is what
- * lets a Tailwind utility class win over legacy CSS on a migrated component.
+ * Cascade layer order. This declaration must come before the Tailwind import
+ * below: layer priority is fixed by each name's FIRST mention (across the
+ * whole stylesheet, not physical rule position), so pre-declaring all five
+ * names here — in this relative order — fixes it before `@import` re-mentions
+ * its own four. `legacy` sits between `base` and `components`:
+ *  - ABOVE `base` (Tailwind's Preflight reset) so a not-yet-migrated legacy
+ *    rule's own margin/padding/border/etc. still applies — Preflight is a
+ *    generic browser-consistency reset, not meant to compete with real
+ *    application styles, and putting `legacy` below it (as an earlier,
+ *    wrong version of this file did) meant Preflight's blanket
+ *    `*, ::before, ::after { margin: 0; padding: 0 }` silently beat every
+ *    legacy rule that ever set margin or padding, on every element, sitewide.
+ *  - BELOW `components`/`utilities` so a Tailwind utility class still wins
+ *    over legacy CSS on a migrated component (e.g. Button's own `min-h-*`
+ *    overriding the legacy bare `button { min-height: 40px }` rule).
+ * Every not-yet-migrated rule further down lives in `@layer legacy`; without
+ * layering it at all, it would be unlayered CSS, and unlayered CSS always
+ * beats layered CSS (i.e. Tailwind utilities) regardless of specificity.
  */
-@layer legacy;
+@layer theme, base, legacy, components, utilities;
 
 @import "tailwindcss";
 
