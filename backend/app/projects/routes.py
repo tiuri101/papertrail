@@ -325,7 +325,7 @@ def add_project_member(
         entity_id=membership.id,
         project_id=project.id,
         actor_id=_.id,
-        summary=f"Added reviewer {user.username} to project",
+        summary=f"Added reviewer {user.display_name} to project",
     )
     queue_membership_email(
         db, membership=membership, project=project, user=user, added=True

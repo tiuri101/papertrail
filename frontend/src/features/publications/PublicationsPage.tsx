@@ -268,11 +268,21 @@ function PublicationRow({
               >
                 {showFullText ? 'Hide PDF' : publication.fullText?.available ? 'Manage PDF' : 'Attach PDF'}
               </button>
-              <a className="row-actions-menu__item" href={`/api/v1/projects/${projectId}/publications/${publication.id}/export/bib`}>
+              <a
+                className="row-actions-menu__item"
+                href={`/api/v1/projects/${projectId}/publications/${publication.id}/export/bib`}
+                target="_blank"
+                rel="noreferrer"
+              >
                 Export BibTeX
               </a>
               {publication.fullText?.available ? (
-                <a className="row-actions-menu__item" href={`/api/v1/projects/${projectId}/publications/${publication.id}/export/pdf`}>
+                <a
+                  className="row-actions-menu__item"
+                  href={`/api/v1/projects/${projectId}/publications/${publication.id}/export/pdf`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
                   Export PDF
                 </a>
               ) : null}
