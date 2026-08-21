@@ -6,6 +6,7 @@ import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { IconAlertTriangle, IconRestart } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
+import { Select } from '../../components/Select'
 import { activeStages, humanizeStage, stageOrder, stages } from './lifecycleStages'
 
 export function MoveProjectBackPanel({ projectId }: { projectId: string }) {
@@ -52,12 +53,12 @@ export function MoveProjectBackPanel({ projectId }: { projectId: string }) {
       {moveBack.error ? <p className="error" role="alert">{moveBack.error.message}</p> : null}
       <label>
         Move back to
-        <select
+        <Select
           value={moveBackTarget}
           onChange={(event) => setMoveBackTarget(event.target.value)}
         >
           {moveBackOptions.map((stage) => <option key={stage} value={stage}>{humanizeStage(stage)}</option>)}
-        </select>
+        </Select>
       </label>
       <ConfirmButton
         label="Move Project Back"

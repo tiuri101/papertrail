@@ -8,6 +8,9 @@ import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { DragHandle } from '../../components/DragHandle'
 import { InfoBox } from '../../components/InfoBox'
 import { IconCheckCircle, IconChart, IconSettings, IconSparkle, IconTrash } from '../../components/icons'
+import { Input } from '../../components/Input'
+import { Select } from '../../components/Select'
+import { Textarea } from '../../components/Textarea'
 import { InfoTooltip } from '../../components/Tooltip'
 import { STAGES } from '../projects/StageProgress'
 
@@ -285,7 +288,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
         <fieldset>
           <legend className="subsection-heading">Stages</legend>
           <label>
-            <input
+            <Input
               type="checkbox"
               checked={settings.data.titleAbstractScreeningEnabled}
               disabled={!settings.data.installationEnabled || toggle.isPending}
@@ -294,7 +297,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
             Title/abstract screening suggestions (revealed only after reviewer decision)
           </label>
           <label>
-            <input
+            <Input
               type="checkbox"
               checked={settings.data.fullTextScreeningEnabled}
               disabled={!settings.data.installationEnabled || toggle.isPending}
@@ -303,7 +306,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
             Full-text screening assistance
           </label>
           <label>
-            <input
+            <Input
               type="checkbox"
               checked={settings.data.enabled}
               disabled={!settings.data.installationEnabled || toggle.isPending}
@@ -312,7 +315,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
             LLM data extraction
           </label>
           <label>
-            <input
+            <Input
               type="checkbox"
               checked={settings.data.extractionValidationEnabled}
               disabled={!settings.data.installationEnabled || toggle.isPending}
@@ -321,7 +324,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
             Validate completed human extractions automatically
           </label>
           <label>
-            <input
+            <Input
               type="checkbox"
               checked={settings.data.analysisNarrativeEnabled}
               disabled={!settings.data.installationEnabled || toggle.isPending}
@@ -419,18 +422,18 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
               </summary>
               <div className="llm-schema-field__content">
               <label>Label
-                <input value={field.label} onChange={(event) => edit(index, { label: event.target.value })} />
+                <Input value={field.label} onChange={(event) => edit(index, { label: event.target.value })} />
               </label>
               <label>Extraction instruction
-                <textarea value={field.instruction} onChange={(event) => edit(index, { instruction: event.target.value })} />
+                <Textarea value={field.instruction} onChange={(event) => edit(index, { instruction: event.target.value })} />
               </label>
               <label>Output type
-                <select value={field.fieldType} onChange={(event) => edit(index, { fieldType: event.target.value })}>
+                <Select value={field.fieldType} onChange={(event) => edit(index, { fieldType: event.target.value })}>
                   {FIELD_TYPES.map((type) => <option value={type} key={type}>{type.replaceAll('_', ' ')}</option>)}
-                </select>
+                </Select>
               </label>
               <label>Mapped extraction field
-                <select
+                <Select
                   value={field.mappedExtractionFieldKey ?? ''}
                   onChange={(event) => {
                     const target = schema.data?.extractionFields.find((item) => item.stableKey === event.target.value)
@@ -445,11 +448,11 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
                   {schema.data?.extractionFields.map((target) => (
                     <option key={target.stableKey} value={target.stableKey}>{target.label}</option>
                   ))}
-                </select>
+                </Select>
               </label>
               {!field.mappedExtractionFieldKey && ['single_select', 'multiple_select', 'rating'].includes(field.fieldType) ? (
                 <label>Allowed values or rating bounds (comma-separated)
-                  <input
+                  <Input
                     value={field.options.join(', ')}
                     onChange={(event) => edit(index, {
                       options: event.target.value.split(',').map((value) => value.trim()).filter(Boolean),
@@ -462,7 +465,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
               ) : null}
               <div className="llm-schema-field__toggle-setting">
                 <label>
-                  <input
+                  <Input
                     type="checkbox"
                     checked={field.evidenceRequired}
                     onChange={(event) => edit(index, { evidenceRequired: event.target.checked })}
@@ -476,7 +479,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
               </div>
               <div className="llm-schema-field__toggle-setting">
                 <label>
-                  <input
+                  <Input
                     type="checkbox"
                     checked={field.allowInferred}
                     onChange={(event) => edit(index, { allowInferred: event.target.checked })}
@@ -488,7 +491,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
                   text="Allow the LLM to derive a value from information in the paper when it is not stated directly. Inferred results are rejected when this is turned off."
                 />
               </div>
-              <label><input type="checkbox" checked={field.enabled} onChange={(event) => edit(index, { enabled: event.target.checked })} /> Enabled</label>
+              <label><Input type="checkbox" checked={field.enabled} onChange={(event) => edit(index, { enabled: event.target.checked })} /> Enabled</label>
               <Button type="button" variant="destructive" onClick={() => setFields((current) => current.filter((_, i) => i !== index))}>
                 <IconTrash />
                 Remove field

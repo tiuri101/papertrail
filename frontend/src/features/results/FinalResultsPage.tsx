@@ -5,6 +5,8 @@ import { useQuery } from '@tanstack/react-query'
 import { apiRequest } from '../../api/client'
 import { Button } from '../../components/Button'
 import { CountPill } from '../../components/CountPill'
+import { Input } from '../../components/Input'
+import { Select } from '../../components/Select'
 import { StageEyebrow } from '../projects/StageEyebrow'
 
 interface FieldMeta {
@@ -247,7 +249,7 @@ export function FinalResultsPage() {
           <div className="toolbar">
             <label>
               Search
-              <input
+              <Input
                 type="search"
                 value={search}
                 onChange={(event) => {
@@ -259,7 +261,7 @@ export function FinalResultsPage() {
             </label>
             <label>
               Rows per page
-              <select
+              <Select
                 value={pageSize}
                 onChange={(event) => {
                   setPageSize(Number(event.target.value))
@@ -269,7 +271,7 @@ export function FinalResultsPage() {
                 {PAGE_SIZE_OPTIONS.map((size) => (
                   <option key={size} value={size}>{size}</option>
                 ))}
-              </select>
+              </Select>
             </label>
           </div>
           <CountPill count={sortedItems.length}>

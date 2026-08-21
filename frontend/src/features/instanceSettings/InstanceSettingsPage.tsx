@@ -5,7 +5,9 @@ import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { Button } from '../../components/Button'
 import { InfoBox } from '../../components/InfoBox'
+import { Input } from '../../components/Input'
 import { SectionNavigationLayout } from '../../components/SectionNavigationLayout'
+import { Textarea } from '../../components/Textarea'
 import {
   IconAlertTriangle,
   IconCheckCircle,
@@ -291,7 +293,7 @@ export function InstanceSettingsPage() {
                   <h3>Connection configuration</h3>
                 </div>
                 <label className="toggle-label">
-                  <input
+                  <Input
                     type="checkbox"
                     checked={enabled}
                     onChange={(event) => setEnabled(event.target.checked)}
@@ -302,7 +304,7 @@ export function InstanceSettingsPage() {
               <div className="llm-installation-settings__grid">
                 <label>
                   Endpoint
-                  <input
+                  <Input
                     type="url"
                     value={endpoint}
                     onChange={(event) => setEndpoint(event.target.value)}
@@ -312,7 +314,7 @@ export function InstanceSettingsPage() {
                 </label>
                 <label>
                   Model
-                  <input
+                  <Input
                     value={model}
                     onChange={(event) => setModel(event.target.value)}
                     placeholder="gemma3:12b"
@@ -321,7 +323,7 @@ export function InstanceSettingsPage() {
                 </label>
                 <label>
                   Context length
-                  <input
+                  <Input
                     type="number"
                     min="4096"
                     step="1024"
@@ -332,7 +334,7 @@ export function InstanceSettingsPage() {
                 </label>
                 <label>
                   API key
-                  <input
+                  <Input
                     type="password"
                     value={apiKey}
                     onChange={(event) => setApiKey(event.target.value)}
@@ -342,7 +344,7 @@ export function InstanceSettingsPage() {
                 </label>
                 <label>
                   Request timeout (seconds)
-                  <input
+                  <Input
                     type="number"
                     min="1"
                     value={requestTimeoutSeconds}
@@ -352,7 +354,7 @@ export function InstanceSettingsPage() {
                 </label>
                 <label>
                   Max concurrent jobs
-                  <input
+                  <Input
                     type="number"
                     min="1"
                     value={maxConcurrentJobs}
@@ -362,7 +364,7 @@ export function InstanceSettingsPage() {
                 </label>
                 <label>
                   Max evidence items
-                  <input
+                  <Input
                     type="number"
                     min="1"
                     max="10"
@@ -373,7 +375,7 @@ export function InstanceSettingsPage() {
                 </label>
                 <label>
                   Max evidence quote length (characters)
-                  <input
+                  <Input
                     type="number"
                     min="50"
                     max="2000"
@@ -424,7 +426,7 @@ export function InstanceSettingsPage() {
               </h3>
               <label>
                 Base prompt
-                <textarea
+                <Textarea
                   value={promptDraft[flow.key] ?? ''}
                   onChange={(event) => setPromptDraft((current) => ({
                     ...current, [flow.key]: event.target.value,
@@ -470,7 +472,7 @@ export function InstanceSettingsPage() {
                   <h3>SMTP configuration</h3>
                 </div>
                 <label className="toggle-label">
-                  <input
+                  <Input
                     type="checkbox"
                     checked={emailEnabled}
                     onChange={(event) => setEmailEnabled(event.target.checked)}
@@ -481,7 +483,7 @@ export function InstanceSettingsPage() {
               <div className="llm-installation-settings__grid">
                 <label>
                   Public base URL
-                  <input
+                  <Input
                     type="url"
                     value={publicBaseUrl}
                     onChange={(event) => setPublicBaseUrl(event.target.value)}
@@ -491,7 +493,7 @@ export function InstanceSettingsPage() {
                 </label>
                 <label>
                   SMTP host
-                  <input
+                  <Input
                     value={smtpHost}
                     onChange={(event) => setSmtpHost(event.target.value)}
                     placeholder="smtp.example.org"
@@ -499,7 +501,7 @@ export function InstanceSettingsPage() {
                 </label>
                 <label>
                   SMTP port
-                  <input
+                  <Input
                     type="number"
                     min="1"
                     max="65535"
@@ -510,14 +512,14 @@ export function InstanceSettingsPage() {
                 </label>
                 <label>
                   SMTP username
-                  <input
+                  <Input
                     value={smtpUsername}
                     onChange={(event) => setSmtpUsername(event.target.value)}
                   />
                 </label>
                 <label>
                   SMTP password
-                  <input
+                  <Input
                     type="password"
                     value={smtpPassword}
                     onChange={(event) => setSmtpPassword(event.target.value)}
@@ -527,7 +529,7 @@ export function InstanceSettingsPage() {
                 </label>
                 <label>
                   From address
-                  <input
+                  <Input
                     value={smtpFromAddress}
                     onChange={(event) => setSmtpFromAddress(event.target.value)}
                     placeholder="Papertrail <noreply@example.org>"
@@ -535,7 +537,7 @@ export function InstanceSettingsPage() {
                 </label>
                 <label>
                   SMTP timeout (seconds)
-                  <input
+                  <Input
                     type="number"
                     min="1"
                     value={smtpTimeoutSeconds}
@@ -544,7 +546,7 @@ export function InstanceSettingsPage() {
                   />
                 </label>
                 <label className="toggle-label">
-                  <input
+                  <Input
                     type="checkbox"
                     checked={smtpStarttls}
                     onChange={(event) => setSmtpStarttls(event.target.checked)}
@@ -552,7 +554,7 @@ export function InstanceSettingsPage() {
                   Use STARTTLS
                 </label>
                 <label className="toggle-label">
-                  <input
+                  <Input
                     type="checkbox"
                     checked={smtpUseSsl}
                     onChange={(event) => setSmtpUseSsl(event.target.checked)}
@@ -598,7 +600,7 @@ export function InstanceSettingsPage() {
               <div className="llm-installation-settings__grid">
                 <label>
                   Password reset link lifetime (minutes)
-                  <input
+                  <Input
                     type="number"
                     min="1"
                     value={passwordResetTtlMinutes}
@@ -608,7 +610,7 @@ export function InstanceSettingsPage() {
                 </label>
                 <label>
                   Password reset max attempts
-                  <input
+                  <Input
                     type="number"
                     min="1"
                     value={passwordResetMaxAttempts}
@@ -642,7 +644,7 @@ export function InstanceSettingsPage() {
               <div className="llm-installation-settings__grid">
                 <label>
                   Max PDF size (MB)
-                  <input
+                  <Input
                     type="number"
                     min="1"
                     value={maxPdfSizeMb}
@@ -652,7 +654,7 @@ export function InstanceSettingsPage() {
                 </label>
                 <label>
                   Browser retrieval lease (seconds)
-                  <input
+                  <Input
                     type="number"
                     min="1"
                     value={browserRetrievalLeaseSeconds}
@@ -686,7 +688,7 @@ export function InstanceSettingsPage() {
               <div className="llm-installation-settings__grid">
                 <label>
                   Worker threads
-                  <input
+                  <Input
                     type="number"
                     min="1"
                     value={workerThreads}
@@ -696,7 +698,7 @@ export function InstanceSettingsPage() {
                 </label>
                 <label>
                   Poll interval (seconds)
-                  <input
+                  <Input
                     type="number"
                     min="0.1"
                     step="0.1"
@@ -707,7 +709,7 @@ export function InstanceSettingsPage() {
                 </label>
                 <label>
                   Job lease (seconds)
-                  <input
+                  <Input
                     type="number"
                     min="1"
                     value={jobLeaseSeconds}

@@ -7,6 +7,8 @@ import { Card } from '../../components/Card'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { IconCheckCircle, IconHelpCircle, IconPlus, IconTrash } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
+import { Input } from '../../components/Input'
+import { Select } from '../../components/Select'
 
 type CriterionKind = 'inclusion' | 'exclusion'
 
@@ -60,7 +62,7 @@ function ResearchQuestionRow({
               onSave(draft)
             }}
           >
-            <input value={draft} onChange={(event) => setDraft(event.target.value)} required />
+            <Input value={draft} onChange={(event) => setDraft(event.target.value)} required />
             <div className="toolbar">
               <Button type="submit" disabled={pending}><IconCheckCircle />Save</Button>
               <Button type="button" variant="secondary" onClick={() => { setDraft(question.text); setEditing(false) }}>Cancel</Button>
@@ -129,12 +131,12 @@ function CriterionRow({
           >
             <label>
               Kind
-              <select value={draftKind} onChange={(event) => setDraftKind(event.target.value as CriterionKind)}>
+              <Select value={draftKind} onChange={(event) => setDraftKind(event.target.value as CriterionKind)}>
                 <option value="inclusion">Inclusion</option>
                 <option value="exclusion">Exclusion</option>
-              </select>
+              </Select>
             </label>
-            <input value={draftText} onChange={(event) => setDraftText(event.target.value)} required />
+            <Input value={draftText} onChange={(event) => setDraftText(event.target.value)} required />
             <div className="toolbar">
               <Button type="submit" disabled={pending}><IconCheckCircle />Save</Button>
               <Button
@@ -208,7 +210,7 @@ function InlineAgendaDraftRow({
           }}
         >
           <label className="visually-hidden" htmlFor={`new-agenda-item-${kind ?? 'question'}`}>{label}</label>
-          <input
+          <Input
             id={`new-agenda-item-${kind ?? 'question'}`}
             value={value}
             onChange={(event) => onChange(event.target.value)}
@@ -355,7 +357,7 @@ export function ResearchQuestionsPanel({
           <form onSubmit={(event) => { event.preventDefault(); addQuestion.mutate() }}>
             <label>
               New research question
-              <input
+              <Input
                 value={newQuestion}
                 onChange={(event) => setNewQuestion(event.target.value)}
                 required
@@ -577,17 +579,17 @@ export function CriteriaPanel({
           <form onSubmit={(event) => { event.preventDefault(); addCriterion.mutate() }}>
             <label>
               Kind
-              <select
+              <Select
                 value={newCriterionKind}
                 onChange={(event) => setNewCriterionKind(event.target.value as CriterionKind)}
               >
                 <option value="inclusion">Inclusion</option>
                 <option value="exclusion">Exclusion</option>
-              </select>
+              </Select>
             </label>
             <label>
               New criterion
-              <input
+              <Input
                 value={newCriterionText}
                 onChange={(event) => setNewCriterionText(event.target.value)}
                 required
