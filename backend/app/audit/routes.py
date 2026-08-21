@@ -29,7 +29,7 @@ def list_audit_events(
 ) -> list[dict[str, Any]]:
     require_project_access(db, project_id, admin)
     rows = db.execute(
-        select(AuditEvent, User.username)
+        select(AuditEvent, User.display_name)
         .outerjoin(User, User.id == AuditEvent.actor_id)
         .where(AuditEvent.project_id == project_id)
         .order_by(AuditEvent.created_at.desc())
@@ -39,14 +39,14 @@ def list_audit_events(
         {
             "id": event.id,
             "createdAt": event.created_at,
-            "actorUsername": actor_username,
+            "actorUsername": actor_display_name,
             "action": event.action,
             "entityType": event.entity_type,
             "entityId": event.entity_id,
             "summary": event.summary,
             "metadata": event.event_metadata,
         }
-        for event, actor_username in rows
+        for event, actor_display_name in rows
     ]
 
 
