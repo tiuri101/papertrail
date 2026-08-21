@@ -2,7 +2,7 @@ import type { ButtonHTMLAttributes, ComponentPropsWithoutRef, ElementType, React
 
 import { cn } from '../lib/cn'
 
-export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'text' | 'destructive' | 'outline'
+export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'text' | 'destructive' | 'outline' | 'success'
 export type ButtonSize = 'sm' | 'md'
 
 interface ButtonOwnProps {
@@ -80,6 +80,9 @@ const variants: Record<ButtonVariant, string> = {
   outline:
     'border border-border bg-transparent text-text-secondary ' +
     'hover:not-disabled:border-border-strong hover:not-disabled:bg-surface-hover hover:not-disabled:text-text',
+  success:
+    'border border-transparent bg-success text-primary-contrast shadow-md ' +
+    'hover:not-disabled:bg-[color-mix(in_srgb,var(--color-success)_85%,black)] hover:not-disabled:shadow-lg',
 }
 
 const textPaddingX: Record<ButtonSize, string> = {

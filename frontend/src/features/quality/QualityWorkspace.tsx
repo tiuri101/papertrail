@@ -219,14 +219,16 @@ export function QualityWorkspace({
             ) : null}
           </div>
           {fullTextDocument.data?.available ? (
-            <a
-              className="button-secondary button-sm"
+            <Button
+              as="a"
+              variant="secondary"
+              size="sm"
               href={`${fullTextDocumentEndpoint(projectId, item.publicationId)}/content`}
               target="_blank"
               rel="noreferrer"
             >
               Open PDF
-            </a>
+            </Button>
           ) : null}
         </>
       ) : null}

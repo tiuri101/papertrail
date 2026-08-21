@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import type { KeyboardEvent } from 'react'
 
+import { Button } from '../../components/Button'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { IconKeyboard } from '../../components/icons'
 import {
@@ -104,9 +105,9 @@ export function ScreeningHotkeysSection() {
         </p>
       ) : null}
       <div className="toolbar">
-        <button type="button" className="button-secondary" onClick={() => update({ ...DEFAULT_SCREENING_HOTKEYS })}>
+        <Button type="button" variant="secondary" onClick={() => update({ ...DEFAULT_SCREENING_HOTKEYS })}>
           Reset to defaults
-        </button>
+        </Button>
       </div>
       <p className="muted" aria-live="polite">{saved ? 'Saved.' : ' '}</p>
     </CollapsibleSection>

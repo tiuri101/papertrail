@@ -3,6 +3,7 @@ import { useMemo, useState, type MouseEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { CountPill } from '../../components/CountPill'
 import { DoiPill } from '../../components/DoiPill'
@@ -167,13 +168,13 @@ function DecisionEditForm({
             disabled={save.isPending || !criteriaComplete}
           />
         ) : (
-          <button type="button" onClick={() => save.mutate()} disabled={save.isPending || !criteriaComplete}>
+          <Button type="button" onClick={() => save.mutate()} disabled={save.isPending || !criteriaComplete}>
             Save Changes
-          </button>
+          </Button>
         )}
-        <button type="button" className="button-secondary" onClick={onDone} disabled={save.isPending}>
+        <Button type="button" variant="secondary" onClick={onDone} disabled={save.isPending}>
           Cancel
-        </button>
+        </Button>
       </div>
     </>
   )
@@ -312,9 +313,9 @@ function DecisionRow({
         </time>
         <span className="my-decisions-row-grid__actions">
           {!editing && decision ? (
-            <button type="button" className="button-secondary button-sm" onClick={() => setEditing(true)}>
+            <Button type="button" variant="secondary" size="sm" onClick={() => setEditing(true)}>
               Edit Decision
-            </button>
+            </Button>
           ) : null}
         </span>
       </div>

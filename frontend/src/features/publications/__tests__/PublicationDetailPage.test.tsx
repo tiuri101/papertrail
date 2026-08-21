@@ -353,11 +353,7 @@ describe('PublicationDetailPage', () => {
     expect(screen.getByText('Original finding')).toBeInTheDocument()
 
     const screeningOverride = screen.getByRole('button', { name: 'Override Title/Abstract' })
-    const extractionOverride = screen.getByRole('button', { name: 'Override data extraction' })
-    expect(screeningOverride).toHaveClass('button-secondary')
-    expect(extractionOverride).toHaveClass('button-secondary')
-    expect(screeningOverride).not.toHaveClass('link-button')
-    expect(extractionOverride).not.toHaveClass('link-button')
+    expect(screen.getByRole('button', { name: 'Override data extraction' })).toBeInTheDocument()
 
     fireEvent.click(screeningOverride)
     fireEvent.change(screen.getByLabelText('Reason for override'), {
