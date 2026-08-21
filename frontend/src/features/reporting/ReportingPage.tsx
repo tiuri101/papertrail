@@ -8,6 +8,7 @@ import { Card } from '../../components/Card'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { CountPill } from '../../components/CountPill'
 import { IconDownload, IconTrash } from '../../components/icons'
+import { Page } from '../../components/Page'
 import { useCanManagePublications } from '../../hooks/useCanManageProject'
 import { BackgroundJob, findJob, hasActiveJob, isJobActive } from '../jobs/jobStatus'
 import { StageEyebrow } from '../projects/StageEyebrow'
@@ -146,19 +147,19 @@ export function ReportingPage() {
   const artifacts = exportsQuery.data ?? []
 
   return (
-    <main className="page">
+    <Page>
       <StageEyebrow stage="completed" />
       <h1>Reporting and Exports</h1>
-      <p className="muted">
+      <p className="text-text-muted">
         Generate PRISMA diagrams, data exports, and citation files for this review.
       </p>
-      {queryError ? <p className="error" role="alert">{queryError.message}</p> : null}
-      {createExport.error ? <p className="error" role="alert">{createExport.error.message}</p> : null}
+      {queryError ? <p className="text-danger" role="alert">{queryError.message}</p> : null}
+      {createExport.error ? <p className="text-danger" role="alert">{createExport.error.message}</p> : null}
       {pendingJob && isJobActive(pendingJob.status) ? (
         <p className="rounded-md border border-[color-mix(in_srgb,var(--color-primary)_30%,transparent)] bg-primary-container px-4 py-3 font-bold text-primary" role="status">Generating export…</p>
       ) : null}
       {pendingJob && pendingJob.status === 'failed' ? (
-        <p className="error" role="alert">
+        <p className="text-danger" role="alert">
           Export failed{pendingJob.errorMessage ? `: ${pendingJob.errorMessage}` : ''}
         </p>
       ) : null}
@@ -167,7 +168,7 @@ export function ReportingPage() {
         <Card as="figure" className="m-0 bg-none bg-surface">
           <figcaption className="flex items-start justify-start gap-4">
             <div>
-              <span className="eyebrow">Study selection</span>
+              <span className="mb-1 block text-xs font-extrabold uppercase tracking-[0.08em] text-primary">Study selection</span>
               <h2>PRISMA Flow</h2>
             </div>
           </figcaption>
@@ -182,7 +183,7 @@ export function ReportingPage() {
 
         <Card as="section" className="m-0 flex flex-col bg-none bg-surface" aria-labelledby="prisma-counts-heading">
           <div>
-            <span className="eyebrow">At a glance</span>
+            <span className="mb-1 block text-xs font-extrabold uppercase tracking-[0.08em] text-primary">At a glance</span>
             <h2 id="prisma-counts-heading">PRISMA Counts</h2>
           </div>
           {prisma.isLoading ? <p>Loading counts…</p> : null}
@@ -195,7 +196,7 @@ export function ReportingPage() {
                 </div>
               ))}
             </dl>
-          ) : !prisma.isLoading ? <p className="muted">No count data is available yet.</p> : null}
+          ) : !prisma.isLoading ? <p className="text-text-muted">No count data is available yet.</p> : null}
           <details className="mt-auto border-t border-border pt-3">
             <summary className="cursor-pointer font-bold text-primary">View raw reporting data</summary>
             <pre className="max-h-80 overflow-auto text-[0.78rem]">{JSON.stringify(prisma.data, null, 2)}</pre>
@@ -206,7 +207,7 @@ export function ReportingPage() {
       <Card as="section" className="mb-6 bg-none bg-surface" aria-labelledby="create-export-heading">
         <header className="flex flex-col items-stretch justify-between gap-4 min-[681px]:flex-row min-[681px]:items-start">
           <div>
-            <span className="eyebrow">Choose a format</span>
+            <span className="mb-1 block text-xs font-extrabold uppercase tracking-[0.08em] text-primary">Choose a format</span>
             <h2 id="create-export-heading">Create a New Export</h2>
           </div>
         </header>
@@ -237,7 +238,7 @@ export function ReportingPage() {
       <Card as="section" className="mb-6 bg-none bg-surface" aria-labelledby="available-exports-heading">
         <header className="flex items-center justify-between gap-4">
           <div>
-            <span className="eyebrow">Download library</span>
+            <span className="mb-1 block text-xs font-extrabold uppercase tracking-[0.08em] text-primary">Download library</span>
             <h2 id="available-exports-heading">Available Exports</h2>
           </div>
           <CountPill count={artifacts.length} className="mb-0">ready</CountPill>
@@ -289,6 +290,6 @@ export function ReportingPage() {
           onCancel={() => setExportToDelete(null)}
         />
       ) : null}
-    </main>
+    </Page>
   )
 }

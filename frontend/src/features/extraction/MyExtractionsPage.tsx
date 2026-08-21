@@ -1,8 +1,10 @@
+import { toolbarClass } from '../../components/layoutStyles'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState, type MouseEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Page } from '../../components/Page'
 import { Button } from '../../components/Button'
 import { Badge } from '../../components/Badge'
 import { CountPill } from '../../components/CountPill'
@@ -98,7 +100,7 @@ function ExtractionRow({ projectId, entry, highlightKeywords }: {
         </span>
         <span className={reviewWorkStatusClass}><Badge>v{entry.version}</Badge></span>
         <span className={reviewWorkDoiClass}>
-          {publication.doi ? <DoiPill doi={publication.doi} /> : <span className="muted">—</span>}
+          {publication.doi ? <DoiPill doi={publication.doi} /> : <span className="text-text-muted">—</span>}
         </span>
         <time className={reviewWorkSubmittedClass} dateTime={entry.completedAt ?? undefined}>
           {formatSubmittedAt(entry.completedAt)}
@@ -151,12 +153,12 @@ export function MyExtractionsPage() {
   }, [query.data, search, sortDirection, sortKey])
 
   return (
-    <main className="page">
+    <Page>
       <StageEyebrow stage="extraction_quality" />
       <h1>My Submitted Extractions</h1>
-      <p className="muted">Publications you have already extracted. Select a publication to view its details, or edit your extraction.</p>
+      <p className="text-text-muted">Publications you have already extracted. Select a publication to view its details, or edit your extraction.</p>
       <p><Link to={`/projects/${projectId}/extraction`}>← Back to extraction queue</Link></p>
-      {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
+      {query.error ? <p className="text-danger" role="alert">{query.error.message}</p> : null}
       {query.isLoading ? <p>Loading…</p> : null}
       {query.data ? (
         <>
@@ -165,8 +167,8 @@ export function MyExtractionsPage() {
               <CountPill count={search ? filteredItems.length : query.data.length}>
                 {search ? `of ${query.data.length} extractions match your filters` : `extraction${query.data.length === 1 ? '' : 's'}`}
               </CountPill>
-              <div className="toolbar">
-                <label className="paper-search-field">
+              <div className={toolbarClass}>
+                <label className="w-full flex-[0_1_32rem] max-w-lg">
                   Search papers
                   <Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Title, author, DOI…" />
                 </label>
@@ -193,9 +195,9 @@ export function MyExtractionsPage() {
             </>
           ) : null}
           {query.data.length === 0 ? (
-            <p className="muted">You have not submitted any extractions yet.</p>
+            <p className="text-text-muted">You have not submitted any extractions yet.</p>
           ) : filteredItems.length === 0 ? (
-            <p className="muted">No extractions match your filters.</p>
+            <p className="text-text-muted">No extractions match your filters.</p>
           ) : (
             <ul className={reviewWorkListClass}>
                 {filteredItems.map((entry) => <ExtractionRow key={entry.id} projectId={projectId} entry={entry} highlightKeywords={highlightKeywords} />)}
@@ -203,6 +205,6 @@ export function MyExtractionsPage() {
           )}
         </>
       ) : null}
-    </main>
+    </Page>
   )
 }

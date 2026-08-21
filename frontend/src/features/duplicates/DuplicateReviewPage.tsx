@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Page } from '../../components/Page'
 import { CountPill } from '../../components/CountPill'
 import { DoiPill } from '../../components/DoiPill'
 import { IconCheckCircle } from '../../components/icons'
@@ -131,24 +132,24 @@ export function DuplicateReviewPage() {
   const pending = notDuplicate.isPending || merge.isPending
 
   return (
-    <main className="page">
+    <Page>
       <StageEyebrow stage="duplicate_review" />
       <h1>Duplicate Review</h1>
-      <p className="muted">
+      <p className="text-text-muted">
         Candidate duplicate pairs found in this project. Compare each pair and keep the record
         you want, or mark them as not duplicates.
       </p>
       {project.data?.canManage && project.data.stage === 'duplicate_review' ? (
         <DuplicateDetectionAction projectId={projectId} />
       ) : null}
-      {candidates.error ? <p className="error" role="alert">{candidates.error.message}</p> : null}
-      {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
+      {candidates.error ? <p className="text-danger" role="alert">{candidates.error.message}</p> : null}
+      {mutationError ? <p className="text-danger" role="alert">{mutationError.message}</p> : null}
       {candidates.data && candidates.data.length > 0 ? (
         <CountPill count={candidates.data.filter((candidate) => candidate.status === 'unresolved').length}>
           unresolved of {candidates.data.length} duplicates
         </CountPill>
       ) : null}
-      {candidates.data && candidates.data.length === 0 ? <p className="muted">No duplicates found.</p> : null}
+      {candidates.data && candidates.data.length === 0 ? <p className="text-text-muted">No duplicates found.</p> : null}
       <ul className="mb-6 grid list-none gap-6 p-0" aria-label="Duplicate candidates">
         {candidates.data?.map((candidate) => (
           <li
@@ -158,7 +159,7 @@ export function DuplicateReviewPage() {
           >
             <header className="flex items-center justify-between gap-4 border-b border-border bg-surface-raised/70 px-5 py-4 max-[680px]:p-4">
               <div>
-                <span className="eyebrow">Candidate pair</span>
+                <span className="mb-1 block text-xs font-extrabold uppercase tracking-[0.08em] text-primary">Candidate pair</span>
                 <h2 className="mb-0 mt-0.5 text-base">Compare publication records</h2>
               </div>
               <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold capitalize ${candidate.status === 'unresolved' ? 'bg-warning-container text-warning' : 'bg-success-container text-success'}`}>
@@ -241,6 +242,6 @@ export function DuplicateReviewPage() {
           </li>
         ))}
       </ul>
-    </main>
+    </Page>
   )
 }

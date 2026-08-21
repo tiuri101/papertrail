@@ -11,10 +11,10 @@ export function FullTextSection({ projectId }: { projectId: string }) {
   return (
     <Card as="section" id="section-analysis-full-text">
       <h2>Full-Text Screening</h2>
-      {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
+      {query.error ? <p className="text-danger" role="alert">{query.error.message}</p> : null}
       {stats ? (
         <>
-          <p className="muted">
+          <p className="text-text-muted">
             {stats.reportsSought} reports sought &middot; {stats.reportsNotRetrieved} not retrieved
             &middot; {stats.reportsAssessed} assessed &middot; {stats.includedPublications} included
           </p>

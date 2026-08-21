@@ -17,7 +17,7 @@ export function DynamicForm({ fields, value, onChange, renderAssistance }: Dynam
   return (
     <>
       {fields.map((field) => (
-        <div className="dynamic-field" key={field.stableKey}>
+        <div className="my-3" key={field.stableKey}>
           <DynamicField
             field={field}
             value={value[field.stableKey]}

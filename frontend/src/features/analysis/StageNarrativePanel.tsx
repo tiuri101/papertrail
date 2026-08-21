@@ -74,9 +74,9 @@ export function StageNarrativePanel({
           <p className="mt-2 mb-0 text-[0.8rem] text-text-muted">Generate an interpretation to add context to the results above.</p>
         </div>
       )}
-      {regenerate.error ? <p className="error" role="alert">{regenerate.error.message}</p> : null}
+      {regenerate.error ? <p className="text-danger" role="alert">{regenerate.error.message}</p> : null}
       {pendingJob?.status === 'failed' ? (
-        <p className="error" role="alert">
+        <p className="text-danger" role="alert">
           Summary generation failed{pendingJob.errorMessage ? `: ${pendingJob.errorMessage}` : ''}
         </p>
       ) : null}

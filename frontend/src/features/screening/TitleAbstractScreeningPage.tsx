@@ -1,6 +1,8 @@
+import { toolbarClass } from '../../components/layoutStyles'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { Button } from '../../components/Button'
+import { Page } from '../../components/Page'
 import { CountPill } from '../../components/CountPill'
 import { GoBackButton } from '../../components/GoBackButton'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
@@ -21,7 +23,7 @@ export function TitleAbstractScreeningPage() {
   const queue = useScreeningQueue(projectId, STAGE)
 
   return (
-    <main className="page">
+    <Page>
       <StageEyebrow stage="title_abstract_screening" />
       <h1>Title and Abstract Screening</h1>
       {queue.progress ? (
@@ -33,13 +35,13 @@ export function TitleAbstractScreeningPage() {
       ) : null}
       <p><Link to={`/projects/${projectId}/screening/${STAGE}/my-decisions`}>Review or change my past decisions</Link></p>
       {!queue.previousItem && queue.lastCompletedItem ? (
-        <div className="toolbar">
+        <div className={toolbarClass}>
           <GoBackButton onClick={() => queue.goBack.mutate()} disabled={queue.goBack.isPending}>
             ← Go back to “{queue.lastCompletedItem.title}”
           </GoBackButton>
         </div>
       ) : null}
-      {queue.goBack.error ? <p className="error" role="alert">{queue.goBack.error.message}</p> : null}
+      {queue.goBack.error ? <p className="text-danger" role="alert">{queue.goBack.error.message}</p> : null}
       {queue.previousItem ? (
         <PreviousItemCard
           projectId={projectId}
@@ -61,12 +63,12 @@ export function TitleAbstractScreeningPage() {
             </>
           ) : null}
           {!queue.loadingNext && queue.nextError ? (
-            <p className="error" role="alert">{queue.nextError}</p>
+            <p className="text-danger" role="alert">{queue.nextError}</p>
           ) : null}
         </>
       ) : (
         <ScreeningItemCard {...queue} highlightKeywords={highlightKeywords} />
       )}
-    </main>
+    </Page>
   )
 }

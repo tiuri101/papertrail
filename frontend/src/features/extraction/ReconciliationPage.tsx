@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Page } from '../../components/Page'
 import { Button } from '../../components/Button'
 import { Card } from '../../components/Card'
 import { CountPill } from '../../components/CountPill'
@@ -74,31 +75,31 @@ export function ReconciliationPage() {
   })
 
   if (canReconcileLoading) {
-    return <main className="page"><p>Loading…</p></main>
+    return <Page><p>Loading…</p></Page>
   }
   if (!canReconcile) {
     return (
-      <main className="page">
+      <Page>
         <StageEyebrow stage="extraction_quality" />
         <h1>Extraction Conflicts</h1>
-        <p className="error" role="alert">
+        <p className="text-danger" role="alert">
           Only project managers or adjudicators can reconcile extraction disagreements.
         </p>
-      </main>
+      </Page>
     )
   }
 
   const list = queue.data ?? []
 
   return (
-    <main className="page">
+    <Page>
       <StageEyebrow stage="extraction_quality" />
       <h1>Extraction Conflicts</h1>
-      <p className="muted">
+      <p className="text-text-muted">
         Publications where two independent extractors disagreed on at least one field. Resolve
         each disagreeing field to produce the authoritative extraction result.
       </p>
-      {queue.error ? <p className="error" role="alert">{queue.error.message}</p> : null}
+      {queue.error ? <p className="text-danger" role="alert">{queue.error.message}</p> : null}
       <CountPill count={list.length}>
         publication{list.length === 1 ? '' : 's'} awaiting reconciliation
       </CountPill>
@@ -106,7 +107,7 @@ export function ReconciliationPage() {
         {list.map((item) => (
           <Card as="li" key={item.publication.id}>
             <h2>{item.publication.title}</h2>
-            <p className="muted">{item.publication.authors ?? 'Unknown authors'}</p>
+            <p className="text-text-muted">{item.publication.authors ?? 'Unknown authors'}</p>
             <div className="flex flex-wrap items-center gap-3">
               <DoiPill doi={item.publication.doi} />
               {isSafeHttpUrl(item.publication.publisherUrl) ? (
@@ -133,7 +134,7 @@ export function ReconciliationPage() {
           </Card>
         ))}
       </ul>
-    </main>
+    </Page>
   )
 }
 
@@ -167,7 +168,7 @@ function ReconciliationForm({ projectId, publicationId, onDone, onCancel }: {
 
   if (detail.isLoading) return <p>Loading comparison…</p>
   if (detail.error || !detail.data) {
-    return <p className="error" role="alert">{detail.error?.message ?? 'Could not load the comparison.'}</p>
+    return <p className="text-danger" role="alert">{detail.error?.message ?? 'Could not load the comparison.'}</p>
   }
 
   const fieldsByKey = new Map(detail.data.fields.map((field) => [field.stableKey, field]))
@@ -259,7 +260,7 @@ function ReconciliationForm({ projectId, publicationId, onDone, onCancel }: {
         Reconciliation note
         <Textarea value={note} onChange={(event) => setNote(event.target.value)} required />
       </label>
-      {submit.error ? <p className="error" role="alert">{submit.error.message}</p> : null}
+      {submit.error ? <p className="text-danger" role="alert">{submit.error.message}</p> : null}
       <div className="flex flex-wrap items-center gap-3">
         <Button
           type="button"

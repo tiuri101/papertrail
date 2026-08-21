@@ -1,8 +1,10 @@
+import { tableCompactClass, toolbarClass } from '../../components/layoutStyles'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
+import { Button } from '../../components/Button'
 import { CountPill } from '../../components/CountPill'
 import { InfoBox } from '../../components/InfoBox'
 import { Input } from '../../components/Input'
@@ -128,9 +130,9 @@ function ReassignRow({
       <td>{item.assignedReviewerName ?? 'Unassigned'}</td>
       <td>
         {locked ? (
-          <span className="muted">Already submitted</span>
+          <span className="text-text-muted">Already submitted</span>
         ) : (
-          <div className="toolbar">
+          <div className={toolbarClass}>
             <Select
               aria-label={`Reassign ${item.publicationTitle}`}
               value={selectedReviewer}
@@ -302,7 +304,7 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
       <InfoBox icon={<IconSwap />}>
         <p>Move a publication to a different reviewer who has been added to this project.</p>
       </InfoBox>
-      <div className="toolbar">
+      <div className={toolbarClass}>
         <label>
           Stage
           <Select value={stage} onChange={(event) => setStage(event.target.value)}>
@@ -346,8 +348,8 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
         </CountPill>
       ) : null}
       {assignments.data && reassignableTotal > 0 ? (
-        <div className="bulk-selection-panel">
-          <label className="bulk-selection-panel__all">
+        <div className="rounded-md border border-border bg-bg-elevated p-4">
+          <label className="flex items-center gap-2 text-sm font-semibold text-text-secondary">
             <Input
               type="checkbox"
               checked={selectAllFiltered}
@@ -359,8 +361,8 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
             />
             Select all {reassignableTotal} filtered assignments
           </label>
-          <div className="toolbar bulk-selection-panel__controls">
-            <label>
+          <div className="my-5 flex flex-wrap items-end gap-3">
+            <label className="grid gap-1 text-sm font-semibold text-text-secondary">
               Reassign selected to
               <Select
                 value={bulkReviewerId}
@@ -372,17 +374,17 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
                 ))}
               </Select>
             </label>
-            <button
+            <Button
               type="button"
               disabled={!bulkReviewerId || selectedCount === 0 || bulkReassign.isPending}
               onClick={() => bulkReassign.mutate()}
             >
               <IconSwap />
               {bulkReassign.isPending ? 'Reassigning…' : `Reassign selected (${selectedCount})`}
-            </button>
+            </Button>
           </div>
           {selectAllFiltered && excludedIds.size > 0 ? (
-            <p className="muted">{excludedIds.size} assignment{excludedIds.size === 1 ? '' : 's'} excluded from this selection.</p>
+            <p className="text-text-muted">{excludedIds.size} assignment{excludedIds.size === 1 ? '' : 's'} excluded from this selection.</p>
           ) : null}
         </div>
       ) : null}
@@ -390,16 +392,16 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
         <p role="status">Reassigned {bulkReassign.data.reassigned} assignment{bulkReassign.data.reassigned === 1 ? '' : 's'}.</p>
       ) : null}
       {reassign.error || bulkReassign.error ? (
-        <p className="error" role="alert">{(reassign.error ?? bulkReassign.error)?.message}</p>
+        <p className="text-danger" role="alert">{(reassign.error ?? bulkReassign.error)?.message}</p>
       ) : null}
-      {assignments.error ? <p className="error" role="alert">{assignments.error.message}</p> : null}
+      {assignments.error ? <p className="text-danger" role="alert">{assignments.error.message}</p> : null}
       {assignments.isLoading ? <p>Loading…</p> : null}
       {assignments.data && assignments.data.items.length === 0 ? (
-        <p className="muted">No publications match these filters.</p>
+        <p className="text-text-muted">No publications match these filters.</p>
       ) : null}
       {assignments.data && assignments.data.items.length > 0 ? (
         <>
-          <table className="table-compact">
+          <table className={tableCompactClass}>
             <thead>
               <tr>
                 <th scope="col">Select</th>
@@ -423,11 +425,11 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
               ))}
             </tbody>
           </table>
-          <div className="toolbar">
+          <div className={toolbarClass}>
             <button type="button" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>
               Previous
             </button>
-            <span className="muted">Page {page} of {totalPages} ({total} total)</span>
+            <span className="text-text-muted">Page {page} of {totalPages} ({total} total)</span>
             <button type="button" disabled={page >= totalPages} onClick={() => setPage((current) => current + 1)}>
               Next
             </button>

@@ -3,6 +3,7 @@ import { useState } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { Button } from '../../components/Button'
+import { Page } from '../../components/Page'
 import { Card } from '../../components/Card'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { CountPill } from '../../components/CountPill'
@@ -45,7 +46,7 @@ export function UsersPage() {
   })
 
   return (
-    <main className="page">
+    <Page>
       <p className="mb-1 text-xs font-bold uppercase tracking-[0.08em] text-primary">Installation administration</p>
       <h1>Users</h1>
       <p className="text-text">Manage reviewer accounts for this Papertrail installation.</p>
@@ -151,6 +152,6 @@ export function UsersPage() {
           </tbody>
         </table>
       ) : null}
-    </main>
+    </Page>
   )
 }

@@ -1,6 +1,7 @@
+import { toolbarClass } from './layoutStyles'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
-import { Button } from './Button'
+import { Button, type ButtonSize } from './Button'
 
 interface ConfirmButtonProps {
   label: string
@@ -11,14 +12,15 @@ interface ConfirmButtonProps {
   variant?: 'default' | 'secondary' | 'danger'
   icon?: ReactNode
   className?: string
+  size?: ButtonSize
 }
 
-export function ConfirmButton({ label, confirmLabel = 'Confirm', warning, onConfirm, disabled, variant = 'default', icon, className }: ConfirmButtonProps) {
+export function ConfirmButton({ label, confirmLabel = 'Confirm', warning, onConfirm, disabled, variant = 'default', icon, className, size = 'md' }: ConfirmButtonProps) {
   const [confirming, setConfirming] = useState(false)
 
   if (!confirming) {
     return (
-      <Button className={className} variant={variant === 'danger' ? 'destructive' : variant === 'secondary' ? 'secondary' : 'primary'} type="button" onClick={() => setConfirming(true)} disabled={disabled}>
+      <Button className={className} size={size} variant={variant === 'danger' ? 'destructive' : variant === 'secondary' ? 'secondary' : 'primary'} type="button" onClick={() => setConfirming(true)} disabled={disabled}>
         {icon}
         {label}
       </Button>
@@ -26,10 +28,11 @@ export function ConfirmButton({ label, confirmLabel = 'Confirm', warning, onConf
   }
 
   return (
-    <span className="toolbar" role="alertdialog" aria-label={`Confirm: ${label}`}>
-      <span className="error" role="alert">{warning}</span>
+    <span className={toolbarClass} role="alertdialog" aria-label={`Confirm: ${label}`}>
+      <span className="text-danger" role="alert">{warning}</span>
       <Button
         className={className}
+        size={size}
         variant={variant === 'danger' ? 'destructive' : variant === 'secondary' ? 'secondary' : 'primary'}
         type="button"
         onClick={() => {
@@ -41,7 +44,7 @@ export function ConfirmButton({ label, confirmLabel = 'Confirm', warning, onConf
         {icon}
         {confirmLabel}
       </Button>
-      <Button className={className} variant="ghost" type="button" onClick={() => setConfirming(false)} disabled={disabled}>
+      <Button className={className} size={size} variant="ghost" type="button" onClick={() => setConfirming(false)} disabled={disabled}>
         Cancel
       </Button>
     </span>

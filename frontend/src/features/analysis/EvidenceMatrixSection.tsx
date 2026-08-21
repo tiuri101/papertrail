@@ -1,3 +1,4 @@
+import { toolbarClass } from '../../components/layoutStyles'
 import { useMemo, useState } from 'react'
 
 import { Button } from '../../components/Button'
@@ -95,7 +96,7 @@ function ColumnFilterControl({
   return (
     <div className="mt-1.5 flex flex-col gap-1 font-normal normal-case tracking-normal [&_input]:text-[0.8rem] [&_select]:text-[0.8rem]">
       <label>
-        <span className="visually-hidden">Filter {column.label}</span>
+        <span className="sr-only">Filter {column.label}</span>
         <Select
           value={mode}
           onChange={(event) => setMode(event.target.value as FilterMode)}
@@ -124,7 +125,7 @@ function ColumnFilterControl({
       ) : null}
       {mode === 'value' && predicate?.type === 'multi_select' ? (
         <fieldset className="flex max-h-32 flex-col gap-0.5 overflow-y-auto border-0 p-0">
-          <legend className="visually-hidden">{column.label} values</legend>
+          <legend className="sr-only">{column.label} values</legend>
           {options.map((option) => {
             const checked = predicate.anyOf.includes(option)
             return (
@@ -206,16 +207,16 @@ function CellDetailPanel({
   const detail = query.data
 
   return (
-    <aside className="mt-4 rounded-md border border-border p-4 [&>*+*]:mt-3 [&>h3]:mt-0 [&>.toolbar:first-child]:mt-0 [&>.toolbar:last-child]:mb-0 [&_.llm-evidence-list]:grid [&_.llm-evidence-list]:gap-3 [&_.llm-evidence-list_blockquote]:m-0 [&_.llm-evidence-list_blockquote]:rounded-md [&_.llm-evidence-list_blockquote]:border [&_.llm-evidence-list_blockquote]:border-border [&_.llm-evidence-list_blockquote]:bg-bg-elevated [&_.llm-evidence-list_blockquote]:px-4 [&_.llm-evidence-list_blockquote]:py-3" aria-label="Field evidence detail">
-      <div className="toolbar">
+    <aside className="mt-4 rounded-md border border-border p-4 [&>*+*]:mt-3 [&>h3]:mt-0 [&>.toolbar:first-child]:mt-0 [&>.toolbar:last-child]:mb-0" aria-label="Field evidence detail">
+      <div className={toolbarClass}>
         <h3>{selection.publicationTitle}</h3>
         <Button type="button" variant="secondary" onClick={onClose}>Close</Button>
       </div>
       {query.isLoading ? <p>Loading…</p> : null}
-      {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
+      {query.error ? <p className="text-danger" role="alert">{query.error.message}</p> : null}
       {detail ? (
         <>
-          <p className="muted">
+          <p className="text-text-muted">
             {detail.label} · {detail.sourceType === 'quality' ? 'Quality assessment' : 'Extraction'}
           </p>
           <dl className="m-0 grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-3 [&>div]:min-w-0 [&>div]:rounded-sm [&>div]:border [&>div]:border-border [&>div]:bg-surface-hover/50 [&>div]:px-4 [&>div]:py-3 [&_dt]:m-0 [&_dt]:text-[0.72rem] [&_dt]:font-bold [&_dt]:uppercase [&_dt]:tracking-[0.05em] [&_dt]:text-text-muted [&_dd]:mb-0 [&_dd]:mt-1 [&_dd]:overflow-wrap-anywhere [&_dd]:text-[0.92rem] [&_dd]:text-text">
@@ -246,7 +247,7 @@ function CellDetailPanel({
                 publicationId={selection.publicationId}
               />
             ) : (
-              <p className="muted">No traceable source quotation for this value.</p>
+              <p className="text-text-muted">No traceable source quotation for this value.</p>
             )
           ) : null}
         </>
@@ -298,13 +299,13 @@ export function EvidenceMatrixSection({ projectId }: { projectId: string }) {
   return (
     <Card as="section" id="section-analysis-evidence-matrix">
       <h2>Evidence Matrix</h2>
-      <p className="muted">
+      <p className="text-text-muted">
         Every included publication against every extraction and quality field, with the
         authoritative value and, where traceable, the source quotation behind it. A value
         marked <span aria-hidden="true">✦</span> has a traceable source quotation — click it to view the evidence.
       </p>
-      {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
-      <div className="toolbar">
+      {query.error ? <p className="text-danger" role="alert">{query.error.message}</p> : null}
+      <div className={toolbarClass}>
         <label>
           Search
           <Input
@@ -377,7 +378,7 @@ export function EvidenceMatrixSection({ projectId }: { projectId: string }) {
                   <th scope="row" className="sticky left-0 z-[1] min-w-56 max-w-[22rem] overflow-wrap-anywhere bg-bg-elevated whitespace-normal!">
                     {item.publication.title}
                     {item.publication.authors ? (
-                      <span className="muted"> · {item.publication.authors}</span>
+                      <span className="text-text-muted"> · {item.publication.authors}</span>
                     ) : null}
                   </th>
                   {visibleColumns.map((column) => {
@@ -420,7 +421,7 @@ export function EvidenceMatrixSection({ projectId }: { projectId: string }) {
         </div>
       ) : null}
       {data && pageCount > 1 ? (
-        <div className="toolbar">
+        <div className={toolbarClass}>
           <Button type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page <= 1}>
             Previous
           </Button>

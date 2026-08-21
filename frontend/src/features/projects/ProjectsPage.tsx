@@ -8,6 +8,7 @@ import { Button, IconButton } from '../../components/Button'
 import { Card } from '../../components/Card'
 import { CountPill } from '../../components/CountPill'
 import { IconGear, IconPlus, IconSearch } from '../../components/icons'
+import { Page } from '../../components/Page'
 import { Select } from '../../components/Select'
 import { ProjectProgressDots, STAGES } from './StageProgress'
 
@@ -164,7 +165,7 @@ export function ProjectsPage() {
   }
 
   return (
-    <main className="page">
+    <Page>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <h1>Projects</h1>
@@ -316,6 +317,6 @@ export function ProjectsPage() {
           </Card>
         ) : null}
       </ul>
-    </main>
+    </Page>
   )
 }

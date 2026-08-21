@@ -1,9 +1,11 @@
+import { toolbarClass } from '../../components/layoutStyles'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { Button } from '../../components/Button'
+import { cardStyles } from '../../components/Card'
 import { DoiPill } from '../../components/DoiPill'
 import { IconArrowRight, IconCheckCircle, IconRestart } from '../../components/icons'
 import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
@@ -293,7 +295,7 @@ export function ExtractionWorkspace({
               <span className="text-primary" aria-hidden="true">✦</span>
               {' '}LLM suggestion · {status}
             </strong>
-            {applied ? <span className="muted">Reviewer value matches suggestion</span> : null}
+            {applied ? <span className="text-text-muted">Reviewer value matches suggestion</span> : null}
           </div>
           {suggestion.status === 'inferred' ? (
             <p>⚠ This value is inferred; the paper does not state it directly.</p>
@@ -303,7 +305,7 @@ export function ExtractionWorkspace({
           ) : (
             <>
               <p><code>{JSON.stringify(suggestion.value)}</code></p>
-              <div className="toolbar">
+              <div className={toolbarClass}>
                 <Button
                   type="button"
                   variant="secondary"
@@ -331,7 +333,7 @@ export function ExtractionWorkspace({
               />
             </details>
           ) : suggestion.evidenceRequired && suggestion.value != null ? (
-            <p className="error">No verified supporting evidence was returned.</p>
+            <p className="text-danger">No verified supporting evidence was returned.</p>
           ) : null}
         </aside>
       ) : null}
@@ -368,7 +370,7 @@ export function ExtractionWorkspace({
           </>
         ) : null}
         {!loadingNext && nextError ? (
-          <p className="error" role="alert">{nextError}</p>
+          <p className="text-danger" role="alert">{nextError}</p>
         ) : null}
       </>
     )
@@ -379,18 +381,18 @@ export function ExtractionWorkspace({
       {variant !== 'inline' ? (
         <>
           <h2 ref={titleRef} className="publication-title">{item.publication.title}</h2>
-          <p className="muted">
+          <p className="text-text-muted">
             {item.publication.authors ?? 'Unknown authors'}
             {item.publication.publicationYear ? ` (${item.publication.publicationYear})` : ''}
           </p>
           {item.requiredReviewers > 1 ? (
-            <p className="muted">
+            <p className="text-text-muted">
               Independent extraction {item.slotNumber} of {item.requiredReviewers}. Your answers are
               kept independent from the other reviewer&apos;s until both are submitted.
               {completedResponse ? ' Once both reviewers have submitted, agreeing answers become final automatically; any disagreements go to reconciliation.' : ''}
             </p>
           ) : null}
-          <div className="toolbar">
+          <div className={toolbarClass}>
             {fullTextDocument.data ? (
               <PdfAvailabilityPill
                 available={fullTextDocument.data.available}
@@ -422,7 +424,7 @@ export function ExtractionWorkspace({
           <div className={llmPanelHeadingClass}>
             <LlmAssistanceHeading />
           </div>
-          <p className="muted">Checking for LLM suggestions…</p>
+          <p className="text-text-muted">Checking for LLM suggestions…</p>
         </aside>
       ) : null}
       {assistance.data?.state && assistance.data.state !== 'ready' && assistance.data.state !== 'disabled' ? (
@@ -440,7 +442,7 @@ export function ExtractionWorkspace({
               </Button>
             ) : null}
           </div>
-          <p className={assistance.data.state === 'failed' ? 'error' : 'muted'}>
+          <p className={assistance.data.state === 'failed' ? 'text-danger' : 'text-text-muted'}>
             LLM assistance: {assistance.data.state.replaceAll('_', ' ')}
             {assistance.data.error ? ` — ${assistance.data.error}` : ''}. Manual extraction remains available.
           </p>
@@ -455,10 +457,10 @@ export function ExtractionWorkspace({
               Re-run with current schema
             </Button>
           </div>
-          <p className="muted">LLM result uses an older schema version.</p>
+          <p className="text-text-muted">LLM result uses an older schema version.</p>
         </aside>
       ) : null}
-      {runLlm.error ? <p className="error" role="alert">{runLlm.error.message}</p> : null}
+      {runLlm.error ? <p className="text-danger" role="alert">{runLlm.error.message}</p> : null}
       <form onSubmit={(event) => { event.preventDefault(); submit.mutate() }}>
         <DynamicForm
           fields={item.fields}
@@ -489,11 +491,11 @@ export function ExtractionWorkspace({
           </aside>
         ) : null}
         {missingRequired ? (
-          <p className="muted">Answer every required field before submitting.</p>
+          <p className="text-text-muted">Answer every required field before submitting.</p>
         ) : null}
-        {submit.error ? <p className="error" role="alert">{submit.error.message}</p> : null}
-        {skip.error ? <p className="error" role="alert">{skip.error.message}</p> : null}
-        <div className="toolbar">
+        {submit.error ? <p className="text-danger" role="alert">{submit.error.message}</p> : null}
+        {skip.error ? <p className="text-danger" role="alert">{skip.error.message}</p> : null}
+        <div className={toolbarClass}>
           <Button type="submit" disabled={submit.isPending || skip.isPending || missingRequired}>
             <IconCheckCircle />
             {completedResponse ? 'Save corrected extraction' : 'Submit Extraction'}
@@ -528,7 +530,7 @@ export function ExtractionWorkspace({
             </h3>
             {validation.isLoading ? <p>Checking validation status…</p> : null}
             {validation.data?.stale ? (
-              <p className="error">Validation is stale because the extraction or source changed.</p>
+              <p className="text-danger">Validation is stale because the extraction or source changed.</p>
             ) : null}
             {['queued', 'pending', 'processing'].includes(validation.data?.state ?? '') ? (
               <p>Validation {validation.data?.state}… Manual work remains available.</p>
@@ -542,7 +544,7 @@ export function ExtractionWorkspace({
               </p>
             ) : null}
             {validation.data?.state === 'failed' ? (
-              <p className="error">{validation.data.error ?? 'Validation failed.'}</p>
+              <p className="text-danger">{validation.data.error ?? 'Validation failed.'}</p>
             ) : null}
             <Link to={`/projects/${projectId}/extraction/validation`}>
               Back to validation review
@@ -553,5 +555,5 @@ export function ExtractionWorkspace({
     </>
   )
 
-  return variant === 'inline' ? body : <article className="card">{body}</article>
+  return variant === 'inline' ? body : <article className={cardStyles} data-ui="card">{body}</article>
 }

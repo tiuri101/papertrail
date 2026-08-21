@@ -4,6 +4,7 @@ import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 
 import { apiRequest } from '../api/client'
 import { Button, IconButton } from '../components/Button'
+import { Page } from '../components/Page'
 import { DecorativeDocTrail } from '../components/DecorativeDocTrail'
 import { IconFolder, IconHelpCircle, IconPerson, IconSettings, IconUsers } from '../components/icons'
 import { MOBILE_MENU_SECTION_SLOT_ID, MobileMenuContext } from '../components/mobileMenu'
@@ -184,7 +185,7 @@ export function AppShell() {
           </div>
         </aside>
       </div>
-      {logout.error ? <p className="page text-danger" role="alert">{logout.error.message}</p> : null}
+      {logout.error ? <Page as="p" className="text-danger" role="alert">{logout.error.message}</Page> : null}
       <MobileMenuContext.Provider value={{ closeMobileMenu: () => setMobileMenuOpen(false) }}>
         <Outlet />
       </MobileMenuContext.Provider>

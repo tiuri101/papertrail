@@ -1,3 +1,4 @@
+import { toolbarClass } from '../../components/layoutStyles'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
@@ -120,11 +121,11 @@ function ScreeningResponseForm({
   return (
     <div className="overflow-x-auto border-t border-border pt-2">
       <div className="mb-2 flex items-center justify-between gap-2">
-        <strong>{decision.reviewerName} <span className="muted">(v{decision.version})</span></strong>
+        <strong>{decision.reviewerName} <span className="text-text-muted">(v{decision.version})</span></strong>
         <OutcomeBadge outcome={decision.outcome} label={outcomeLabel(decision.outcome)} />
       </div>
       {formatDate(decision.createdAt) ? (
-        <p className="muted my-1 text-[0.8rem]">Decided {formatDate(decision.createdAt)}</p>
+        <p className="text-text-muted my-1 text-[0.8rem]">Decided {formatDate(decision.createdAt)}</p>
       ) : null}
       <table className="m-0 w-full text-[0.82rem] [&_td]:px-[7px] [&_td]:py-[5px] [&_td]:text-center [&_th]:px-[7px] [&_th]:py-[5px] [&_th:not(:first-child)]:text-center [&_th:first-child]:min-w-64 [&_th:first-child]:text-left">
         <thead>
@@ -266,13 +267,13 @@ export function PublicationReviewDetails({
           {final ? <OutcomeBadge outcome={final.outcome} label={outcomeLabel(final.outcome)} /> : null}
         </div>
         {final ? (
-          <p className="muted my-1 text-[0.8rem]">
+          <p className="text-text-muted my-1 text-[0.8rem]">
             Final via {final.resolutionMethod.replaceAll('_', ' ')}
             {final.resolvedBy ? ` by ${final.resolvedBy}` : ''}
             {formatDate(final.resolvedAt) ? ` on ${formatDate(final.resolvedAt)}` : ''}
             {final.note ? ` — ${final.note}` : ''}
           </p>
-        ) : <p className="muted">No final decision yet.</p>}
+        ) : <p className="text-text-muted">No final decision yet.</p>}
         {reviewerDecisions.length ? (
           <div className="mb-2 mt-3 grid gap-2">
             {reviewerDecisions.map((decision, index) => (
@@ -308,8 +309,8 @@ export function PublicationReviewDetails({
   return (
     <div className="ml-0 mt-2 text-[0.86rem] text-text-secondary">
       <div className="mt-2 grid gap-3 border-t border-border pt-3">
-        {details.isLoading ? <p className="muted">Loading review details…</p> : null}
-        {details.error ? <p className="error" role="alert">{details.error.message}</p> : null}
+        {details.isLoading ? <p className="text-text-muted">Loading review details…</p> : null}
+        {details.error ? <p className="text-danger" role="alert">{details.error.message}</p> : null}
         {details.data ? (
           <>
             <div className="grid grid-cols-1 gap-3">
@@ -321,7 +322,7 @@ export function PublicationReviewDetails({
               {renderScreeningStage('full_text', 'Full text', details.data.screening.fullText)}
             </div>
             {!details.data.screening.titleAbstract && !details.data.screening.fullText ? (
-              <p className="muted">No screening decisions have been recorded.</p>
+              <p className="text-text-muted">No screening decisions have been recorded.</p>
             ) : null}
 
             {extraction ? (
@@ -332,7 +333,7 @@ export function PublicationReviewDetails({
                 </div>
                 {response ? (
                   <>
-                    <p className="muted my-1 text-[0.8rem]">
+                    <p className="text-text-muted my-1 text-[0.8rem]">
                       Version {response.version}{response.reviewerName ? ` by ${response.reviewerName}` : ''}
                       {formatDate(extraction.completedAt) ? ` on ${formatDate(extraction.completedAt)}` : ''}
                     </p>
@@ -359,7 +360,7 @@ export function PublicationReviewDetails({
                       </Button>
                     ) : null}
                   </>
-                ) : <p className="muted">No completed data extraction is available.</p>}
+                ) : <p className="text-text-muted">No completed data extraction is available.</p>}
               </section>
             ) : null}
 
@@ -372,7 +373,7 @@ export function PublicationReviewDetails({
                 }}
               >
                 <h4>Override {responseOverride.stageLabel}</h4>
-                <p className="muted">
+                <p className="text-text-muted">
                   Editing the response submitted by {responseOverride.reviewerName}. The previous
                   version will remain in the audit history.
                 </p>
@@ -462,7 +463,7 @@ export function PublicationReviewDetails({
                     required
                   />
                 </label>
-                <div className="toolbar">
+                <div className={toolbarClass}>
                   <Button
                     type="submit"
                     disabled={overrideScreeningResponse.isPending || !responseOverride.reason.trim()}
@@ -481,7 +482,7 @@ export function PublicationReviewDetails({
               </form>
             ) : null}
             {overrideScreeningResponse.error ? (
-              <p className="error" role="alert">{overrideScreeningResponse.error.message}</p>
+              <p className="text-danger" role="alert">{overrideScreeningResponse.error.message}</p>
             ) : null}
 
             {editingExtraction && response ? (
@@ -506,7 +507,7 @@ export function PublicationReviewDetails({
                     required
                   />
                 </label>
-                <div className="toolbar">
+                <div className={toolbarClass}>
                   <Button
                     type="submit"
                     disabled={overrideExtraction.isPending || !extractionReason.trim()}
@@ -520,7 +521,7 @@ export function PublicationReviewDetails({
                 </div>
               </form>
             ) : null}
-            {overrideExtraction.error ? <p className="error" role="alert">{overrideExtraction.error.message}</p> : null}
+            {overrideExtraction.error ? <p className="text-danger" role="alert">{overrideExtraction.error.message}</p> : null}
           </>
         ) : null}
       </div>

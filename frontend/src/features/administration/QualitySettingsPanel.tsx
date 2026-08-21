@@ -64,7 +64,7 @@ export function QualitySettingsPanel({ projectId }: { projectId: string }) {
       <InfoBox icon={<IconCheckCircle />}>
         <p>Configure whether reviewers assess methodological quality and how numerical scores are combined.</p>
       </InfoBox>
-      {config.error ? <p className="error" role="alert">{config.error.message}</p> : null}
+      {config.error ? <p className="text-danger" role="alert">{config.error.message}</p> : null}
       {config.isLoading ? <p>Loadingâ€¦</p> : (
         <div data-quality-settings="true" className="grid gap-5">
           <label>
@@ -114,8 +114,8 @@ export function QualitySettingsPanel({ projectId }: { projectId: string }) {
           </div>
         </div>
       )}
-      {save.error ? <p className="error" role="alert">{save.error.message}</p> : null}
-      {save.isPending || save.isSuccess ? <p className="muted" aria-live="polite">
+      {save.error ? <p className="text-danger" role="alert">{save.error.message}</p> : null}
+      {save.isPending || save.isSuccess ? <p className="text-text-muted" aria-live="polite">
         {save.isPending ? 'Savingâ€¦' : save.isSuccess ? 'Saved.' : ' '}
       </p> : null}
     </CollapsibleSection>

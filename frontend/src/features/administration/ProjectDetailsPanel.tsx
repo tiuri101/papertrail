@@ -54,7 +54,7 @@ export function ProjectDetailsPanel({ projectId }: { projectId: string }) {
           here take effect immediately for every member.
         </p>
       </InfoBox>
-      {project.error ? <p className="error" role="alert">{project.error.message}</p> : null}
+      {project.error ? <p className="text-danger" role="alert">{project.error.message}</p> : null}
       <form
         onSubmit={(event) => {
           event.preventDefault()
@@ -79,11 +79,11 @@ export function ProjectDetailsPanel({ projectId }: { projectId: string }) {
             rows={3}
           />
         </label>
-        {save.error ? <p className="error" role="alert">{save.error.message}</p> : null}
+        {save.error ? <p className="text-danger" role="alert">{save.error.message}</p> : null}
         <Button type="submit" disabled={save.isPending} startIcon={<IconCheckCircle />}>
           {save.isPending ? 'Saving…' : 'Save Project Details'}
         </Button>
-        {save.isSuccess ? <p className="muted" aria-live="polite">Saved.</p> : null}
+        {save.isSuccess ? <p className="text-text-muted" aria-live="polite">Saved.</p> : null}
       </form>
     </CollapsibleSection>
   )

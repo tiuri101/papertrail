@@ -1,3 +1,4 @@
+import { toolbarClass } from '../components/layoutStyles'
 import { lazy, Suspense, useState, type ReactNode } from 'react'
 import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom'
 
@@ -16,6 +17,7 @@ import { ResearchAgendaPanel } from '../features/administration/ResearchAgendaPa
 import { AuditLogPage } from '../features/audit/AuditLogPage'
 import { Button } from '../components/Button'
 import { CollapsibleSection } from '../components/CollapsibleSection'
+import { pageStyles } from '../components/Page'
 import { IconClock, IconSettings, IconSparkle, IconSwap, IconTrash } from '../components/icons'
 import { InfoBox } from '../components/InfoBox'
 import { useRegisterSectionItems } from '../components/sectionNavigation'
@@ -149,22 +151,22 @@ function ProjectAdministrationPage() {
   const currentTab = adminTabs.find((tab) => tab.id === activeTab) ?? adminTabs[0]
   useRegisterSectionItems(currentTab.sections)
   if (canManageLoading) {
-    return <main className="page"><p>Loading…</p></main>
+    return <main className={pageStyles}><p>Loading…</p></main>
   }
   if (!canManage) {
     return (
-      <main className="page">
-        <p className="error" role="alert">
+      <main className={pageStyles}>
+        <p className="text-danger" role="alert">
           Only the project owner or an administrator can access project administration.
         </p>
       </main>
     )
   }
   return (
-    <main className="page">
+    <main className={pageStyles}>
       <AdministrationEyebrow />
       <h1>Project Administration</h1>
-      <p className="muted">
+      <p className="text-text-muted">
         Configure this project's details, membership, workflow rules, and AI assistance.
       </p>
       <TabList
@@ -202,7 +204,7 @@ function ProjectAdministrationPage() {
                   membership changes, configuration updates, and stage transitions.
                 </p>
               </InfoBox>
-              <div className="toolbar">
+              <div className={toolbarClass}>
                 <Button type="button" onClick={() => navigate(`/projects/${projectId}/audit`)}>
                   View Audit Log
                 </Button>
@@ -232,10 +234,10 @@ function ResearchAgendaPage() {
   const { projectId = '' } = useParams()
   useRegisterSectionItems(researchAgendaSections)
   return (
-    <main className="page">
+    <main className={pageStyles}>
       <StageEyebrow stage="draft" />
       <h1>Research Agenda</h1>
-      <p className="muted">
+      <p className="text-text-muted">
         Define this project's research questions and the inclusion/exclusion criteria reviewers
         will screen against.
       </p>
@@ -257,7 +259,7 @@ export function App() {
           <Route
             path="/account"
             element={(
-              <Suspense fallback={<main className="page"><p>Loading account settings…</p></main>}>
+              <Suspense fallback={<main className={pageStyles}><p>Loading account settings…</p></main>}>
                 <AccountSettingsPage />
               </Suspense>
             )}
@@ -265,7 +267,7 @@ export function App() {
           <Route
             path="/help"
             element={(
-              <Suspense fallback={<main className="page"><p>Loading help…</p></main>}>
+              <Suspense fallback={<main className={pageStyles}><p>Loading help…</p></main>}>
                 <HelpPage />
               </Suspense>
             )}
@@ -295,7 +297,7 @@ export function App() {
             <Route
               path="/projects/:projectId/forms"
               element={(
-                <Suspense fallback={<main className="page"><p>Loading forms…</p></main>}>
+                <Suspense fallback={<main className={pageStyles}><p>Loading forms…</p></main>}>
                   <FormBuilderPage />
                 </Suspense>
               )}
@@ -312,7 +314,7 @@ export function App() {
             <Route
               path="/projects/:projectId/analysis"
               element={(
-                <Suspense fallback={<main className="page"><p>Loading analysis…</p></main>}>
+                <Suspense fallback={<main className={pageStyles}><p>Loading analysis…</p></main>}>
                   <AnalysisPage />
                 </Suspense>
               )}

@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 
 import { DoiPill } from '../../components/DoiPill'
 import { Button } from '../../components/Button'
+import { Card } from '../../components/Card'
 import { HighlightedText } from '../../components/HighlightedText'
 import { IconArrowRight, IconCheckCircle } from '../../components/icons'
 import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
@@ -47,10 +48,10 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
     : 'No abstract available.'
 
   return (
-    <article className="card">
+    <Card as="article">
       <h2 ref={titleRef} className="publication-title"><HighlightedText text={item.publication.title} keywords={highlightKeywords} /></h2>
       <p>{item.publication.authors ?? 'Unknown authors'}</p>
-      {item.publication.venue ? <p className="muted">{item.publication.venue}</p> : null}
+      {item.publication.venue ? <p className="text-text-muted">{item.publication.venue}</p> : null}
       {isFullTextStage ? (
         <details className="rounded-md border border-border bg-bg-elevated px-4 py-3 [&_summary]:cursor-pointer [&_summary]:font-semibold [&_p]:mb-0 [&_p]:mt-3">
           <summary>Abstract</summary>
@@ -94,10 +95,10 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
         setCriteriaAnswers={setAnswers}
       />
       {!criteriaComplete ? (
-        <p className="muted">Answer every criterion before {awaitingConfirmation ? 'confirming' : 'submitting'}.</p>
+        <p className="text-text-muted">Answer every criterion before {awaitingConfirmation ? 'confirming' : 'submitting'}.</p>
       ) : null}
       {decisionError ? (
-        <p className="error" role="alert">{decisionError.message}</p>
+        <p className="text-danger" role="alert">{decisionError.message}</p>
       ) : null}
       <div className="flex flex-wrap items-center gap-3">
         <Button
@@ -122,7 +123,7 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
           </Button>
         ) : null}
       </div>
-      {queue.skip.error ? <p className="error" role="alert">{queue.skip.error.message}</p> : null}
-    </article>
+      {queue.skip.error ? <p className="text-danger" role="alert">{queue.skip.error.message}</p> : null}
+    </Card>
   )
 }

@@ -176,7 +176,7 @@ export function GeneralAnalysisSection({
     return (
       <Card as="section" id="section-analysis-general">
         <h2>General Overview</h2>
-        <p className="error" role="alert">{error.message}</p>
+        <p className="text-danger" role="alert">{error.message}</p>
       </Card>
     )
   }
@@ -184,7 +184,7 @@ export function GeneralAnalysisSection({
     return (
       <Card as="section" id="section-analysis-general">
         <h2>General Overview</h2>
-        <p className="muted">
+        <p className="text-text-muted">
           Analysis will appear here after the first review stage, deduplication, is complete.
         </p>
       </Card>
@@ -280,7 +280,7 @@ export function GeneralAnalysisSection({
   return (
     <Card as="section" id="section-analysis-general">
       <h2>General Overview</h2>
-      <p className="muted">A summary of results from completed review stages.</p>
+      <p className="text-text-muted">A summary of results from completed review stages.</p>
       <dl className="my-5 grid grid-cols-1 gap-3 min-[481px]:grid-cols-2 min-[701px]:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]">
         {funnelStages.map((stage) => <GeneralMetricCard key={stage.label} stage={stage} />)}
       </dl>

@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Page } from '../../components/Page'
 import { Button } from '../../components/Button'
 import { Card } from '../../components/Card'
 import { CountPill } from '../../components/CountPill'
@@ -87,31 +88,31 @@ export function ConflictResolutionPage() {
   const list = conflicts.data ?? []
 
   if (canManageLoading) {
-    return <main className="page"><p>Loading…</p></main>
+    return <Page><p>Loading…</p></Page>
   }
   if (!canManage) {
     return (
-      <main className="page">
+      <Page>
         <StageEyebrow
           stage={stage === 'full_text' ? 'full_text_screening' : 'title_abstract_screening'}
         />
         <h1>Conflict Resolution</h1>
-        <p className="error" role="alert">
+        <p className="text-danger" role="alert">
           Only the project owner or an administrator can resolve conflicts.
         </p>
-      </main>
+      </Page>
     )
   }
 
   return (
-    <main className="page">
+    <Page>
       <StageEyebrow
         stage={stage === 'full_text' ? 'full_text_screening' : 'title_abstract_screening'}
       />
       <h1>Conflict Resolution</h1>
-      {conflicts.error ? <p className="error" role="alert">{conflicts.error.message}</p> : null}
-      {resolve.error ? <p className="error" role="alert">{resolve.error.message}</p> : null}
-      {addReviewer.error ? <p className="error" role="alert">{addReviewer.error.message}</p> : null}
+      {conflicts.error ? <p className="text-danger" role="alert">{conflicts.error.message}</p> : null}
+      {resolve.error ? <p className="text-danger" role="alert">{resolve.error.message}</p> : null}
+      {addReviewer.error ? <p className="text-danger" role="alert">{addReviewer.error.message}</p> : null}
       <CountPill count={list.length}>unresolved conflicts</CountPill>
       <ul className="m-0 grid list-none gap-5 p-0" aria-label="Unresolved conflicts">
         {list.map((conflict) => (
@@ -125,7 +126,7 @@ export function ConflictResolutionPage() {
           />
         ))}
       </ul>
-    </main>
+    </Page>
   )
 }
 
@@ -145,7 +146,7 @@ function ConflictCard({ conflict, resolving, addingReviewer, onResolve, onAddRev
   return (
     <Card as="li">
       <h2>{publication.title}</h2>
-      <p className="muted">{publication.authors ?? 'Unknown authors'}</p>
+      <p className="text-text-muted">{publication.authors ?? 'Unknown authors'}</p>
       {publication.abstract ? <p>{publication.abstract}</p> : null}
       {link ? <p><a href={link} target="_blank" rel="noreferrer">View publication</a></p> : null}
       <h3>Reviewer Decisions</h3>

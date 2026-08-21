@@ -111,7 +111,7 @@ function SourceEvidenceCard({
           <span>{sourceRef.publicationTitle}</span>
         </div>
       </header>
-      <div className="mt-3 [&>.llm-evidence-list_blockquote]:mt-2 [&>.llm-evidence-list_blockquote]:bg-bg-elevated">
+      <div className="mt-3">
         <p><strong>Recorded value:</strong> {formatSourceValue(sourceRef.value)}</p>
         {traceableEvidence.length ? (
           <LlmEvidence
@@ -120,7 +120,7 @@ function SourceEvidenceCard({
             publicationId={sourceRef.publicationId}
           />
         ) : (
-          <p className="muted">No traceable source quotation for this value.</p>
+          <p className="text-text-muted">No traceable source quotation for this value.</p>
         )}
       </div>
       <div className="mt-3 flex flex-wrap items-center gap-2 text-[0.72rem] text-text-muted">
@@ -186,7 +186,7 @@ function ResearchQuestionCard({
 
   if (analysis.isLoading) return <p>Loading…</p>
   if (analysis.error || !analysis.data) {
-    return <p className="error" role="alert">{analysis.error?.message ?? 'Could not load this research question.'}</p>
+    return <p className="text-danger" role="alert">{analysis.error?.message ?? 'Could not load this research question.'}</p>
   }
 
   const data = analysis.data
@@ -214,11 +214,11 @@ function ResearchQuestionCard({
         </Button>
       </div>
       {!data.synthesisEnabled ? (
-        <p className="muted">AI-generated interpretive analysis is disabled for this project.</p>
+        <p className="text-text-muted">AI-generated interpretive analysis is disabled for this project.</p>
       ) : null}
-      {regenerate.error ? <p className="error" role="alert">{regenerate.error.message}</p> : null}
+      {regenerate.error ? <p className="text-danger" role="alert">{regenerate.error.message}</p> : null}
       {pendingJob?.status === 'failed' ? (
-        <p className="error" role="alert">
+        <p className="text-danger" role="alert">
           Synthesis failed{pendingJob.errorMessage ? `: ${pendingJob.errorMessage}` : ''}
         </p>
       ) : null}
@@ -231,7 +231,7 @@ function ResearchQuestionCard({
             </p>
           ) : null}
           {run.status === 'failed' && run.error ? (
-            <p className="error" role="alert">{run.error}</p>
+            <p className="text-danger" role="alert">{run.error}</p>
           ) : null}
           <div className={`grid grid-cols-1 items-stretch border-t border-border ${selectedSourceEntry ? 'min-[901px]:grid-cols-[minmax(0,1.45fr)_minmax(280px,.85fr)]' : ''}`}>
             <section className="min-w-0 p-4 min-[601px]:p-5" aria-label={`Synthesis for ${questionLabel}`}>
@@ -241,7 +241,7 @@ function ResearchQuestionCard({
               </p>
               <h5>Key findings</h5>
               {run.statements.length === 0 ? (
-                <p className="muted">No supported statements could be generated from the current data.</p>
+                <p className="text-text-muted">No supported statements could be generated from the current data.</p>
               ) : (
                 <ul className="mt-4 grid gap-4 pl-5">
                   {run.statements.map((statement, index) => (
@@ -285,7 +285,7 @@ function ResearchQuestionCard({
           </div>
         </>
       ) : (
-        <p className="muted">No synthesis generated yet.</p>
+        <p className="text-text-muted">No synthesis generated yet.</p>
       )}
     </div>
   )
@@ -298,11 +298,11 @@ export function ResearchQuestionAnalysisSection({ projectId }: { projectId: stri
   return (
     <Card as="section" id="section-analysis-research-question">
       <h2>Research Question Analysis</h2>
-      <p className="muted">
+      <p className="text-text-muted">
         AI-generated synthesis of the authoritative extraction and quality-assessment results for
         each research question, with every statement traceable to specific source facts.
       </p>
-      {questions.error ? <p className="error" role="alert">{questions.error.message}</p> : null}
+      {questions.error ? <p className="text-danger" role="alert">{questions.error.message}</p> : null}
       {questions.data && researchQuestions.length === 0 ? (
         <p>No research questions have been defined for this project.</p>
       ) : null}

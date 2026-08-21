@@ -137,8 +137,8 @@ describe('FormFieldsPanel', () => {
 
     fireEvent.click(addButton)
     const labelInput = screen.getByLabelText('Label')
-    const draftCard = labelInput.closest('.form-editor-field') as HTMLElement
-    expect(draftCard).toHaveClass('form-editor-field--draft')
+    const draftCard = labelInput.closest('[data-ui="form-editor-field"]') as HTMLElement
+    expect(draftCard).toHaveAttribute('data-draft', 'true')
 
     fireEvent.change(labelInput, { target: { value: 'Sample size' } })
     fireEvent.change(within(draftCard).getByLabelText('Type'), { target: { value: 'number' } })
@@ -254,7 +254,7 @@ describe('FormFieldsPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add Field' }))
 
     const fieldCard = (await screen.findByText('Sample size', { selector: 'strong' })).closest('details')!
-    expect(fieldCard).toHaveClass('form-editor-field')
+    expect(fieldCard).toHaveAttribute('data-ui', 'form-editor-field')
     expect(within(fieldCard).getByText('Number')).toBeInTheDocument()
     expect(within(fieldCard).getByText('Required')).toBeInTheDocument()
 

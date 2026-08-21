@@ -1,6 +1,8 @@
+import { toolbarClass } from '../../components/layoutStyles'
 import { useEffect, useRef, useState } from 'react'
 
 import { Button } from '../../components/Button'
+import { Card } from '../../components/Card'
 import { DoiPill } from '../../components/DoiPill'
 import { HighlightedText } from '../../components/HighlightedText'
 import { PublisherLinkPill } from '../../components/PublisherLinkPill'
@@ -54,17 +56,17 @@ export function PreviousItemCard({
   }, [previousItem.id])
 
   return (
-    <article className="card">
-      <p className="muted">You went back to the previous paper. Changes here update your existing decision.</p>
+    <Card as="article">
+      <p className="text-text-muted">You went back to the previous paper. Changes here update your existing decision.</p>
       <h2 ref={titleRef} className="publication-title"><HighlightedText text={previousItem.publication.title} keywords={highlightKeywords} /></h2>
       <p>{previousItem.publication.authors ?? 'Unknown authors'}</p>
-      {previousItem.publication.venue ? <p className="muted">{previousItem.publication.venue}</p> : null}
+      {previousItem.publication.venue ? <p className="text-text-muted">{previousItem.publication.venue}</p> : null}
       <p>
         {previousItem.publication.abstract
           ? <HighlightedText text={previousItem.publication.abstract} keywords={highlightKeywords} />
           : 'No abstract available.'}
       </p>
-      <div className="toolbar">
+      <div className={toolbarClass}>
         <DoiPill doi={previousItem.publication.doi} />
         {isSafeHttpUrl(previousItem.publication.publisherUrl) ? (
           <PublisherLinkPill url={previousItem.publication.publisherUrl} />
@@ -91,9 +93,9 @@ export function PreviousItemCard({
             criteria={previousItem.criteria}
             setCriteriaAnswers={setAnswers}
           />
-          {!criteriaComplete ? <p className="muted">Answer every criterion before saving.</p> : null}
-          {save.error ? <p className="error" role="alert">{save.error.message}</p> : null}
-          <div className="toolbar">
+          {!criteriaComplete ? <p className="text-text-muted">Answer every criterion before saving.</p> : null}
+          {save.error ? <p className="text-danger" role="alert">{save.error.message}</p> : null}
+          <div className={toolbarClass}>
             <Button
               type="button"
               onClick={() => save.mutate({ outcome, criteriaAnswers: answers, notes: notes || null })}
@@ -108,12 +110,12 @@ export function PreviousItemCard({
           </div>
         </>
       ) : (
-        <div className="toolbar">
+        <div className={toolbarClass}>
           <Button type="button" variant="secondary" onClick={onClose}>
             Continue to current paper
           </Button>
         </div>
       )}
-    </article>
+    </Card>
   )
 }

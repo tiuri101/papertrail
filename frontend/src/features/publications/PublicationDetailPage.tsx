@@ -1,3 +1,4 @@
+import { tableScrollClass } from '../../components/layoutStyles'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
@@ -8,6 +9,8 @@ import { Badge } from '../../components/Badge'
 import { Button } from '../../components/Button'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { DoiPill } from '../../components/DoiPill'
+import { cardStyles } from '../../components/Card'
+import { pageStyles } from '../../components/Page'
 import {
   IconDownload,
   IconEdit,
@@ -23,6 +26,7 @@ import { FullTextDocumentPanel } from '../fulltext/FullTextDocumentPanel'
 import { AdministrationEyebrow } from '../projects/StageEyebrow'
 import { useCanManageProject, useCanManagePublications } from '../../hooks/useCanManageProject'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
+import { cn } from '../../lib/cn'
 import { PublicationEditForm } from './PublicationsPage'
 import { PublicationReviewDetails } from './PublicationReviewDetails'
 import {
@@ -232,14 +236,14 @@ export function PublicationDetailPage() {
   }, [audit.data, publicationId, reviewDetails.data])
 
   if (publications.isLoading) {
-    return <main className="page"><p>Loading…</p></main>
+    return <main className={pageStyles}><p>Loading…</p></main>
   }
   if (!publication) {
     return (
-      <main className="page">
+      <main className={pageStyles}>
         <AdministrationEyebrow />
         <h1>Publication not found</h1>
-        <p className="muted">
+        <p className="text-text-muted">
           It may have been deleted or merged into another record.{' '}
           <Link to={`/projects/${projectId}/publications`}>Back to Publications</Link>
         </p>
@@ -258,7 +262,7 @@ export function PublicationDetailPage() {
       }
     }
     return (
-      <main className="page">
+      <main className={pageStyles}>
         <AdministrationEyebrow />
         <p>
           {openedFromList ? (
@@ -268,7 +272,7 @@ export function PublicationDetailPage() {
           )}
         </p>
         <h1>Edit publication</h1>
-        <div className="card">
+        <div className={cardStyles} data-ui="card">
           <PublicationEditForm publication={publication} projectId={projectId} onDone={closeEditing} />
         </div>
       </main>
@@ -292,7 +296,7 @@ export function PublicationDetailPage() {
     : `/projects/${projectId}/full-text`
 
   return (
-    <main className="page">
+      <main className={pageStyles}>
       <AdministrationEyebrow />
       <p><Link to={`/projects/${projectId}/publications`}>← Back to Publications</Link></p>
 
@@ -301,7 +305,7 @@ export function PublicationDetailPage() {
           <header className="mb-5 max-[960px]:order-1">
             <h1>{publication.title}</h1>
             <p className="mb-0 mt-1 text-text-secondary">{publication.authors ?? 'Unknown authors'}</p>
-            <p className="muted mb-3 mt-1">
+            <p className="text-text-muted mb-3 mt-1">
               {[
                 [publication.publicationYear, publication.venue].filter(Boolean).join(', '),
                 publication.publicationType,
@@ -363,9 +367,9 @@ export function PublicationDetailPage() {
             ) : null}
 
             {activeTab === 'details' ? (
-              <div className="table-scroll">
+              <div className={tableScrollClass}>
                 <table>
-                  <caption className="visually-hidden">Publication details</caption>
+                  <caption className="sr-only">Publication details</caption>
                   <thead>
                     <tr>
                       <th scope="col">Field</th>
@@ -380,7 +384,7 @@ export function PublicationDetailPage() {
                           <th scope="row">{field.label}</th>
                           <td>
                             {!value ? (
-                              <span className="muted">-</span>
+                              <span className="text-text-muted">-</span>
                             ) : field.label === 'DOI' ? (
                               <a href={`https://doi.org/${value}`} target="_blank" rel="noopener noreferrer">{value}</a>
                             ) : (
@@ -408,15 +412,15 @@ export function PublicationDetailPage() {
                 <section>
                   <h3>Activity Log</h3>
                   {!canOverride ? (
-                    <p className="muted">Only the project owner or an administrator can view the activity log.</p>
+                    <p className="text-text-muted">Only the project owner or an administrator can view the activity log.</p>
                   ) : audit.isLoading || reviewDetails.isLoading ? (
                     <p>Loading…</p>
                   ) : publicationHistory.length === 0 ? (
-                    <p className="muted">No recorded history for this publication yet.</p>
+                    <p className="text-text-muted">No recorded history for this publication yet.</p>
                   ) : (
-                    <div className="table-scroll">
+                    <div className={tableScrollClass}>
                       <table>
-                        <caption className="visually-hidden">Activity log</caption>
+                        <caption className="sr-only">Activity log</caption>
                         <thead>
                           <tr>
                             <th scope="col">Timestamp</th>
@@ -428,7 +432,7 @@ export function PublicationDetailPage() {
                           {publicationHistory.map((event) => (
                             <tr key={event.id}>
                               <td>{new Date(event.createdAt).toLocaleString()}</td>
-                              <td>{event.actorUsername ?? <span className="muted">System</span>}</td>
+                              <td>{event.actorUsername ?? <span className="text-text-muted">System</span>}</td>
                               <td>{event.summary}</td>
                             </tr>
                           ))}
@@ -454,14 +458,14 @@ export function PublicationDetailPage() {
                   </a>
                 </p>
               ) : (
-                <p className="muted">No PDF has been attached to this publication yet.</p>
+                <p className="text-text-muted">No PDF has been attached to this publication yet.</p>
               )
             ) : null}
           </TabPanel>
         </div>
 
         <aside className="sticky top-[92px] grid gap-4 max-[960px]:static max-[960px]:order-2 max-[960px]:min-w-0 max-[960px]:max-w-full">
-          <section className="card [&_h2]:mb-3 [&_h2]:mt-0">
+          <section className={cn(cardStyles, '[&_h2]:mb-3 [&_h2]:mt-0')} data-ui="card">
             <h2>Review Status</h2>
             <dl className="mb-4 grid gap-3">
               <div className="flex items-center justify-between gap-2">
@@ -486,22 +490,22 @@ export function PublicationDetailPage() {
                   <Button as={Link} variant="secondary" className="w-full" to={screeningHref}>
                     Open Screening Queue
                   </Button>
-                  <p className="muted mt-2 text-[0.82rem]">
+                  <p className="text-text-muted mt-2 text-[0.82rem]">
                     Claims the next item in the {screeningStageLabel(activeStage)} queue -- not
                     guaranteed to be this publication.
                   </p>
                 </>
               ) : (
-                <p className="muted mt-2 text-[0.82rem]">
+                <p className="text-text-muted mt-2 text-[0.82rem]">
                   Awaiting full-text retrieval before it can be screened.
                 </p>
               )
             ) : (
-              <p className="muted mt-2 text-[0.82rem]">Screening complete.</p>
+              <p className="text-text-muted mt-2 text-[0.82rem]">Screening complete.</p>
             )}
           </section>
 
-          <section className="card [&_h2]:mb-3 [&_h2]:mt-0">
+          <section className={cn(cardStyles, '[&_h2]:mb-3 [&_h2]:mt-0')} data-ui="card">
             <h2>Quick Actions</h2>
             <div className="grid gap-0.5">
               {publication.fullText?.available ? (
@@ -549,9 +553,9 @@ export function PublicationDetailPage() {
                 />
               ) : null}
             </div>
-            {enrich.isSuccess ? <p className="muted">Enrichment queued.</p> : null}
-            {enrich.error ? <p className="error" role="alert">{enrich.error.message}</p> : null}
-            {remove.error ? <p className="error" role="alert">{remove.error.message}</p> : null}
+            {enrich.isSuccess ? <p className="text-text-muted">Enrichment queued.</p> : null}
+            {enrich.error ? <p className="text-danger" role="alert">{enrich.error.message}</p> : null}
+            {remove.error ? <p className="text-danger" role="alert">{remove.error.message}</p> : null}
           </section>
         </aside>
       </div>
