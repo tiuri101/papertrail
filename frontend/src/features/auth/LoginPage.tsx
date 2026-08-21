@@ -105,7 +105,7 @@ export function LoginPage() {
                 <Link to="/forgot-password" className="link-button">Forgot password?</Link>
               </div>
               {login.error ? <p className="error alert" role="alert">{login.error.message}</p> : null}
-              <Button type="submit" className="auth-submit-button" loading={login.isPending}>
+              <Button type="submit" className="relative [&_svg]:absolute [&_svg]:right-4" loading={login.isPending}>
                 {login.isPending ? 'Signing in…' : 'Sign in'}
                 <IconArrowRight />
               </Button>
