@@ -504,7 +504,12 @@ export function PublicationDetailPage() {
                   <IconSparkle /> Enrich Metadata
                 </button>
               ) : null}
-              <a className="publication-detail__quick-action" href={`/api/v1/projects/${projectId}/publications/${publicationId}/export/bib`}>
+              <a
+                className="publication-detail__quick-action"
+                href={`/api/v1/projects/${projectId}/publications/${publicationId}/export/bib`}
+                target="_blank"
+                rel="noreferrer"
+              >
                 <IconDownload /> Export BibTeX
               </a>
               {canManage ? (
