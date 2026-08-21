@@ -370,15 +370,15 @@ export function FormBuilderPage() {
           </Select>
         </label>
         {existingFormOfKind ? (
-          <div className="form-editor-existing-form">
+          <div className="grid gap-3 [&>p]:m-0">
             <p>
               This project already has {kind === 'quality' ? 'a quality assessment' : 'an extraction'} form:{' '}
               <strong>{existingFormOfKind.name}</strong>.
             </p>
-            <div className="toolbar form-editor-existing-form__actions">
-              <button type="button" onClick={() => setSelectedForm(existingFormOfKind.id)}>
+            <div className="flex flex-wrap gap-3">
+              <Button type="button" variant="secondary" onClick={() => setSelectedForm(existingFormOfKind.id)}>
                 Edit It Below
-              </button>
+              </Button>
               <ConfirmButton
                 label="Remove It"
                 confirmLabel="Remove Form"
@@ -437,16 +437,16 @@ export function FormBuilderPage() {
         </label>
         {selectedForm ? (
           <>
-            <div className="form-editor-selection-heading">
+            <div className="my-6 grid items-start gap-4 border-b border-border pb-4">
               <div>
-                <span className="form-editor-selection-type">
+                <span className="block text-base font-bold tracking-[0.02em] text-primary">
                   {isTemplateSelected ? 'Reusable template' : 'Project form'}
                 </span>
                 {selectedFormReadOnly ? <h3>{selectedFormDefinition?.name}</h3> : null}
               </div>
               {!selectedFormReadOnly ? (
                 <form
-                  className="form-editor-rename"
+                  className="m-0 flex w-full flex-col items-stretch gap-3 min-[681px]:flex-row min-[681px]:items-end [&_label]:min-w-0 [&_label]:flex-1"
                   onSubmit={(event) => { event.preventDefault(); renameForm.mutate() }}
                 >
                   <label>
@@ -610,7 +610,7 @@ export function FormBuilderPage() {
                             </label>
                           ) : null}
                           {editingType === 'rating' ? (
-                            <div className="form-editor-field__settings-row">
+                            <div className="grid grid-cols-1 gap-4 min-[681px]:grid-cols-2">
                               <label>
                                 Scale minimum
                                 <Input
@@ -663,7 +663,7 @@ export function FormBuilderPage() {
                             </fieldset>
                           ) : null}
                           {isQualityForm && editingType === 'checkbox' ? (
-                            <div className="form-editor-field__settings-row">
+                            <div className="grid grid-cols-1 gap-4 min-[681px]:grid-cols-2">
                               <label>
                                 Score if checked
                                 <Input
@@ -799,7 +799,7 @@ export function FormBuilderPage() {
                         </label>
                       ) : null}
                       {showRatingScale ? (
-                        <div className="form-editor-field__settings-row">
+                        <div className="grid grid-cols-1 gap-4 min-[681px]:grid-cols-2">
                           <label>
                             Scale minimum
                             <Input
@@ -844,7 +844,7 @@ export function FormBuilderPage() {
                         </fieldset>
                       ) : null}
                       {isQualityForm && fieldType === 'checkbox' ? (
-                        <div className="form-editor-field__settings-row">
+                        <div className="grid grid-cols-1 gap-4 min-[681px]:grid-cols-2">
                           <label>
                             Score if checked
                             <Input type="number" value={trueScore} onChange={(event) => setTrueScore(event.target.value)} />
@@ -930,8 +930,8 @@ export function FormBuilderPage() {
           </>
         ) : null}
       </section>
-      <section id="section-manage-templates" className="card form-template-manager">
-        <div className="form-template-manager__heading">
+      <section id="section-manage-templates" className="card">
+        <div className="mb-5 flex items-start justify-between gap-4">
           <div>
             <h2>Manage Templates</h2>
           </div>
@@ -942,21 +942,21 @@ export function FormBuilderPage() {
         {templates.error ? <p className="error" role="alert">{templates.error.message}</p> : null}
         {templates.isLoading ? <p className="muted">Loading templates…</p> : null}
         {templateCatalog.length === 0 ? (
-          <div className="empty-state form-template-manager__empty">
+          <div className="grid justify-items-center rounded-md border border-dashed border-border-strong p-8 text-center">
             <h3>No reusable templates yet</h3>
             <p>Open a project form above and save it as a template to build your catalog.</p>
           </div>
         ) : (
-          <ul className="form-template-grid" aria-label="Form templates">
+          <ul className="m-0 grid list-none gap-3 p-0" aria-label="Form templates">
             {templateCatalog.map((template) => (
-              <li className="form-template-card" key={template.id}>
+              <li className="grid min-w-0 grid-cols-1 items-center gap-5 rounded-md border border-border bg-surface-raised p-5 min-[681px]:grid-cols-[minmax(0,1fr)_auto]" key={template.id}>
                 <div>
-                  <span className="form-template-card__kind">
+                  <span className="text-[0.72rem] font-bold uppercase tracking-[0.07em] text-primary">
                     {template.kind === 'quality' ? 'Quality assessment' : 'Extraction'}
                   </span>
-                  <h3>{template.name}</h3>
+                  <h3 className="my-2">{template.name}</h3>
                 </div>
-                <div className="toolbar form-template-card__actions">
+                <div className="flex flex-wrap gap-3 min-[681px]:justify-self-end" data-template-actions>
                   <Button
                     type="button"
                     variant="secondary"

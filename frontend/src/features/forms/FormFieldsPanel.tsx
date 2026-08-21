@@ -728,7 +728,7 @@ export function FormFieldsPanel({
                             </label>
                           ) : null}
                           {editingType === 'rating' ? (
-                            <div className="form-editor-field__settings-row">
+                            <div className="grid grid-cols-1 gap-4 min-[681px]:grid-cols-2">
                               <label>
                                 Scale minimum
                                 <Input
@@ -781,7 +781,7 @@ export function FormFieldsPanel({
                             </fieldset>
                           ) : null}
                           {isQualityForm && editingType === 'checkbox' ? (
-                            <div className="form-editor-field__settings-row">
+                            <div className="grid grid-cols-1 gap-4 min-[681px]:grid-cols-2">
                               <label>
                                 Score if checked
                                 <Input
@@ -911,7 +911,7 @@ export function FormFieldsPanel({
                       </label>
                     ) : null}
                     {showRatingScale ? (
-                      <div className="form-editor-field__settings-row">
+                      <div className="grid grid-cols-1 gap-4 min-[681px]:grid-cols-2">
                         <label>
                           Scale minimum
                           <Input type="number" value={ratingMin} onChange={(event) => setRatingMin(event.target.value)} />
@@ -948,7 +948,7 @@ export function FormFieldsPanel({
                       </fieldset>
                     ) : null}
                     {isQualityForm && fieldType === 'checkbox' ? (
-                      <div className="form-editor-field__settings-row">
+                      <div className="grid grid-cols-1 gap-4 min-[681px]:grid-cols-2">
                         <label>
                           Score if checked
                           <Input type="number" value={trueScore} onChange={(event) => setTrueScore(event.target.value)} />

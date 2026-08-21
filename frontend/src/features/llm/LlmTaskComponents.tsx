@@ -3,6 +3,7 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 
 import { apiRequest } from '../../api/client'
 import { Button } from '../../components/Button'
+import { CriterionBadge } from '../../components/CriterionBadge'
 import { IconRestart } from '../../components/icons'
 import { cn } from '../../lib/cn'
 import { llmPanelClass, llmPanelHeadingClass, llmPanelToneClass } from './llmStyles'
@@ -283,9 +284,9 @@ export function ScreeningLlmPanel({
           >
             <summary>
               {criterion.criterionId && numbers[criterion.criterionId] ? (
-                <span className={`criterion-badge criterion-badge--${criterion.criterionKind}`}>
+                <CriterionBadge kind={criterion.criterionKind}>
                   {numbers[criterion.criterionId]}
-                </span>
+                </CriterionBadge>
               ) : null}
               <span className="group-open:text-base group-open:font-bold group-open:tracking-[-0.01em] group-open:text-text">{criterion.criterionText}</span>
               <span className="group-open:text-[0.82rem] group-open:font-semibold group-open:text-text-secondary"> · {statusText(criterion.assessment)}</span>

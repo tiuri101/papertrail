@@ -8,6 +8,7 @@ import { Badge } from '../../components/Badge'
 import { Button, IconButton } from '../../components/Button'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { CountPill } from '../../components/CountPill'
+import { DetailList, DetailListRow } from '../../components/DetailList'
 import { HighlightedText } from '../../components/HighlightedText'
 import { Input } from '../../components/Input'
 import {
@@ -410,17 +411,17 @@ function MetadataConflictsPanel({ projectId }: { projectId: string }) {
             {conflict.publication ? (
               <details className="mx-5 mb-5 rounded-md border border-border bg-bg-elevated px-4 py-3 max-[680px]:mx-4 max-[680px]:mb-4 [&>summary]:cursor-pointer [&>summary]:text-[0.86rem] [&>summary]:font-semibold [&>summary]:text-primary">
                 <summary>All publication metadata</summary>
-                <dl className="detail-list [&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]">
+                <DetailList className="[&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]">
                   {PUBLICATION_METADATA_FIELDS.map((field) => {
                     const value = field.value(conflict.publication!)
                     return (
-                      <div key={field.label} className="detail-list__row">
+                      <DetailListRow key={field.label}>
                         <dt>{field.label}</dt>
                         <dd>{value || <span className="muted">(empty)</span>}</dd>
-                      </div>
+                      </DetailListRow>
                     )
                   })}
-                </dl>
+                </DetailList>
               </details>
             ) : null}
             <section className="flex items-center justify-between gap-5 border-t border-border bg-[color-mix(in_srgb,var(--color-surface-raised)_52%,transparent)] px-5 py-4 max-[1020px]:flex-col max-[1020px]:items-start max-[680px]:p-4 [&_h4]:m-0 [&_p]:mb-0 [&_p]:mt-0.5 [&_p]:text-[0.8rem] [&_p]:text-text-muted">

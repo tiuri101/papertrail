@@ -7,6 +7,7 @@ import { criterionNumbers, sortedByKind } from './criteriaNumbering'
 import type { CriterionAnswer, ScreeningCriterion } from './useScreeningQueue'
 import {InfoBox} from "../../components/InfoBox";
 import { Textarea } from '../../components/Textarea'
+import { CriterionBadge } from '../../components/CriterionBadge'
 
 function capitalize(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1)
@@ -87,7 +88,7 @@ export function CriteriaAnswerFields({
   return (
     <>
       <h3>Criteria</h3>
-      <table className="criteria-table">
+      <table className="w-full [&_td]:text-center [&_td]:align-middle [&_th:not(:first-child)]:text-center">
         <thead>
           <tr>
             <th scope="col">Criterion</th>
@@ -99,13 +100,13 @@ export function CriteriaAnswerFields({
           {sorted.map((criterion, row) => (
             <tr key={criterion.id}>
               <th scope="row">
-                <span className={`criterion-badge criterion-badge--${criterion.kind}`}>{numbers[criterion.id]}</span> {criterion.text}
+                <CriterionBadge kind={criterion.kind}>{numbers[criterion.id]}</CriterionBadge> {criterion.text}
               </th>
               <td>
                 <button
                   type="button"
                   role="checkbox"
-                  className="criterion-toggle criterion-toggle--fulfilled"
+                  className="inline-flex size-9 min-h-9 items-center justify-center rounded-md border border-border bg-bg-elevated p-0 text-text-muted shadow-none transition-colors hover:border-border-strong hover:bg-surface-hover aria-checked:border-success aria-checked:bg-success-container aria-checked:text-success [&_svg]:size-[18px] [&_svg]:fill-current"
                   aria-checked={answers[criterion.id] === true}
                   aria-label={`${capitalize(criterion.kind)}: ${criterion.text} — Fulfilled`}
                   tabIndex={focusedCell.row === row && focusedCell.column === 0 ? 0 : -1}
@@ -127,7 +128,7 @@ export function CriteriaAnswerFields({
                 <button
                   type="button"
                   role="checkbox"
-                  className="criterion-toggle criterion-toggle--not-fulfilled"
+                  className="inline-flex size-9 min-h-9 items-center justify-center rounded-md border border-border bg-bg-elevated p-0 text-text-muted shadow-none transition-colors hover:border-border-strong hover:bg-surface-hover aria-checked:border-danger aria-checked:bg-danger-container aria-checked:text-danger [&_svg]:size-[18px] [&_svg]:fill-current"
                   aria-checked={answers[criterion.id] === false}
                   aria-label={`${capitalize(criterion.kind)}: ${criterion.text} — Not fulfilled`}
                   tabIndex={focusedCell.row === row && focusedCell.column === 1 ? 0 : -1}

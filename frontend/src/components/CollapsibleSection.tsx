@@ -55,7 +55,7 @@ export function CollapsibleSection({
         <Heading className={cn('collapsible-section__heading collapsible-section__heading--with-accessory m-0 flex items-center gap-2', expanded ? '-m-6 mb-0 min-h-[88px] p-6' : 'min-h-[88px] p-6')} aria-label={title}>
           <button
             type="button"
-            className="collapsible-section__toggle inline-flex h-auto min-h-0 w-auto cursor-pointer items-center justify-between border-0 bg-transparent p-0 text-left font-[inherit] text-[inherit] shadow-none hover:text-primary focus-visible:rounded-sm focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-focus"
+            className="collapsible-section__toggle inline-flex h-auto min-h-0 w-auto cursor-pointer items-center justify-between border-0 bg-none bg-transparent p-0 text-left font-[inherit] text-[inherit] shadow-none hover:bg-none hover:text-primary focus-visible:rounded-sm focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-focus"
             aria-expanded={expanded}
             aria-controls={contentId}
             onClick={toggle}
@@ -65,7 +65,7 @@ export function CollapsibleSection({
           <span className="collapsible-section__heading-accessory inline-flex shrink-0">{headingAccessory}</span>
           <button
             type="button"
-            className="collapsible-section__indicator-toggle ml-auto inline-flex h-auto min-h-0 w-auto shrink-0 cursor-pointer border-0 bg-transparent p-0 text-[inherit] shadow-none hover:text-primary focus-visible:rounded-sm focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-focus"
+            className="collapsible-section__indicator-toggle ml-auto inline-flex h-auto min-h-0 w-auto shrink-0 cursor-pointer border-0 bg-none bg-transparent p-0 text-[inherit] shadow-none hover:bg-none hover:text-primary focus-visible:rounded-sm focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-focus"
             aria-label={`${expanded ? 'Collapse' : 'Expand'} ${title}`}
             aria-expanded={expanded}
             aria-controls={contentId}
@@ -80,7 +80,7 @@ export function CollapsibleSection({
         <Heading className={cn('collapsible-section__heading m-0', expanded && '-m-6 mb-0')}>
           <button
             type="button"
-            className="collapsible-section__toggle inline-flex h-auto min-h-[88px] w-full cursor-pointer items-center justify-between border-0 bg-transparent p-6 text-left font-[inherit] text-[inherit] shadow-none hover:text-primary focus-visible:rounded-sm focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-focus"
+            className="collapsible-section__toggle inline-flex h-auto min-h-[88px] w-full cursor-pointer items-center justify-between border-0 bg-none bg-transparent p-6 text-left font-[inherit] text-[inherit] shadow-none hover:bg-none hover:text-primary focus-visible:rounded-sm focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-focus"
             aria-expanded={expanded}
             aria-controls={contentId}
             onClick={toggle}

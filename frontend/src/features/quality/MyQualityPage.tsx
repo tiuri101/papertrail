@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { Button } from '../../components/Button'
+import { Badge } from '../../components/Badge'
 import { CountPill } from '../../components/CountPill'
 import { DoiPill } from '../../components/DoiPill'
 import { HighlightedText } from '../../components/HighlightedText'
@@ -97,9 +98,9 @@ function QualityRow({ projectId, entry, highlightKeywords }: {
           {publication.venue ?? '—'}{publication.publicationYear ? ` (${publication.publicationYear})` : ''}
         </span>
         <span className={reviewWorkStatusClass}>
-          <span className="status-pill">
+          <Badge>
             {entry.totalScore === null ? `Version ${entry.version}` : `Total score ${entry.totalScore} · v${entry.version}`}
-          </span>
+          </Badge>
         </span>
         <span className={reviewWorkDoiClass}>
           {publication.doi ? <DoiPill doi={publication.doi} /> : <span className="muted">—</span>}

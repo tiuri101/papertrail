@@ -206,7 +206,7 @@ function CellDetailPanel({
   const detail = query.data
 
   return (
-    <aside className="nested-card mt-4 [&_.llm-evidence-list]:grid [&_.llm-evidence-list]:gap-3 [&_.llm-evidence-list_blockquote]:m-0 [&_.llm-evidence-list_blockquote]:rounded-md [&_.llm-evidence-list_blockquote]:border [&_.llm-evidence-list_blockquote]:border-border [&_.llm-evidence-list_blockquote]:bg-bg-elevated [&_.llm-evidence-list_blockquote]:px-4 [&_.llm-evidence-list_blockquote]:py-3" aria-label="Field evidence detail">
+    <aside className="mt-4 rounded-md border border-border p-4 [&>*+*]:mt-3 [&>h3]:mt-0 [&>.toolbar:first-child]:mt-0 [&>.toolbar:last-child]:mb-0 [&_.llm-evidence-list]:grid [&_.llm-evidence-list]:gap-3 [&_.llm-evidence-list_blockquote]:m-0 [&_.llm-evidence-list_blockquote]:rounded-md [&_.llm-evidence-list_blockquote]:border [&_.llm-evidence-list_blockquote]:border-border [&_.llm-evidence-list_blockquote]:bg-bg-elevated [&_.llm-evidence-list_blockquote]:px-4 [&_.llm-evidence-list_blockquote]:py-3" aria-label="Field evidence detail">
       <div className="toolbar">
         <h3>{selection.publicationTitle}</h3>
         <Button type="button" variant="secondary" onClick={onClose}>Close</Button>
