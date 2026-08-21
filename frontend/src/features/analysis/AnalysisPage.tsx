@@ -6,6 +6,7 @@ import { apiRequest } from '../../api/client'
 import { IconChart, IconCheckCircle, IconCopy, IconFile, IconLightbulb } from '../../components/icons'
 import { useRegisterSectionItems } from '../../components/sectionNavigation'
 import type { SectionNavigationItem } from '../../components/SectionNavigationLayout'
+import { TabList, TabPanel } from '../../components/Tabs'
 import { StageEyebrow, type ProjectStageValue } from '../projects/StageEyebrow'
 import { DuplicateReviewSection } from './DuplicateReviewSection'
 import { EvidenceMatrixSection } from './EvidenceMatrixSection'
@@ -134,34 +135,20 @@ export function AnalysisPage() {
       <p className="muted">
         Visual summaries of validated results from each completed review stage.
       </p>
-      <div className="page-tabs" role="tablist" aria-label="Charts & Analysis sections">
-        {analysisTabs.map((tab) => {
-          const available = currentStageIndex >= tab.availableFromIndex
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              role="tab"
-              id={`analysis-tab-${tab.id}`}
-              aria-selected={tab.id === activeTab}
-              aria-controls={`analysis-tabpanel-${tab.id}`}
-              className={`page-tab${tab.id === activeTab ? ' page-tab--active' : ''}`}
-              disabled={!available}
-              title={available ? undefined : tab.unavailableTitle}
-              onClick={() => setActiveTab(tab.id)}
-            >
-              {tab.icon}
-              {tab.label}
-            </button>
-          )
-        })}
-      </div>
-      <div
-        id={`analysis-tabpanel-${activeTab}`}
-        className="page-tabpanel"
-        role="tabpanel"
-        aria-labelledby={`analysis-tab-${activeTab}`}
-      >
+      <TabList
+        idPrefix="analysis"
+        label="Charts & Analysis sections"
+        activeId={activeTab}
+        onSelect={(id) => setActiveTab(id as AnalysisTabId)}
+        className="mb-6"
+        items={analysisTabs.map((tab) => ({
+          id: tab.id,
+          label: <>{tab.icon}{tab.label}</>,
+          disabled: currentStageIndex < tab.availableFromIndex,
+          title: currentStageIndex >= tab.availableFromIndex ? undefined : tab.unavailableTitle,
+        }))}
+      />
+      <TabPanel idPrefix="analysis" id={activeTab}>
         {activeTab === 'general' ? (
           <GeneralAnalysisSection projectId={projectId} availability={availability} />
         ) : null}
@@ -188,7 +175,7 @@ export function AnalysisPage() {
         {activeTab === 'research_questions' ? (
           <ResearchQuestionAnalysisSection projectId={projectId} />
         ) : null}
-      </div>
+      </TabPanel>
     </main>
   )
 }

@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Badge } from '../../components/Badge'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { DoiPill } from '../../components/DoiPill'
 import {
@@ -28,6 +29,7 @@ import {
   screeningLabel,
   type Publication,
 } from './publicationShared'
+import { TabList, TabPanel } from '../../components/Tabs'
 
 interface AuditEvent {
   id: string
@@ -307,7 +309,7 @@ export function PublicationDetailPage() {
                 href={`/api/v1/projects/${projectId}/publications/${publication.id}/full-text/content`}
                 pageCount={publication.fullText?.document?.pageCount}
               />
-              {hasData ? <span className="status-badge status-badge--success">Has Data</span> : null}
+              {hasData ? <Badge variant="success">Has Data</Badge> : null}
               <DoiPill doi={publication.doi} />
               {isSafeHttpUrl(publication.publisherUrl) ? (
                 <PublisherLinkPill url={publication.publisherUrl!} />
@@ -315,28 +317,19 @@ export function PublicationDetailPage() {
             </div>
           </header>
 
-          <div className="page-tabs" role="tablist" aria-label="Publication sections">
-            {DETAIL_TABS.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                role="tab"
-                id={`publication-detail-tab-${tab.id}`}
-                aria-selected={tab.id === activeTab}
-                aria-controls={`publication-detail-tabpanel-${tab.id}`}
-                className={`page-tab${tab.id === activeTab ? ' page-tab--active' : ''}`}
-                onClick={() => setActiveTab(tab.id)}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+          <TabList
+            idPrefix="publication-detail"
+            label="Publication sections"
+            activeId={activeTab}
+            onSelect={(id) => setActiveTab(id as typeof activeTab)}
+            className="mb-6 max-[960px]:order-3 max-[960px]:justify-self-start"
+            items={DETAIL_TABS.map((tab) => ({ id: tab.id, label: tab.label }))}
+          />
 
-          <div
-            id={`publication-detail-tabpanel-${activeTab}`}
-            className="page-tabpanel"
-            role="tabpanel"
-            aria-labelledby={`publication-detail-tab-${activeTab}`}
+          <TabPanel
+            idPrefix="publication-detail"
+            id={activeTab}
+            className="max-[960px]:order-4 max-[960px]:min-w-0 max-[960px]:max-w-full"
           >
             {activeTab === 'overview' ? (
               <div className="publication-detail__overview">
@@ -454,7 +447,7 @@ export function PublicationDetailPage() {
                 <p className="muted">No PDF has been attached to this publication yet.</p>
               )
             ) : null}
-          </div>
+          </TabPanel>
         </div>
 
         <aside className="publication-detail__sidebar">

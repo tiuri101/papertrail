@@ -997,10 +997,6 @@ a.button-secondary {
   fill: currentColor;
 }
 
-.page-tabpanel > .toolbar {
-  margin: 0;
-}
-
 .jobs-toolbar {
   align-items: flex-end;
 }
@@ -3172,17 +3168,6 @@ form .toolbar,
     position: static;
   }
 
-  .publication-detail__main > .page-tabs {
-    order: 3;
-    justify-self: start;
-  }
-
-  .publication-detail__main > .page-tabpanel {
-    order: 4;
-    min-width: 0;
-    max-width: 100%;
-  }
-
 }
 
 .decision-card__title {
@@ -3634,7 +3619,7 @@ button:not(.icon-button) svg {
 }
 
 .button--primary,
-button:not(.button-secondary):not(.button-danger):not(.button-success):not(.icon-button):not(.link-button):not(.decision-button):not(.criterion-toggle):not(.llm-stage-button):not(.wizard-step__button):not(.date-field__link):not(.date-field__day):not(.hotkey-capture):not(.info-tooltip__trigger):not(.page-tab):not(.collapsible-section__toggle):not(.collapsible-section__indicator-toggle):not(.publications-page__pdf-indicator):not(.jobs-summary__item):not(.rq-source-badge) {
+button:not(.button-secondary):not(.button-danger):not(.button-success):not(.icon-button):not(.link-button):not(.decision-button):not(.criterion-toggle):not(.llm-stage-button):not(.wizard-step__button):not(.date-field__link):not(.date-field__day):not(.hotkey-capture):not(.info-tooltip__trigger):not(.collapsible-section__toggle):not(.collapsible-section__indicator-toggle):not(.publications-page__pdf-indicator):not(.jobs-summary__item):not(.rq-source-badge) {
   border-color: var(--button-primary-border);
   background: linear-gradient(180deg, var(--button-primary-bg-hover) 0%, var(--button-primary-bg) 100%);
   color: var(--button-primary-text);
@@ -3642,7 +3627,7 @@ button:not(.button-secondary):not(.button-danger):not(.button-success):not(.icon
 }
 
 .button--primary:hover:not(:disabled),
-button:not(.button-secondary):not(.button-danger):not(.button-success):not(.icon-button):not(.link-button):not(.decision-button):not(.criterion-toggle):not(.llm-stage-button):not(.wizard-step__button):not(.date-field__link):not(.date-field__day):not(.hotkey-capture):not(.info-tooltip__trigger):not(.page-tab):not(.collapsible-section__toggle):not(.collapsible-section__indicator-toggle):not(.publications-page__pdf-indicator):not(.jobs-summary__item):not(.rq-source-badge):hover:not(:disabled) {
+button:not(.button-secondary):not(.button-danger):not(.button-success):not(.icon-button):not(.link-button):not(.decision-button):not(.criterion-toggle):not(.llm-stage-button):not(.wizard-step__button):not(.date-field__link):not(.date-field__day):not(.hotkey-capture):not(.info-tooltip__trigger):not(.collapsible-section__toggle):not(.collapsible-section__indicator-toggle):not(.publications-page__pdf-indicator):not(.jobs-summary__item):not(.rq-source-badge):hover:not(:disabled) {
   border-color: #a1b0ff;
   background: transparent;
   color: var(--button-primary-bg-hover);
@@ -6978,50 +6963,6 @@ kbd {
   margin-top: var(--space-2);
   max-height: 16rem;
   white-space: pre-wrap;
-}
-
-.page-tabs {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
-  margin: 0 0 var(--space-6);
-  padding: var(--space-1);
-  border-radius: var(--radius-md);
-  background: var(--color-surface-active);
-}
-
-.page-tab {
-  border: 0;
-  border-radius: var(--radius-sm);
-  background: transparent;
-  padding: var(--space-2) var(--space-4);
-  color: var(--color-text-secondary);
-  font-size: 0.88rem;
-  font-weight: 640;
-  box-shadow: none;
-}
-
-.page-tab:hover:not(:disabled):not(.page-tab--active) {
-  background: var(--color-surface-hover);
-  color: var(--color-text);
-  box-shadow: none;
-  transform: none;
-}
-
-.page-tab--active {
-  background: var(--color-surface);
-  color: var(--color-primary);
-  box-shadow: var(--shadow-sm);
-}
-
-.page-tab--danger.page-tab--active {
-  color: var(--color-danger);
-}
-
-.page-tabpanel {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-6);
 }
 
 .danger-zone {
