@@ -3,6 +3,8 @@ import type { CSSProperties } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
+import { Card } from '../../components/Card'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { IconInfo, IconRestart } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
@@ -356,7 +358,7 @@ export function ProjectPage() {
         ) : null}
         <StageProgress stage={project.data.stage} />
         <ProjectChecklistPanel projectId={projectId} canManage={project.data.canManage} />
-      <section id="section-project-actions" className="card">
+      <Card as="section" id="section-project-actions">
         <h2>Actions</h2>
         <InfoBox icon={<IconInfo />}>
           <p>
@@ -365,7 +367,7 @@ export function ProjectPage() {
           </p>
         </InfoBox>
         <nav aria-label="Project workflow">
-          <ol className="workflow-nav">
+          <ol className="m-0 grid list-none gap-5 p-0">
             {projectSectionGroups.map((group, index) => {
             const upcoming = group.stage !== null && STAGE_INDEX[group.stage] > currentIndex
             const visibleLinks = group.links.filter(
@@ -379,16 +381,17 @@ export function ProjectPage() {
             const summaryText = jobSummaryText(jobSummary.data ?? [], group.jobStages)
             return (
               <li
-                className={upcoming ? 'nav-group nav-group--upcoming' : 'nav-group'}
+                className={`grid grid-cols-[56px_minmax(0,1fr)] items-center gap-4${upcoming ? ' opacity-45' : ''}`}
+                data-upcoming={upcoming || undefined}
                 key={group.heading}
                 style={groupColorStyle(group)}
               >
-                <span className="workflow-nav__number" aria-hidden="true">{index}</span>
-                <div className="workflow-nav__body">
-                  <h3>
+                <span className="inline-flex size-14 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--group-color)_18%,transparent)] text-2xl leading-none font-bold text-(--group-color)" data-workflow-index={index} aria-hidden="true">{index}</span>
+                <div className="min-w-0 border-l-[3px] border-(--group-color) py-1 pl-4">
+                  <h3 className="mb-3 text-base font-bold text-(--group-color)">
                     {group.heading}
                     {summaryText ? (
-                      <span className="job-stage-summary">{'\u00a0·\u00a0'}{summaryText}</span>
+                      <span className="text-[0.78rem] font-medium text-text-secondary">{'\u00a0·\u00a0'}{summaryText}</span>
                     ) : null}
                   </h3>
                   <div className="toolbar">
@@ -396,14 +399,14 @@ export function ProjectPage() {
                       upcoming && !alwaysAvailable ? (
                         <span
                           key={path}
-                          className="nav-link-disabled"
+                          className="inline-flex min-h-[38px] cursor-not-allowed items-center rounded-sm border border-border bg-surface-raised px-[13px] py-2 text-[0.88rem] font-semibold text-text-secondary"
                           aria-disabled="true"
                           title="Not available yet — this stage hasn't started."
                         >
                           {label}
                         </span>
                       ) : (
-                        <Link key={path} to={`/projects/${projectId}/${path}`}>{label}</Link>
+                        <Button as={Link} key={path} variant="secondary" size="sm" to={`/projects/${projectId}/${path}`}>{label}</Button>
                       )
                     ))}
                     {group.stage === 'duplicate_review'
@@ -418,7 +421,7 @@ export function ProjectPage() {
             })}
           </ol>
         </nav>
-      </section>
+      </Card>
         <ProjectDashboard projectId={projectId} />
       </main>
     </SectionNavigationLayout>

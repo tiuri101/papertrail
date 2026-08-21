@@ -23,11 +23,16 @@ function MetricCard({ label, value, detail, tone = 'default' }: {
   detail?: string
   tone?: 'default' | 'success' | 'warning'
 }) {
+  const toneClasses = {
+    default: 'border-border bg-bg-elevated [&_strong]:text-text',
+    success: 'border-success/30 bg-success-container [&_strong]:text-success',
+    warning: 'border-warning/30 bg-warning-container [&_strong]:text-warning',
+  }
   return (
-    <div className={`reviewer-analysis-metric reviewer-analysis-metric--${tone}`}>
-      <span className="reviewer-analysis-metric__label">{label}</span>
-      <strong className="reviewer-analysis-metric__value">{value}</strong>
-      {detail ? <span className="reviewer-analysis-metric__detail">{detail}</span> : null}
+    <div className={`flex min-h-28 flex-col justify-between gap-2 rounded-md border p-4 ${toneClasses[tone]}`}>
+      <span className="text-[0.76rem] font-bold uppercase tracking-[0.04em] text-text-muted">{label}</span>
+      <strong className="text-[1.55rem] leading-none">{value}</strong>
+      {detail ? <span className="text-[0.76rem] text-text-muted">{detail}</span> : null}
     </div>
   )
 }
@@ -35,9 +40,9 @@ function MetricCard({ label, value, detail, tone = 'default' }: {
 function AgreementBar({ value }: { value: number | null }) {
   if (value === null) return <span className="muted">N/A</span>
   return (
-    <span className="reviewer-analysis-agreement">
-      <span className="reviewer-analysis-agreement__track" aria-hidden="true">
-        <span className="reviewer-analysis-agreement__fill" style={{ width: `${Math.round(value * 100)}%` }} />
+    <span className="inline-flex min-w-[118px] items-center gap-2">
+      <span className="inline-block h-[7px] w-16 overflow-hidden rounded-full bg-border" aria-hidden="true">
+        <span className="block h-full rounded-[inherit] bg-success" style={{ width: `${Math.round(value * 100)}%` }} />
       </span>
       <span>{formatPercent(value)}</span>
     </span>
@@ -50,7 +55,7 @@ function PairwiseTable({ pairs }: { pairs: PairwiseAgreement[] }) {
     return <p className="muted">No overlapping reviewer pairs yet.</p>
   }
   return (
-    <table className="reviewer-analysis-table">
+    <table className="min-w-[650px]">
       <thead>
         <tr>
           <th scope="col">Reviewer pair</th>
@@ -86,7 +91,7 @@ function PairwiseTable({ pairs }: { pairs: PairwiseAgreement[] }) {
             </tr>
             {expanded === index ? (
               <tr>
-                <td colSpan={4} className="reviewer-analysis-table__expanded">
+                <td colSpan={4} className="bg-bg-elevated p-4">
                   <ConfusionMatrixTable pair={pair} />
                 </td>
               </tr>
@@ -101,8 +106,8 @@ function PairwiseTable({ pairs }: { pairs: PairwiseAgreement[] }) {
 function ConfusionMatrixTable({ pair }: { pair: PairwiseAgreement }) {
   const { categories, rows } = pair.confusionMatrix
   return (
-    <table className="confusion-matrix reviewer-analysis-table">
-      <caption>{pair.reviewerA} (rows) vs {pair.reviewerB} (columns)</caption>
+    <table className="confusion-matrix min-w-0">
+      <caption className="mb-2 text-left text-[0.8rem] text-text-muted">{pair.reviewerA} (rows) vs {pair.reviewerB} (columns)</caption>
       <thead>
         <tr>
           <th scope="col" />
@@ -126,7 +131,7 @@ function CriteriaTable({ criteria }: { criteria: CriterionAgreement[] }) {
     return <p className="muted">No active criteria with comparable decisions yet.</p>
   }
   return (
-    <table className="reviewer-analysis-table">
+    <table className="min-w-[650px]">
       <thead>
         <tr>
           <th scope="col">Criterion</th>
@@ -171,8 +176,8 @@ function StageAnalysis({ projectId, stage, label, enabled }: {
   )
 
   return (
-    <div className="reviewer-analysis-stage">
-      <h3>{label}</h3>
+    <div className="mt-7 border-t border-border pt-6">
+      <h3 className="mb-3">{label}</h3>
       {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
       {!data ? (query.isLoading ? <p>Loading…</p> : null) : (
         !hasComparablePublications ? (
@@ -180,7 +185,7 @@ function StageAnalysis({ projectId, stage, label, enabled }: {
             Agreement analysis will appear after at least two reviewers have completed the same publication.
           </p>
         ) : <>
-          <div className="reviewer-analysis-metrics">
+          <div className="grid grid-cols-1 gap-3 min-[481px]:grid-cols-2 min-[761px]:grid-cols-3">
             <MetricCard
               label="Raw agreement"
               value={formatPercent(data.overall.rawAgreementRate)}
@@ -206,27 +211,27 @@ function StageAnalysis({ projectId, stage, label, enabled }: {
             />
             <MetricCard label="Revision rate" value={formatPercent(data.overall.revisionRate)} />
           </div>
-          <p className="reviewer-analysis-note">
+          <p className="text-[0.82rem] text-text-muted">
             Complete reviewer sets include only publications where every originally-required reviewer slot has a current decision.
             <InfoTooltip text="Conflict-resolution 'additional reviewer' slots are excluded from this comparison." />
           </p>
 
           {data.pairwise.length > 0 ? (
-            <div className="reviewer-analysis-subsection">
-              <h4>Pairwise reviewer agreement</h4>
-              <div className="table-scroll"><PairwiseTable pairs={data.pairwise} /></div>
+            <div className="mt-7 overflow-hidden rounded-md border border-border bg-surface">
+              <h4 className="m-0 border-b border-border px-4 py-3 text-[0.73rem] font-bold uppercase tracking-[0.08em] text-text-muted">Pairwise reviewer agreement</h4>
+              <div className="table-scroll m-0 p-4"><PairwiseTable pairs={data.pairwise} /></div>
             </div>
           ) : null}
 
           {data.overall.maximumReviewerCount > 2 ? (
-            <div className="reviewer-analysis-subsection">
-              <h4>
+            <div className="mt-4 overflow-hidden rounded-md border border-border bg-surface">
+              <h4 className="m-0 border-b border-border px-4 py-3 text-[0.73rem] font-bold uppercase tracking-[0.08em] text-text-muted">
                 Multi-reviewer agreement
                 <InfoTooltip text="Fleiss' kappa across publications with more than two original reviewers deciding, when the reviewer count is consistent enough to calculate. Shown as unavailable, with an explanation, rather than a fabricated value, when it cannot be validly computed." />
               </h4>
-              <div className="reviewer-analysis-kappa__content">
+              <div className="p-4">
                 {data.multiReviewer.kappa !== null ? (
-                  <><strong className="reviewer-analysis-kappa__value">{formatKappa(data.multiReviewer.kappa)}</strong><span className="muted"> Fleiss&apos; kappa</span></>
+                  <><strong className="text-[1.75rem] text-primary">{formatKappa(data.multiReviewer.kappa)}</strong><span className="muted"> Fleiss&apos; kappa</span></>
                 ) : (
                   <p className="muted">Unavailable: {data.multiReviewer.unavailableReason ?? 'not enough data'}</p>
                 )}
@@ -235,26 +240,26 @@ function StageAnalysis({ projectId, stage, label, enabled }: {
           ) : null}
 
           {data.criteria.length > 0 ? (
-            <div className="reviewer-analysis-subsection">
-              <h4>Criterion-level agreement</h4>
-              <div className="table-scroll"><CriteriaTable criteria={data.criteria} /></div>
+            <div className="mt-4 overflow-hidden rounded-md border border-border bg-surface">
+              <h4 className="m-0 border-b border-border px-4 py-3 text-[0.73rem] font-bold uppercase tracking-[0.08em] text-text-muted">Criterion-level agreement</h4>
+              <div className="table-scroll m-0 p-4"><CriteriaTable criteria={data.criteria} /></div>
             </div>
           ) : null}
 
           {data.disagreementTrend.length > 1 ? (
-            <div className="reviewer-analysis-subsection">
-              <h4>Disagreement over time</h4>
-              <div className="reviewer-analysis-trend" aria-label="Agreement rate by week">
-                <div className="reviewer-analysis-trend__bars">
+            <div className="mt-4 overflow-hidden rounded-md border border-border bg-surface">
+              <h4 className="m-0 border-b border-border px-4 py-3 text-[0.73rem] font-bold uppercase tracking-[0.08em] text-text-muted">Disagreement over time</h4>
+              <div className="m-4 rounded-md border border-border bg-bg-elevated" aria-label="Agreement rate by week">
+                <div className="flex min-h-[190px] items-stretch gap-2 overflow-x-auto border-b border-border pt-4 min-[481px]:overflow-visible">
                   {data.disagreementTrend.map((point) => (
-                    <div className="reviewer-analysis-trend__item" key={point.bucketStart} title={`${point.bucketStart}: ${formatPercent(point.agreementRate)} agreement`}>
-                      <span className="reviewer-analysis-trend__bar" style={{ height: `${Math.max(8, Math.round(point.agreementRate * 100))}%` }} />
-                      <span className="reviewer-analysis-trend__value">{formatPercent(point.agreementRate)}</span>
-                      <span className="reviewer-analysis-trend__label">{point.bucketStart}</span>
+                    <div className="flex min-w-[52px] flex-1 flex-col items-center justify-end gap-[5px] overflow-hidden min-[481px]:min-w-[42px]" key={point.bucketStart} title={`${point.bucketStart}: ${formatPercent(point.agreementRate)} agreement`}>
+                      <span className="min-h-2 w-[min(34px,70%)] rounded-t-[5px] bg-gradient-to-b from-primary to-primary-strong" style={{ height: `${Math.max(8, Math.round(point.agreementRate * 100))}%` }} />
+                      <span className="text-[0.72rem] font-bold text-text-secondary">{formatPercent(point.agreementRate)}</span>
+                      <span className="max-w-[76px] overflow-hidden text-ellipsis whitespace-nowrap text-[0.68rem] text-text-muted">{point.bucketStart}</span>
                     </div>
                   ))}
                 </div>
-                <p className="muted reviewer-analysis-trend__caption">Weekly agreement rate across comparable publications.</p>
+                <p className="mx-0 mb-0 mt-3 text-[0.8rem] text-text-muted">Weekly agreement rate across comparable publications.</p>
               </div>
             </div>
           ) : null}
@@ -297,7 +302,7 @@ export function ReviewerAnalysisSection({
   if (configsLoaded && !hasMultiReviewerStage) return null
 
   return (
-    <Card as="section" id="section-analysis-reviewer-analysis" className="reviewer-analysis-card">
+    <Card as="section" id="section-analysis-reviewer-analysis" className="overflow-hidden">
       <h2>Reviewer Analysis</h2>
       <p className="muted">
         Anonymized inter-rater agreement for completed screening stages.
@@ -316,9 +321,9 @@ export function ReviewerAnalysisSection({
       />
 
       {titleAbstractEnabled && fullTextEnabled && summary.length > 1 ? (
-        <div className="reviewer-analysis-subsection reviewer-analysis-summary">
-          <h3>Reviewer summary</h3>
-        <div className="table-scroll"><table className="reviewer-analysis-table">
+        <div className="mt-4 overflow-hidden rounded-md border border-border bg-surface p-4">
+          <h3 className="mb-3 mt-0">Reviewer summary</h3>
+        <div className="table-scroll p-0"><table className="min-w-[650px]">
           <thead>
             <tr>
               <th scope="col">Reviewer</th>

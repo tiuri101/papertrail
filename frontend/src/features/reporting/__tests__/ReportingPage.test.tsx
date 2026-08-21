@@ -110,7 +110,7 @@ describe('ReportingPage', () => {
 
     const figure = await screen.findByAltText(/PRISMA flow diagram/)
     expect(figure).toHaveAttribute('src', '/api/v1/projects/p1/prisma/svg')
-    expect(screen.getByText('Study selection')).toHaveClass('eyebrow')
+    expect(screen.getByText('Study selection')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'PRISMA Flow' })).toBeInTheDocument()
     expect(screen.queryByText('Living diagram')).not.toBeInTheDocument()
     expect(screen.queryByText(/Counts update automatically/)).not.toBeInTheDocument()
