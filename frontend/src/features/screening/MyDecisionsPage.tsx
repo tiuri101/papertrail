@@ -16,7 +16,7 @@ import { Input } from '../../components/Input'
 import { OutcomeBadge } from '../../components/OutcomeBadge'
 import { PublicationListSortHeader } from '../../components/PublicationListSortHeader'
 import { Select } from '../../components/Select'
-import { reviewWorkActionsClass, reviewWorkCardClass, reviewWorkDoiClass, reviewWorkEditorClass, reviewWorkGridClass, reviewWorkListClass, reviewWorkMetadataClass, reviewWorkStatusClass, reviewWorkSubmittedClass, reviewWorkTitleClass, reviewWorkTitleLinkClass, reviewWorkVenueClass } from '../../components/reviewWorkStyles'
+import { reviewWorkActionsClass, reviewWorkCardClass, reviewWorkDoiClass, reviewWorkEditorClass, reviewWorkGridClass, reviewWorkListClass, reviewWorkMetadataClass, reviewWorkStatusClass, reviewWorkSubmittedClass, reviewWorkTitleClass, reviewWorkTitleLinkClass, reviewWorkTitleTextClass, reviewWorkVenueClass } from '../../components/reviewWorkStyles'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 import { ScreeningLlmPanel } from '../llm/LlmTaskComponents'
 import { StageEyebrow } from '../projects/StageEyebrow'
@@ -294,7 +294,7 @@ function DecisionRow({
       <div className={reviewWorkGridClass}>
         <div className={reviewWorkTitleClass}>
           <Link className={reviewWorkTitleLinkClass} to={detailHref}>
-            <h2 className="m-0 inline text-[inherit] leading-[inherit]">
+            <h2 className={reviewWorkTitleTextClass}>
               <HighlightedText text={publication.title} keywords={highlightKeywords} />
             </h2>
           </Link>

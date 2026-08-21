@@ -141,9 +141,9 @@ function ScreeningResponseForm({
             return (
               <tr key={criterion.id}>
                 <th scope="row">
-                  <CriterionBadge kind={criterion.kind}>
+                  <CriterionBadge kind={criterion.kind} className="mr-2">
                     {criterion.number}
-                  </CriterionBadge>{' '}
+                  </CriterionBadge>
                   {criterion.text}
                 </th>
                 <td aria-label={`${criterion.number}: Fulfilled`}>
@@ -389,9 +389,9 @@ export function PublicationReviewDetails({
                     {numberedCriteria(responseOverride.criteria).map((criterion) => (
                       <tr key={criterion.id}>
                         <th scope="row">
-                          <CriterionBadge kind={criterion.kind}>
+                          <CriterionBadge kind={criterion.kind} className="mr-2">
                             {criterion.number}
-                          </CriterionBadge>{' '}
+                          </CriterionBadge>
                           {criterion.text}
                         </th>
                         <td>

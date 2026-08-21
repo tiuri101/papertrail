@@ -15,7 +15,7 @@ import { Input } from '../../components/Input'
 import { PublicationListSortHeader } from '../../components/PublicationListSortHeader'
 import { Select } from '../../components/Select'
 import { Tooltip } from '../../components/Tooltip'
-import { reviewWorkActionsClass, reviewWorkCardClass, reviewWorkDoiClass, reviewWorkGridClass, reviewWorkListClass, reviewWorkMetadataClass, reviewWorkStatusClass, reviewWorkSubmittedClass, reviewWorkTitleClass, reviewWorkTitleLinkClass, reviewWorkVenueClass } from '../../components/reviewWorkStyles'
+import { reviewWorkActionsClass, reviewWorkCardClass, reviewWorkDoiClass, reviewWorkGridClass, reviewWorkListClass, reviewWorkMetadataClass, reviewWorkStatusClass, reviewWorkSubmittedClass, reviewWorkTitleClass, reviewWorkTitleLinkClass, reviewWorkTitleTextClass, reviewWorkVenueClass } from '../../components/reviewWorkStyles'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 import { LlmEvidence, type LlmEvidenceItem } from '../llm/LlmTaskComponents'
 import { llmValidationClass } from '../llm/llmStyles'
@@ -151,7 +151,7 @@ function ValidationRow({
       <div className={reviewWorkGridClass}>
         <div className={reviewWorkTitleClass}>
           <Link className={reviewWorkTitleLinkClass} to={detailHref}>
-            <h2 className="m-0 inline text-[inherit] leading-[inherit]">
+            <h2 className={reviewWorkTitleTextClass}>
               <HighlightedText text={publication.title} keywords={highlightKeywords} />
             </h2>
           </Link>

@@ -8,5 +8,6 @@ export const reviewWorkDoiClass = 'flex min-w-0 items-center max-[520px]:justify
 export const reviewWorkSubmittedClass = `${reviewWorkMetadataClass} max-[520px]:[grid-area:submitted]`
 export const reviewWorkActionsClass = 'flex min-w-0 items-center justify-end [&_button]:max-w-full [&_button]:whitespace-nowrap max-[520px]:justify-start max-[520px]:[grid-area:actions] max-[520px]:[&_button]:w-full'
 export const reviewWorkTitleLinkClass = 'h-auto min-h-0 whitespace-normal text-left text-text [overflow-wrap:anywhere] hover:text-primary hover:no-underline'
+export const reviewWorkTitleTextClass = 'm-0 inline text-[0.95rem] leading-[inherit]'
 export const reviewWorkEditorClass = 'mt-4 cursor-default border-t border-border pt-4'
 export const reviewWorkListClass = 'm-0 grid list-none gap-2 p-0'

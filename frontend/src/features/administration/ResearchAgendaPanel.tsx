@@ -77,7 +77,7 @@ function ResearchQuestionRow({
 
   return (
     <tr>
-      <td>{number}</td>
+      <td><CriterionBadge>{number}</CriterionBadge></td>
       <td>{question.text}</td>
       <td>
         <div className={`${toolbarClass} flex-nowrap!`}>
@@ -201,7 +201,7 @@ function InlineAgendaDraftRow({
   return (
     <tr className="bg-[color-mix(in_srgb,var(--color-primary-container)_28%,transparent)]">
       <td>
-        {kind ? <CriterionBadge kind={kind}>{number}</CriterionBadge> : number}
+        <CriterionBadge kind={kind}>{number}</CriterionBadge>
       </td>
       <td colSpan={2}>
         <form
