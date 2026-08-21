@@ -360,25 +360,36 @@ export function PublicationDetailPage() {
             ) : null}
 
             {activeTab === 'details' ? (
-              <dl className="detail-list">
-                {DETAIL_FIELDS.map((field) => {
-                  const value = field.value(publication)
-                  return (
-                    <div key={field.label} className="detail-list__row">
-                      <dt>{field.label}</dt>
-                      <dd>
-                        {!value ? (
-                          <span className="muted">-</span>
-                        ) : field.label === 'DOI' ? (
-                          <a href={`https://doi.org/${value}`} target="_blank" rel="noopener noreferrer">{value}</a>
-                        ) : (
-                          value
-                        )}
-                      </dd>
-                    </div>
-                  )
-                })}
-              </dl>
+              <div className="table-scroll">
+                <table>
+                  <caption className="visually-hidden">Publication details</caption>
+                  <thead>
+                    <tr>
+                      <th scope="col">Field</th>
+                      <th scope="col">Value</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {DETAIL_FIELDS.map((field) => {
+                      const value = field.value(publication)
+                      return (
+                        <tr key={field.label}>
+                          <th scope="row">{field.label}</th>
+                          <td>
+                            {!value ? (
+                              <span className="muted">-</span>
+                            ) : field.label === 'DOI' ? (
+                              <a href={`https://doi.org/${value}`} target="_blank" rel="noopener noreferrer">{value}</a>
+                            ) : (
+                              value
+                            )}
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
             ) : null}
 
             {activeTab === 'history' ? (
@@ -400,16 +411,27 @@ export function PublicationDetailPage() {
                   ) : publicationHistory.length === 0 ? (
                     <p className="muted">No recorded history for this publication yet.</p>
                   ) : (
-                    <ul className="card-list stacked">
-                      {publicationHistory.map((event) => (
-                        <li key={event.id} className="card">
-                          <p className="muted publication-detail__history-meta">
-                            {new Date(event.createdAt).toLocaleString()} · {event.actorUsername ?? 'System'}
-                          </p>
-                          <p>{event.summary}</p>
-                        </li>
-                      ))}
-                    </ul>
+                    <div className="table-scroll">
+                      <table>
+                        <caption className="visually-hidden">Activity log</caption>
+                        <thead>
+                          <tr>
+                            <th scope="col">Timestamp</th>
+                            <th scope="col">User</th>
+                            <th scope="col">Summary</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {publicationHistory.map((event) => (
+                            <tr key={event.id}>
+                              <td>{new Date(event.createdAt).toLocaleString()}</td>
+                              <td>{event.actorUsername ?? <span className="muted">System</span>}</td>
+                              <td>{event.summary}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   )}
                 </section>
               </div>
@@ -504,7 +526,12 @@ export function PublicationDetailPage() {
                   <IconSparkle /> Enrich Metadata
                 </button>
               ) : null}
-              <a className="publication-detail__quick-action" href={`/api/v1/projects/${projectId}/publications/${publicationId}/export/bib`}>
+              <a
+                className="publication-detail__quick-action"
+                href={`/api/v1/projects/${projectId}/publications/${publicationId}/export/bib`}
+                target="_blank"
+                rel="noreferrer"
+              >
                 <IconDownload /> Export BibTeX
               </a>
               {canManage ? (

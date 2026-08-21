@@ -730,7 +730,7 @@ def bulk_reassign_assignments(
         actor_id=admin.id,
         summary=(
             f"Reassigned {reassigned} screening assignments to "
-            f"{reviewer.username if reviewer else payload.reviewer_id}"
+            f"{reviewer.display_name if reviewer else payload.reviewer_id}"
         ),
         metadata={
             "stage": stage.value,
@@ -770,7 +770,7 @@ def reassign_work_item_endpoint(
         actor_id=admin.id,
         summary=f"Reassigned screening of "
         f"{publication.title if publication else item.publication_id}"
-        f" to {reviewer.username if reviewer else payload.reviewer_id}",
+        f" to {reviewer.display_name if reviewer else payload.reviewer_id}",
         metadata={
             "stage": item.stage.value,
             "previousReviewerId": previous_reviewer_id,
