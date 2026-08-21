@@ -2,9 +2,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Fragment, useEffect, useId, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
+import { FormField } from '../../components/FormField'
 import { InfoBox } from '../../components/InfoBox'
+import { Input } from '../../components/Input'
 import { IconCheckCircle, IconSettings } from '../../components/icons'
+import { Select } from '../../components/Select'
 import { InfoTooltip } from '../../components/Tooltip'
 
 type AllocationMode = 'independent' | 'divided' | 'claim'
@@ -105,9 +109,8 @@ function StageConfigForm({
     >
       <fieldset>
         <legend className="subsection-heading">{label}</legend>
-        <label>
-          Reviewers required per publication
-          <input
+        <FormField label="Reviewers required per publication">
+          <Input
             type="number"
             min={1}
             max={10}
@@ -115,13 +118,15 @@ function StageConfigForm({
             onChange={(event) => setDraft({ ...draft, requiredReviewers: event.target.value })}
             required
           />
-        </label>
-        <div className="field">
-          <span className="field-label-row">
-            <label htmlFor={`${fieldId}-allocation`}>Allocation</label>
+        </FormField>
+        <FormField
+          label="Allocation"
+          htmlFor={`${fieldId}-allocation`}
+          accessory={(
             <InfoTooltip text="Independent: every reviewer screens every publication, and any disagreement becomes a conflict to resolve. Divided: publications are pre-assigned round-robin so each one is seen by only the required number of reviewers, which reduces workload but means fewer people double-check each decision. Claim: publications are left unassigned and reviewers pick them up themselves as they work, rather than being pre-assigned." />
-          </span>
-          <select
+          )}
+        >
+          <Select
             id={`${fieldId}-allocation`}
             value={draft.allocationMode}
             onChange={(event) => setDraft({ ...draft, allocationMode: event.target.value as AllocationMode })}
@@ -129,14 +134,16 @@ function StageConfigForm({
             {(Object.keys(ALLOCATION_MODE_LABELS) as AllocationMode[]).map((mode) => (
               <option key={mode} value={mode}>{ALLOCATION_MODE_LABELS[mode]}</option>
             ))}
-          </select>
-        </div>
-        <div className="field">
-          <span className="field-label-row">
-            <label htmlFor={`${fieldId}-conflict`}>When reviewers disagree</label>
+          </Select>
+        </FormField>
+        <FormField
+          label="When reviewers disagree"
+          htmlFor={`${fieldId}-conflict`}
+          accessory={(
             <InfoTooltip text="How a publication is resolved when the required reviewers reach different include/exclude decisions on it — for example through discussion, an admin's ruling, an adjudicator, bringing in another reviewer, or an automatic majority vote." />
-          </span>
-          <select
+          )}
+        >
+          <Select
             id={`${fieldId}-conflict`}
             value={draft.conflictResolution}
             onChange={(event) => setDraft({ ...draft, conflictResolution: event.target.value as ResolutionMethod })}
@@ -144,14 +151,16 @@ function StageConfigForm({
             {(Object.keys(RESOLUTION_METHOD_LABELS) as ResolutionMethod[]).map((method) => (
               <option key={method} value={method}>{RESOLUTION_METHOD_LABELS[method]}</option>
             ))}
-          </select>
-        </div>
-        <div className="field">
-          <span className="field-label-row">
-            <label htmlFor={`${fieldId}-uncertain`}>When a reviewer is uncertain</label>
+          </Select>
+        </FormField>
+        <FormField
+          label="When a reviewer is uncertain"
+          htmlFor={`${fieldId}-uncertain`}
+          accessory={(
             <InfoTooltip text="How a publication is resolved when a reviewer marks their decision as uncertain instead of include or exclude, using the same set of resolution methods as a disagreement." />
-          </span>
-          <select
+          )}
+        >
+          <Select
             id={`${fieldId}-uncertain`}
             value={draft.uncertainResolution}
             onChange={(event) => setDraft({ ...draft, uncertainResolution: event.target.value as ResolutionMethod })}
@@ -159,10 +168,10 @@ function StageConfigForm({
             {(Object.keys(RESOLUTION_METHOD_LABELS) as ResolutionMethod[]).map((method) => (
               <option key={method} value={method}>{RESOLUTION_METHOD_LABELS[method]}</option>
             ))}
-          </select>
-        </div>
+          </Select>
+        </FormField>
         {error ? <p className="error" role="alert">{error.message}</p> : null}
-        <button type="submit" disabled={pending}><IconCheckCircle />Save {label} Settings</button>
+        <Button type="submit" disabled={pending}><IconCheckCircle />Save {label} Settings</Button>
       </fieldset>
     </form>
   )
