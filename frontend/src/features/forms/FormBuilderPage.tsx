@@ -870,7 +870,7 @@ export function FormBuilderPage() {
                 ) : null}
                 {!selectedFormReadOnly ? (
                   <IconButton
-                    variant="ghost"
+                    variant="secondary"
                     size="sm"
                     className="size-[30px] min-w-[30px] rounded-full [&_svg]:size-4 form-editor-fields__add-button"
                     aria-label="Add form field"

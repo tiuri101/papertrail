@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
 import { IconArrowRight, IconChart, IconCheckCircle, IconDownload, IconEye } from '../../components/icons'
 import { STAGES } from './StageProgress'
 
@@ -143,27 +144,18 @@ export function ProjectChecklistPanel({ projectId, canManage }: { projectId: str
               need to share your findings.
             </p>
             <div className="project-completion__actions">
-              <Link
-                className="project-completion__action project-completion__action--primary"
-                to={`/projects/${projectId}/results`}
-              >
+              <Button as={Link} variant="primary" className="max-[520px]:w-full" to={`/projects/${projectId}/results`}>
                 <IconEye />
                 View Final Results
-              </Link>
-              <Link
-                className="project-completion__action button-secondary"
-                to={`/projects/${projectId}/analysis`}
-              >
+              </Button>
+              <Button as={Link} variant="secondary" className="max-[520px]:w-full" to={`/projects/${projectId}/analysis`}>
                 <IconChart />
                 Explore Charts &amp; Analysis
-              </Link>
-              <Link
-                className="project-completion__action button-secondary"
-                to={`/projects/${projectId}/reporting`}
-              >
+              </Button>
+              <Button as={Link} variant="secondary" className="max-[520px]:w-full" to={`/projects/${projectId}/reporting`}>
                 <IconDownload />
                 Open Reporting and Exports
-              </Link>
+              </Button>
             </div>
           </div>
         </div>

@@ -247,7 +247,7 @@ function PublicationRow({
         <span className="publication-row-grid__actions">
           <IconButton
             as={Link}
-            variant="outline"
+            variant="secondary"
             to={detailHref}
             aria-label={`View ${publication.title}`}
             title="View details"

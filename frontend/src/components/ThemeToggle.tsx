@@ -14,7 +14,7 @@ export function ThemeToggle() {
 
   return (
     <IconButton
-      variant="outline"
+      variant="secondary"
       aria-label={label}
       title={label}
       onClick={() => {

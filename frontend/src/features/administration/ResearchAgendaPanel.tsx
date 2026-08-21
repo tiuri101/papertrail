@@ -334,7 +334,7 @@ export function ResearchQuestionsPanel({
             <tr className="research-agenda-table__add-row">
               <td colSpan={3}>
                 <IconButton
-                  variant="ghost"
+                  variant="secondary"
                   size="sm"
                   className="size-[30px] min-w-[30px] rounded-full [&_svg]:size-4"
                   aria-label="Add research question"
@@ -498,7 +498,7 @@ export function CriteriaPanel({
             <tr className="research-agenda-table__add-row">
               <td colSpan={3}>
                 <IconButton
-                  variant="ghost"
+                  variant="secondary"
                   size="sm"
                   className="size-[30px] min-w-[30px] rounded-full [&_svg]:size-4"
                   aria-label="Add inclusion criterion"
@@ -552,7 +552,7 @@ export function CriteriaPanel({
             <tr className="research-agenda-table__add-row">
               <td colSpan={3}>
                 <IconButton
-                  variant="ghost"
+                  variant="secondary"
                   size="sm"
                   className="size-[30px] min-w-[30px] rounded-full [&_svg]:size-4"
                   aria-label="Add exclusion criterion"

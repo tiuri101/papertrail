@@ -431,7 +431,7 @@ export function JobsPage() {
                       <td>
                         {failed ? (
                           <IconButton
-                            variant="outline"
+                            variant="secondary"
                             size="sm"
                             className="rounded-full"
                             disabled={restartOne.isPending}
