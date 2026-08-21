@@ -6,7 +6,7 @@ import { apiRequest } from '../../api/client'
 import { Button } from '../../components/Button'
 import { IconCheckCircle } from '../../components/icons'
 import { Input } from '../../components/Input'
-import { ThemeToggle } from '../../components/ThemeToggle'
+import { AuthAlert, AuthCard, authFieldClassName, authFormClassName, AuthHeading, AuthPage } from './AuthLayout'
 import { setCsrfToken } from './session'
 import type { LoginResponse } from './types'
 
@@ -33,19 +33,14 @@ export function ResetPasswordPage() {
   const passwordsMismatch = newPassword.length > 0 && newPassword !== confirmPassword
 
   return (
-    <main className="login-page">
-      <div className="login-theme-control">
-        <ThemeToggle />
-      </div>
-      <section className="login-card" aria-labelledby="reset-password-title">
-        <div className="login-heading">
-          <p className="eyebrow">Account recovery</p>
-          <h1 id="reset-password-title">Choose a New Password</h1>
-          <p className="muted">Set a new password to regain access to your account.</p>
-        </div>
+    <AuthPage>
+      <AuthCard aria-labelledby="reset-password-title">
+        <AuthHeading eyebrow="Account recovery" title="Choose a New Password" titleId="reset-password-title">
+          <p>Set a new password to regain access to your account.</p>
+        </AuthHeading>
         {token ? (
-          <form onSubmit={(event) => { event.preventDefault(); resetPassword.mutate() }}>
-            <label>
+          <form className={authFormClassName} onSubmit={(event) => { event.preventDefault(); resetPassword.mutate() }}>
+            <label className={authFieldClassName}>
               New password
               <Input
                 type="password"
@@ -56,7 +51,7 @@ export function ResetPasswordPage() {
                 required
               />
             </label>
-            <label>
+            <label className={authFieldClassName}>
               Confirm new password
               <Input
                 type="password"
@@ -68,10 +63,10 @@ export function ResetPasswordPage() {
               />
             </label>
             {passwordsMismatch ? (
-              <p className="error alert" role="alert">New passwords do not match.</p>
+              <AuthAlert role="alert">New passwords do not match.</AuthAlert>
             ) : null}
             {resetPassword.error ? (
-              <p className="error alert" role="alert">{resetPassword.error.message}</p>
+              <AuthAlert role="alert">{resetPassword.error.message}</AuthAlert>
             ) : null}
             <Button
               type="submit"
@@ -83,13 +78,13 @@ export function ResetPasswordPage() {
             </Button>
           </form>
         ) : (
-          <p className="error alert" role="alert">
+          <AuthAlert role="alert">
             This password reset link is missing its token. Request a new link to
             continue.
-          </p>
+          </AuthAlert>
         )}
         <Button as={Link} to="/forgot-password" variant="text" className="mt-6">Request a new link</Button>
-      </section>
-    </main>
+      </AuthCard>
+    </AuthPage>
   )
 }

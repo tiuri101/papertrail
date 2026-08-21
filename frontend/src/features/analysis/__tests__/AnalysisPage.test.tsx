@@ -176,9 +176,8 @@ describe('AnalysisPage', () => {
     expect(generalOverviewHeading).toBeInTheDocument()
     expect(await screen.findByRole('heading', { name: 'Review Funnel' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Stage Details' })).toBeInTheDocument()
-    const generalOverview = generalOverviewHeading.closest('section')
-    expect(generalOverview?.querySelector('.general-analysis__metric--imported')).toHaveTextContent('12')
-    expect(generalOverview?.querySelector('.general-analysis__metric--extraction')).toHaveTextContent('2')
+    expect(screen.getAllByText('Records imported')[0].closest('div')).toHaveTextContent('12')
+    expect(screen.getAllByText('Extractions completed')[0].closest('div')).toHaveTextContent('2')
     expect(screen.getByText('Pending extractions').closest('div')).toHaveTextContent('1')
 
     fireEvent.click(screen.getByRole('tab', { name: 'Deduplication' }))

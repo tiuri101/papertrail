@@ -7,7 +7,7 @@ import { Button } from '../../components/Button'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { IconCheckCircle } from '../../components/icons'
 import { Input } from '../../components/Input'
-import { ThemeToggle } from '../../components/ThemeToggle'
+import { AuthAlert, AuthCard, authFieldClassName, authFormClassName, AuthHeading, AuthPage } from './AuthLayout'
 import { setCsrfToken } from './session'
 import { sessionQueryOptions } from './sessionQuery'
 import type { LoginResponse, User } from './types'
@@ -46,20 +46,19 @@ export function ChangePasswordPage() {
   const passwordUnchanged = currentPassword.length > 0 && newPassword === currentPassword
 
   return (
-    <main className="login-page">
-      <div className="login-theme-control">
-        <ThemeToggle />
-      </div>
-      <section className="login-card" aria-labelledby="change-password-title">
-        <div className="login-heading">
-          <p className="eyebrow">Welcome{session?.user.displayName ? `, ${session.user.displayName}` : ''}</p>
-          <h1 id="change-password-title">Set a New Password</h1>
-          <p className="muted">
+    <AuthPage>
+      <AuthCard aria-labelledby="change-password-title">
+        <AuthHeading
+          eyebrow={<>Welcome{session?.user.displayName ? `, ${session.user.displayName}` : ''}</>}
+          title="Set a New Password"
+          titleId="change-password-title"
+        >
+          <p>
             Your account was just created. Choose a new password to continue.
           </p>
-        </div>
-        <form onSubmit={(event) => { event.preventDefault(); updatePassword.mutate() }}>
-          <label>
+        </AuthHeading>
+        <form className={authFormClassName} onSubmit={(event) => { event.preventDefault(); updatePassword.mutate() }}>
+          <label className={authFieldClassName}>
             Current password
             <Input
               type="password"
@@ -69,7 +68,7 @@ export function ChangePasswordPage() {
               required
             />
           </label>
-          <label>
+          <label className={authFieldClassName}>
             New password
             <Input
               type="password"
@@ -80,7 +79,7 @@ export function ChangePasswordPage() {
               required
             />
           </label>
-          <label>
+          <label className={authFieldClassName}>
             Confirm new password
             <Input
               type="password"
@@ -92,12 +91,12 @@ export function ChangePasswordPage() {
             />
           </label>
           {passwordUnchanged ? (
-            <p className="error alert" role="alert">
+            <AuthAlert role="alert">
               New password must be different from your current password.
-            </p>
+            </AuthAlert>
           ) : null}
-          {passwordsMismatch ? <p className="error alert" role="alert">New passwords do not match.</p> : null}
-          {updatePassword.error ? <p className="error alert" role="alert">{updatePassword.error.message}</p> : null}
+          {passwordsMismatch ? <AuthAlert role="alert">New passwords do not match.</AuthAlert> : null}
+          {updatePassword.error ? <AuthAlert role="alert">{updatePassword.error.message}</AuthAlert> : null}
           <Button
             type="submit"
             loading={updatePassword.isPending}
@@ -120,7 +119,7 @@ export function ChangePasswordPage() {
         >
           Sign Out
         </Button>
-      </section>
+      </AuthCard>
       {showWelcomeDialog ? (
         <ConfirmDialog
           title="New to Papertrail?"
@@ -131,6 +130,6 @@ export function ChangePasswordPage() {
           onCancel={() => navigate('/')}
         />
       ) : null}
-    </main>
+    </AuthPage>
   )
 }

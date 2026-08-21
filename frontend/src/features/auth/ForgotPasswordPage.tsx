@@ -6,7 +6,7 @@ import { apiRequest } from '../../api/client'
 import { Button } from '../../components/Button'
 import { IconArrowRight } from '../../components/icons'
 import { Input } from '../../components/Input'
-import { ThemeToggle } from '../../components/ThemeToggle'
+import { AuthAlert, AuthCard, authFieldClassName, authFormClassName, AuthHeading, AuthPage } from './AuthLayout'
 
 export function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
@@ -18,27 +18,22 @@ export function ForgotPasswordPage() {
   })
 
   return (
-    <main className="login-page">
-      <div className="login-theme-control">
-        <ThemeToggle />
-      </div>
-      <section className="login-card" aria-labelledby="forgot-password-title">
-        <div className="login-heading">
-          <p className="eyebrow">Account recovery</p>
-          <h1 id="forgot-password-title">Reset Your Password</h1>
-          <p className="muted">
+    <AuthPage>
+      <AuthCard aria-labelledby="forgot-password-title">
+        <AuthHeading eyebrow="Account recovery" title="Reset Your Password" titleId="forgot-password-title">
+          <p>
             Enter the email address on your account and we will send you a link to
             choose a new password.
           </p>
-        </div>
+        </AuthHeading>
         {requestReset.isSuccess ? (
-          <p className="success alert" role="status">
+          <AuthAlert tone="success" role="status">
             If an account exists for that email address, a password reset link is on
             its way. Check your inbox.
-          </p>
+          </AuthAlert>
         ) : (
-          <form onSubmit={(event) => { event.preventDefault(); requestReset.mutate() }}>
-            <label>
+          <form className={authFormClassName} onSubmit={(event) => { event.preventDefault(); requestReset.mutate() }}>
+            <label className={authFieldClassName}>
               Email address
               <Input
                 type="email"
@@ -49,7 +44,7 @@ export function ForgotPasswordPage() {
               />
             </label>
             {requestReset.error ? (
-              <p className="error alert" role="alert">{requestReset.error.message}</p>
+              <AuthAlert role="alert">{requestReset.error.message}</AuthAlert>
             ) : null}
             <Button type="submit" loading={requestReset.isPending} disabled={!email}>
               {requestReset.isPending ? 'Sending…' : 'Send Reset Link'}
@@ -58,7 +53,7 @@ export function ForgotPasswordPage() {
           </form>
         )}
         <Button as={Link} to="/login" variant="text" className="mt-6">Back to sign in</Button>
-      </section>
-    </main>
+      </AuthCard>
+    </AuthPage>
   )
 }

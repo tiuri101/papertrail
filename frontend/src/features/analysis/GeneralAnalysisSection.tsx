@@ -17,6 +17,21 @@ interface FunnelStage {
   tone: string
 }
 
+const stageToneClasses: Record<string, { accent: string; bar: string }> = {
+  imported: { accent: 'before:bg-[#4d9cff] text-[#4d9cff]', bar: 'from-[#4d9cff] to-[#253f70]' },
+  deduplicated: { accent: 'before:bg-[#3c86e8] text-[#3c86e8]', bar: 'from-[#3c86e8] to-[#223b68]' },
+  'title-abstract': { accent: 'before:bg-[#6675e8] text-[#6675e8]', bar: 'from-[#6675e8] to-[#353d70]' },
+  'full-text': { accent: 'before:bg-[#8a63db] text-[#8a63db]', bar: 'from-[#8a63db] to-[#47346c]' },
+  extraction: { accent: 'before:bg-success text-success', bar: 'from-[#9a5bd7] to-[#4d3269]' },
+}
+
+const detailToneClasses: Record<string, string> = {
+  success: 'bg-success-container text-success',
+  danger: 'bg-danger-container text-danger',
+  warning: 'bg-warning-container text-warning',
+  pending: 'bg-warning-container text-warning',
+}
+
 interface StageDetail {
   label: string
   value: number
@@ -47,11 +62,11 @@ function formatPercent(value: number): string {
 
 function GeneralMetricCard({ stage }: { stage: FunnelStage }) {
   return (
-    <div className={`general-analysis__metric general-analysis__metric--${stage.tone}`}>
-      <dt>{stage.label}</dt>
-      <dd>
-        <strong>{stage.value.toLocaleString()}</strong>
-        <span>{stage.detail}</span>
+    <div className={`relative min-w-0 overflow-hidden rounded-md border border-border bg-bg-elevated p-4 shadow-sm before:absolute before:inset-x-0 before:top-0 before:h-[3px] ${stageToneClasses[stage.tone].accent}`}>
+      <dt className="text-[0.78rem] font-bold leading-[1.35] text-text-secondary">{stage.label}</dt>
+      <dd className="mt-3 grid gap-2">
+        <strong className="text-[clamp(1.45rem,2vw,1.9rem)] leading-none text-text">{stage.value.toLocaleString()}</strong>
+        <span className="text-[0.74rem] font-bold">{stage.detail}</span>
       </dd>
     </div>
   )
@@ -62,25 +77,25 @@ function ReviewFunnel({ stages }: { stages: FunnelStage[] }) {
   const maximum = Math.max(startingTotal, 1)
 
   return (
-    <section className="general-analysis__funnel-card" aria-labelledby="general-analysis-funnel-title">
-      <h3 id="general-analysis-funnel-title">Review Funnel</h3>
-      <ol className="general-analysis__funnel">
+    <section className="min-w-0 rounded-md border border-border bg-bg-elevated p-4 min-[701px]:p-5" aria-labelledby="general-analysis-funnel-title">
+      <h3 className="mb-4 text-base" id="general-analysis-funnel-title">Review Funnel</h3>
+      <ol className="grid list-none gap-2 p-0">
         {stages.map((stage) => {
           const width = stage.value > 0
             ? Math.max(22, Math.round((stage.value / maximum) * 100))
             : 18
           return (
-            <li key={stage.label}>
-              <span className="general-analysis__funnel-label">{stage.label}</span>
-              <div className="general-analysis__funnel-track">
+            <li className="grid grid-cols-[1fr_auto] items-center gap-2 min-[481px]:grid-cols-[minmax(92px,.75fr)_minmax(100px,1.5fr)_minmax(48px,auto)] min-[701px]:grid-cols-[minmax(116px,.7fr)_minmax(160px,2fr)_minmax(58px,auto)] min-[701px]:gap-3" key={stage.label}>
+              <span className="text-[0.8rem] font-semibold text-text-secondary">{stage.label}</span>
+              <div className="row-start-2 flex h-12 min-w-0 items-center justify-center rounded-sm bg-surface-hover/55 min-[481px]:col-auto min-[481px]:row-auto">
                 <div
-                  className={`general-analysis__funnel-bar general-analysis__funnel-bar--${stage.tone}`}
+                  className={`flex h-full min-w-[18%] items-center justify-center bg-gradient-to-b text-white [clip-path:polygon(5%_0,95%_0,88%_100%,12%_100%)] [filter:drop-shadow(0_5px_8px_rgba(0,0,0,.18))] ${stageToneClasses[stage.tone].bar}`}
                   style={{ width: `${width}%` } as CSSProperties}
                 >
-                  <strong>{stage.value.toLocaleString()}</strong>
+                  <strong className="overflow-hidden text-ellipsis whitespace-nowrap text-[0.86rem]">{stage.value.toLocaleString()}</strong>
                 </div>
               </div>
-              <span className="general-analysis__funnel-percent">
+              <span className="text-right text-[0.78rem] font-bold text-text-muted">
                 {formatPercent(percentage(stage.value, startingTotal))}
               </span>
             </li>
@@ -93,20 +108,20 @@ function ReviewFunnel({ stages }: { stages: FunnelStage[] }) {
 
 function StageDetails({ details }: { details: StageDetail[] }) {
   return (
-    <section className="general-analysis__details" aria-labelledby="general-analysis-details-title">
-      <h3 id="general-analysis-details-title">Stage Details</h3>
-      <dl>
+    <section className="min-w-0 rounded-md border border-border bg-bg-elevated p-4 min-[701px]:p-5" aria-labelledby="general-analysis-details-title">
+      <h3 className="mb-4 text-base" id="general-analysis-details-title">Stage Details</h3>
+      <dl className="m-0">
         {details.map((detail) => (
-          <div key={detail.label}>
-            <dt>
-              <span className={`general-analysis__detail-icon general-analysis__detail-icon--${detail.tone}`} aria-hidden="true">
+          <div className="flex items-center justify-between gap-3 border-b border-border py-3 last:border-b-0" key={detail.label}>
+            <dt className="flex min-w-0 items-center gap-2 text-[0.8rem] font-semibold text-text-secondary">
+              <span className={`inline-flex size-6 shrink-0 items-center justify-center rounded-[7px] [&_svg]:size-[13px] [&_svg]:fill-current ${detailToneClasses[detail.tone]}`} aria-hidden="true">
                 {detail.icon}
               </span>
               {detail.label}
             </dt>
-            <dd>
+            <dd className="m-0 grid shrink-0 grid-cols-[auto_auto] gap-2 text-[0.78rem]">
               <strong>{detail.value.toLocaleString()}</strong>
-              <span>{detail.detail}</span>
+              <span className="text-text-muted">{detail.detail}</span>
             </dd>
           </div>
         ))}
@@ -263,13 +278,13 @@ export function GeneralAnalysisSection({
   })
 
   return (
-    <Card as="section" id="section-analysis-general" className="general-analysis">
+    <Card as="section" id="section-analysis-general">
       <h2>General Overview</h2>
       <p className="muted">A summary of results from completed review stages.</p>
-      <dl className="general-analysis__metrics">
+      <dl className="my-5 grid grid-cols-1 gap-3 min-[481px]:grid-cols-2 min-[701px]:grid-cols-[repeat(auto-fit,minmax(150px,1fr))]">
         {funnelStages.map((stage) => <GeneralMetricCard key={stage.label} stage={stage} />)}
       </dl>
-      <div className="general-analysis__body">
+      <div className="grid grid-cols-1 items-stretch gap-4 min-[1101px]:grid-cols-[minmax(0,1.55fr)_minmax(260px,.85fr)]">
         <ReviewFunnel stages={funnelStages} />
         <StageDetails details={stageDetails} />
       </div>
