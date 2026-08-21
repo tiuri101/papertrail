@@ -25,7 +25,7 @@ export function TabList({ items, activeId, onSelect, label, idPrefix, className 
     <div
       role="tablist"
       aria-label={label}
-      className={cn('inline-flex flex-wrap gap-1 rounded-md bg-surface-active p-1', className)}
+      className={cn('inline-flex flex-wrap gap-1.5 rounded-md bg-surface-active p-1.5', className)}
     >
       {items.map((item) => {
         const active = item.id === activeId
@@ -46,7 +46,7 @@ export function TabList({ items, activeId, onSelect, label, idPrefix, className 
               // since nothing here carries the old `.page-tab` exemption class. `bg-none`/
               // `shadow-none`/`h-auto min-h-0`/`border-0` explicitly cancel that, matching
               // Button.tsx's own approach.
-              'h-auto min-h-0 cursor-pointer rounded-sm border-0 bg-none px-4 py-2 text-[0.88rem] font-semibold text-text-secondary disabled:cursor-not-allowed disabled:opacity-[.48]',
+              'h-auto min-h-10 cursor-pointer rounded-sm border-0 bg-none px-5 py-2.5 text-sm font-semibold text-text-secondary disabled:cursor-not-allowed disabled:opacity-[.48] [&_svg]:size-[18px] [&_svg]:shrink-0 [&_svg]:fill-current dark:[&_svg]:text-white dark:[&_svg]:fill-white',
               !active && 'shadow-none hover:not-disabled:bg-surface-hover hover:not-disabled:text-text',
               active && (item.danger ? 'bg-surface text-danger shadow-sm' : 'bg-surface text-primary shadow-sm'),
             )}
