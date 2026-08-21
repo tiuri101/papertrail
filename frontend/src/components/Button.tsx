@@ -27,7 +27,7 @@ export type ButtonProps<C extends ElementType = 'button'> = ButtonOwnProps & { a
 )
 
 const base =
-  'inline-flex items-center justify-center gap-2 rounded-sm text-sm font-semibold leading-none whitespace-nowrap select-none transition-[background-color,border-color,color,box-shadow,transform,opacity] duration-150 disabled:opacity-[.48] disabled:cursor-not-allowed [&_svg]:shrink-0 [&_svg]:fill-current'
+  'inline-flex items-center justify-center gap-2 rounded-sm text-sm font-semibold leading-none whitespace-nowrap select-none cursor-pointer transition-[background-color,border-color,color,box-shadow,transform,opacity] duration-150 disabled:cursor-not-allowed disabled:opacity-[.48] [&_svg]:shrink-0 [&_svg]:fill-current'
 
 // Icon sizing lives here, one rule per size, rather than a single blanket rule on `base` that
 // `iconOnlySizes` would then need to out-rank: Tailwind v4 orders same-property utilities by
