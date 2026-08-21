@@ -12,6 +12,8 @@ import { Input } from '../../components/Input'
 import { Select } from '../../components/Select'
 import { Textarea } from '../../components/Textarea'
 import { DynamicForm } from './DynamicForm'
+import { cn } from '../../lib/cn'
+import { llmSchemaContentClass, llmSchemaFieldClass, llmSchemaFieldsClass, llmSchemaMappingClass, llmSchemaPreviewClass, llmSchemaSummaryClass, llmSchemaTitleClass } from '../llm/llmStyles'
 import {
   buildScoring,
   describeRatingScale,
@@ -401,7 +403,7 @@ export function FormFieldsPanel({
       {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
 
       {isQualityForm ? (
-        <div className="quality-settings-fields">
+        <div className="grid gap-5">
           <label>
             <Input
               type="checkbox"
@@ -412,7 +414,7 @@ export function FormFieldsPanel({
             />
             Enable quality assessment
           </label>
-          <div className="quality-settings-selects">
+          <div className="grid grid-cols-1 gap-4 min-[561px]:grid-cols-2">
             <label>
               Mode
               <Select
@@ -460,7 +462,7 @@ export function FormFieldsPanel({
           </p>
         </div>
       ) : (
-        <div className="quality-settings-fields">
+        <div className="grid gap-5">
           <label>
             Allocation
             <Select
@@ -593,14 +595,16 @@ export function FormFieldsPanel({
           <h3>Fields</h3>
           {fields.error ? <p className="error" role="alert">{fields.error.message}</p> : null}
           {activeFields.length === 0 && !inlineAdd ? <p className="muted">No fields added yet.</p> : (
-            <div className="llm-schema-fields form-editor-fields">
+            <div className={cn(llmSchemaFieldsClass, 'form-editor-fields')}>
               {activeFields.length === 0 && !addingField ? <p className="muted">No fields added yet.</p> : null}
               {activeFields.map((field) => {
                 const editingOptions = parseOptions(editingOptionsText)
                 const fieldIndex = activeFields.findIndex((item) => item.stableKey === field.stableKey)
                 return (
                   <details
-                    className={`llm-schema-field form-editor-field${draggedFieldKey === field.stableKey ? ' llm-schema-field--dragging' : ''}${dragOverFieldKey === field.stableKey ? ' llm-schema-field--drag-over' : ''}`}
+                    className={cn(llmSchemaFieldClass({ dragging: draggedFieldKey === field.stableKey, dragOver: dragOverFieldKey === field.stableKey }), 'form-editor-field')}
+                    data-dragging={draggedFieldKey === field.stableKey || undefined}
+                    data-drag-over={dragOverFieldKey === field.stableKey || undefined}
                     key={field.id}
                     data-field-sort-key={field.stableKey}
                     open={editingKey === field.stableKey}
@@ -619,7 +623,7 @@ export function FormFieldsPanel({
                     }}
                   >
                     <summary
-                      className="llm-schema-field__summary"
+                      className={llmSchemaSummaryClass}
                       onClick={(event) => {
                         event.preventDefault()
                         if (editingKey === field.stableKey) {
@@ -629,7 +633,7 @@ export function FormFieldsPanel({
                         }
                       }}
                     >
-                      <span className="llm-schema-field__title">
+                      <span className={llmSchemaTitleClass}>
                         <strong>{field.label}</strong>
                         <Badge variant="plain">
                           {fieldTypeLabels[field.fieldType] ?? field.fieldType}
@@ -637,10 +641,10 @@ export function FormFieldsPanel({
                         </Badge>
                         {field.required ? <Badge variant="plain">Required</Badge> : null}
                       </span>
-                      <span className="llm-schema-field__mapping">
+                      <span className={llmSchemaMappingClass}>
                         {field.required ? 'Reviewers must complete this field' : 'Optional for reviewers'}
                       </span>
-                      <span className="llm-schema-field__preview">
+                      <span className={llmSchemaPreviewClass}>
                         {field.fieldType === 'rating'
                           ? `Rating scale ${describeRatingScale(field.options)}`
                           : selectFieldTypes.has(field.fieldType)
@@ -680,7 +684,7 @@ export function FormFieldsPanel({
                         }}
                       />
                     </summary>
-                    <div className="llm-schema-field__content">
+                    <div className={llmSchemaContentClass}>
                       {editingKey === field.stableKey ? (
                         <>
                           <label>
@@ -855,20 +859,20 @@ export function FormFieldsPanel({
                 )
               })}
               {inlineAdd && addingField ? (
-                <div className="llm-schema-field form-editor-field form-editor-field--draft">
-                  <div className="llm-schema-field__summary">
-                    <span className="llm-schema-field__title">
+                <div className={cn(llmSchemaFieldClass({ draft: true }), 'form-editor-field form-editor-field--draft')}>
+                  <div className={cn(llmSchemaSummaryClass, 'cursor-default')}>
+                    <span className={llmSchemaTitleClass}>
                       <strong>{fieldLabel.trim() || 'New field'}</strong>
                       <Badge variant="plain">{fieldTypeLabels[fieldType] ?? fieldType}</Badge>
                       {required ? <Badge variant="plain">Required</Badge> : null}
                     </span>
-                    <span className="llm-schema-field__mapping">
+                    <span className={llmSchemaMappingClass}>
                       {required ? 'Reviewers must complete this field' : 'Optional for reviewers'}
                     </span>
-                    <span className="llm-schema-field__preview">Configure the new response field below.</span>
+                    <span className={llmSchemaPreviewClass}>Configure the new response field below.</span>
                   </div>
                   <form
-                    className="llm-schema-field__content form-editor-field__draft-form"
+                    className={cn(llmSchemaContentClass, 'form-editor-field__draft-form')}
                     onSubmit={(event) => { event.preventDefault(); addField.mutate() }}
                   >
                     <label>

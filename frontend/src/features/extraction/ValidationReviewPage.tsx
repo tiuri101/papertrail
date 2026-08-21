@@ -13,6 +13,7 @@ import { Select } from '../../components/Select'
 import { Tooltip } from '../../components/Tooltip'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 import { LlmEvidence, type LlmEvidenceItem } from '../llm/LlmTaskComponents'
+import { llmValidationClass } from '../llm/llmStyles'
 import { StageEyebrow } from '../projects/StageEyebrow'
 
 interface ValidationResult {
@@ -173,7 +174,7 @@ function ValidationRow({
           <summary>{item.issues.length > 0 ? `Validation findings (${item.issues.length})` : 'Validation details'}</summary>
           {item.error ? <p className="error">{item.error}</p> : null}
           {item.issues.map((result) => (
-            <section className={`llm-validation llm-validation--${result.assessment}`} key={result.fieldKey}>
+            <section className={llmValidationClass(result.assessment)} key={result.fieldKey}>
               <h3>{result.fieldLabel}</h3>
               <p>
                 <Tooltip text={ASSESSMENT_HELP[result.assessment]}>

@@ -13,7 +13,16 @@ import { Input } from '../../components/Input'
 import { Select } from '../../components/Select'
 import { Textarea } from '../../components/Textarea'
 import { InfoTooltip } from '../../components/Tooltip'
-import { cn } from '../../lib/cn'
+import {
+  llmSchemaContentClass,
+  llmSchemaFieldClass,
+  llmSchemaFieldsClass,
+  llmSchemaMappingClass,
+  llmSchemaPreviewClass,
+  llmSchemaSummaryClass,
+  llmSchemaTitleClass,
+  llmSchemaToggleClass,
+} from './llmStyles'
 import { STAGES } from '../projects/StageProgress'
 
 const stageColors = Object.fromEntries(STAGES.map((stage) => [stage.value, stage.color]))
@@ -353,18 +362,17 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
         ) : (
           <>
           <p>Version {currentSchema.versionNumber} · {currentSchema.status}</p>
-          <div className="my-4 grid gap-3">
+          <div className={llmSchemaFieldsClass}>
           {fields.map((field, index) => {
             const mappedField = schema.data?.extractionFields.find(
               (item) => item.stableKey === field.mappedExtractionFieldKey,
             )
             return (
             <details
-              className={cn(
-                'overflow-hidden rounded-md border border-border bg-bg-elevated open:border-border-strong open:bg-surface-raised open:shadow-sm',
-                draggedFieldKey === field.stableKey && 'opacity-55',
-                dragOverFieldKey === field.stableKey && 'border-primary shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-primary)_18%,transparent)]',
-              )}
+              className={llmSchemaFieldClass({
+                dragging: draggedFieldKey === field.stableKey,
+                dragOver: dragOverFieldKey === field.stableKey,
+              })}
               data-dragging={draggedFieldKey === field.stableKey || undefined}
               data-drag-over={dragOverFieldKey === field.stableKey || undefined}
               key={field.stableKey}
@@ -383,16 +391,16 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
                 setDragOverFieldKey(null)
               }}
             >
-              <summary className="grid cursor-pointer grid-cols-[minmax(0,1fr)_auto] gap-2 p-4 marker:text-primary">
-                <span className="col-start-1 flex flex-wrap items-center gap-2">
+              <summary className={llmSchemaSummaryClass}>
+                <span className={llmSchemaTitleClass}>
                   <strong>{field.label || `Field ${index + 1}`}</strong>
                   <Badge variant="plain">{field.fieldType.replaceAll('_', ' ')}</Badge>
                   {!field.enabled ? <Badge variant="plain">Disabled</Badge> : null}
                 </span>
-                <span className="col-start-1 text-sm text-text-secondary">
+                <span className={llmSchemaMappingClass}>
                   {mappedField ? `Maps to ${mappedField.label}` : 'LLM-only helper field'}
                 </span>
-                <span className="col-start-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm text-text-secondary">
+                <span className={llmSchemaPreviewClass}>
                   {field.instruction || 'No extraction instruction provided.'}
                 </span>
                 <DragHandle
@@ -428,7 +436,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
                   }}
                 />
               </summary>
-              <div className="grid gap-4 border-t border-border p-5">
+              <div className={llmSchemaContentClass}>
               <label>Label
                 <Input value={field.label} onChange={(event) => edit(index, { label: event.target.value })} />
               </label>
@@ -471,7 +479,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
               {field.mappingState && !['active', 'helper'].includes(field.mappingState) ? (
                 <p className="error">Mapping is {field.mappingState}; resolve it before publishing.</p>
               ) : null}
-              <div className="relative w-fit [&>label]:flex [&>label]:items-center [&>label]:gap-2">
+              <div className={llmSchemaToggleClass}>
                 <label>
                   <Input
                     type="checkbox"
@@ -486,7 +494,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
                   text="Require the LLM to support a returned value with a quote from the publication. Papertrail verifies the quote against the cited PDF page and flags missing or unverifiable evidence."
                 />
               </div>
-              <div className="relative w-fit [&>label]:flex [&>label]:items-center [&>label]:gap-2">
+              <div className={llmSchemaToggleClass}>
                 <label>
                   <Input
                     type="checkbox"

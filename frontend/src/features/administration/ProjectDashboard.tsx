@@ -65,7 +65,7 @@ function MetricTable({ entries }: { entries: [string, number | string][] }) {
           return (
             <tr key={key}>
               <th scope="row">
-                <span className="project-status__row-icon" aria-hidden="true">{meta.icon}</span>
+                <span className="mr-2 inline-flex size-[22px] items-center justify-center align-[-6px] text-text-muted [&_svg]:size-4 [&_svg]:fill-current" aria-hidden="true">{meta.icon}</span>
                 {meta.label}
               </th>
               <td>
@@ -74,7 +74,7 @@ function MetricTable({ entries }: { entries: [string, number | string][] }) {
                     {value}
                   </Badge>
                 ) : (
-                  <span className="project-status__value">{value}</span>
+                  <span className="font-semibold text-text-secondary">{value}</span>
                 )}
               </td>
             </tr>
@@ -102,25 +102,25 @@ export function ProjectDashboard({ projectId }: { projectId: string }) {
       {dashboard.isLoading ? <p>Loading project status…</p> : null}
       {dashboard.isError ? <p>Project status could not be loaded.</p> : null}
       {dashboard.data ? (
-        <div className="project-status">
+        <div className="grid gap-4">
           <InfoBox icon={<IconChart />}>
-            <span className="eyebrow">Live snapshot</span>
+            <span className="mb-1 block text-xs font-bold uppercase tracking-[0.08em] text-primary">Live snapshot</span>
             <h3>How the review is progressing</h3>
             <p>
               Publications move through duplicate review and screening on the left. Anything
               waiting on a decision, retrieval, or a failed background job shows up on the right.
             </p>
           </InfoBox>
-          <div className="project-status__groups">
+          <div className="grid grid-cols-1 items-start gap-4 min-[721px]:grid-cols-2">
             {funnelEntries.length ? (
-              <section className="project-status__group" aria-label="Publication funnel">
-                <h4>Publication Funnel</h4>
+              <section className="overflow-hidden rounded-md border border-border bg-surface" aria-label="Publication funnel">
+                <h4 className="m-0 border-b border-border px-4 py-3 text-xs font-bold uppercase tracking-[0.08em] text-text-muted">Publication Funnel</h4>
                 <MetricTable entries={funnelEntries} />
               </section>
             ) : null}
             {attentionEntries.length ? (
-              <section className="project-status__group project-status__group--attention" aria-label="Needs attention">
-                <h4>Needs Attention</h4>
+              <section className="overflow-hidden rounded-md border border-[color-mix(in_srgb,var(--color-warning)_26%,var(--color-border))] bg-surface" aria-label="Needs attention">
+                <h4 className="m-0 border-b border-[color-mix(in_srgb,var(--color-warning)_20%,var(--color-border))] px-4 py-3 text-xs font-bold uppercase tracking-[0.08em] text-warning">Needs Attention</h4>
                 <MetricTable entries={attentionEntries} />
               </section>
             ) : null}

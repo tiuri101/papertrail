@@ -13,6 +13,7 @@ import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { DynamicForm, type DynamicFormField } from '../forms/DynamicForm'
 import { fullTextDocumentEndpoint, useFullTextDocument } from '../fulltext/useFullTextDocument'
 import { LlmAssistanceHeading, LlmEvidence, type LlmEvidenceItem } from '../llm/LlmTaskComponents'
+import { llmPanelClass, llmPanelHeadingClass, llmPanelToneClass, llmValidationClass } from '../llm/llmStyles'
 
 interface PublicationSummary {
   title: string
@@ -284,12 +285,12 @@ export function ExtractionWorkspace({
       <>
       {suggestion ? (
         <aside
-          className={`llm-task-panel${applied ? ' llm-task-panel--match' : ''}`}
+          className={llmPanelToneClass(applied ? 'match' : undefined)}
           aria-label={applied ? `LLM suggestion for ${field.label} — matches your value` : `LLM suggestion for ${field.label}`}
         >
-          <div className="llm-task-panel__heading">
+          <div className={llmPanelHeadingClass}>
             <strong>
-              <span className="llm-task-panel__icon" aria-hidden="true">✦</span>
+              <span className="text-primary" aria-hidden="true">✦</span>
               {' '}LLM suggestion · {status}
             </strong>
             {applied ? <span className="muted">Reviewer value matches suggestion</span> : null}
@@ -335,7 +336,7 @@ export function ExtractionWorkspace({
         </aside>
       ) : null}
       {validationResult ? (
-        <aside className={`llm-validation llm-validation--${validationResult.assessment}`}>
+        <aside className={llmValidationClass(validationResult.assessment)}>
           <strong>Validation: {validationResult.assessment.replace('_', ' ')}</strong>
           <p>{validationResult.explanation}</p>
           {validationResult.evidence.length ? (
@@ -417,16 +418,16 @@ export function ExtractionWorkspace({
         </>
       ) : null}
       {assistance.isLoading ? (
-        <aside className="llm-task-panel" aria-label="LLM assistance">
-          <div className="llm-task-panel__heading">
+        <aside className={llmPanelClass} aria-label="LLM assistance">
+          <div className={llmPanelHeadingClass}>
             <LlmAssistanceHeading />
           </div>
           <p className="muted">Checking for LLM suggestions…</p>
         </aside>
       ) : null}
       {assistance.data?.state && assistance.data.state !== 'ready' && assistance.data.state !== 'disabled' ? (
-        <aside className="llm-task-panel" aria-label="LLM assistance">
-          <div className="llm-task-panel__heading">
+        <aside className={llmPanelClass} aria-label="LLM assistance">
+          <div className={llmPanelHeadingClass}>
             <LlmAssistanceHeading qualifier={assistance.data.state === 'failed' ? 'failed' : undefined} />
             {['unavailable', 'failed', 'cancelled'].includes(assistance.data.state) ? (
               <Button
@@ -446,8 +447,8 @@ export function ExtractionWorkspace({
         </aside>
       ) : null}
       {assistance.data?.outdated ? (
-        <aside className="llm-task-panel" aria-label="LLM assistance is stale">
-          <div className="llm-task-panel__heading">
+        <aside className={llmPanelClass} aria-label="LLM assistance is stale">
+          <div className={llmPanelHeadingClass}>
             <LlmAssistanceHeading qualifier="is stale" />
             <Button type="button" variant="secondary" onClick={() => runLlm.mutate(true)} disabled={runLlm.isPending}>
               <IconRestart />
@@ -472,10 +473,10 @@ export function ExtractionWorkspace({
           renderAssistance={suggestionCard}
         />
         {helpers.length ? (
-          <aside className="llm-task-panel" aria-label="Additional LLM assistance">
-            <div className="llm-task-panel__heading">
+          <aside className={llmPanelClass} aria-label="Additional LLM assistance">
+            <div className={llmPanelHeadingClass}>
               <h3>
-                <span className="llm-task-panel__icon" aria-hidden="true">✦</span>
+                <span className="text-primary" aria-hidden="true">✦</span>
                 {' '}Additional LLM assistance
               </h3>
             </div>
@@ -520,9 +521,9 @@ export function ExtractionWorkspace({
           ) : null}
         </div>
         {completedResponse && itemId && validation.data?.state !== 'disabled' ? (
-          <section className="llm-task-panel" aria-label="Extraction validation">
+          <section className={llmPanelClass} aria-label="Extraction validation">
             <h3>
-              <span className="llm-task-panel__icon" aria-hidden="true">✦</span>
+              <span className="text-primary" aria-hidden="true">✦</span>
               {' '}LLM extraction validation
             </h3>
             {validation.isLoading ? <p>Checking validation status…</p> : null}

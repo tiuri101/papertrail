@@ -66,11 +66,11 @@ export function AccountSettingsPage() {
   return (
     <SectionNavigationLayout items={accountSections}>
       <main className="page">
-        <p className="eyebrow">Personal settings</p>
+        <p className="mb-1 text-xs font-bold uppercase tracking-[0.08em] text-primary">Personal settings</p>
         <h1>Account Settings</h1>
-        <p className="muted">Manage your profile, password, and personal preferences.</p>
+        <p className="text-text">Manage your profile, password, and personal preferences.</p>
         <CollapsibleSection id="section-account-profile" title="Profile" icon={<IconPerson />}>
-          <p className="muted">Changes save automatically when you leave a field.</p>
+          <p className="text-text">Changes save automatically when you leave a field.</p>
           <label>
             Display name
             <Input
@@ -90,8 +90,8 @@ export function AccountSettingsPage() {
               placeholder="you@example.org"
             />
           </label>
-          {updateProfile.error ? <p className="error" role="alert">{updateProfile.error.message}</p> : null}
-          <p className="muted" aria-live="polite">
+          {updateProfile.error ? <p className="text-danger" role="alert">{updateProfile.error.message}</p> : null}
+          <p className="text-text" aria-live="polite">
             {updateProfile.isPending ? 'Saving…' : updateProfile.isSuccess ? 'Saved.' : ' '}
           </p>
         </CollapsibleSection>
@@ -130,12 +130,12 @@ export function AccountSettingsPage() {
               />
             </label>
             {passwordUnchanged ? (
-              <p className="error" role="alert">
+              <p className="text-danger" role="alert">
                 New password must be different from your current password.
               </p>
             ) : null}
-            {passwordsMismatch ? <p className="error" role="alert">New passwords do not match.</p> : null}
-            {updatePassword.error ? <p className="error" role="alert">{updatePassword.error.message}</p> : null}
+            {passwordsMismatch ? <p className="text-danger" role="alert">New passwords do not match.</p> : null}
+            {updatePassword.error ? <p className="text-danger" role="alert">{updatePassword.error.message}</p> : null}
             {updatePassword.isSuccess ? <p>Password updated.</p> : null}
             <Button
               type="submit"

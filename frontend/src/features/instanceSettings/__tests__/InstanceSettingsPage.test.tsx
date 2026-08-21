@@ -148,12 +148,12 @@ describe('InstanceSettingsPage', () => {
     renderWithProviders(<InstanceSettingsPage />)
 
     expect(await screen.findByText('Data extraction')).toBeInTheDocument()
-    const extractionFlow = screen.getByText('Data extraction').closest('.prompt-flow') as HTMLElement
+    const extractionFlow = screen.getByText('Data extraction').closest('[data-prompt-flow]') as HTMLElement
     expect(within(extractionFlow).getByText('Customized')).toBeInTheDocument()
     expect(within(extractionFlow).getByDisplayValue('Custom extraction instructions.')).toBeInTheDocument()
     expect(within(extractionFlow).getByRole('button', { name: 'Reset to Default' })).not.toBeDisabled()
 
-    const validationFlow = screen.getByText('Extraction validation').closest('.prompt-flow') as HTMLElement
+    const validationFlow = screen.getByText('Extraction validation').closest('[data-prompt-flow]') as HTMLElement
     expect(within(validationFlow).queryByText('Customized')).not.toBeInTheDocument()
     expect(within(validationFlow).getByRole('button', { name: 'Reset to Default' })).toBeDisabled()
 
@@ -188,7 +188,7 @@ describe('InstanceSettingsPage', () => {
     })
     renderWithProviders(<InstanceSettingsPage />)
 
-    const extractionFlow = (await screen.findByText('Data extraction')).closest('.prompt-flow') as HTMLElement
+    const extractionFlow = (await screen.findByText('Data extraction')).closest('[data-prompt-flow]') as HTMLElement
     fireEvent.click(within(extractionFlow).getByRole('button', { name: 'Reset to Default' }))
 
     await waitFor(() => {
