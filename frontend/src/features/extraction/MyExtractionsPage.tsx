@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { Button } from '../../components/Button'
+import { Badge } from '../../components/Badge'
 import { CountPill } from '../../components/CountPill'
 import { DoiPill } from '../../components/DoiPill'
 import { HighlightedText } from '../../components/HighlightedText'
@@ -95,7 +96,7 @@ function ExtractionRow({ projectId, entry, highlightKeywords }: {
         <span className={reviewWorkVenueClass} title={publication.venue ?? undefined}>
           {publication.venue ?? '—'}{publication.publicationYear ? ` (${publication.publicationYear})` : ''}
         </span>
-        <span className={reviewWorkStatusClass}><span className="status-pill">v{entry.version}</span></span>
+        <span className={reviewWorkStatusClass}><Badge>v{entry.version}</Badge></span>
         <span className={reviewWorkDoiClass}>
           {publication.doi ? <DoiPill doi={publication.doi} /> : <span className="muted">—</span>}
         </span>

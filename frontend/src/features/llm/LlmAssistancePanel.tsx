@@ -7,6 +7,7 @@ import { Badge } from '../../components/Badge'
 import { Button } from '../../components/Button'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { DragHandle } from '../../components/DragHandle'
+import { DetailList } from '../../components/DetailList'
 import { InfoBox } from '../../components/InfoBox'
 import { IconCheckCircle, IconChart, IconSettings, IconSparkle, IconTrash } from '../../components/icons'
 import { Input } from '../../components/Input'
@@ -272,10 +273,10 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
         </p>
       </InfoBox>
       {settings.data ? (
-        <dl className="detail-list">
+        <DetailList>
           <dt>Model</dt><dd>{settings.data.model ?? 'Not configured'}</dd>
           <dt>Context length</dt><dd>{settings.data.contextLength.toLocaleString()}</dd>
-        </dl>
+        </DetailList>
       ) : null}
       <div className="toolbar">
         <button type="button" onClick={() => test.mutate()} disabled={test.isPending}>

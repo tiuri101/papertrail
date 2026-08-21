@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { Button } from '../../components/Button'
+import { Badge, type BadgeVariant } from '../../components/Badge'
 import { CountPill } from '../../components/CountPill'
 import { DoiPill } from '../../components/DoiPill'
 import { HighlightedText } from '../../components/HighlightedText'
@@ -87,10 +88,10 @@ function statusLabel(item: ReviewItem) {
   return labels[item.state] ?? item.state.replaceAll('_', ' ')
 }
 
-function statusClass(item: ReviewItem) {
-  if (item.state === 'failed') return 'status-pill status-pill--danger'
-  if (item.state === 'ready' && item.issues.length > 0) return 'status-pill status-pill--warning'
-  return 'status-pill'
+function statusVariant(item: ReviewItem): BadgeVariant {
+  if (item.state === 'failed') return 'danger'
+  if (item.state === 'ready' && item.issues.length > 0) return 'warning'
+  return 'neutral'
 }
 
 function sortValue(item: ReviewItem, key: ValidationSortKey): string | number {
@@ -156,7 +157,7 @@ function ValidationRow({
         <span className={reviewWorkVenueClass} title={publication.venue ?? undefined}>
           {publication.venue ?? '—'}{publication.publicationYear ? ` (${publication.publicationYear})` : ''}
         </span>
-        <span className={reviewWorkStatusClass}><span className={statusClass(item)}>{statusLabel(item)}</span></span>
+        <span className={reviewWorkStatusClass}><Badge variant={statusVariant(item)}>{statusLabel(item)}</Badge></span>
         <span className={reviewWorkDoiClass}>
           {publication.doi ? <DoiPill doi={publication.doi} /> : <span className="muted">—</span>}
         </span>

@@ -7,6 +7,7 @@ import { Card } from '../../components/Card'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { IconCheckCircle, IconHelpCircle, IconPlus, IconTrash } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
+import { CriterionBadge } from '../../components/CriterionBadge'
 import { Input } from '../../components/Input'
 import { Select } from '../../components/Select'
 
@@ -156,7 +157,7 @@ function CriterionRow({
   return (
     <tr>
       <td>
-        <span className={`criterion-badge criterion-badge--${criterion.kind}`}>{number}</span>
+        <CriterionBadge kind={criterion.kind}>{number}</CriterionBadge>
       </td>
       <td>{criterion.text}</td>
       <td>
@@ -197,13 +198,13 @@ function InlineAgendaDraftRow({
   onCancel: () => void
 }) {
   return (
-    <tr className="research-agenda-table__draft-row">
+    <tr className="bg-[color-mix(in_srgb,var(--color-primary-container)_28%,transparent)]">
       <td>
-        {kind ? <span className={`criterion-badge criterion-badge--${kind}`}>{number}</span> : number}
+        {kind ? <CriterionBadge kind={kind}>{number}</CriterionBadge> : number}
       </td>
       <td colSpan={2}>
         <form
-          className="research-agenda-table__inline-form"
+          className="grid grid-cols-[minmax(0,1fr)_auto] items-end gap-3 max-[680px]:grid-cols-1"
           onSubmit={(event) => {
             event.preventDefault()
             if (value.trim()) onSave()
@@ -218,7 +219,7 @@ function InlineAgendaDraftRow({
             autoFocus
             required
           />
-          <div className="toolbar">
+          <div className="toolbar flex-nowrap max-[680px]:justify-end">
             <Button type="submit" size="sm" disabled={pending || !value.trim()}>
               <IconCheckCircle />Save
             </Button>
@@ -299,7 +300,7 @@ export function ResearchQuestionsPanel({
       </h2>
 
       {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
-      <table className="research-agenda-table">
+      <table className="w-full [&_td]:align-top [&_td:first-child]:w-16 [&_td:last-child]:w-px [&_td:last-child]:whitespace-nowrap">
         <thead>
           <tr>
             <th>#</th>
@@ -333,7 +334,7 @@ export function ResearchQuestionsPanel({
             />
           ) : null}
           {inlineAdd ? (
-            <tr className="research-agenda-table__add-row">
+            <tr className="border-t-0 [&_td]:border-t-0 [&_td]:pt-2">
               <td colSpan={3}>
                 <IconButton
                   variant="secondary"
@@ -456,7 +457,7 @@ export function CriteriaPanel({
         </p>
       </InfoBox>
       {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
-      <table className="research-agenda-table">
+      <table className="w-full [&_td]:align-top [&_td:first-child]:w-16 [&_td:last-child]:w-px [&_td:last-child]:whitespace-nowrap">
         <thead>
           <tr>
             <th>#</th>
@@ -499,7 +500,7 @@ export function CriteriaPanel({
             />
           ) : null}
           {inlineAdd ? (
-            <tr className="research-agenda-table__add-row">
+            <tr className="border-t-0 [&_td]:border-t-0 [&_td]:pt-2">
               <td colSpan={3}>
                 <IconButton
                   variant="secondary"
@@ -553,7 +554,7 @@ export function CriteriaPanel({
             />
           ) : null}
           {inlineAdd ? (
-            <tr className="research-agenda-table__add-row">
+            <tr className="border-t-0 [&_td]:border-t-0 [&_td]:pt-2">
               <td colSpan={3}>
                 <IconButton
                   variant="secondary"

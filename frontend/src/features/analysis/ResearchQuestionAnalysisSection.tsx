@@ -225,7 +225,7 @@ function ResearchQuestionCard({
       {run ? (
         <>
           {data.synthesisEnabled && data.isStale ? (
-            <p className="stale-banner" role="status">
+            <p className="rounded-md border border-[color-mix(in_srgb,var(--color-warning)_35%,transparent)] bg-warning-container px-4 py-3 font-semibold text-warning" role="status">
               This synthesis may be outdated — the underlying results have changed since it was
               generated.
             </p>

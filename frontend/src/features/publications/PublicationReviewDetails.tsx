@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { apiRequest } from '../../api/client'
 import { Badge } from '../../components/Badge'
 import { Button } from '../../components/Button'
+import { CriterionBadge } from '../../components/CriterionBadge'
 import { IconCheckCircle } from '../../components/icons'
 import { Input } from '../../components/Input'
 import { OutcomeBadge } from '../../components/OutcomeBadge'
@@ -125,7 +126,7 @@ function ScreeningResponseForm({
       {formatDate(decision.createdAt) ? (
         <p className="muted my-1 text-[0.8rem]">Decided {formatDate(decision.createdAt)}</p>
       ) : null}
-      <table className="criteria-table m-0 w-full text-[0.82rem] [&_td]:px-[7px] [&_td]:py-[5px] [&_th]:px-[7px] [&_th]:py-[5px] [&_th:first-child]:min-w-64 [&_th:first-child]:text-left">
+      <table className="m-0 w-full text-[0.82rem] [&_td]:px-[7px] [&_td]:py-[5px] [&_td]:text-center [&_th]:px-[7px] [&_th]:py-[5px] [&_th:not(:first-child)]:text-center [&_th:first-child]:min-w-64 [&_th:first-child]:text-left">
         <thead>
           <tr>
             <th scope="col">Criterion</th>
@@ -139,9 +140,9 @@ function ScreeningResponseForm({
             return (
               <tr key={criterion.id}>
                 <th scope="row">
-                  <span className={`criterion-badge criterion-badge--${criterion.kind}`}>
+                  <CriterionBadge kind={criterion.kind}>
                     {criterion.number}
-                  </span>{' '}
+                  </CriterionBadge>{' '}
                   {criterion.text}
                 </th>
                 <td aria-label={`${criterion.number}: Fulfilled`}>
@@ -375,7 +376,7 @@ export function PublicationReviewDetails({
                   Editing the response submitted by {responseOverride.reviewerName}. The previous
                   version will remain in the audit history.
                 </p>
-                <table className="criteria-table m-0 w-full text-[0.82rem] [&_td]:px-[7px] [&_td]:py-[5px] [&_th]:px-[7px] [&_th]:py-[5px] [&_th:first-child]:min-w-64 [&_th:first-child]:text-left">
+                <table className="m-0 w-full text-[0.82rem] [&_td]:px-[7px] [&_td]:py-[5px] [&_td]:text-center [&_th]:px-[7px] [&_th]:py-[5px] [&_th:not(:first-child)]:text-center [&_th:first-child]:min-w-64 [&_th:first-child]:text-left">
                   <thead>
                     <tr>
                       <th scope="col">Criterion</th>
@@ -387,9 +388,9 @@ export function PublicationReviewDetails({
                     {numberedCriteria(responseOverride.criteria).map((criterion) => (
                       <tr key={criterion.id}>
                         <th scope="row">
-                          <span className={`criterion-badge criterion-badge--${criterion.kind}`}>
+                          <CriterionBadge kind={criterion.kind}>
                             {criterion.number}
-                          </span>{' '}
+                          </CriterionBadge>{' '}
                           {criterion.text}
                         </th>
                         <td>

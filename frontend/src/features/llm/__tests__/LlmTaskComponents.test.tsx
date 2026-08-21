@@ -49,7 +49,7 @@ describe('ScreeningLlmPanel', () => {
     expect(screen.getByRole('complementary', { name: /differs from your decision/ })).toHaveAttribute('data-comparison', 'mismatch')
     expect(screen.queryByText(/suggestion differ/)).not.toBeInTheDocument()
     expect(screen.getByText(/Population is in scope/)).toBeInTheDocument()
-    expect(screen.getByText('IC1')).toHaveClass('criterion-badge--inclusion')
+    expect(screen.getByText('IC1')).toHaveAttribute('data-criterion-kind', 'inclusion')
   })
 
   it('marks a matching title/abstract decision and scrolls the revealed result into view', async () => {
@@ -102,7 +102,7 @@ describe('ScreeningLlmPanel', () => {
     )
 
     expect(await screen.findByText(/result is stale/)).toBeInTheDocument()
-    expect(screen.getByText('IC1')).toHaveClass('criterion-badge--inclusion')
+    expect(screen.getByText('IC1')).toHaveAttribute('data-criterion-kind', 'inclusion')
     expect(screen.getByText(/Verified evidence/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Open PDF at page 4' })).toHaveAttribute(
       'href',
@@ -159,7 +159,7 @@ describe('ScreeningLlmPanel', () => {
 
     const matchRow = (await screen.findByText(/Reviewer agrees it is met/)).closest('details') as HTMLElement
     expect(matchRow).toHaveAttribute('data-comparison', 'match')
-    expect(within(matchRow).getByText('IC1')).toHaveClass('criterion-badge--inclusion')
+    expect(within(matchRow).getByText('IC1')).toHaveAttribute('data-criterion-kind', 'inclusion')
 
     const mismatchRow = screen.getByText(/Reviewer disagrees/).closest('details') as HTMLElement
     expect(mismatchRow).toHaveAttribute('data-comparison', 'mismatch')

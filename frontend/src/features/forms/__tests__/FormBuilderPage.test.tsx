@@ -469,16 +469,16 @@ describe('FormBuilderPage', () => {
 
     expect(screen.queryByText(/Inspect the fields in any shared template/)).not.toBeInTheDocument()
     const inspectButton = await screen.findByRole('button', { name: 'Inspect & Edit' })
-    expect(inspectButton.closest('.form-template-card__actions')).toContainElement(
+    expect(inspectButton.closest('[data-template-actions]')).toContainElement(
       screen.getByRole('button', { name: 'Remove' }),
     )
     fireEvent.click(inspectButton)
     await screen.findByDisplayValue('General extraction')
-    expect(screen.getByText('Reusable template', { selector: '.form-editor-selection-type' }))
+    expect(screen.getByText('Reusable template'))
       .toBeInTheDocument()
-    expect(document.querySelector('.form-editor-selection-heading h3')).not.toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Reusable template' })).not.toBeInTheDocument()
     expect(await screen.findByText('Main finding', { selector: 'strong' })).toBeInTheDocument()
-    fireEvent.change(screen.getByLabelText('Name', { selector: '.form-editor-rename input' }), {
+    fireEvent.change(screen.getAllByLabelText('Name').find((input) => input.hasAttribute('required'))!, {
       target: { value: 'Evidence extraction' },
     })
     fireEvent.click(screen.getByRole('button', { name: 'Save Name' }))
