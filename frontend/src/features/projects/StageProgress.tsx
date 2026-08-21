@@ -56,7 +56,7 @@ export function ProjectProgressDots({ stage }: { stage: string }) {
           ) : null}
           <span
             className={cn(
-              'flex shrink-0 items-center justify-center rounded-full text-primary-contrast [&_svg]:size-4',
+              'flex shrink-0 items-center justify-center rounded-full text-primary-contrast [&_svg]:size-4 [&_svg]:fill-current',
               index < currentIndex && 'size-[22px] bg-(--progress-accent)',
               index === currentIndex && 'size-3.5 bg-(--progress-accent) shadow-[0_0_0_4px_color-mix(in_srgb,var(--progress-accent)_25%,transparent)]',
               index > currentIndex && 'size-2 border-2 border-border-strong bg-surface-hover',

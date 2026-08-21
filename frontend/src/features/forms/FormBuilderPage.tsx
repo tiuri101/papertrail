@@ -8,8 +8,8 @@ import { Badge } from '../../components/Badge'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { Button, IconButton } from '../../components/Button'
 import { CountPill } from '../../components/CountPill'
-import { Card, cardStyles } from '../../components/Card'
-import { pageStyles } from '../../components/Page'
+import { Card } from '../../components/Card'
+import { Page } from '../../components/Page'
 import { DragHandle } from '../../components/DragHandle'
 import { IconCheckCircle, IconPlus, IconTrash } from '../../components/icons'
 import { Input } from '../../components/Input'
@@ -331,21 +331,21 @@ export function FormBuilderPage() {
   }
 
   if (canManageLoading) {
-    return <main className={pageStyles}><p>Loading…</p></main>
+    return <Page><p>Loading…</p></Page>
   }
   if (!canManage) {
     return (
-      <main className={pageStyles}>
+      <Page>
         <h1>Forms and Templates</h1>
         <p className="text-danger" role="alert">
           Only the project owner or an administrator can manage forms and templates.
         </p>
-      </main>
+      </Page>
     )
   }
 
   return (
-    <main className={pageStyles}>
+    <Page>
       <StageEyebrow stage="draft" />
       <h1>Forms and Templates</h1>
       <p className="text-text-muted">
@@ -354,7 +354,7 @@ export function FormBuilderPage() {
       </p>
       {forms.error ? <p className="text-danger" role="alert">{forms.error.message}</p> : null}
       {mutationError ? <p className="text-danger" role="alert">{mutationError.message}</p> : null}
-      <section id="section-create-form" className={cardStyles} data-ui="card">
+      <Card as="section" id="section-create-form">
         <h2>Create Project Form</h2>
         <InfoBox icon={<IconCheckCircle />}>
           <p>
@@ -412,8 +412,8 @@ export function FormBuilderPage() {
             <Button type="submit" variant="primary" loading={createForm.isPending}><IconPlus />Create Form</Button>
           </form>
         )}
-      </section>
-      <section id="section-edit-form" className={cardStyles} data-ui="card">
+      </Card>
+      <Card as="section" id="section-edit-form">
         <h2>Inspect or Edit a Form</h2>
         <label>
           Form to edit
@@ -914,7 +914,7 @@ export function FormBuilderPage() {
             {activeFields.length ? (
               <>
                 <h3>Preview</h3>
-                <div className={cardStyles} data-ui="card">
+                <Card>
                   <DynamicForm
                     fields={activeFields.map((field) => ({
                       stableKey: field.stableKey,
@@ -926,13 +926,13 @@ export function FormBuilderPage() {
                     value={previewAnswers}
                     onChange={(key, value) => setPreviewAnswers((current) => ({ ...current, [key]: value }))}
                   />
-                </div>
+                </Card>
               </>
             ) : null}
           </>
         ) : null}
-      </section>
-      <section id="section-manage-templates" className={cardStyles} data-ui="card">
+      </Card>
+      <Card as="section" id="section-manage-templates">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
             <h2>Manage Templates</h2>
@@ -984,7 +984,7 @@ export function FormBuilderPage() {
             ))}
           </ul>
         )}
-      </section>
-    </main>
+      </Card>
+    </Page>
   )
 }

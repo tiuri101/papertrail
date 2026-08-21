@@ -40,7 +40,7 @@ function SourceBadge({
   return (
     <button
       type="button"
-      className={`inline-flex h-auto min-h-0 w-auto min-w-0 cursor-pointer items-center rounded-full border px-[9px] py-[3px] text-[0.72rem] font-bold leading-[1.3] shadow-none ${traceable ? 'border-primary/35 bg-primary-container text-primary hover:border-primary hover:bg-primary-container-hover aria-expanded:border-primary aria-expanded:bg-primary-container-hover' : 'border-dashed border-warning/55 bg-warning-container text-warning hover:border-warning aria-expanded:border-warning'}`}
+      className={`inline-flex h-auto min-h-0 w-auto min-w-0 cursor-pointer items-center rounded-full border bg-none px-[9px] py-[3px] text-[0.72rem] font-bold leading-[1.3] shadow-none ${traceable ? 'border-primary/35 bg-primary-container text-primary hover:border-primary hover:bg-primary-container-hover aria-expanded:border-primary aria-expanded:bg-primary-container-hover' : 'border-dashed border-warning/55 bg-warning-container text-warning hover:border-warning aria-expanded:border-warning'}`}
       aria-controls={evidenceId}
       aria-expanded={expanded}
       title={traceable ? undefined : 'No traceable source quotation for this value'}
