@@ -304,7 +304,7 @@ export function PublicationDetailPage() {
               ].filter(Boolean).join(' · ')}
             </p>
             <div className="publication-card__workflow">
-              <span className={`status-badge ${stage.className}`}>{stage.label}</span>
+              <Badge variant={stage.variant}>{stage.label}</Badge>
               <PdfAvailabilityPill
                 available={Boolean(publication.fullText?.available)}
                 href={`/api/v1/projects/${projectId}/publications/${publication.id}/full-text/content`}
@@ -343,9 +343,14 @@ export function PublicationDetailPage() {
                 {subjects.length ? (
                   <section>
                     <h3>Subjects</h3>
+                    {/* `!` needed on whitespace-normal: Badge's own base class always sets
+                        `whitespace-nowrap`, and Tailwind v4 doesn't resolve two same-property
+                        utilities by className order. */}
                     <div className="publication-detail__subjects">
                       {subjects.map((subject) => (
-                        <span key={subject} className="status-badge status-badge--primary">{subject}</span>
+                        <Badge key={subject} variant="primary" className="max-w-full [overflow-wrap:anywhere] whitespace-normal!">
+                          {subject}
+                        </Badge>
                       ))}
                     </div>
                   </section>
@@ -457,7 +462,7 @@ export function PublicationDetailPage() {
             <dl className="publication-detail__status-list">
               <div>
                 <dt>Stage</dt>
-                <dd><span className={`status-badge ${stage.className}`}>{stage.label}</span></dd>
+                <dd><Badge variant={stage.variant}>{stage.label}</Badge></dd>
               </div>
               {activeStage ? (
                 <div>

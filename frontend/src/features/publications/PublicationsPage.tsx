@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Badge } from '../../components/Badge'
 import { Button, IconButton } from '../../components/Button'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { CountPill } from '../../components/CountPill'
@@ -235,7 +236,7 @@ function PublicationRow({
           {publication.venue ?? '—'}
         </span>
         <span className="publication-row-grid__stage">
-          <span className={`status-badge ${stage.className}`}>{stage.label}</span>
+          <Badge variant={stage.variant}>{stage.label}</Badge>
         </span>
         <span className="publication-row-grid__pdf">
           <PdfAvailabilityPill

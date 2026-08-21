@@ -1021,10 +1021,6 @@ button.jobs-summary__item[aria-pressed='true']:hover:not(:disabled) {
   font-weight: 700;
 }
 
-.jobs-status {
-  text-transform: capitalize;
-}
-
 .jobs-progress {
   display: grid;
   gap: 6px;
@@ -2942,12 +2938,6 @@ form .toolbar,
   max-width: 100%;
 }
 
-.publication-detail__subjects .status-badge {
-  max-width: 100%;
-  white-space: normal;
-  overflow-wrap: anywhere;
-}
-
 .publication-detail__full-abstract {
   max-width: 100%;
   line-height: 1.6;
@@ -4787,78 +4777,6 @@ kbd {
 
 .hotkey-row__label {
   font-weight: 600;
-}
-
-.hotkey-capture {
-  min-width: 96px;
-  min-height: 36px;
-  padding: 6px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  background: var(--color-surface-raised);
-  color: var(--color-text-secondary);
-  font: inherit;
-  box-shadow: none;
-}
-
-.hotkey-capture--active {
-  border-color: var(--color-primary);
-  color: var(--color-text);
-}
-
-.hotkey-capture--conflict {
-  border-color: var(--color-danger);
-  color: var(--color-danger);
-}
-
-.status-badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  min-height: 22px;
-  border-radius: 999px;
-  padding: 2px 9px 2px 7px;
-  font-size: 0.78rem;
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.status-badge svg {
-  width: 14px;
-  height: 14px;
-  flex: 0 0 auto;
-  fill: currentColor;
-}
-
-.status-badge--info {
-  background: var(--color-primary);
-  color: var(--color-primary-contrast);
-}
-
-.status-badge--primary {
-  background: var(--color-primary-container);
-  color: var(--color-primary);
-}
-
-.status-badge--success {
-  background: var(--color-success-container);
-  color: var(--color-success);
-}
-
-.status-badge--danger {
-  background: var(--color-danger-container);
-  color: var(--color-danger);
-}
-
-.status-badge--warning {
-  background: var(--color-warning-container);
-  color: var(--color-warning);
-}
-
-.status-badge--neutral,
-.status-badge--pending {
-  background: var(--color-surface-hover);
-  color: var(--color-text-secondary);
 }
 
 

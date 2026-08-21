@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { Badge } from '../../components/Badge'
 import { Button } from '../../components/Button'
 import { IconCheckCircle } from '../../components/icons'
 import { Input } from '../../components/Input'
@@ -326,7 +327,7 @@ export function PublicationReviewDetails({
               <section className="publication-review-details__extraction">
                 <div className="publication-review-details__heading">
                   <h4>Data extraction</h4>
-                  <span className="status-badge">{extraction.status.replaceAll('_', ' ')}</span>
+                  <Badge variant="plain">{extraction.status.replaceAll('_', ' ')}</Badge>
                 </div>
                 {response ? (
                   <>

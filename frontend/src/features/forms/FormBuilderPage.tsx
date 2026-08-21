@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Badge } from '../../components/Badge'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { Button, IconButton } from '../../components/Button'
 import { CountPill } from '../../components/CountPill'
@@ -507,12 +508,12 @@ export function FormBuilderPage() {
                     >
                       <span className="llm-schema-field__title">
                         <strong>{field.label}</strong>
-                        <span className="status-badge">
+                        <Badge variant="plain">
                           {fieldTypeLabels[field.fieldType] ?? field.fieldType}
                           {field.fieldType === 'rating' ? ` (${describeRatingScale(field.options)})` : ''}
-                        </span>
-                        {field.required ? <span className="status-badge">Required</span> : null}
-                        {field.isArchived ? <span className="status-badge">Archived</span> : null}
+                        </Badge>
+                        {field.required ? <Badge variant="plain">Required</Badge> : null}
+                        {field.isArchived ? <Badge variant="plain">Archived</Badge> : null}
                       </span>
                       <span className="llm-schema-field__mapping">
                         {field.isArchived
@@ -746,8 +747,8 @@ export function FormBuilderPage() {
                     <div className="llm-schema-field__summary">
                       <span className="llm-schema-field__title">
                         <strong>{fieldLabel.trim() || 'New field'}</strong>
-                        <span className="status-badge">{fieldTypeLabels[fieldType] ?? fieldType}</span>
-                        {required ? <span className="status-badge">Required</span> : null}
+                        <Badge variant="plain">{fieldTypeLabels[fieldType] ?? fieldType}</Badge>
+                        {required ? <Badge variant="plain">Required</Badge> : null}
                       </span>
                       <span className="llm-schema-field__mapping">
                         {required ? 'Reviewers must complete this field' : 'Optional for reviewers'}
