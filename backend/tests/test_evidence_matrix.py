@@ -9,7 +9,11 @@ from app.accounts.service import create_user
 from app.api.errors import NotFoundError
 from app.conflicts.service import record_final_decision
 from app.extraction.models import ExtractionConfig, ExtractionWorkItem
-from app.extraction.service import claim_next_extraction, initialize_extraction, submit_extraction
+from app.extraction.service import (
+    claim_next_extraction,
+    initialize_extraction,
+    submit_extraction,
+)
 from app.forms.models import FormKind
 from app.forms.service import add_field, create_form
 from app.llm.models import (
@@ -50,7 +54,9 @@ def setup_matrix_project(db):
     full-text ("Excluded Paper") to prove it never enters the dataset."""
     reviewer = create_user(db, "matrix-reviewer", "Reviewer", "reviewer-password")
     project = Project(
-        name="Matrix Review", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed"
+        name="Matrix Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
     )
     db.add(project)
     db.flush()
@@ -62,7 +68,9 @@ def setup_matrix_project(db):
             can_assess_quality=True,
         )
     )
-    extraction_form = create_form(db, "Extraction", FormKind.EXTRACTION, project_id=project.id)
+    extraction_form = create_form(
+        db, "Extraction", FormKind.EXTRACTION, project_id=project.id
+    )
     fields = {
         "design": add_field(
             db, extraction_form, "Design", "single_select", options=["RCT", "Cohort"]
@@ -73,9 +81,15 @@ def setup_matrix_project(db):
         ),
         "summary": add_field(db, extraction_form, "Summary", "long_text"),
     }
-    db.add(ExtractionConfig(project_id=project.id, allocation_mode=TaskAllocationMode.CLAIM))
+    db.add(
+        ExtractionConfig(
+            project_id=project.id, allocation_mode=TaskAllocationMode.CLAIM
+        )
+    )
     quality_form = create_form(db, "Quality", FormKind.QUALITY, project_id=project.id)
-    quality_field = add_field(db, quality_form, "Rigor", "rating", scoring={"weight": 1})
+    quality_field = add_field(
+        db, quality_form, "Rigor", "rating", scoring={"weight": 1}
+    )
     db.add(
         QualityConfig(
             project_id=project.id,
@@ -96,7 +110,13 @@ def setup_matrix_project(db):
             db, pub.id, ScreeningStage.FULL_TEXT, "include", "agreement", None, None
         )
     record_final_decision(
-        db, excluded_pub.id, ScreeningStage.FULL_TEXT, "exclude", "agreement", None, None
+        db,
+        excluded_pub.id,
+        ScreeningStage.FULL_TEXT,
+        "exclude",
+        "agreement",
+        None,
+        None,
     )
     project.stage = ProjectStage.EXTRACTION
     db.commit()
@@ -112,7 +132,9 @@ def setup_matrix_project(db):
         fields["summary"].stable_key: "A well-conducted trial.",
     }
     item = db.scalar(
-        select(ExtractionWorkItem).where(ExtractionWorkItem.publication_id == complete_pub.id)
+        select(ExtractionWorkItem).where(
+            ExtractionWorkItem.publication_id == complete_pub.id
+        )
     )
     assert item is not None
     item.assigned_reviewer_id = reviewer.id
@@ -138,7 +160,9 @@ def setup_matrix_project(db):
     )
 
 
-def attach_accepted_suggestion(db, project, response, field_stable_key, value, evidence):
+def attach_accepted_suggestion(
+    db, project, response, field_stable_key, value, evidence
+):
     schema_version = LlmSchemaVersion(project_id=project.id, version_number=1)
     db.add(schema_version)
     db.flush()
@@ -212,7 +236,9 @@ def test_dataset_only_includes_publications_with_a_valid_include_decision(db):
 
 
 def test_dataset_reports_answered_values_for_a_completed_publication(db):
-    project, _reviewer, fields, quality_field, complete_pub, *_ = setup_matrix_project(db)
+    project, _reviewer, fields, quality_field, complete_pub, *_ = setup_matrix_project(
+        db
+    )
     dataset = build_evidence_dataset(db, project.id)
     facts = dataset.facts_for(complete_pub.id)
     design_fact = facts[f"extraction:{fields['design'].stable_key}"]
@@ -225,7 +251,9 @@ def test_dataset_reports_answered_values_for_a_completed_publication(db):
 
 
 def test_dataset_reports_missing_for_a_publication_not_yet_extracted(db):
-    project, _reviewer, fields, quality_field, _complete, pending_pub, *_ = setup_matrix_project(db)
+    project, _reviewer, fields, quality_field, _complete, pending_pub, *_ = (
+        setup_matrix_project(db)
+    )
     dataset = build_evidence_dataset(db, project.id)
     facts = dataset.facts_for(pending_pub.id)
     design_fact = facts[f"extraction:{fields['design'].stable_key}"]
@@ -245,7 +273,11 @@ def test_dataset_marks_pending_reconciliation_distinctly_from_missing(db):
     db.add(project)
     db.flush()
     for reviewer in (r1, r2):
-        db.add(ProjectMembership(project_id=project.id, user_id=reviewer.id, can_extract=True))
+        db.add(
+            ProjectMembership(
+                project_id=project.id, user_id=reviewer.id, can_extract=True
+            )
+        )
     db.add(ExtractionConfig(project_id=project.id, required_reviewers=2))
     form = create_form(db, "Extraction", FormKind.EXTRACTION, project_id=project.id)
     outcome_field = add_field(
@@ -278,9 +310,16 @@ def test_dataset_marks_pending_reconciliation_distinctly_from_missing(db):
 def test_evidence_traceable_when_suggestion_accepted_and_value_unchanged(db):
     project, _reviewer, fields, *_, response = setup_matrix_project(db)
     evidence = [
-        {"page": 3, "quote": "Randomized controlled trial", "section": "Methods", "verified": True}
+        {
+            "page": 3,
+            "quote": "Randomized controlled trial",
+            "section": "Methods",
+            "verified": True,
+        }
     ]
-    attach_accepted_suggestion(db, project, response, fields["design"].stable_key, "RCT", evidence)
+    attach_accepted_suggestion(
+        db, project, response, fields["design"].stable_key, "RCT", evidence
+    )
 
     dataset = build_evidence_dataset(db, project.id)
     fact = dataset.facts_for(response.work_item.publication_id)[
@@ -303,7 +342,8 @@ def test_no_evidence_when_reviewer_modified_value_after_suggestion(db):
     review = db.scalar(
         select(ExtractionSuggestionReview).where(
             ExtractionSuggestionReview.extraction_response_id == response.id,
-            ExtractionSuggestionReview.extraction_field_key == fields["design"].stable_key,
+            ExtractionSuggestionReview.extraction_field_key
+            == fields["design"].stable_key,
         )
     )
     review.disposition = SuggestionDisposition.MODIFIED
@@ -336,10 +376,14 @@ def test_matrix_pending_reconciliation_cell_never_looks_like_a_final_answer(db):
     project, _reviewer, fields, *_ = setup_matrix_project(db)
     matrix = build_evidence_matrix(db, project.id)
     complete_item = next(
-        item for item in matrix["items"] if item["publication"]["title"] == "Complete Paper"
+        item
+        for item in matrix["items"]
+        if item["publication"]["title"] == "Complete Paper"
     )
     pending_item = next(
-        item for item in matrix["items"] if item["publication"]["title"] == "Pending Paper"
+        item
+        for item in matrix["items"]
+        if item["publication"]["title"] == "Pending Paper"
     )
     design_key = f"extraction:{fields['design'].stable_key}"
     assert complete_item["cells"][design_key]["state"] == "answered"
@@ -354,16 +398,22 @@ def test_matrix_pagination_slices_and_reports_total(db):
     assert page1["total"] == 2
     assert len(page1["items"]) == 1
     assert len(page2["items"]) == 1
-    assert page1["items"][0]["publication"]["id"] != page2["items"][0]["publication"]["id"]
+    assert (
+        page1["items"][0]["publication"]["id"] != page2["items"][0]["publication"]["id"]
+    )
 
 
 def test_matrix_evidence_flag_reflects_traceable_evidence(db):
     project, _reviewer, fields, *_, response = setup_matrix_project(db)
     evidence = [{"page": 2, "quote": "quote", "section": None, "verified": True}]
-    attach_accepted_suggestion(db, project, response, fields["design"].stable_key, "RCT", evidence)
+    attach_accepted_suggestion(
+        db, project, response, fields["design"].stable_key, "RCT", evidence
+    )
     matrix = build_evidence_matrix(db, project.id)
     complete_item = next(
-        item for item in matrix["items"] if item["publication"]["title"] == "Complete Paper"
+        item
+        for item in matrix["items"]
+        if item["publication"]["title"] == "Complete Paper"
     )
     design_key = f"extraction:{fields['design'].stable_key}"
     assert complete_item["cells"][design_key]["hasEvidence"] is True
@@ -393,8 +443,12 @@ def _fact(**overrides):
 
 
 def test_presence_filter_matches_state_directly():
-    assert matches_filter(_fact(state="answered"), {"type": "presence", "state": "answered"})
-    assert not matches_filter(_fact(state="missing"), {"type": "presence", "state": "answered"})
+    assert matches_filter(
+        _fact(state="answered"), {"type": "presence", "state": "answered"}
+    )
+    assert not matches_filter(
+        _fact(state="missing"), {"type": "presence", "state": "answered"}
+    )
     assert matches_filter(None, {"type": "presence", "state": "missing"})
 
 
@@ -408,7 +462,9 @@ def test_text_filter_is_case_insensitive_substring():
 
 
 def test_categorical_filter_matches_any_selected_value():
-    assert matches_filter(_fact(value="RCT"), {"type": "categorical", "values": ["RCT", "Cohort"]})
+    assert matches_filter(
+        _fact(value="RCT"), {"type": "categorical", "values": ["RCT", "Cohort"]}
+    )
     assert not matches_filter(
         _fact(value="Survey"), {"type": "categorical", "values": ["RCT", "Cohort"]}
     )
@@ -442,8 +498,12 @@ def test_cell_detail_returns_value_and_evidence(db):
     project, _reviewer, fields, *_, complete_pub, _pending, _excluded, response = (
         setup_matrix_project(db)
     )
-    evidence = [{"page": 5, "quote": "quote text", "section": "Results", "verified": True}]
-    attach_accepted_suggestion(db, project, response, fields["design"].stable_key, "RCT", evidence)
+    evidence = [
+        {"page": 5, "quote": "quote text", "section": "Results", "verified": True}
+    ]
+    attach_accepted_suggestion(
+        db, project, response, fields["design"].stable_key, "RCT", evidence
+    )
 
     detail = evidence_cell_detail(
         db, project.id, complete_pub.id, "extraction", fields["design"].stable_key
@@ -456,7 +516,9 @@ def test_cell_detail_returns_value_and_evidence(db):
 def test_cell_detail_raises_not_found_for_unknown_field(db):
     project, _reviewer, _fields, _quality, complete_pub, *_ = setup_matrix_project(db)
     with pytest.raises(NotFoundError):
-        evidence_cell_detail(db, project.id, complete_pub.id, "extraction", "not-a-real-key")
+        evidence_cell_detail(
+            db, project.id, complete_pub.id, "extraction", "not-a-real-key"
+        )
 
 
 def test_cell_detail_raises_not_found_for_excluded_publication(db):
@@ -483,7 +545,9 @@ def test_evidence_matrix_route_requires_project_membership(client, db):
     ok = client.post(f"/api/v1/projects/{project.id}/evidence-matrix", json={})
     assert ok.status_code == 200
     assert ok.json()["total"] == 2
-    client.post("/api/v1/auth/logout", headers={"X-CSRF-Token": login.json()["csrfToken"]})
+    client.post(
+        "/api/v1/auth/logout", headers={"X-CSRF-Token": login.json()["csrfToken"]}
+    )
 
     outsider_login = client.post(
         "/api/v1/auth/login",

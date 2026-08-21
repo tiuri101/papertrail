@@ -341,9 +341,7 @@ def submit_reconciliation(
             merged[item.stable_key] = choice.get("value")
             provenance[item.stable_key] = {"from": "manual", "responseId": None}
         else:
-            raise DomainError(
-                f"Invalid resolution choice for field: {item.stable_key}"
-            )
+            raise DomainError(f"Invalid resolution choice for field: {item.stable_key}")
         resolved_choices[item.stable_key] = selection
 
     validate_answers(fields, merged)

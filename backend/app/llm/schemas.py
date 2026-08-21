@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -33,14 +34,10 @@ class LlmInstallationSettingsUpdate(ApiModel):
     model: str
     context_length: int = Field(alias="contextLength", ge=4096)
     api_key: str | None = Field(default=None, alias="apiKey")
-    request_timeout_seconds: int = Field(
-        alias="requestTimeoutSeconds", ge=1
-    )
+    request_timeout_seconds: int = Field(alias="requestTimeoutSeconds", ge=1)
     max_concurrent_jobs: int = Field(alias="maxConcurrentJobs", ge=1)
     max_evidence_items: int = Field(alias="maxEvidenceItems", ge=1, le=10)
-    max_evidence_quote_chars: int = Field(
-        alias="maxEvidenceQuoteChars", ge=50, le=2000
-    )
+    max_evidence_quote_chars: int = Field(alias="maxEvidenceQuoteChars", ge=50, le=2000)
 
     @field_validator("api_key")
     @classmethod
@@ -196,6 +193,8 @@ class ValidationReviewPublication(ApiModel):
     title: str
     authors: str | None = None
     publication_year: int | None = Field(default=None, alias="publicationYear")
+    venue: str | None = None
+    doi: str | None = None
 
 
 class ValidationReviewItem(ApiModel):
@@ -203,6 +202,7 @@ class ValidationReviewItem(ApiModel):
     publication_id: str = Field(alias="publicationId")
     assigned_reviewer_id: str | None = Field(alias="assignedReviewerId")
     response_id: str | None = Field(default=None, alias="responseId")
+    submitted_at: datetime | None = Field(default=None, alias="submittedAt")
     full_text_available: bool = Field(alias="fullTextAvailable")
     state: str
     run_id: str | None = Field(default=None, alias="runId")

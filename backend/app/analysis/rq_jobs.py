@@ -73,9 +73,7 @@ def latest_run(
 ) -> ResearchQuestionAnalysisRun | None:
     return db.scalar(
         select(ResearchQuestionAnalysisRun)
-        .where(
-            ResearchQuestionAnalysisRun.research_question_id == research_question_id
-        )
+        .where(ResearchQuestionAnalysisRun.research_question_id == research_question_id)
         .order_by(ResearchQuestionAnalysisRun.created_at.desc())
     )
 
@@ -100,8 +98,7 @@ def run_history(
         db.scalars(
             select(ResearchQuestionAnalysisRun)
             .where(
-                ResearchQuestionAnalysisRun.research_question_id
-                == research_question_id
+                ResearchQuestionAnalysisRun.research_question_id == research_question_id
             )
             .order_by(ResearchQuestionAnalysisRun.created_at.desc())
         )

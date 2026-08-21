@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { CountPill } from '../../components/CountPill'
 import { IconRestart } from '../../components/icons'
 import { InfoTooltip } from '../../components/Tooltip'
 import { useCanManageProject } from '../../hooks/useCanManageProject'
@@ -34,6 +35,22 @@ const COLUMN_HELP: Partial<Record<SortKey, string>> = {
   jobType: 'The kind of automated task that ran, such as importing files, checking for duplicates, or extracting data. Background jobs run on their own without anyone triggering them by hand.',
   status: 'Queued: waiting for a worker to pick it up. Running: in progress. Completed: finished successfully. Failed: hit an error — use Restart to try again. Cancelled: stopped before it finished.',
 }
+
+const STATUS_BADGE_VARIANT: Record<string, string> = {
+  completed: 'success',
+  running: 'primary',
+  queued: 'warning',
+  failed: 'danger',
+  cancelled: 'neutral',
+}
+
+const STATUS_SUMMARY_ITEMS = [
+  { status: 'queued', label: 'Queued' },
+  { status: 'running', label: 'Running' },
+  { status: 'completed', label: 'Completed' },
+  { status: 'failed', label: 'Failed' },
+  { status: 'cancelled', label: 'Cancelled' },
+] as const
 
 function sortValue(job: BackgroundJob, key: SortKey): string | number | null {
   if (key === 'progress') {
@@ -173,6 +190,13 @@ export function JobsPage() {
     Array.from(new Set((jobs.data ?? []).map((job) => job.jobType))).sort()
   ), [jobs.data])
 
+  const jobStatusCounts = useMemo(() => (
+    STATUS_SUMMARY_ITEMS.map((item) => ({
+      ...item,
+      count: (jobs.data ?? []).filter((job) => job.status === item.status).length,
+    }))
+  ), [jobs.data])
+
   const filteredJobs = useMemo(() => (
     (jobs.data ?? []).filter((job) => (
       (!statusFilter || job.status === statusFilter)
@@ -257,7 +281,31 @@ export function JobsPage() {
       {restartOne.error ? <p className="error" role="alert">{restartOne.error.message}</p> : null}
       {restartMany.error ? <p className="error" role="alert">{restartMany.error.message}</p> : null}
       {jobs.isLoading ? <p>Loading…</p> : null}
+      {jobs.data ? (
+        <CountPill count={sortedJobs.length}>
+          {statusFilter || jobTypeFilter
+            ? `of ${jobs.data.length} jobs match your filters`
+            : `job${jobs.data.length === 1 ? '' : 's'}`}
+        </CountPill>
+      ) : null}
       {jobs.data && jobs.data.length === 0 ? <p className="muted">No background jobs have run for this project yet.</p> : null}
+      {jobs.data && jobs.data.length > 0 ? (
+        <section className="jobs-summary" aria-label="Job status summary">
+          {jobStatusCounts.map(({ status, label, count }) => (
+            <button
+              type="button"
+              key={status}
+              className={`jobs-summary__item jobs-summary__item--${status}${statusFilter === status ? ' jobs-summary__item--active' : ''}`}
+              aria-label={`${count} ${status} job${count === 1 ? '' : 's'}`}
+              aria-pressed={statusFilter === status}
+              onClick={() => setStatusFilter(status)}
+            >
+              <strong>{count}</strong>
+              <span>{label}</span>
+            </button>
+          ))}
+        </section>
+      ) : null}
       {jobs.data && jobs.data.length > 0 ? (
         <div className="toolbar jobs-toolbar">
           <label>
@@ -301,7 +349,7 @@ export function JobsPage() {
       ) : null}
       {sortedJobs.length ? (
         <div className="table-scroll">
-          <table>
+          <table className="table-compact jobs-table">
             <caption className="visually-hidden">Background jobs</caption>
             <thead>
               <tr>
@@ -335,7 +383,7 @@ export function JobsPage() {
                     </th>
                   )
                 })}
-                {canManage ? <th scope="col">Actions</th> : null}
+                {canManage ? <th scope="col"><span className="visually-hidden">Actions</span></th> : null}
               </tr>
             </thead>
             <tbody>
@@ -355,9 +403,27 @@ export function JobsPage() {
                         />
                       </td>
                     ) : null}
-                    <th scope="row">{job.jobType}</th>
-                    <td>{job.status}</td>
-                    <td>{job.progressTotal ? `${job.progressCurrent} / ${job.progressTotal}` : '—'}</td>
+                    <th scope="row" className="jobs-table__jobtype">{job.jobType}</th>
+                    <td>
+                      <span className={`status-badge jobs-status status-badge--${STATUS_BADGE_VARIANT[job.status] ?? 'neutral'}`}>
+                        {job.status}
+                      </span>
+                    </td>
+                    <td>
+                      {job.progressTotal ? (
+                        <span className="jobs-progress">
+                          <span className="jobs-progress__label">{job.progressCurrent} / {job.progressTotal}</span>
+                          {job.status === 'running' ? (
+                            <span className="jobs-progress__bar">
+                              <span
+                                className="jobs-progress__fill"
+                                style={{ width: `${Math.min(100, (job.progressCurrent / job.progressTotal) * 100)}%` }}
+                              />
+                            </span>
+                          ) : null}
+                        </span>
+                      ) : '—'}
+                    </td>
                     <td>
                       {job.errorMessage ? <JobFailureDetails job={job} /> : null}
                       {!job.errorMessage && job.progressMessage ? job.progressMessage : null}
@@ -370,12 +436,13 @@ export function JobsPage() {
                         {failed ? (
                           <button
                             type="button"
-                            className="button-secondary"
+                            className="icon-button icon-button--round"
                             disabled={restartOne.isPending}
                             onClick={() => restartOne.mutate(job.id)}
+                            aria-label="Restart"
+                            title="Restart job"
                           >
                             <IconRestart />
-                            Restart
                           </button>
                         ) : null}
                       </td>

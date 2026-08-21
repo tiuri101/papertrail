@@ -479,9 +479,7 @@ def test_late_addition_to_a_completed_project_reopens_it_until_it_finishes(db) -
     )
     assert item is not None
     submit_decision(db, item, reviewer.id, "include", {criterion.id: True}, None)
-    refresh_automatic_final_decision(
-        db, late_arrival.id, ScreeningStage.TITLE_ABSTRACT
-    )
+    refresh_automatic_final_decision(db, late_arrival.id, ScreeningStage.TITLE_ABSTRACT)
     db.commit()
 
     # The project is genuinely no longer complete: real work is outstanding
@@ -605,9 +603,7 @@ def test_late_addition_to_completed_project_records_audit_and_regenerates_analys
     )
     assert item is not None
     submit_decision(db, item, reviewer.id, "include", {criterion.id: True}, None)
-    refresh_automatic_final_decision(
-        db, late_arrival.id, ScreeningStage.TITLE_ABSTRACT
-    )
+    refresh_automatic_final_decision(db, late_arrival.id, ScreeningStage.TITLE_ABSTRACT)
     db.commit()
 
     reopen_event = db.scalar(
@@ -638,7 +634,11 @@ def test_inclusion_immediately_queues_retrieval_before_stage_transition(db) -> N
     browser-retrieval job as soon as it's decided, without waiting for the
     whole project to finish title/abstract screening and transition to the
     full-text stage."""
-    from app.pdf_acquisition.models import BrowserAgent, PdfRetrievalJob, RetrievalJobStatus
+    from app.pdf_acquisition.models import (
+        BrowserAgent,
+        PdfRetrievalJob,
+        RetrievalJobStatus,
+    )
 
     admin, project, publication, r1, r2, items, criterion = setup_conflict(
         db, second_outcome="include"

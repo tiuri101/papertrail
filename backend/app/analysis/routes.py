@@ -31,12 +31,37 @@ from app.jobs.service import enqueue_job
 from app.llm.installation_settings import effective_llm_settings
 from app.llm.schema_service import project_settings
 from app.projects.dependencies import require_project_member_csrf
-from app.projects.models import ResearchQuestion, ScreeningStage
+from app.projects.models import Project, ProjectStage, ResearchQuestion, ScreeningStage
 from app.projects.service import require_project_access
 
 router = APIRouter(tags=["analysis"])
 
 _REVIEWER_ANALYSIS_STAGES = {stage.value: stage for stage in ScreeningStage}
+_PROJECT_STAGE_INDEX = {
+    ProjectStage.DRAFT: 0,
+    ProjectStage.DUPLICATE_REVIEW: 1,
+    ProjectStage.TITLE_ABSTRACT: 2,
+    ProjectStage.FULL_TEXT: 3,
+    ProjectStage.EXTRACTION: 4,
+    ProjectStage.COMPLETED: 5,
+}
+_ANALYSIS_AVAILABLE_FROM = {
+    "duplicate_review": ProjectStage.TITLE_ABSTRACT,
+    "title_abstract_screening": ProjectStage.FULL_TEXT,
+    "full_text_screening": ProjectStage.EXTRACTION,
+    "extraction_quality": ProjectStage.COMPLETED,
+}
+_REVIEWER_ANALYSIS_AVAILABLE_FROM = {
+    ScreeningStage.TITLE_ABSTRACT: ProjectStage.FULL_TEXT,
+    ScreeningStage.FULL_TEXT: ProjectStage.EXTRACTION,
+}
+
+
+def _require_analysis_available(project: Project, available_from: ProjectStage) -> None:
+    if _PROJECT_STAGE_INDEX[project.stage] < _PROJECT_STAGE_INDEX[available_from]:
+        raise DomainError(
+            "Analysis is available only after the corresponding review stage is complete"
+        )
 
 
 def _narrative_enabled(db: Session, project_id: str) -> bool:
@@ -53,9 +78,10 @@ def project_stage_analysis(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
-    require_project_access(db, project_id, user)
+    project = require_project_access(db, project_id, user)
     if stage not in STAGE_KEYS:
         raise NotFoundError("Unknown analysis stage")
+    _require_analysis_available(project, _ANALYSIS_AVAILABLE_FROM[stage])
     stats = compute_stage_stats(db, project_id, stage)
     fingerprint = compute_stats_fingerprint(stats)
     narrative_enabled = _narrative_enabled(db, project_id)
@@ -88,10 +114,13 @@ def reviewer_analysis(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
-    require_project_access(db, project_id, user)
+    project = require_project_access(db, project_id, user)
     screening_stage = _REVIEWER_ANALYSIS_STAGES.get(stage)
     if screening_stage is None:
         raise NotFoundError("Unknown screening stage")
+    _require_analysis_available(
+        project, _REVIEWER_ANALYSIS_AVAILABLE_FROM[screening_stage]
+    )
     analysis = compute_reviewer_analysis(db, project_id, screening_stage)
     return {
         **analysis,
@@ -108,10 +137,10 @@ def regenerate_stage_analysis(
 ) -> dict[str, str]:
     if stage not in STAGE_KEYS:
         raise NotFoundError("Unknown analysis stage")
+    project = require_project_access(db, project_id, user)
+    _require_analysis_available(project, _ANALYSIS_AVAILABLE_FROM[stage])
     if not _narrative_enabled(db, project_id):
-        raise DomainError(
-            "LLM-generated result analysis is disabled for this project"
-        )
+        raise DomainError("LLM-generated result analysis is disabled for this project")
     job = enqueue_job(
         db,
         STAGE_ANALYSIS_JOB,
@@ -197,9 +226,7 @@ def regenerate_research_question_analysis(
 ) -> dict[str, str]:
     research_question = _research_question_or_404(db, project_id, research_question_id)
     if not _narrative_enabled(db, project_id):
-        raise DomainError(
-            "LLM-generated result analysis is disabled for this project"
-        )
+        raise DomainError("LLM-generated result analysis is disabled for this project")
     run = queue_rq_synthesis(
         db, project_id, research_question, created_by_id=user.id, priority=5
     )

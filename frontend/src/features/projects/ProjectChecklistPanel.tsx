@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
-import { IconArrowRight } from '../../components/icons'
+import { IconArrowRight, IconChart, IconCheckCircle, IconDownload, IconEye } from '../../components/icons'
 import { STAGES } from './StageProgress'
 
 interface ChecklistItem {
@@ -131,6 +131,42 @@ export function ProjectChecklistPanel({ projectId, canManage }: { projectId: str
             )
           })}
         </ul>
+      ) : currentStage.stage === 'completed' ? (
+        <div className="project-completion">
+          <span className="project-completion__icon" aria-hidden="true">
+            <IconCheckCircle />
+          </span>
+          <div className="project-completion__content">
+            <h3>Your review is complete</h3>
+            <p>
+              Explore your final results and analysis, or generate the reports and exports you
+              need to share your findings.
+            </p>
+            <div className="project-completion__actions">
+              <Link
+                className="project-completion__action project-completion__action--primary"
+                to={`/projects/${projectId}/results`}
+              >
+                <IconEye />
+                View Final Results
+              </Link>
+              <Link
+                className="project-completion__action button-secondary"
+                to={`/projects/${projectId}/analysis`}
+              >
+                <IconChart />
+                Explore Charts &amp; Analysis
+              </Link>
+              <Link
+                className="project-completion__action button-secondary"
+                to={`/projects/${projectId}/reporting`}
+              >
+                <IconDownload />
+                Open Reporting and Exports
+              </Link>
+            </div>
+          </div>
+        </div>
       ) : (
         <p className="muted">Nothing left to do here.</p>
       )}

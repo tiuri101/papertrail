@@ -1,17 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
-import { Link, useParams } from 'react-router-dom'
+import { useMemo, useState, type MouseEvent } from 'react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { ConfirmButton } from '../../components/ConfirmButton'
+import { CountPill } from '../../components/CountPill'
 import { DoiPill } from '../../components/DoiPill'
 import { HighlightedText } from '../../components/HighlightedText'
 import { IconAlertTriangle } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
 import { OutcomeBadge } from '../../components/OutcomeBadge'
-import { PublisherLinkPill } from '../../components/PublisherLinkPill'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
-import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { ScreeningLlmPanel } from '../llm/LlmTaskComponents'
 import { StageEyebrow } from '../projects/StageEyebrow'
 import { CriteriaAnswerFields } from './CriteriaAnswerFields'
@@ -202,6 +201,9 @@ const decisionFilterOptions = [
   { value: 'inaccessible', label: 'Full text inaccessible', fullTextOnly: true },
 ]
 
+type DecisionSortKey = 'title' | 'authors' | 'venue' | 'decision' | 'doi' | 'submitted'
+type SortDirection = 'asc' | 'desc'
+
 function itemStatus(item: MyDecisionItem): string {
   return item.decision?.outcome ?? item.retrievalStatus ?? ''
 }
@@ -211,7 +213,48 @@ function itemStatusLabel(item: MyDecisionItem): string {
   return retrievalStatusLabels[item.retrievalStatus ?? ''] ?? item.retrievalStatus ?? 'Retrieval resolved'
 }
 
-function DecisionCard({
+function decisionSortValue(item: MyDecisionItem, key: DecisionSortKey): string | number {
+  switch (key) {
+    case 'title':
+      return item.publication.title.toLocaleLowerCase()
+    case 'authors':
+      return (item.publication.authors ?? '').toLocaleLowerCase()
+    case 'venue':
+      return (item.publication.venue ?? '').toLocaleLowerCase()
+    case 'decision':
+      return itemStatusLabel(item).toLocaleLowerCase()
+    case 'doi':
+      return (item.publication.doi ?? '').toLocaleLowerCase()
+    case 'submitted':
+      return item.submittedAt ? Date.parse(item.submittedAt) : 0
+    default:
+      return ''
+  }
+}
+
+function sortDecisionItems(
+  items: MyDecisionItem[],
+  key: DecisionSortKey,
+  direction: SortDirection,
+): MyDecisionItem[] {
+  return [...items].sort((left, right) => {
+    const leftValue = decisionSortValue(left, key)
+    const rightValue = decisionSortValue(right, key)
+    const comparison = typeof leftValue === 'number' && typeof rightValue === 'number'
+      ? leftValue - rightValue
+      : String(leftValue).localeCompare(String(rightValue), undefined, { sensitivity: 'base' })
+    if (comparison !== 0) return direction === 'asc' ? comparison : -comparison
+    return left.publication.title.localeCompare(right.publication.title)
+  })
+}
+
+function formatSubmittedAt(value: string | null): string {
+  if (!value) return '—'
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString()
+}
+
+function DecisionRow({
   projectId,
   stage,
   item,
@@ -228,57 +271,64 @@ function DecisionCard({
   highlightKeywords: string[]
   onWorkflowImpact: (impact: WorkflowImpact) => void
 }) {
+  const navigate = useNavigate()
   const [editing, setEditing] = useState(false)
   const publication = item.publication
   const decision = item.decision
+  const detailHref = `/projects/${projectId}/publications/${publication.id}`
+
+  const openPublication = (event: MouseEvent<HTMLLIElement>) => {
+    if ((event.target as HTMLElement).closest('a, button, input, select, textarea, label, .decision-card__editor')) return
+    navigate(detailHref)
+  }
 
   return (
-    <li className="card publication-card decision-card">
-      <div className="publication-card__summary">
-        <div>
-          <h2 className="decision-card__title">
-            <HighlightedText text={publication.title} keywords={highlightKeywords} />
-          </h2>
-          {' — '}{publication.authors ?? 'Unknown authors'}
-          {publication.publicationYear ? ` (${publication.publicationYear})` : ''}
+    <li className="card publication-card decision-card decision-card--clickable" onClick={openPublication}>
+      <div className="publication-card__summary my-decisions-row-grid">
+        <div className="my-decisions-row-grid__title">
+          <Link className="publication-card__title-button" to={detailHref}>
+            <h2 className="decision-card__title">
+              <HighlightedText text={publication.title} keywords={highlightKeywords} />
+            </h2>
+          </Link>
+          <div className="my-decisions-row-grid__authors">
+            {publication.authors ?? 'Unknown authors'}
+          </div>
         </div>
+        <span className="my-decisions-row-grid__venue" title={publication.venue ?? undefined}>
+          {publication.venue ?? '—'}
+        </span>
+        <span className="my-decisions-row-grid__decision">
+          <OutcomeBadge
+            outcome={decision?.outcome ?? 'exclude'}
+            label={decision && decision.version > 1 ? `${itemStatusLabel(item)} · v${decision.version}` : itemStatusLabel(item)}
+          />
+        </span>
+        <span className="my-decisions-row-grid__doi">
+          {publication.doi ? <DoiPill doi={publication.doi} /> : <span className="muted">—</span>}
+        </span>
+        <time className="my-decisions-row-grid__submitted" dateTime={item.submittedAt ?? undefined}>
+          {formatSubmittedAt(item.submittedAt)}
+        </time>
+        <span className="my-decisions-row-grid__actions">
+          {!editing && decision ? (
+            <button type="button" className="button-secondary button-sm" onClick={() => setEditing(true)}>
+              Edit Decision
+            </button>
+          ) : null}
+        </span>
       </div>
-      <div className="publication-card__workflow">
-        <OutcomeBadge
-          outcome={decision?.outcome ?? 'exclude'}
-          label={decision && decision.version > 1 ? `${itemStatusLabel(item)} · v${decision.version}` : itemStatusLabel(item)}
-        />
-        <DoiPill doi={publication.doi} />
-        {isSafeHttpUrl(publication.publisherUrl) ? (
-          <PublisherLinkPill url={publication.publisherUrl!} />
-        ) : null}
-      </div>
-      <details className="publication-card__abstract">
-        <summary>Publication details</summary>
-        {publication.venue ? <p><strong>Venue:</strong> {publication.venue}</p> : null}
-        <p>
-          <strong>Abstract:</strong>{' '}
-          {publication.abstract
-            ? <HighlightedText text={publication.abstract} keywords={highlightKeywords} />
-            : 'No abstract available.'}
-        </p>
-        {decision?.notes ? <p><strong>Notes:</strong> {decision.notes}</p> : null}
-        {item.retrievalNote ? <p><strong>Notes:</strong> {item.retrievalNote}</p> : null}
-        {item.submittedAt ? <p className="muted">Submitted {new Date(item.submittedAt).toLocaleString()}</p> : null}
-      </details>
       {editing && decision ? (
-        <DecisionEditForm
-          projectId={projectId}
-          stage={stage}
-          item={item}
-          criteria={criteria}
-          stageCompleted={stageCompleted}
-          onDone={() => setEditing(false)}
-          onWorkflowImpact={onWorkflowImpact}
-        />
-      ) : decision ? (
-        <div className="toolbar publication-card__actions">
-          <button type="button" className="button-secondary" onClick={() => setEditing(true)}>Edit Decision</button>
+        <div className="decision-card__editor">
+          <DecisionEditForm
+            projectId={projectId}
+            stage={stage}
+            item={item}
+            criteria={criteria}
+            stageCompleted={stageCompleted}
+            onDone={() => setEditing(false)}
+            onWorkflowImpact={onWorkflowImpact}
+          />
         </div>
       ) : null}
     </li>
@@ -291,7 +341,8 @@ export function MyDecisionsPage() {
   const [workflowImpact, setWorkflowImpact] = useState<WorkflowImpact | null>(null)
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('')
-  const [sort, setSort] = useState('newest')
+  const [sortKey, setSortKey] = useState<DecisionSortKey>('submitted')
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const query = useQuery({
     queryKey: ['my-decisions', projectId, stage],
     queryFn: () => apiRequest<MyDecisionsResponse>(
@@ -315,14 +366,8 @@ export function MyDecisionsPage() {
       return (!normalizedSearch || searchable.includes(normalizedSearch))
         && (!statusFilter || itemStatus(item) === statusFilter)
     })
-    return items.sort((left, right) => {
-      if (sort === 'title_asc') return left.publication.title.localeCompare(right.publication.title)
-      if (sort === 'title_desc') return right.publication.title.localeCompare(left.publication.title)
-      const leftTime = left.submittedAt ? Date.parse(left.submittedAt) : 0
-      const rightTime = right.submittedAt ? Date.parse(right.submittedAt) : 0
-      return sort === 'oldest' ? leftTime - rightTime : rightTime - leftTime
-    })
-  }, [query.data?.items, search, sort, statusFilter])
+    return sortDecisionItems(items, sortKey, sortDirection)
+  }, [query.data?.items, search, sortDirection, sortKey, statusFilter])
 
   return (
     <main className="page">
@@ -377,11 +422,11 @@ export function MyDecisionsPage() {
           ) : null}
           {query.data.items.length > 0 ? (
             <>
-              <p className="muted">
+              <CountPill count={search || statusFilter ? filteredItems.length : query.data.items.length}>
                 {search || statusFilter
-                  ? `${filteredItems.length} of ${query.data.items.length} decisions match your filters`
-                  : `${query.data.items.length} decision${query.data.items.length === 1 ? '' : 's'}`}
-              </p>
+                  ? `of ${query.data.items.length} decisions match your filters`
+                  : `decision${query.data.items.length === 1 ? '' : 's'}`}
+              </CountPill>
               <div className="toolbar">
                 <label className="paper-search-field">
                   Search papers
@@ -402,11 +447,24 @@ export function MyDecisionsPage() {
                 </label>
                 <label>
                   Sort by
-                  <select value={sort} onChange={(event) => setSort(event.target.value)}>
-                    <option value="newest">Newest decision</option>
-                    <option value="oldest">Oldest decision</option>
-                    <option value="title_asc">Title A–Z</option>
-                    <option value="title_desc">Title Z–A</option>
+                  <select
+                    value={`${sortKey}:${sortDirection}`}
+                    onChange={(event) => {
+                      const [key, direction] = event.target.value.split(':') as [DecisionSortKey, SortDirection]
+                      setSortKey(key)
+                      setSortDirection(direction)
+                    }}
+                  >
+                    <option value="submitted:desc">Newest submission</option>
+                    <option value="submitted:asc">Oldest submission</option>
+                    <option value="title:asc">Title A–Z</option>
+                    <option value="title:desc">Title Z–A</option>
+                    <option value="authors:asc">Authors A–Z</option>
+                    <option value="authors:desc">Authors Z–A</option>
+                    <option value="venue:asc">Venue A–Z</option>
+                    <option value="venue:desc">Venue Z–A</option>
+                    <option value="decision:asc">Decision A–Z</option>
+                    <option value="decision:desc">Decision Z–A</option>
                   </select>
                 </label>
               </div>
@@ -417,19 +475,19 @@ export function MyDecisionsPage() {
           ) : filteredItems.length === 0 ? (
             <p className="muted">No decisions match your filters.</p>
           ) : (
-            <ul className="card-list stacked publication-list">
-              {filteredItems.map((item) => (
-                <DecisionCard
-                  key={item.workItemId}
-                  projectId={projectId}
-                  stage={stage}
-                  item={item}
-                  criteria={query.data!.criteria}
-                  stageCompleted={query.data!.stageCompleted}
-                  highlightKeywords={highlightKeywords}
-                  onWorkflowImpact={setWorkflowImpact}
-                />
-              ))}
+            <ul className="card-list stacked publication-list my-decisions-list">
+                {filteredItems.map((item) => (
+                  <DecisionRow
+                    key={item.workItemId}
+                    projectId={projectId}
+                    stage={stage}
+                    item={item}
+                    criteria={query.data!.criteria}
+                    stageCompleted={query.data!.stageCompleted}
+                    highlightKeywords={highlightKeywords}
+                    onWorkflowImpact={setWorkflowImpact}
+                  />
+                ))}
             </ul>
           )}
         </>

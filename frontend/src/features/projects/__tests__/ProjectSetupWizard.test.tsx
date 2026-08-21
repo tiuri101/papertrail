@@ -52,6 +52,13 @@ describe('ProjectSetupWizard', () => {
 
     expect(await screen.findByRole('heading', { name: 'Research Questions' })).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Project Name and Description' })).not.toBeInTheDocument()
+    const backButton = screen.getByRole('button', { name: 'Back' })
+    const nextButton = screen.getByRole('button', { name: 'Next' })
+    const controls = backButton.parentElement!
+    const finishLater = screen.getByRole('link', { name: 'Finish later' })
+    expect(controls).toHaveClass('wizard-nav__controls')
+    expect(controls).toContainElement(nextButton)
+    expect(controls.nextElementSibling).toBe(finishLater)
   })
 
   it('lets a manager jump between steps and finish setup from an existing draft project', async () => {
@@ -127,7 +134,12 @@ describe('ProjectSetupWizard', () => {
     expect(screen.queryByRole('heading', { name: 'Processing Status' })).not.toBeInTheDocument()
     expect(screen.queryByText('Processing Status')).not.toBeInTheDocument()
 
-    fireEvent.click(screen.getByRole('button', { name: 'Finish Setup' }))
+    const finishButton = screen.getByRole('button', { name: 'Finish Setup' })
+    const finishControls = finishButton.parentElement!
+    expect(finishControls).toHaveClass('wizard-nav__controls')
+    expect(finishControls).toContainElement(screen.getByRole('button', { name: 'Back' }))
+    expect(finishControls.nextElementSibling).toBe(screen.getByRole('link', { name: 'Finish later' }))
+    fireEvent.click(finishButton)
 
     expect(await screen.findByText('Project landing page')).toBeInTheDocument()
   })

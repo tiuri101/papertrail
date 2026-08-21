@@ -112,7 +112,11 @@ def consume_pairing(
         )
     )
     now = utcnow()
-    if pairing is None or pairing.used_at is not None or _aware(pairing.expires_at) <= now:
+    if (
+        pairing is None
+        or pairing.used_at is not None
+        or _aware(pairing.expires_at) <= now
+    ):
         raise invalid
     user = db.get(User, pairing.user_id)
     if user is None or not user.is_active:

@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
@@ -14,6 +14,7 @@ import { ExtractionSettingsPanel } from '../administration/ExtractionSettingsPan
 import { ScreeningConfigPanel } from '../administration/ScreeningConfigPanel'
 import { FormFieldsPanel } from '../forms/FormFieldsPanel'
 import { LlmAssistancePanel, type LlmAssistancePanelHandle } from '../llm/LlmAssistancePanel'
+import { STAGES } from './StageProgress'
 
 interface ProjectDetails {
   id: string
@@ -222,133 +223,147 @@ export function ProjectSetupWizard() {
 
   return (
     <main className="page">
-      <p className="eyebrow">Project setup · Step {step + 1} of {WIZARD_STEPS.length}</p>
-      <h1>Project Setup Wizard</h1>
-      <p className="muted">
-        {project.data?.name
-          ? `Setting up "${project.data.name}". Every step but the first can be revisited later from the project's Project Administration page.`
-          : 'Create a project by walking through each setup step. You can finish the rest later from the project\'s Project Administration page.'}
-      </p>
-
-      <div className="wizard-steps-wrap">
-        <ol className="wizard-steps" aria-label="Project setup steps">
-          {WIZARD_STEPS.map((wizardStep, index) => {
-            const isCurrent = index === step
-            const isDone = index < step
-            const clickable = Boolean(projectId) || index === 0
-            return (
-              <li
-                key={wizardStep.key}
-                ref={isCurrent ? currentStepRef : undefined}
-                className={
-                  `wizard-step${isCurrent ? ' wizard-step--active' : ''}${isDone ? ' wizard-step--done' : ''}`
-                }
-              >
-                <button
-                  type="button"
-                  className="wizard-step__button"
-                  disabled={!clickable}
-                  aria-current={isCurrent ? 'step' : undefined}
-                  onClick={() => goTo(index)}
-                >
-                  <span className="wizard-step__index">{isDone ? '✓' : index + 1}</span>
-                  <span className="wizard-step__label">
-                    {wizardStep.label}
-                    {wizardStep.optional ? <span className="muted"> (optional)</span> : null}
-                  </span>
-                </button>
-              </li>
-            )
-          })}
-        </ol>
-      </div>
-
-      {WIZARD_STEPS[step].key === 'details' ? (
-        <ProjectDetailsStep
-          projectId={projectId}
-          onCreated={(id) => { setCreatedProjectId(id); goTo(1) }}
-          onContinue={() => goTo(1)}
-        />
-      ) : null}
-      {WIZARD_STEPS[step].key === 'questions' ? (
-        <ResearchQuestionsPanel projectId={projectId} onDirtyChange={setStepDirty} />
-      ) : null}
-      {WIZARD_STEPS[step].key === 'criteria' ? (
-        <CriteriaPanel projectId={projectId} onDirtyChange={setStepDirty} />
-      ) : null}
-      {WIZARD_STEPS[step].key === 'reviewers' ? (
-        <MembersPanel projectId={projectId} onDirtyChange={setStepDirty} />
-      ) : null}
-      {WIZARD_STEPS[step].key === 'screening' ? (
-        <ScreeningConfigPanel projectId={projectId} onDirtyChange={setStepDirty} />
-      ) : null}
-      {WIZARD_STEPS[step].key === 'extraction' ? (
-        <>
-          <ExtractionSettingsPanel projectId={projectId} />
-          <FormFieldsPanel
-            projectId={projectId}
-            kind="extraction"
-            title="Data Extraction Form"
-            description="Define the fields reviewers fill in when extracting data from included publications."
-          />
-        </>
-      ) : null}
-      {WIZARD_STEPS[step].key === 'quality' ? (
-        <FormFieldsPanel
-          projectId={projectId}
-          kind="quality"
-          title="Quality Assessment Form (optional)"
-          description="Optionally define a form for assessing the methodological quality of included publications."
-        />
-      ) : null}
-      {WIZARD_STEPS[step].key === 'keywords' ? (
-        <HighlightKeywordsPanel projectId={projectId} />
-      ) : null}
-      {WIZARD_STEPS[step].key === 'llm' ? (
-        <LlmAssistancePanel
-          ref={llmPanelRef}
-          projectId={projectId}
-          showProcessingStatus={false}
-          onDirtyChange={setStepDirty}
-          setupMode
-        />
-      ) : null}
-
-      {WIZARD_STEPS[step].key !== 'details' ? (
-        <div className="toolbar wizard-nav">
-          <Button type="button" variant="ghost" onClick={() => goTo(step - 1)}>
-            Back
-          </Button>
-          {isLastStep ? (
-            <Button type="button" onClick={finish} loading={isFinishing}>
-              <IconCheckCircle />
-              {isFinishing ? 'Finishing…' : 'Finish Setup'}
-            </Button>
-          ) : (
-            <Button type="button" onClick={() => goTo(step + 1)}>
-              {WIZARD_STEPS[step].optional ? 'Skip / Next' : 'Next'}
-              <IconArrowRight />
-            </Button>
-          )}
-          <Link
-            to={`/projects/${projectId}`}
-            className="link-button wizard-exit"
-            onClick={(event) => {
-              if (!stepDirty) return
-              event.preventDefault()
-              guardedNavigate(() => navigate(`/projects/${projectId}`))
-            }}
-          >
-            Finish later
-          </Link>
+      <div className="project-wizard">
+        <div className="project-wizard__header">
+          <p className="eyebrow">Project setup · Step {step + 1} of {WIZARD_STEPS.length}</p>
+          <h1>Project Setup Wizard</h1>
+          <p className="muted">
+            {project.data?.name
+              ? `Setting up "${project.data.name}". Every step but the first can be revisited later from the project's Project Administration page.`
+              : 'Create a project by walking through each setup step. You can finish the rest later from the project\'s Project Administration page.'}
+          </p>
         </div>
-      ) : (
-        !projectId ? (
-          <div className="toolbar wizard-nav">
-            <Link to="/projects" className="link-button">Cancel</Link>
-          </div>
-        ) : null
-      )}
+
+        <nav className="project-wizard__sidebar-wrap" aria-label="Project setup steps">
+          <ol className="project-wizard__sidebar">
+            {WIZARD_STEPS.map((wizardStep, index) => {
+              const isCurrent = index === step
+              const isDone = index < step
+              const clickable = Boolean(projectId) || index === 0
+              const stageColor = STAGES[index % STAGES.length].color
+              return (
+                <li
+                  key={wizardStep.key}
+                  ref={isCurrent ? currentStepRef : undefined}
+                  className={
+                    `wizard-step${isCurrent ? ' wizard-step--active' : ''}${isDone ? ' wizard-step--done' : ''}`
+                  }
+                  style={{ '--stage-color': stageColor } as CSSProperties}
+                >
+                  <button
+                    type="button"
+                    className="wizard-step__button"
+                    disabled={!clickable}
+                    aria-current={isCurrent ? 'step' : undefined}
+                    onClick={() => goTo(index)}
+                  >
+                    <span className="wizard-step__index">{isDone ? '✓' : index + 1}</span>
+                    <span className="wizard-step__label">
+                      {wizardStep.label}
+                      {wizardStep.optional ? <span className="muted"> (optional)</span> : null}
+                    </span>
+                  </button>
+                </li>
+              )
+            })}
+          </ol>
+        </nav>
+
+        <div className="project-wizard__main">
+          {WIZARD_STEPS[step].key === 'details' ? (
+            <ProjectDetailsStep
+              projectId={projectId}
+              onCreated={(id) => { setCreatedProjectId(id); goTo(1) }}
+              onContinue={() => goTo(1)}
+            />
+          ) : null}
+          {WIZARD_STEPS[step].key === 'questions' ? (
+            <ResearchQuestionsPanel projectId={projectId} onDirtyChange={setStepDirty} inlineAdd />
+          ) : null}
+          {WIZARD_STEPS[step].key === 'criteria' ? (
+            <CriteriaPanel projectId={projectId} onDirtyChange={setStepDirty} inlineAdd />
+          ) : null}
+          {WIZARD_STEPS[step].key === 'reviewers' ? (
+            <MembersPanel projectId={projectId} onDirtyChange={setStepDirty} />
+          ) : null}
+          {WIZARD_STEPS[step].key === 'screening' ? (
+            <ScreeningConfigPanel projectId={projectId} onDirtyChange={setStepDirty} />
+          ) : null}
+          {WIZARD_STEPS[step].key === 'extraction' ? (
+            <>
+              <ExtractionSettingsPanel projectId={projectId} />
+              <FormFieldsPanel
+                projectId={projectId}
+                kind="extraction"
+                title="Data Extraction Form"
+                description="Define the fields reviewers fill in when extracting data from included publications."
+                inlineAdd
+                onDirtyChange={setStepDirty}
+              />
+            </>
+          ) : null}
+          {WIZARD_STEPS[step].key === 'quality' ? (
+            <FormFieldsPanel
+              projectId={projectId}
+              kind="quality"
+              title="Quality Assessment Form (optional)"
+              description="Optionally define a form for assessing the methodological quality of included publications."
+              inlineAdd
+              onDirtyChange={setStepDirty}
+            />
+          ) : null}
+          {WIZARD_STEPS[step].key === 'keywords' ? (
+            <HighlightKeywordsPanel projectId={projectId} />
+          ) : null}
+          {WIZARD_STEPS[step].key === 'llm' ? (
+            <LlmAssistancePanel
+              ref={llmPanelRef}
+              projectId={projectId}
+              showProcessingStatus={false}
+              onDirtyChange={setStepDirty}
+              setupMode
+            />
+          ) : null}
+
+          {WIZARD_STEPS[step].key !== 'details' ? (
+            <div className="toolbar wizard-nav">
+              <div className="wizard-nav__controls">
+                <Button type="button" variant="ghost" onClick={() => goTo(step - 1)}>
+                  Back
+                </Button>
+                {isLastStep ? (
+                  <Button type="button" onClick={finish} loading={isFinishing}>
+                    <IconCheckCircle />
+                    {isFinishing ? 'Finishing…' : 'Finish Setup'}
+                  </Button>
+                ) : (
+                  <Button type="button" onClick={() => goTo(step + 1)}>
+                    {WIZARD_STEPS[step].optional ? 'Skip / Next' : 'Next'}
+                    <IconArrowRight />
+                  </Button>
+                )}
+              </div>
+              <Link
+                to={`/projects/${projectId}`}
+                className="link-button wizard-exit"
+                onClick={(event) => {
+                  if (!stepDirty) return
+                  event.preventDefault()
+                  guardedNavigate(() => navigate(`/projects/${projectId}`))
+                }}
+              >
+                Finish later
+              </Link>
+            </div>
+          ) : (
+            !projectId ? (
+              <div className="toolbar wizard-nav">
+                <Link to="/projects" className="link-button">Cancel</Link>
+              </div>
+            ) : null
+          )}
+        </div>
+      </div>
       {pendingAction ? (
         <ConfirmDialog
           title="Discard unsaved changes?"

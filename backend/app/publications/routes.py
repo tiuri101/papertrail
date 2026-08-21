@@ -80,6 +80,7 @@ def _screening_review_details(
                 "resolutionMethod": final.resolution_method,
                 "note": final.note,
                 "resolvedBy": resolver.display_name if resolver else None,
+                "resolvedAt": final.created_at,
             }
             if final
             else None
@@ -100,6 +101,7 @@ def _screening_review_details(
                 "criteriaAnswers": decision.criteria_answers,
                 "notes": decision.notes,
                 "version": decision.version,
+                "createdAt": decision.created_at,
             }
             for decision in decisions
         ],

@@ -75,7 +75,7 @@ function ResearchQuestionRow({
       <td>{question.text}</td>
       <td>
         <div className="toolbar">
-          <button type="button" onClick={() => setEditing(true)} disabled={pending}>Edit</button>
+          <button type="button" className="button-secondary button-sm" onClick={() => setEditing(true)} disabled={pending}>Edit</button>
           <ConfirmButton
             label="Delete"
             warning="Delete this research question? This cannot be undone."
@@ -83,6 +83,7 @@ function ResearchQuestionRow({
             disabled={pending}
             variant="danger"
             icon={<IconTrash />}
+            className="button-sm"
           />
         </div>
       </td>
@@ -156,7 +157,7 @@ function CriterionRow({
       <td>{criterion.text}</td>
       <td>
         <div className="toolbar">
-          <button type="button" onClick={() => setEditing(true)} disabled={pending}>Edit</button>
+          <button type="button" className="button-secondary button-sm" onClick={() => setEditing(true)} disabled={pending}>Edit</button>
           <ConfirmButton
             label="Delete"
             warning="Delete this criterion? This cannot be undone."
@@ -164,8 +165,64 @@ function CriterionRow({
             disabled={pending}
             variant="danger"
             icon={<IconTrash />}
+            className="button-sm"
           />
         </div>
+      </td>
+    </tr>
+  )
+}
+
+function InlineAgendaDraftRow({
+  number,
+  kind,
+  label,
+  value,
+  pending,
+  onChange,
+  onSave,
+  onCancel,
+}: {
+  number: string
+  kind?: CriterionKind
+  label: string
+  value: string
+  pending: boolean
+  onChange: (value: string) => void
+  onSave: () => void
+  onCancel: () => void
+}) {
+  return (
+    <tr className="research-agenda-table__draft-row">
+      <td>
+        {kind ? <span className={`criterion-badge criterion-badge--${kind}`}>{number}</span> : number}
+      </td>
+      <td colSpan={2}>
+        <form
+          className="research-agenda-table__inline-form"
+          onSubmit={(event) => {
+            event.preventDefault()
+            if (value.trim()) onSave()
+          }}
+        >
+          <label className="visually-hidden" htmlFor={`new-agenda-item-${kind ?? 'question'}`}>{label}</label>
+          <input
+            id={`new-agenda-item-${kind ?? 'question'}`}
+            value={value}
+            onChange={(event) => onChange(event.target.value)}
+            placeholder={label}
+            autoFocus
+            required
+          />
+          <div className="toolbar">
+            <button type="submit" className="button-sm" disabled={pending || !value.trim()}>
+              <IconCheckCircle />Save
+            </button>
+            <button type="button" className="button-secondary button-sm" onClick={onCancel} disabled={pending}>
+              Cancel
+            </button>
+          </div>
+        </form>
       </td>
     </tr>
   )
@@ -174,12 +231,15 @@ function CriterionRow({
 export function ResearchQuestionsPanel({
   projectId,
   onDirtyChange,
+  inlineAdd = false,
 }: {
   projectId: string
   onDirtyChange?: (dirty: boolean) => void
+  inlineAdd?: boolean
 }) {
   const queryClient = useQueryClient()
   const [newQuestion, setNewQuestion] = useState('')
+  const [addingQuestion, setAddingQuestion] = useState(false)
   const [dirtyRows, setDirtyRows] = useState<Record<string, boolean>>({})
 
   const project = useQuery({
@@ -195,7 +255,7 @@ export function ResearchQuestionsPanel({
       method: 'POST',
       body: JSON.stringify({ text: newQuestion }),
     }),
-    onSuccess: () => { setNewQuestion(''); refresh() },
+    onSuccess: () => { setNewQuestion(''); setAddingQuestion(false); refresh() },
   })
   const updateQuestion = useMutation({
     mutationFn: ({ id, text }: { id: string; text: string }) =>
@@ -214,8 +274,11 @@ export function ResearchQuestionsPanel({
   const mutationError = addQuestion.error ?? updateQuestion.error ?? deleteQuestion.error
 
   useEffect(() => {
-    onDirtyChange?.(newQuestion.trim() !== '' || Object.values(dirtyRows).some(Boolean))
-  }, [newQuestion, dirtyRows, onDirtyChange])
+    onDirtyChange?.(
+      (inlineAdd ? addingQuestion : newQuestion.trim() !== '')
+      || Object.values(dirtyRows).some(Boolean),
+    )
+  }, [addingQuestion, inlineAdd, newQuestion, dirtyRows, onDirtyChange])
 
   if (project.isLoading) return <p>Loading research questions…</p>
   if (project.isError || !project.data) return <p className="error" role="alert">Research questions could not be loaded.</p>
@@ -232,7 +295,7 @@ export function ResearchQuestionsPanel({
       </h2>
 
       {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
-      <table>
+      <table className="research-agenda-table">
         <thead>
           <tr>
             <th>#</th>
@@ -254,19 +317,51 @@ export function ResearchQuestionsPanel({
               ))}
             />
           ))}
+          {inlineAdd && addingQuestion ? (
+            <InlineAgendaDraftRow
+              number={`RQ${project.data.researchQuestions.length + 1}`}
+              label="New research question"
+              value={newQuestion}
+              pending={addQuestion.isPending}
+              onChange={setNewQuestion}
+              onSave={() => addQuestion.mutate()}
+              onCancel={() => { addQuestion.reset(); setNewQuestion(''); setAddingQuestion(false) }}
+            />
+          ) : null}
+          {inlineAdd ? (
+            <tr className="research-agenda-table__add-row">
+              <td colSpan={3}>
+                <button
+                  type="button"
+                  className="icon-button icon-button--round research-agenda__add-button"
+                  aria-label="Add research question"
+                  title="Add research question"
+                  onClick={() => { addQuestion.reset(); setNewQuestion(''); setAddingQuestion(true) }}
+                  disabled={addingQuestion || addQuestion.isPending}
+                >
+                  <IconPlus />
+                </button>
+              </td>
+            </tr>
+          ) : null}
         </tbody>
       </table>
-      <form onSubmit={(event) => { event.preventDefault(); addQuestion.mutate() }}>
-        <label>
-          New research question
-          <input
-            value={newQuestion}
-            onChange={(event) => setNewQuestion(event.target.value)}
-            required
-          />
-        </label>
-        <button type="submit" disabled={addQuestion.isPending}><IconPlus />Add Research Question</button>
-      </form>
+      {!inlineAdd ? (
+        <>
+          <hr className="section-divider" />
+          <form onSubmit={(event) => { event.preventDefault(); addQuestion.mutate() }}>
+            <label>
+              New research question
+              <input
+                value={newQuestion}
+                onChange={(event) => setNewQuestion(event.target.value)}
+                required
+              />
+            </label>
+            <button type="submit" disabled={addQuestion.isPending}><IconPlus />Add Research Question</button>
+          </form>
+        </>
+      ) : null}
     </section>
   )
 }
@@ -274,13 +369,16 @@ export function ResearchQuestionsPanel({
 export function CriteriaPanel({
   projectId,
   onDirtyChange,
+  inlineAdd = false,
 }: {
   projectId: string
   onDirtyChange?: (dirty: boolean) => void
+  inlineAdd?: boolean
 }) {
   const queryClient = useQueryClient()
   const [newCriterionKind, setNewCriterionKind] = useState<CriterionKind>('inclusion')
   const [newCriterionText, setNewCriterionText] = useState('')
+  const [addingCriterionKind, setAddingCriterionKind] = useState<CriterionKind | null>(null)
   const [dirtyRows, setDirtyRows] = useState<Record<string, boolean>>({})
 
   const project = useQuery({
@@ -294,9 +392,12 @@ export function CriteriaPanel({
   const addCriterion = useMutation({
     mutationFn: () => apiRequest(`/api/v1/projects/${projectId}/criteria`, {
       method: 'POST',
-      body: JSON.stringify({ kind: newCriterionKind, text: newCriterionText }),
+      body: JSON.stringify({
+        kind: inlineAdd ? addingCriterionKind : newCriterionKind,
+        text: newCriterionText,
+      }),
     }),
-    onSuccess: () => { setNewCriterionText(''); refresh() },
+    onSuccess: () => { setNewCriterionText(''); setAddingCriterionKind(null); refresh() },
   })
   const updateCriterion = useMutation({
     mutationFn: ({ id, kind, text }: { id: string; kind: CriterionKind; text: string }) =>
@@ -315,8 +416,11 @@ export function CriteriaPanel({
   const mutationError = addCriterion.error ?? updateCriterion.error ?? deleteCriterion.error
 
   useEffect(() => {
-    onDirtyChange?.(newCriterionText.trim() !== '' || Object.values(dirtyRows).some(Boolean))
-  }, [newCriterionText, dirtyRows, onDirtyChange])
+    onDirtyChange?.(
+      (inlineAdd ? addingCriterionKind !== null : newCriterionText.trim() !== '')
+      || Object.values(dirtyRows).some(Boolean),
+    )
+  }, [addingCriterionKind, inlineAdd, newCriterionText, dirtyRows, onDirtyChange])
 
   if (project.isLoading) return <p>Loading criteria…</p>
   if (project.isError || !project.data) return <p className="error" role="alert">Criteria could not be loaded.</p>
@@ -345,7 +449,7 @@ export function CriteriaPanel({
         </p>
       </InfoBox>
       {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
-      <table>
+      <table className="research-agenda-table">
         <thead>
           <tr>
             <th>#</th>
@@ -357,7 +461,7 @@ export function CriteriaPanel({
           <tr>
             <th colSpan={3}>Inclusion criteria</th>
           </tr>
-          {inclusionCriteria.length === 0 ? (
+          {inclusionCriteria.length === 0 && addingCriterionKind !== 'inclusion' ? (
             <tr>
               <td colSpan={3}>No inclusion criteria yet.</td>
             </tr>
@@ -375,10 +479,42 @@ export function CriteriaPanel({
               ))}
             />
           ))}
+          {inlineAdd && addingCriterionKind === 'inclusion' ? (
+            <InlineAgendaDraftRow
+              number={`IC${inclusionCriteria.length + 1}`}
+              kind="inclusion"
+              label="New inclusion criterion"
+              value={newCriterionText}
+              pending={addCriterion.isPending}
+              onChange={setNewCriterionText}
+              onSave={() => addCriterion.mutate()}
+              onCancel={() => { addCriterion.reset(); setNewCriterionText(''); setAddingCriterionKind(null) }}
+            />
+          ) : null}
+          {inlineAdd ? (
+            <tr className="research-agenda-table__add-row">
+              <td colSpan={3}>
+                <button
+                  type="button"
+                  className="icon-button icon-button--round research-agenda__add-button"
+                  aria-label="Add inclusion criterion"
+                  title="Add inclusion criterion"
+                  onClick={() => {
+                    addCriterion.reset()
+                    setNewCriterionText('')
+                    setAddingCriterionKind('inclusion')
+                  }}
+                  disabled={addingCriterionKind !== null || addCriterion.isPending}
+                >
+                  <IconPlus />
+                </button>
+              </td>
+            </tr>
+          ) : null}
           <tr>
             <th colSpan={3}>Exclusion criteria</th>
           </tr>
-          {exclusionCriteria.length === 0 ? (
+          {exclusionCriteria.length === 0 && addingCriterionKind !== 'exclusion' ? (
             <tr>
               <td colSpan={3}>No exclusion criteria yet.</td>
             </tr>
@@ -396,29 +532,66 @@ export function CriteriaPanel({
               ))}
             />
           ))}
+          {inlineAdd && addingCriterionKind === 'exclusion' ? (
+            <InlineAgendaDraftRow
+              number={`EC${exclusionCriteria.length + 1}`}
+              kind="exclusion"
+              label="New exclusion criterion"
+              value={newCriterionText}
+              pending={addCriterion.isPending}
+              onChange={setNewCriterionText}
+              onSave={() => addCriterion.mutate()}
+              onCancel={() => { addCriterion.reset(); setNewCriterionText(''); setAddingCriterionKind(null) }}
+            />
+          ) : null}
+          {inlineAdd ? (
+            <tr className="research-agenda-table__add-row">
+              <td colSpan={3}>
+                <button
+                  type="button"
+                  className="icon-button icon-button--round research-agenda__add-button"
+                  aria-label="Add exclusion criterion"
+                  title="Add exclusion criterion"
+                  onClick={() => {
+                    addCriterion.reset()
+                    setNewCriterionText('')
+                    setAddingCriterionKind('exclusion')
+                  }}
+                  disabled={addingCriterionKind !== null || addCriterion.isPending}
+                >
+                  <IconPlus />
+                </button>
+              </td>
+            </tr>
+          ) : null}
         </tbody>
       </table>
-      <form onSubmit={(event) => { event.preventDefault(); addCriterion.mutate() }}>
-        <label>
-          Kind
-          <select
-            value={newCriterionKind}
-            onChange={(event) => setNewCriterionKind(event.target.value as CriterionKind)}
-          >
-            <option value="inclusion">Inclusion</option>
-            <option value="exclusion">Exclusion</option>
-          </select>
-        </label>
-        <label>
-          New criterion
-          <input
-            value={newCriterionText}
-            onChange={(event) => setNewCriterionText(event.target.value)}
-            required
-          />
-        </label>
-        <button type="submit" disabled={addCriterion.isPending}><IconPlus />Add Criterion</button>
-      </form>
+      {!inlineAdd ? (
+        <>
+          <hr className="section-divider" />
+          <form onSubmit={(event) => { event.preventDefault(); addCriterion.mutate() }}>
+            <label>
+              Kind
+              <select
+                value={newCriterionKind}
+                onChange={(event) => setNewCriterionKind(event.target.value as CriterionKind)}
+              >
+                <option value="inclusion">Inclusion</option>
+                <option value="exclusion">Exclusion</option>
+              </select>
+            </label>
+            <label>
+              New criterion
+              <input
+                value={newCriterionText}
+                onChange={(event) => setNewCriterionText(event.target.value)}
+                required
+              />
+            </label>
+            <button type="submit" disabled={addCriterion.isPending}><IconPlus />Add Criterion</button>
+          </form>
+        </>
+      ) : null}
     </section>
   )
 }
@@ -426,8 +599,8 @@ export function CriteriaPanel({
 export function ResearchAgendaPanel({ projectId }: { projectId: string }) {
   return (
     <>
-      <ResearchQuestionsPanel projectId={projectId} />
-      <CriteriaPanel projectId={projectId} />
+      <ResearchQuestionsPanel projectId={projectId} inlineAdd />
+      <CriteriaPanel projectId={projectId} inlineAdd />
     </>
   )
 }

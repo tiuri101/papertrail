@@ -139,7 +139,9 @@ def evaluate_project_completion(db: Session, project: Project) -> bool:
 
     from app.llm.installation_settings import effective_llm_settings
 
-    narrative_enabled = llm_settings.analysis_narrative_enabled if llm_settings else True
+    narrative_enabled = (
+        llm_settings.analysis_narrative_enabled if llm_settings else True
+    )
     config = effective_llm_settings(db)
     if config.llm_enabled and config.ollama_model and narrative_enabled:
         from app.analysis.rq_jobs import queue_rq_synthesis
@@ -290,9 +292,7 @@ def _wipe_extraction_and_quality(db: Session, project_id: str) -> None:
             QualityResponse.work_item_id.in_(quality_item_ids)
         )
     )
-    db.execute(
-        delete(FinalExtraction).where(FinalExtraction.project_id == project_id)
-    )
+    db.execute(delete(FinalExtraction).where(FinalExtraction.project_id == project_id))
     db.execute(
         delete(ExtractionWorkItem).where(ExtractionWorkItem.project_id == project_id)
     )
@@ -377,43 +377,48 @@ def move_project_back(
 
 def project_integrity_issues(db: Session, project: Project) -> list[dict[str, str]]:
     issues: list[dict[str, str]] = []
-    included_ids = included_publication_ids(db, project.id)
-
-    extraction_ids = set(
-        db.scalars(
-            select(ExtractionWorkItem.publication_id).where(
-                ExtractionWorkItem.project_id == project.id
-            )
-        )
-    )
-    for publication_id in sorted(included_ids - extraction_ids):
-        issues.append(
-            {
-                "code": "missing_extraction_item",
-                "entityId": publication_id,
-                "message": "Included publication has no extraction work item.",
-            }
-        )
-
-    quality_config = db.scalar(
-        select(QualityConfig).where(QualityConfig.project_id == project.id)
-    )
-    if quality_config and quality_config.enabled:
-        quality_ids = set(
+    # Extraction and quality items are initialized as one batch only after all
+    # relevant full-text retrievals and screening decisions have settled. A
+    # full-text INCLUDE before that transition is therefore normal, not
+    # workflow drift. Only validate downstream coverage once the project has
+    # actually reached a stage where those items must exist.
+    if project.stage in {ProjectStage.EXTRACTION, ProjectStage.COMPLETED}:
+        included_ids = included_publication_ids(db, project.id)
+        extraction_ids = set(
             db.scalars(
-                select(QualityWorkItem.publication_id).where(
-                    QualityWorkItem.project_id == project.id
+                select(ExtractionWorkItem.publication_id).where(
+                    ExtractionWorkItem.project_id == project.id
                 )
             )
         )
-        for publication_id in sorted(included_ids - quality_ids):
+        for publication_id in sorted(included_ids - extraction_ids):
             issues.append(
                 {
-                    "code": "missing_quality_item",
+                    "code": "missing_extraction_item",
                     "entityId": publication_id,
-                    "message": "Included publication has no quality-assessment work item.",
+                    "message": "Included publication has no extraction work item.",
                 }
             )
+
+        quality_config = db.scalar(
+            select(QualityConfig).where(QualityConfig.project_id == project.id)
+        )
+        if quality_config and quality_config.enabled:
+            quality_ids = set(
+                db.scalars(
+                    select(QualityWorkItem.publication_id).where(
+                        QualityWorkItem.project_id == project.id
+                    )
+                )
+            )
+            for publication_id in sorted(included_ids - quality_ids):
+                issues.append(
+                    {
+                        "code": "missing_quality_item",
+                        "entityId": publication_id,
+                        "message": "Included publication has no quality-assessment work item.",
+                    }
+                )
 
     duplicate_slots = db.execute(
         select(
@@ -631,9 +636,7 @@ def wipe_workflow_data(db: Session, project_id: str) -> None:
             ScreeningDecision.work_item_id.in_(screening_item_ids)
         )
     )
-    db.execute(
-        delete(FinalExtraction).where(FinalExtraction.project_id == project_id)
-    )
+    db.execute(delete(FinalExtraction).where(FinalExtraction.project_id == project_id))
     db.execute(
         delete(ExtractionWorkItem).where(ExtractionWorkItem.project_id == project_id)
     )

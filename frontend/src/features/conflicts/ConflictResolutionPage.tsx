@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { CountPill } from '../../components/CountPill'
 import { useProjectManageState } from '../../hooks/useCanManageProject'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { StageEyebrow } from '../projects/StageEyebrow'
@@ -108,7 +109,7 @@ export function ConflictResolutionPage() {
       {conflicts.error ? <p className="error" role="alert">{conflicts.error.message}</p> : null}
       {resolve.error ? <p className="error" role="alert">{resolve.error.message}</p> : null}
       {addReviewer.error ? <p className="error" role="alert">{addReviewer.error.message}</p> : null}
-      <p>{list.length} unresolved conflicts</p>
+      <CountPill count={list.length}>unresolved conflicts</CountPill>
       <ul className="card-list stacked">
         {list.map((conflict) => (
           <ConflictCard

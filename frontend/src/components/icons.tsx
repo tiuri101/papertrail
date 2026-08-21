@@ -6,6 +6,22 @@ export function IconTrash() {
   )
 }
 
+export function IconSearch() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" fillRule="evenodd">
+      <path d="M11 4a7 7 0 1 0 4.2 12.6l4.6 4.6 1.4-1.4-4.6-4.6A7 7 0 0 0 11 4Zm-5 7a5 5 0 1 1 10 0 5 5 0 0 1-10 0Z" />
+    </svg>
+  )
+}
+
+export function IconCheck() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" fillRule="evenodd">
+      <path d="m9.5 16.2-4.2-4.2 1.4-1.4 2.8 2.8 7.8-7.8 1.4 1.4-9.2 9.2Z" />
+    </svg>
+  )
+}
+
 export function IconArrowRight() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -18,6 +34,14 @@ export function IconPlus() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
       <path d="M11 5h2v6h6v2h-6v6h-2v-6H5v-2h6V5Z" />
+    </svg>
+  )
+}
+
+export function IconDragHandle() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M6.5 5h2v14h-2V5Zm4.5 0h2v14h-2V5Zm4.5 0h2v14h-2V5Z" />
     </svg>
   )
 }
@@ -172,6 +196,14 @@ export function IconSettings() {
   )
 }
 
+export function IconGear() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" fillRule="evenodd">
+      <path d="M19.14 12.94c.04-.3.06-.61.06-.94s-.02-.64-.07-.94l2.03-1.58a.5.5 0 0 0 .12-.61l-1.92-3.32a.5.5 0 0 0-.59-.22l-2.39.96a7.3 7.3 0 0 0-1.62-.94l-.36-2.54a.49.49 0 0 0-.48-.41h-3.84a.49.49 0 0 0-.47.41l-.36 2.54c-.59.24-1.13.56-1.62.94l-2.39-.96a.5.5 0 0 0-.59.22L2.74 8.87a.5.5 0 0 0 .12.61l2.03 1.58c-.05.3-.09.63-.09.94s.02.64.07.94l-2.03 1.58a.5.5 0 0 0-.12.61l1.92 3.32c.12.22.37.29.59.22l2.39-.96c.5.38 1.03.7 1.62.94l.36 2.54c.03.24.23.41.47.41h3.84c.24 0 .44-.17.47-.41l.36-2.54c.59-.24 1.13-.56 1.62-.94l2.39.96c.22.08.47 0 .59-.22l1.92-3.32a.5.5 0 0 0-.12-.61l-2.02-1.58ZM12 15.6a3.6 3.6 0 1 1 0-7.2 3.6 3.6 0 0 1 0 7.2Z" />
+    </svg>
+  )
+}
+
 export function IconHighlighter() {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -204,6 +236,40 @@ export function IconMail() {
     <svg viewBox="0 0 24 24" aria-hidden="true" fillRule="evenodd">
       <path d="M4 6.5A1.5 1.5 0 0 1 5.5 5h13A1.5 1.5 0 0 1 20 6.5v11a1.5 1.5 0 0 1-1.5 1.5h-13A1.5 1.5 0 0 1 4 17.5v-11Z" opacity="0.45" />
       <path d="m5.2 6.6 6.8 5.1 6.8-5.1 1 1.5-7.8 5.9-7.8-5.9 1-1.5Z" />
+    </svg>
+  )
+}
+
+export function IconEye() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" fillRule="evenodd">
+      <path d="M12 4.5C7 4.5 2.7 7.6 1 12c1.7 4.4 6 7.5 11 7.5s9.3-3.1 11-7.5c-1.7-4.4-6-7.5-11-7.5Zm0 12.5a5 5 0 1 1 0-10 5 5 0 0 1 0 10Zm0-2a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
+    </svg>
+  )
+}
+
+export function IconEyeOff() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" fillRule="evenodd">
+      <path d="m2.3 3.7 18 18 1.4-1.4-3.2-3.2c1.9-1.3 3.4-3.1 4.5-5.1-1.7-4.4-6-7.5-11-7.5-1.7 0-3.3.35-4.8 1L3.7 2.3 2.3 3.7Zm7.4 7.4a2.3 2.3 0 0 0 3.2 3.2l-3.2-3.2ZM12 7a5 5 0 0 1 5 5c0 .6-.1 1.2-.35 1.75l-1.55-1.55c.03-.2.05-.4.05-.6a3 3 0 0 0-3-3c-.2 0-.4.02-.6.05L9.99 7.1c.63-.07 1.3-.1 2.01-.1ZM1 12c.85-2.2 2.35-4.05 4.25-5.35l1.45 1.45C5.15 9.05 3.95 10.4 3.2 12c1.5 3.15 4.85 5.5 8.8 5.5.7 0 1.4-.08 2.05-.23l1.65 1.65c-1.15.36-2.4.58-3.7.58-5 0-9.3-3.1-11-7.5Z" />
+    </svg>
+  )
+}
+
+export function IconMoreVertical() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="5" r="2" />
+      <circle cx="12" cy="12" r="2" />
+      <circle cx="12" cy="19" r="2" />
+    </svg>
+  )
+}
+
+export function IconEdit() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" fillRule="evenodd">
+      <path d="M15.7 2.9a2 2 0 0 1 2.8 0l2.6 2.6a2 2 0 0 1 0 2.8L9.5 19.9l-6 1.6 1.6-6L15.7 2.9Zm1.4 1.4L15 6.4l2.6 2.6 2.1-2.1-2.6-2.6ZM13.6 7.8 6.4 15l2.6 2.6 7.2-7.2-2.6-2.6Z" />
     </svg>
   )
 }

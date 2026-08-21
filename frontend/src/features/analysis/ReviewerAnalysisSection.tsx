@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 
 import { InfoTooltip } from '../../components/Tooltip'
 import { Button } from '../../components/Button'
@@ -150,20 +150,35 @@ function CriteriaTable({ criteria }: { criteria: CriterionAgreement[] }) {
   )
 }
 
-function StageAnalysis({ projectId, stage, label }: {
+type ReviewerAnalysisStage = 'title_abstract' | 'full_text'
+
+function StageAnalysis({ projectId, stage, label, enabled }: {
   projectId: string
-  stage: 'title_abstract' | 'full_text'
+  stage: ReviewerAnalysisStage
   label: string
+  enabled: boolean
 }) {
-  const query = useReviewerAnalysis(projectId, stage)
+  const query = useReviewerAnalysis(projectId, stage, enabled)
   const data = query.data
+
+  if (!enabled) return null
+
+  if (data && Math.min(data.configuredReviewerCount, data.eligibleReviewerCount) <= 1) return null
+
+  const hasComparablePublications = Boolean(
+    data && data.overall.publicationsWithCompleteSet > 0,
+  )
 
   return (
     <div className="reviewer-analysis-stage">
       <h3>{label}</h3>
       {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
       {!data ? (query.isLoading ? <p>Loading…</p> : null) : (
-        <>
+        !hasComparablePublications ? (
+          <p className="muted">
+            Agreement analysis will appear after at least two reviewers have completed the same publication.
+          </p>
+        ) : <>
           <div className="reviewer-analysis-metrics">
             <MetricCard
               label="Raw agreement"
@@ -195,35 +210,39 @@ function StageAnalysis({ projectId, stage, label }: {
             <InfoTooltip text="Conflict-resolution 'additional reviewer' slots are excluded from this comparison." />
           </p>
 
-          <div className="reviewer-analysis-subsection">
-            <h4>Pairwise reviewer agreement</h4>
-            <div className="table-scroll"><PairwiseTable pairs={data.pairwise} /></div>
-          </div>
-
-          <div className="reviewer-analysis-subsection">
-            <h4>
-              Multi-reviewer agreement
-              <InfoTooltip text="Fleiss' kappa across publications with more than two original reviewers deciding, when the reviewer count is consistent enough to calculate. Shown as unavailable, with an explanation, rather than a fabricated value, when it cannot be validly computed." />
-            </h4>
-            <div className="reviewer-analysis-kappa__content">
-              {data.multiReviewer.kappa !== null ? (
-                <><strong className="reviewer-analysis-kappa__value">{formatKappa(data.multiReviewer.kappa)}</strong><span className="muted"> Fleiss&apos; kappa</span></>
-              ) : (
-                <p className="muted">Unavailable: {data.multiReviewer.unavailableReason ?? 'not enough data'}</p>
-              )}
+          {data.pairwise.length > 0 ? (
+            <div className="reviewer-analysis-subsection">
+              <h4>Pairwise reviewer agreement</h4>
+              <div className="table-scroll"><PairwiseTable pairs={data.pairwise} /></div>
             </div>
-          </div>
+          ) : null}
 
-          <div className="reviewer-analysis-subsection">
-            <h4>Criterion-level agreement</h4>
-            <div className="table-scroll"><CriteriaTable criteria={data.criteria} /></div>
-          </div>
+          {data.overall.maximumReviewerCount > 2 ? (
+            <div className="reviewer-analysis-subsection">
+              <h4>
+                Multi-reviewer agreement
+                <InfoTooltip text="Fleiss' kappa across publications with more than two original reviewers deciding, when the reviewer count is consistent enough to calculate. Shown as unavailable, with an explanation, rather than a fabricated value, when it cannot be validly computed." />
+              </h4>
+              <div className="reviewer-analysis-kappa__content">
+                {data.multiReviewer.kappa !== null ? (
+                  <><strong className="reviewer-analysis-kappa__value">{formatKappa(data.multiReviewer.kappa)}</strong><span className="muted"> Fleiss&apos; kappa</span></>
+                ) : (
+                  <p className="muted">Unavailable: {data.multiReviewer.unavailableReason ?? 'not enough data'}</p>
+                )}
+              </div>
+            </div>
+          ) : null}
 
-          <div className="reviewer-analysis-subsection">
-            <h4>Disagreement over time</h4>
-            {data.disagreementTrend.length === 0 ? (
-              <p className="reviewer-analysis-empty">Not enough data yet.</p>
-            ) : (
+          {data.criteria.length > 0 ? (
+            <div className="reviewer-analysis-subsection">
+              <h4>Criterion-level agreement</h4>
+              <div className="table-scroll"><CriteriaTable criteria={data.criteria} /></div>
+            </div>
+          ) : null}
+
+          {data.disagreementTrend.length > 1 ? (
+            <div className="reviewer-analysis-subsection">
+              <h4>Disagreement over time</h4>
               <div className="reviewer-analysis-trend" aria-label="Agreement rate by week">
                 <div className="reviewer-analysis-trend__bars">
                   {data.disagreementTrend.map((point) => (
@@ -236,32 +255,68 @@ function StageAnalysis({ projectId, stage, label }: {
                 </div>
                 <p className="muted reviewer-analysis-trend__caption">Weekly agreement rate across comparable publications.</p>
               </div>
-            )}
-          </div>
+            </div>
+          ) : null}
         </>
       )}
     </div>
   )
 }
 
-export function ReviewerAnalysisSection({ projectId }: { projectId: string }) {
-  const titleAbstract = useReviewerAnalysis(projectId, 'title_abstract')
+export function ReviewerAnalysisSection({
+  projectId,
+  onVisibilityChange,
+  stages = ['title_abstract', 'full_text'],
+}: {
+  projectId: string
+  onVisibilityChange?: (visible: boolean) => void
+  stages?: ReviewerAnalysisStage[]
+}) {
+  const titleAbstractEnabled = stages.includes('title_abstract')
+  const fullTextEnabled = stages.includes('full_text')
+  const titleAbstract = useReviewerAnalysis(projectId, 'title_abstract', titleAbstractEnabled)
+  const fullText = useReviewerAnalysis(projectId, 'full_text', fullTextEnabled)
   const summary = titleAbstract.data?.reviewerSummary ?? []
+  const enabledData = [
+    titleAbstractEnabled ? titleAbstract.data : null,
+    fullTextEnabled ? fullText.data : null,
+  ]
+  const configsLoaded = (
+    (!titleAbstractEnabled || Boolean(titleAbstract.data))
+    && (!fullTextEnabled || Boolean(fullText.data))
+  )
+  const hasMultiReviewerStage = enabledData.some(
+    (data) => data && Math.min(data.configuredReviewerCount, data.eligibleReviewerCount) > 1,
+  )
+
+  useEffect(() => {
+    if (configsLoaded) onVisibilityChange?.(hasMultiReviewerStage)
+  }, [configsLoaded, hasMultiReviewerStage, onVisibilityChange])
+
+  if (configsLoaded && !hasMultiReviewerStage) return null
 
   return (
     <section id="section-analysis-reviewer-analysis" className="card reviewer-analysis-card">
       <h2>Reviewer Analysis</h2>
       <p className="muted">
-        Anonymized inter-rater agreement for title/abstract and full-text screening decisions.
+        Anonymized inter-rater agreement for completed screening stages.
       </p>
-      <StageAnalysis projectId={projectId} stage="title_abstract" label="Title/Abstract Agreement" />
-      <StageAnalysis projectId={projectId} stage="full_text" label="Full-Text Agreement" />
+      <StageAnalysis
+        projectId={projectId}
+        stage="title_abstract"
+        label="Title/Abstract Agreement"
+        enabled={titleAbstractEnabled}
+      />
+      <StageAnalysis
+        projectId={projectId}
+        stage="full_text"
+        label="Full-Text Agreement"
+        enabled={fullTextEnabled}
+      />
 
-      <div className="reviewer-analysis-subsection reviewer-analysis-summary">
-        <h3>Reviewer summary</h3>
-      {summary.length === 0 ? (
-        <p className="muted">No comparable reviewer decisions yet.</p>
-      ) : (
+      {titleAbstractEnabled && fullTextEnabled && summary.length > 1 ? (
+        <div className="reviewer-analysis-subsection reviewer-analysis-summary">
+          <h3>Reviewer summary</h3>
         <div className="table-scroll"><table className="reviewer-analysis-table">
           <thead>
             <tr>
@@ -286,8 +341,8 @@ export function ReviewerAnalysisSection({ projectId }: { projectId: string }) {
             ))}
           </tbody>
         </table></div>
-      )}
-      </div>
+        </div>
+      ) : null}
     </section>
   )
 }
