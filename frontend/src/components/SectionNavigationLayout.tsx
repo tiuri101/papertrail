@@ -32,10 +32,11 @@ function MenuLinks({
 }) {
   return (
     <nav aria-label="Page sections">
-      <ul>
+      <ul className="mt-3 grid list-none gap-1 p-0">
         {items.map((item) => (
           <li key={item.id}>
             <a
+              className="block rounded-sm px-3 py-[9px] text-sm font-semibold text-text-secondary no-underline hover:bg-surface-hover hover:text-primary hover:no-underline"
               href={`#${item.id}`}
               onClick={(event) => {
                 event.preventDefault()
@@ -80,30 +81,30 @@ export function SectionNavigationLayout({
   }
 
   const headerBackLink = backTo ? (
-    <Link className="section-navigation__header-back-link" to={backTo}>
+    <Link className="inline-flex min-h-10 min-w-0 max-w-[34vw] items-center overflow-hidden text-ellipsis whitespace-nowrap rounded-sm px-2 text-[0.86rem] font-semibold text-text-secondary no-underline hover:bg-surface-hover hover:text-text hover:no-underline min-[761px]:max-w-none min-[761px]:px-3 min-[761px]:text-[0.92rem]" to={backTo}>
       ← {backLabel}
     </Link>
   ) : null
 
   const mobileMenuSections = items.length > 0 ? (
-    <div className="mobile-drawer__section-links section-navigation">
-      <p className="section-navigation__label">{label}</p>
+    <div className="mt-5 border-t border-border pt-5">
+      <p className="m-0 text-xs font-bold uppercase tracking-[0.1em] text-text-muted">{label}</p>
       <MenuLinks items={items} onNavigate={navigateTo} />
     </div>
   ) : null
 
   return (
-    <div className="section-navigation-layout">
-      <aside className="section-navigation section-navigation--desktop">
-        <div className="section-navigation__panel">
+    <div className="relative">
+      <aside className="absolute left-[calc(50%_-_834px)] top-10 hidden h-[calc(100%_-_3rem)] w-[220px] min-[1700px]:block">
+        <div className="sticky top-[92px] border-l border-border pl-4">
           {backTo ? (
-            <Link className="section-navigation__back-link" to={backTo}>
+            <Link className="mb-4 inline-flex min-h-9 items-center rounded-sm px-3 font-semibold text-text-secondary no-underline hover:bg-surface-hover hover:text-text hover:no-underline" to={backTo}>
               ← {backLabel}
             </Link>
           ) : null}
           {items.length > 0 ? (
             <>
-              <p className="section-navigation__label">{label}</p>
+              <p className="m-0 text-xs font-bold uppercase tracking-[0.1em] text-text-muted">{label}</p>
               <MenuLinks items={items} onNavigate={navigateTo} />
             </>
           ) : null}
@@ -112,8 +113,8 @@ export function SectionNavigationLayout({
 
       {headerBackLink
         ? (headerSlot
-            ? createPortal(<div className="section-navigation__mobile-bar">{headerBackLink}</div>, headerSlot)
-            : <div className="section-navigation__mobile-bar">{headerBackLink}</div>)
+            ? createPortal(<div className="flex min-w-0 items-center gap-2 min-[1700px]:hidden" data-testid="section-navigation-header-controls">{headerBackLink}</div>, headerSlot)
+            : <div className="flex min-w-0 items-center gap-2 min-[1700px]:hidden" data-testid="section-navigation-header-controls">{headerBackLink}</div>)
         : null}
 
       {mobileMenuSections

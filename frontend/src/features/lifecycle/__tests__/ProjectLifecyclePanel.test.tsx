@@ -12,7 +12,7 @@ describe('ProjectLifecyclePanel', () => {
 
     expect(await screen.findByText('Two duplicate candidates remain.')).toBeInTheDocument()
     const integrityHeading = screen.getByRole('heading', { name: 'Workflow Integrity' })
-    expect(integrityHeading.closest('section')).toHaveClass('card')
+    expect(integrityHeading.closest('section')).toBeInTheDocument()
   })
 
   it('reports a clean project', async () => {

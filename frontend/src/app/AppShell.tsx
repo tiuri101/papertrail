@@ -13,7 +13,7 @@ import { setCsrfToken } from '../features/auth/session'
 import type { LoginResponse } from '../features/auth/types'
 
 const navLinkBase =
-  'inline-flex min-h-10 items-center gap-2 rounded-sm px-4 text-[0.92rem] font-semibold text-text-secondary hover:bg-surface-hover hover:text-text [&>svg]:size-[17px] [&>svg]:shrink-0 [&>svg]:fill-current'
+  'inline-flex min-h-10 items-center gap-2 rounded-sm px-4 text-[0.92rem] font-semibold text-text-secondary hover:bg-surface-hover hover:text-text max-md:min-h-[38px] max-md:px-3 max-[480px]:px-2.5 max-[480px]:text-[0.86rem] [&>svg]:size-[17px] [&>svg]:shrink-0 [&>svg]:fill-current'
 const navLinkActive = 'bg-primary-container text-primary'
 const navLinkCollapsible = 'max-md:hidden'
 
@@ -43,16 +43,16 @@ export function AppShell() {
 
   return (
     <>
-      <DecorativeDocTrail className="app-background-illustration" />
+      <DecorativeDocTrail className="pointer-events-none fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-[max(1rem,env(safe-area-inset-left))] z-0 h-auto max-h-[calc(100vh-7rem)] w-[clamp(150px,14vw,210px)] max-w-[calc(100vw-2rem)] opacity-40 max-[900px]:hidden" />
       <header className="sticky top-0 z-50 border-b border-border bg-[color-mix(in_srgb,var(--color-bg)_84%,transparent)] backdrop-blur-[16px] backdrop-saturate-[1.4]">
-        <div className="mx-auto flex min-h-[68px] w-[min(1280px,calc(100%-2.5rem))] items-center justify-between gap-6">
+        <div className="mx-auto flex min-h-[68px] w-[min(1280px,calc(100%-2.5rem))] items-center justify-between gap-6 max-md:min-h-[62px] max-md:w-[min(1280px,calc(100%-1.5rem))] max-[480px]:gap-2">
           <NavLink
             className="inline-flex items-center gap-3 text-[1.05rem] font-bold tracking-tight text-text hover:text-text hover:no-underline"
             to="/"
             aria-label="Papertrail home"
           >
             <span
-              className="inline-grid size-[34px] shrink-0 place-items-center rounded-[10px] bg-[linear-gradient(145deg,var(--color-primary),var(--color-primary-strong))] text-primary-contrast shadow-[0_7px_20px_var(--color-primary-container-hover)]"
+              className="inline-grid size-[34px] shrink-0 place-items-center rounded-[10px] bg-[linear-gradient(145deg,var(--color-primary),var(--color-primary-strong))] text-primary-contrast shadow-[0_7px_20px_var(--color-primary-container-hover)] max-[480px]:size-8"
               aria-hidden="true"
             >
               <svg viewBox="0 0 24 24" className="size-[21px] fill-current">
@@ -60,7 +60,7 @@ export function AppShell() {
                 <path d="M9.5 11h5v1.7h-5V11Zm0 3.4h5v1.7h-5v-1.7Z" />
               </svg>
             </span>
-            <span>Papertrail</span>
+            <span className="max-md:hidden">Papertrail</span>
           </NavLink>
           <div className="flex items-center gap-2">
             <nav aria-label="Primary navigation" className="flex items-center gap-2">
@@ -104,9 +104,9 @@ export function AppShell() {
                 Help
               </NavLink>
             </nav>
-            <div className="mx-1 h-7 w-px bg-border" aria-hidden="true" />
+            <div className="mx-1 h-7 w-px bg-border max-md:hidden" aria-hidden="true" />
             <ThemeToggle />
-            <Button variant="secondary" onClick={() => logout.mutate()} disabled={logout.isPending}>
+            <Button className="max-md:hidden" variant="secondary" onClick={() => logout.mutate()} disabled={logout.isPending}>
               Sign Out
             </Button>
             <IconButton
@@ -176,7 +176,7 @@ export function AppShell() {
               Help
             </NavLink>
           </nav>
-          <div id={MOBILE_MENU_SECTION_SLOT_ID} className="mobile-drawer__section-slot" />
+          <div id={MOBILE_MENU_SECTION_SLOT_ID} />
           <div className="mt-5 border-t border-border pt-5">
             <Button variant="secondary" className="w-full" onClick={() => logout.mutate()} disabled={logout.isPending}>
               Sign Out
@@ -184,7 +184,7 @@ export function AppShell() {
           </div>
         </aside>
       </div>
-      {logout.error ? <p className="page error" role="alert">{logout.error.message}</p> : null}
+      {logout.error ? <p className="page text-danger" role="alert">{logout.error.message}</p> : null}
       <MobileMenuContext.Provider value={{ closeMobileMenu: () => setMobileMenuOpen(false) }}>
         <Outlet />
       </MobileMenuContext.Provider>
