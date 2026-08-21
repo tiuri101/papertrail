@@ -19,17 +19,17 @@ function selectDate(labelText: string, iso: string) {
 
   fireEvent.click(screen.getByLabelText(labelText))
   const dialog = screen.getByRole('dialog', { name: `${labelText} calendar` })
-  const monthLabel = dialog.querySelector('.date-field__month')
-  const [monthName, yearText] = (monthLabel?.textContent ?? '').split(' ')
+  const monthLabel = within(dialog).getByText(new RegExp(`^(${MONTHS.join('|')}) \\d{4}$`))
+  const [monthName, yearText] = monthLabel.textContent.split(' ')
   const monthsToMove = (targetYear - Number(yearText)) * 12 + (targetMonth - MONTHS.indexOf(monthName))
   const navButtonName = monthsToMove < 0 ? 'Previous month' : 'Next month'
   for (let step = 0; step < Math.abs(monthsToMove); step += 1) {
     fireEvent.click(within(dialog).getByRole('button', { name: navButtonName }))
   }
 
-  const daysGrid = dialog.querySelector('.date-field__days') as HTMLElement
+  const daysGrid = within(dialog).getByRole('grid')
   const dayButtons = within(daysGrid).getAllByRole('button', { name: day })
-  const targetButton = dayButtons.find((button) => !button.className.includes('date-field__day--outside'))
+  const targetButton = dayButtons.find((button) => button.dataset.inMonth === 'true')
   fireEvent.click(targetButton ?? dayButtons[0])
 }
 
