@@ -339,7 +339,7 @@ export function ProjectSetupWizard() {
           {WIZARD_STEPS[step].key !== 'details' ? (
             <div className="grid gap-2">
               <div className="flex items-center justify-between gap-3 max-[760px]:grid max-[760px]:grid-cols-2 max-[480px]:gap-2 [&>button]:max-[760px]:w-full">
-                <Button type="button" variant="ghost" onClick={() => goTo(step - 1)}>
+                <Button type="button" variant="text" onClick={() => goTo(step - 1)}>
                   Back
                 </Button>
                 {isLastStep ? (
