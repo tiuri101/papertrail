@@ -3393,15 +3393,6 @@ form .toolbar,
   font-size: 14px;
 }
 
-.go-back-button {
-  height: auto;
-  min-height: var(--button-height);
-  padding-top: var(--space-2);
-  padding-bottom: var(--space-2);
-  white-space: normal;
-  text-align: center;
-}
-
 .publication-card--manageable .publication-card__abstract {
   margin-left: calc(1rem + var(--space-3));
 }
@@ -3565,6 +3556,17 @@ button:not(.icon-button) svg,
   height: 32px;
   padding-inline: 12px;
   font-size: 13px;
+}
+
+/* Opt-in auto-height layout (Button's `wrap` prop) for labels of arbitrary length, e.g.
+   "go back to <publication title>" — overrides the fixed single-line height/nowrap above. */
+.pt-button--wrap {
+  height: auto;
+  min-height: var(--button-height);
+  padding-top: var(--space-2);
+  padding-bottom: var(--space-2);
+  white-space: normal;
+  text-align: center;
 }
 
 .pt-button--primary,

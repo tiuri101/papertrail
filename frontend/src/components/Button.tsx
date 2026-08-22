@@ -10,6 +10,12 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   endIcon?: ReactNode
   iconOnly?: boolean
   loading?: boolean
+  /**
+   * Opt-in auto-height layout: wraps long label text onto multiple lines instead of clipping it,
+   * for actions like "go back to <arbitrary-length title>". Off by default — every other Button
+   * usage keeps the fixed single-line height.
+   */
+  wrap?: boolean
   children?: ReactNode
   ref?: Ref<HTMLButtonElement>
 }
@@ -21,6 +27,7 @@ export function Button({
   endIcon,
   iconOnly = false,
   loading = false,
+  wrap = false,
   disabled,
   className,
   children,
@@ -32,6 +39,7 @@ export function Button({
     `pt-button--${size}`,
     iconOnly ? 'pt-button--icon-only' : '',
     loading ? 'pt-button--loading' : '',
+    wrap ? 'pt-button--wrap' : '',
     className ?? '',
   ].filter(Boolean).join(' ')
 

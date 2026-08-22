@@ -5,6 +5,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { apiRequest } from '../../api/client'
 import { CountPill } from '../../components/CountPill'
 import { DoiPill } from '../../components/DoiPill'
+import { GoBackButton } from '../../components/GoBackButton'
 import { InfoBox } from '../../components/InfoBox'
 import { IconAlertTriangle, IconArrowRight } from '../../components/icons'
 import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
@@ -119,14 +120,9 @@ export function FullTextPage() {
       ) : null}
       {!queue.previousItem && queue.lastCompletedItem ? (
         <div className="toolbar">
-          <button
-            type="button"
-            className="button-secondary go-back-button"
-            onClick={() => queue.goBack.mutate()}
-            disabled={queue.goBack.isPending}
-          >
+          <GoBackButton onClick={() => queue.goBack.mutate()} disabled={queue.goBack.isPending}>
             ← Go back to “{queue.lastCompletedItem.title}”
-          </button>
+          </GoBackButton>
         </div>
       ) : null}
       {queue.goBack.error ? <p className="error" role="alert">{queue.goBack.error.message}</p> : null}
