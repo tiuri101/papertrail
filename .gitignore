@@ -12,6 +12,8 @@ node_modules/
 dist/
 .vite/
 *.log
+*.tsbuildinfo
+*.tmp
 .DS_Store
 backend/data/
 frontend/coverage/
