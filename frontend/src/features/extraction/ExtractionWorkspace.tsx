@@ -1,18 +1,17 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
-import { DoiPill } from '../../components/DoiPill'
 import { IconArrowRight, IconCheckCircle, IconRestart } from '../../components/icons'
-import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
-import { PublisherLinkPill } from '../../components/PublisherLinkPill'
 import { isAnswered, normalizeForSuggestionMatch } from '../forms/answers'
-import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { DynamicForm, type DynamicFormField } from '../forms/DynamicForm'
-import { fullTextDocumentEndpoint, useFullTextDocument } from '../fulltext/useFullTextDocument'
+import { useFullTextDocument } from '../fulltext/useFullTextDocument'
 import { LlmAssistanceHeading, LlmEvidence, type LlmEvidenceItem } from '../llm/LlmTaskComponents'
 import type { PublicationSummary } from '../publications/types'
+import { ReviewPublicationHeader } from '../reviews/ReviewPublicationHeader'
+import { ReviewQueueEmptyState } from '../reviews/ReviewQueueEmptyState'
+import { useReviewWorkQueue } from '../reviews/useReviewWorkQueue'
 import type { ValidationResult } from './types'
 
 interface WorkItem {
@@ -84,15 +83,31 @@ export function ExtractionWorkspace({
   onSubmitted,
   onCancel,
 }: ExtractionWorkspaceProps) {
-  const navigate = useNavigate()
-  const [item, setItem] = useState<WorkItem | null>(null)
-  const [answers, setAnswers] = useState<Record<string, unknown>>({})
-  const [queueEmpty, setQueueEmpty] = useState(false)
-  const [loadingNext, setLoadingNext] = useState(true)
-  const [nextError, setNextError] = useState<string | null>(null)
   const [suggestionActions, setSuggestionActions] = useState<Record<string, 'accepted' | 'modified' | 'ignored' | 'manual'>>({})
-  const [completedResponse, setCompletedResponse] = useState<ExtractionResponse | null>(null)
-  const skippedItemIds = useRef<Set<string>>(new Set())
+  const {
+    item,
+    answers,
+    setAnswers,
+    queueEmpty,
+    loadingNext,
+    nextError,
+    completedResponse,
+    setCompletedResponse,
+    skip,
+    resetAndFetchNext,
+    titleRef,
+  } = useReviewWorkQueue<WorkItem, ExtractionResponse>({
+    baseUrl: `/api/v1/projects/${projectId}/extraction`,
+    itemId,
+    variant,
+    loadErrorFallback: 'Failed to load the next extraction',
+  })
+  // Suggestion-action tracking is extraction-only (quality has no LLM suggestions to accept/reject),
+  // so it resets locally whenever the queue hands us a different item rather than living in the
+  // shared queue hook.
+  useEffect(() => {
+    setSuggestionActions({})
+  }, [item?.id])
   const fullTextDocument = useFullTextDocument(projectId, item?.publicationId ?? '')
   const assistance = useQuery({
     queryKey: ['extraction-llm', projectId, item?.id],
@@ -111,77 +126,6 @@ export function ExtractionWorkspace({
     ),
     onSuccess: () => assistance.refetch(),
   })
-
-  const next = useMutation({
-    mutationFn: () => {
-      if (itemId) return apiRequest<WorkItem>(`/api/v1/projects/${projectId}/extraction/${itemId}`)
-      const params = new URLSearchParams()
-      skippedItemIds.current.forEach((id) => params.append('excludedItemId', id))
-      const query = params.toString()
-      return apiRequest<WorkItem | null>(
-        `/api/v1/projects/${projectId}/extraction/next${query ? `?${query}` : ''}`,
-        { method: 'POST' },
-      )
-    },
-    onSuccess: (result) => {
-      if (!itemId && result === null && skippedItemIds.current.size > 0) {
-        skippedItemIds.current.clear()
-        next.mutate()
-        return
-      }
-      setItem(result)
-      setAnswers(result?.draft ?? {})
-      setSuggestionActions({})
-      setCompletedResponse(result?.currentResponse ?? null)
-      setQueueEmpty(!itemId && result === null)
-      setLoadingNext(false)
-    },
-    onError: (error) => {
-      setNextError(error instanceof Error ? error.message : 'Failed to load the next extraction')
-      setLoadingNext(false)
-    },
-  })
-  // See TitleAbstractScreeningPage.tsx for why loading/error state is tracked locally
-  // instead of read off next.isPending/next.error.
-  const fetchNext = () => {
-    setLoadingNext(true)
-    setNextError(null)
-    next.mutate()
-  }
-
-  const skip = useMutation({
-    mutationFn: async () => {
-      if (!item) throw new Error('No extraction is open')
-      await apiRequest(
-        `/api/v1/projects/${projectId}/extraction/${item.id}/release`,
-        { method: 'POST' },
-      )
-      return item.id
-    },
-    onSuccess: (skippedId) => {
-      skippedItemIds.current.add(skippedId)
-      setItem(null)
-      setAnswers({})
-      setSuggestionActions({})
-      fetchNext()
-    },
-  })
-
-  const autoFetchKey = useRef<string | null>(null)
-  useEffect(() => {
-    const key = `${projectId}:${itemId ?? 'next'}`
-    if (autoFetchKey.current !== key) {
-      autoFetchKey.current = key
-      fetchNext()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, itemId])
-
-  const titleRef = useRef<HTMLHeadingElement>(null)
-  const visibleItemId = item?.id
-  useEffect(() => {
-    if (variant !== 'inline' && visibleItemId) titleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }, [variant, visibleItemId])
 
   const submit = useMutation({
     mutationFn: () => {
@@ -203,11 +147,7 @@ export function ExtractionWorkspace({
         setCompletedResponse(response)
         return
       }
-      setItem(null)
-      setAnswers({})
-      setSuggestionActions({})
-      setCompletedResponse(null)
-      fetchNext()
+      resetAndFetchNext()
     },
   })
 
@@ -221,16 +161,6 @@ export function ExtractionWorkspace({
       ['pending', 'queued', 'processing'].includes(query.state.data?.state ?? '') ? 5000 : false
     ),
   })
-  useEffect(() => {
-    if (!item || completedResponse) return
-    const timer = setTimeout(() => {
-      apiRequest(
-        `/api/v1/projects/${projectId}/extraction/${item.id}/draft`,
-        { method: 'PUT', body: JSON.stringify({ draft: answers }) },
-      ).catch(() => {})
-    }, 1000)
-    return () => clearTimeout(timer)
-  }, [item, projectId, answers, completedResponse])
 
   const missingRequired = item?.fields.some(
     (field) => field.required && !isAnswered(answers[field.stableKey]),
@@ -339,63 +269,34 @@ export function ExtractionWorkspace({
 
   if (!item) {
     return (
-      <>
-        {loadingNext ? <p>Loading the next extraction…</p> : null}
-        {!loadingNext && queueEmpty ? (
-          <>
-            <p>You have completed all of your assigned extraction work.</p>
-            <button type="button" className="button-secondary" onClick={() => navigate(`/projects/${projectId}`)}>
-              Back to project
-            </button>
-          </>
-        ) : null}
-        {!loadingNext && nextError ? (
-          <p className="error" role="alert">{nextError}</p>
-        ) : null}
-      </>
+      <ReviewQueueEmptyState
+        projectId={projectId}
+        loadingNext={loadingNext}
+        loadingMessage="Loading the next extraction…"
+        queueEmpty={queueEmpty}
+        completedMessage="You have completed all of your assigned extraction work."
+        nextError={nextError}
+      />
     )
   }
 
   const body = (
     <>
       {variant !== 'inline' ? (
-        <>
-          <h2 ref={titleRef} className="publication-title">{item.publication.title}</h2>
-          <p className="muted">
-            {item.publication.authors ?? 'Unknown authors'}
-            {item.publication.publicationYear ? ` (${item.publication.publicationYear})` : ''}
-          </p>
-          {item.requiredReviewers > 1 ? (
+        <ReviewPublicationHeader
+          titleRef={titleRef}
+          projectId={projectId}
+          publicationId={item.publicationId}
+          publication={item.publication}
+          fullTextDocument={fullTextDocument}
+          afterAuthors={item.requiredReviewers > 1 ? (
             <p className="muted">
               Independent extraction {item.slotNumber} of {item.requiredReviewers}. Your answers are
               kept independent from the other reviewer&apos;s until both are submitted.
               {completedResponse ? ' Once both reviewers have submitted, agreeing answers become final automatically; any disagreements go to reconciliation.' : ''}
             </p>
           ) : null}
-          <div className="toolbar">
-            {fullTextDocument.data ? (
-              <PdfAvailabilityPill
-                available={fullTextDocument.data.available}
-                href={`${fullTextDocumentEndpoint(projectId, item.publicationId)}/content`}
-                pageCount={fullTextDocument.data.document?.pageCount}
-              />
-            ) : null}
-            <DoiPill doi={item.publication.doi} />
-            {isSafeHttpUrl(item.publication.publisherUrl) ? (
-              <PublisherLinkPill url={item.publication.publisherUrl} />
-            ) : null}
-          </div>
-          {fullTextDocument.data?.available ? (
-            <a
-              className="button-secondary button-sm"
-              href={`${fullTextDocumentEndpoint(projectId, item.publicationId)}/content`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Open PDF
-            </a>
-          ) : null}
-        </>
+        />
       ) : null}
       {assistance.isLoading ? (
         <aside className="llm-task-panel" aria-label="LLM assistance">
