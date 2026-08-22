@@ -27,18 +27,53 @@ $excludedRelativePaths = @(
     "frontend/data"
 )
 
+# Directory names to exclude regardless of depth (build/tooling artifacts).
+$excludedDirectoryNames = @(
+    "node_modules",
+    "__pycache__",
+    ".pytest_cache",
+    ".venv",
+    "venv",
+    "dist",
+    "test-results"
+)
+
+# Directory name suffixes to exclude regardless of depth.
+$excludedDirectorySuffixes = @(
+    ".egg-info"
+)
+
+# File extensions to exclude regardless of depth (build/tooling artifacts).
+$excludedFileExtensions = @(
+    ".pyc",
+    ".log",
+    ".tsbuildinfo",
+    ".tmp"
+)
+
 function Test-ExcludedDirectory {
     param(
         [System.IO.DirectoryInfo]$Directory,
         [int]$Depth
     )
 
-    # Exclude node_modules everywhere.
-    if ($Directory.Name.Equals(
-        "node_modules",
-        [System.StringComparison]::OrdinalIgnoreCase
-    )) {
-        return $true
+    # Exclude known build/tooling artifact directories everywhere.
+    foreach ($excludedName in $excludedDirectoryNames) {
+        if ($Directory.Name.Equals(
+            $excludedName,
+            [System.StringComparison]::OrdinalIgnoreCase
+        )) {
+            return $true
+        }
+    }
+
+    foreach ($excludedSuffix in $excludedDirectorySuffixes) {
+        if ($Directory.Name.EndsWith(
+            $excludedSuffix,
+            [System.StringComparison]::OrdinalIgnoreCase
+        )) {
+            return $true
+        }
     }
 
     $relativePath = ($Directory.FullName.Substring($sourceDirectory.Length).TrimStart([char[]]"\/")) -replace '\\', '/'
@@ -70,6 +105,33 @@ function Test-ExcludedDirectory {
     return $false
 }
 
+function Test-ExcludedFile {
+    param(
+        [System.IO.FileInfo]$File
+    )
+
+    $name = $File.Name
+
+    # Never bundle real .env files, but keep .env*.example templates.
+    if ($name -like ".env*") {
+        if ($name -like ".env*.example") {
+            return $false
+        }
+        return $true
+    }
+
+    foreach ($excludedExtension in $excludedFileExtensions) {
+        if ($File.Extension.Equals(
+            $excludedExtension,
+            [System.StringComparison]::OrdinalIgnoreCase
+        )) {
+            return $true
+        }
+    }
+
+    return $false
+}
+
 function Add-DirectoryContents {
     param(
         [System.IO.Compression.ZipArchive]$Archive,
@@ -85,6 +147,13 @@ function Add-DirectoryContents {
             $zipPath,
             [System.StringComparison]::OrdinalIgnoreCase
         )) {
+            continue
+        }
+
+        if (Test-ExcludedFile -File $file) {
+            $relativeSkippedPath = $file.FullName.Substring($sourceDirectory.Length).TrimStart([char[]]"\/")
+
+            Write-Host "Skipping: $relativeSkippedPath"
             continue
         }
 

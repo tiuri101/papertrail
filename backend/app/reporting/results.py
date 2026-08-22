@@ -15,14 +15,14 @@ from app.extraction.models import (
 from app.extraction.service import active_fields as extraction_active_fields
 from app.extraction.service import project_form
 from app.forms.models import FormField
-from app.projects.lifecycle import included_publication_ids
 from app.publications.models import Publication
 from app.quality.models import QualityConfig, QualityResponse, QualityWorkItem
 from app.quality.service import active_fields as quality_active_fields
 from app.quality.service import quality_form
+from app.screening.cohorts import full_text_included_ids
 
 
-def _user_names(db: Session) -> dict[str, str]:
+def user_names(db: Session) -> dict[str, str]:
     return {
         row.id: row.display_name
         for row in db.execute(select(User.id, User.display_name))
@@ -41,7 +41,7 @@ def _field_meta(fields: list[FormField]) -> list[dict[str, Any]]:
 
 
 def build_final_results(db: Session, project_id: str) -> dict[str, Any]:
-    publication_ids = included_publication_ids(db, project_id)
+    publication_ids = full_text_included_ids(db, project_id)
     publications = list(
         db.scalars(
             select(Publication)
@@ -49,7 +49,7 @@ def build_final_results(db: Session, project_id: str) -> dict[str, Any]:
             .order_by(Publication.title)
         )
     )
-    user_names = _user_names(db)
+    reviewer_names = user_names(db)
 
     extraction_form = project_form(db, project_id)
     extraction_fields = (
@@ -119,14 +119,14 @@ def build_final_results(db: Session, project_id: str) -> dict[str, Any]:
         if final is not None:
             reviewer_name = None
             if final.resolved_by_id:
-                reviewer_name = user_names.get(final.resolved_by_id)
+                reviewer_name = reviewer_names.get(final.resolved_by_id)
             elif (
                 final.resolution_method == "single_reviewer"
                 and final.contributing_response_ids
             ):
                 response = responses_by_id.get(final.contributing_response_ids[0])
                 reviewer_name = (
-                    user_names.get(response.reviewer_id) if response else None
+                    reviewer_names.get(response.reviewer_id) if response else None
                 )
             extraction_payload = {
                 "status": "completed",
@@ -167,7 +167,7 @@ def build_final_results(db: Session, project_id: str) -> dict[str, Any]:
                     "status": quality_item.status,
                     "completedAt": quality_item.completed_at,
                     "reviewerName": (
-                        user_names.get(quality_item.assigned_reviewer_id)
+                        reviewer_names.get(quality_item.assigned_reviewer_id)
                         if quality_item.assigned_reviewer_id
                         else None
                     ),

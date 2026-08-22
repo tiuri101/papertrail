@@ -5,7 +5,6 @@ import {
   hasPublisherAccess,
   originPattern,
   requestOriginPermission,
-  requestPublisherAccess,
 } from '../src/retrieval/permission-manager'
 import { installChromeMock } from './chrome-mock'
 
@@ -49,17 +48,13 @@ describe('requestOriginPermission', () => {
   })
 })
 
-describe('hasPublisherAccess / requestPublisherAccess', () => {
-  it('checks and requests the single broad https://*/* grant, not a per-site one', async () => {
+describe('hasPublisherAccess', () => {
+  it('checks the single broad https://*/* grant, not a per-site one', async () => {
     const chromeMock = installChromeMock({
       permissionsContains: async () => false,
-      permissionsRequest: async () => true,
     })
 
     expect(await hasPublisherAccess()).toBe(false)
     expect(chromeMock.permissions.contains).toHaveBeenCalledWith({ origins: ['https://*/*'] })
-
-    expect(await requestPublisherAccess()).toBe(true)
-    expect(chromeMock.permissions.request).toHaveBeenCalledWith({ origins: ['https://*/*'] })
   })
 })

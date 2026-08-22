@@ -15,12 +15,6 @@ export async function hasPublisherAccess(): Promise<boolean> {
   return hasOriginPermission(PUBLISHER_ACCESS_ORIGIN)
 }
 
-/** Must be called from a user gesture (e.g. a button click) -- Chrome
- * rejects `permissions.request` otherwise. */
-export async function requestPublisherAccess(): Promise<boolean> {
-  return requestOriginPermission(PUBLISHER_ACCESS_ORIGIN)
-}
-
 /** The exact origin pattern (e.g. `https://link.springer.com/*`) Chrome's
  * runtime host-permissions API expects for a given URL. Still used to check
  * permission for a specific *discovered* PDF candidate URL, which may live

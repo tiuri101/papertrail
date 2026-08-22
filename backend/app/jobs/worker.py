@@ -41,6 +41,10 @@ from app.reporting.jobs import generate_export_job
 
 logger = logging.getLogger(__name__)
 Handler = Callable[[Session, BackgroundJob], dict[str, Any]]
+# RQ_SYNTHESIS_JOB is itself a member of LLM_JOB_TYPES (it runs on the --llm
+# worker pool) but is dispatched by its own handler, not the generic
+# run_llm_task_job -- excluded from the spread below so this dict's contents
+# don't depend on which of these two entries is written last.
 HANDLERS: dict[str, Handler] = {
     "parse_import": process_import_job,
     "enrich_publication": enrich_publication_job,
@@ -48,7 +52,11 @@ HANDLERS: dict[str, Handler] = {
     "generate_export": generate_export_job,
     STAGE_ANALYSIS_JOB: generate_stage_analysis_job,
     TEXT_JOB: extract_document_text_job,
-    **{job_type: run_llm_task_job for job_type in LLM_JOB_TYPES},
+    **{
+        job_type: run_llm_task_job
+        for job_type in LLM_JOB_TYPES
+        if job_type != RQ_SYNTHESIS_JOB
+    },
     RQ_SYNTHESIS_JOB: generate_rq_synthesis_job,
     SEND_EMAIL_JOB: send_email_job,
     CHECK_LLM_STAGE_EMAIL_JOB: check_llm_stage_email_job,

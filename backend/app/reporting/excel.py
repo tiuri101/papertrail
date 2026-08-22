@@ -9,7 +9,6 @@ from openpyxl import Workbook
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.accounts.models import User
 from app.audit.models import AuditEvent
 from app.conflicts.models import FinalDecision
 from app.deduplication.models import DuplicateCandidate
@@ -28,6 +27,7 @@ from app.projects.models import (
 from app.publications.models import Publication, PublicationSource
 from app.quality.models import QualityResponse, QualityWorkItem
 from app.reporting.prisma import calculate_prisma_counts
+from app.reporting.results import user_names as report_user_names
 from app.screening.models import ScreeningDecision, ScreeningOutcome, ScreeningWorkItem
 
 
@@ -64,13 +64,6 @@ def add_sheet(
             10,
             min(60, maximum + 2),
         )
-
-
-def _user_names(db: Session) -> dict[str, str]:
-    return {
-        row.id: row.display_name
-        for row in db.execute(select(User.id, User.display_name))
-    }
 
 
 def _criterion_texts(db: Session, project_id: str) -> dict[str, str]:
@@ -200,7 +193,7 @@ def build_excel(db: Session, project_id: str) -> bytes:
             *[[key, value] for key, value in counts.items()],
         ],
     )
-    user_names = _user_names(db)
+    user_names = report_user_names(db)
     _add_configuration_sheets(db, workbook, project_id)
     publications = _add_record_sheets(db, workbook, project_id)
     titles = {publication.id: publication.title for publication in publications}
