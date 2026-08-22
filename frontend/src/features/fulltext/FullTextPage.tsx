@@ -3,16 +3,11 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
-import { Button } from '../../components/Button'
-import { Card } from '../../components/Card'
 import { CountPill } from '../../components/CountPill'
 import { DoiPill } from '../../components/DoiPill'
 import { GoBackButton } from '../../components/GoBackButton'
 import { InfoBox } from '../../components/InfoBox'
-import { Page } from '../../components/Page'
 import { IconAlertTriangle, IconArrowRight } from '../../components/icons'
-import { Select } from '../../components/Select'
-import { Textarea } from '../../components/Textarea'
 import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
 import { PublisherLinkPill } from '../../components/PublisherLinkPill'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
@@ -92,7 +87,7 @@ export function FullTextPage() {
   }, [visibleItemId])
 
   return (
-    <Page>
+    <main className="page">
       <StageEyebrow stage="full_text_screening" />
       <h1>Full-Text</h1>
       {browserRetrieval.missingCount ? (
@@ -106,13 +101,13 @@ export function FullTextPage() {
           </p>
         </InfoBox>
       ) : null}
-      {retrievalQueue.nextError ? <p className="text-danger" role="alert">{retrievalQueue.nextError}</p> : null}
-      {updateRetrieval.error ? <p className="text-danger" role="alert">{updateRetrieval.error.message}</p> : null}
-      {queue.nextError ? <p className="text-danger" role="alert">{queue.nextError}</p> : null}
+      {retrievalQueue.nextError ? <p className="error" role="alert">{retrievalQueue.nextError}</p> : null}
+      {updateRetrieval.error ? <p className="error" role="alert">{updateRetrieval.error.message}</p> : null}
+      {queue.nextError ? <p className="error" role="alert">{queue.nextError}</p> : null}
       {progress ? (
         <CountPill
           count={progress.addressed}
-          className="mt-5"
+          className="full-text-retrieval-progress"
           prefix="Retrieval status recorded for"
         >
           of {progress.total} publications
@@ -124,13 +119,13 @@ export function FullTextPage() {
         </CountPill>
       ) : null}
       {!queue.previousItem && queue.lastCompletedItem ? (
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="toolbar">
           <GoBackButton onClick={() => queue.goBack.mutate()} disabled={queue.goBack.isPending}>
             ← Go back to “{queue.lastCompletedItem.title}”
           </GoBackButton>
         </div>
       ) : null}
-      {queue.goBack.error ? <p className="text-danger" role="alert">{queue.goBack.error.message}</p> : null}
+      {queue.goBack.error ? <p className="error" role="alert">{queue.goBack.error.message}</p> : null}
       {queue.previousItem ? (
         <PreviousItemCard
           projectId={projectId}
@@ -152,7 +147,7 @@ export function FullTextPage() {
       ) : isLoading ? (
         <p>Loading…</p>
       ) : progress?.total === 0 ? (
-        <p className="text-text">No publications require full-text retrieval.</p>
+        <p className="muted">No publications require full-text retrieval.</p>
       ) : retrievalQueue.item ? (
         <RetrievalCard
           projectId={projectId}
@@ -165,13 +160,13 @@ export function FullTextPage() {
         />
       ) : (
         <>
-          <p className="text-text">No full-text work is currently available for you.</p>
-          <Button type="button" variant="secondary" onClick={() => navigate(`/projects/${projectId}`)}>
+          <p className="muted">No full-text work is currently available for you.</p>
+          <button type="button" className="button-secondary" onClick={() => navigate(`/projects/${projectId}`)}>
             Back to project
-          </Button>
+          </button>
         </>
       )}
-    </Page>
+    </main>
   )
 }
 
@@ -195,13 +190,13 @@ function RetrievalCard({ projectId, retrieval, saving, onSubmit, onSkip, skippin
   }
 
   return (
-    <Card as="article">
+    <article className="card">
       <h2>{publication.title}</h2>
-      <p className="text-text">
+      <p className="muted">
         {publication.authors ?? 'Unknown authors'}
         {publication.publicationYear ? ` (${publication.publicationYear})` : ''}
       </p>
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="toolbar">
         {fullTextDocument.data ? (
           <PdfAvailabilityPill
             available={fullTextDocument.data.available}
@@ -215,16 +210,14 @@ function RetrievalCard({ projectId, retrieval, saving, onSubmit, onSkip, skippin
         ) : null}
       </div>
       {fullTextDocument.data?.available ? (
-        <Button
-          as="a"
-          variant="secondary"
-          size="sm"
+        <a
+          className="button-secondary button-sm"
           href={`${fullTextDocumentEndpoint(projectId, publication.id)}/content`}
           target="_blank"
           rel="noreferrer"
         >
           Open PDF
-        </Button>
+        </a>
       ) : null}
       <FullTextDocumentPanel
         projectId={projectId}
@@ -232,45 +225,45 @@ function RetrievalCard({ projectId, retrieval, saving, onSubmit, onSkip, skippin
         onAvailable={() => setStatus('available')}
         collapsible
       />
-      <label className="grid gap-2 text-sm font-semibold text-text-secondary">
+      <label>
         Retrieval status for {publication.title}
-        <Select
+        <select
           value={status}
           onChange={(event) => setStatus(event.target.value)}
         >
           {retrievalStatusOptions.map((statusOption) => (
             <option value={statusOption} key={statusOption}>{formatStatus(statusOption)}</option>
           ))}
-        </Select>
+        </select>
       </label>
-      <label className="grid gap-2 text-sm font-semibold text-text-secondary">
+      <label>
         Note for {publication.title}
-        <Textarea value={note} onChange={(event) => setNote(event.target.value)} />
+        <textarea value={note} onChange={(event) => setNote(event.target.value)} />
       </label>
       {isAvailable ? (
-        <p className="text-text">
+        <p className="muted">
           Save the available status to open full-text screening and its LLM evidence panel.
         </p>
       ) : null}
-      {skipError ? <p className="text-danger" role="alert">{skipError}</p> : null}
-      <div className="flex flex-wrap items-center gap-3">
-        <Button
+      {skipError ? <p className="error" role="alert">{skipError}</p> : null}
+      <div className="toolbar">
+        <button
           type="button"
           onClick={handleSubmit}
           disabled={saving || skipping}
         >
           {isAvailable ? 'Save and start screening' : 'Submit'}
-        </Button>
-        <Button
+        </button>
+        <button
           type="button"
-          variant="secondary"
+          className="button-secondary"
           onClick={onSkip}
           disabled={saving || skipping}
         >
           <IconArrowRight />
           Skip for now
-        </Button>
+        </button>
       </div>
-    </Card>
+    </article>
   )
 }

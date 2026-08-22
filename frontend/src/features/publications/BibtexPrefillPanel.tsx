@@ -1,4 +1,3 @@
-import { toolbarClass } from '../../components/layoutStyles'
 import { useMutation } from '@tanstack/react-query'
 import { useState } from 'react'
 
@@ -6,7 +5,6 @@ import { getCsrfToken } from '../auth/session'
 import { Button } from '../../components/Button'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { IconSparkle } from '../../components/icons'
-import { Textarea } from '../../components/Textarea'
 import { FileDropZone } from '../imports/FileDropZone'
 import { applyBibtexFields, PublicationDraft } from './publicationFieldsData'
 
@@ -67,11 +65,11 @@ export function BibtexPrefillPanel({
       title="Prefill from BibTeX"
       defaultExpanded={false}
     >
-      <p className="text-text-muted">
+      <p className="muted">
         Upload a .bib file or paste a BibTeX entry to fill in the fields below. Only the first
         entry is used — for adding many publications at once, use Import instead.
       </p>
-      {prefill.error ? <p className="text-danger" role="alert">{prefill.error.message}</p> : null}
+      {prefill.error ? <p className="error" role="alert">{prefill.error.message}</p> : null}
       <FileDropZone
         id="bibtex-prefill-file"
         label="BibTeX file"
@@ -86,7 +84,7 @@ export function BibtexPrefillPanel({
       />
       <label>
         Or paste BibTeX
-        <Textarea
+        <textarea
           value={bibText}
           onChange={(event) => {
             setBibText(event.target.value)
@@ -97,13 +95,13 @@ export function BibtexPrefillPanel({
           placeholder="@article{..."
         />
       </label>
-      <div className={toolbarClass}>
+      <div className="toolbar">
         <Button
           type="button"
           disabled={(!bibFile.length && !bibText.trim()) || prefill.isPending}
           onClick={() => prefill.mutate()}
-          startIcon={<IconSparkle />}
         >
+          <IconSparkle />
           {prefill.isPending ? 'Parsing…' : 'Prefill form'}
         </Button>
       </div>

@@ -1,17 +1,14 @@
-import { tableCompactClass, toolbarClass } from '../../components/layoutStyles'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
-import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { Button } from '../../components/Button'
+import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { CountPill } from '../../components/CountPill'
 import { InfoBox } from '../../components/InfoBox'
-import { Input } from '../../components/Input'
 import { IconSwap } from '../../components/icons'
-import { Select } from '../../components/Select'
-import { SortableColumnHeader } from '../../components/SortableColumnHeader'
 import type { User } from '../auth/types'
+import type { ProjectMembers as ProjectMembersOf } from './types'
 
 type RoleKey = 'canTitleAbstractScreen' | 'canFullTextScreen'
 
@@ -22,10 +19,7 @@ interface Membership {
   canFullTextScreen: boolean
 }
 
-interface ProjectMembers {
-  id: string
-  memberships: Membership[]
-}
+type ProjectMembers = ProjectMembersOf<Membership>
 
 interface AssignmentItem {
   id: string
@@ -85,13 +79,13 @@ function SortableHeader({
   order: 'asc' | 'desc'
   onSort: (key: string) => void
 }) {
+  const active = sort === column.key
   return (
-    <SortableColumnHeader
-      label={column.label}
-      active={sort === column.key}
-      direction={order}
-      onSort={() => onSort(column.key)}
-    />
+    <th scope="col" aria-sort={active ? (order === 'asc' ? 'ascending' : 'descending') : 'none'}>
+      <button type="button" className="link-button" onClick={() => onSort(column.key)}>
+        {column.label}{active ? (order === 'asc' ? ' ▲' : ' ▼') : ''}
+      </button>
+    </th>
   )
 }
 
@@ -116,7 +110,7 @@ function ReassignRow({
   return (
     <tr className={selected ? 'assignment-row assignment-row--selected' : 'assignment-row'}>
       <td>
-        <Input
+        <input
           type="checkbox"
           aria-label={`Select ${item.publicationTitle}, slot ${item.slotNumber}`}
           checked={selected}
@@ -130,10 +124,10 @@ function ReassignRow({
       <td>{item.assignedReviewerName ?? 'Unassigned'}</td>
       <td>
         {locked ? (
-          <span className="text-text-muted">Already submitted</span>
+          <span className="muted">Already submitted</span>
         ) : (
-          <div className={toolbarClass}>
-            <Select
+          <div className="toolbar">
+            <select
               aria-label={`Reassign ${item.publicationTitle}`}
               value={selectedReviewer}
               onChange={(event) => setSelectedReviewer(event.target.value)}
@@ -144,16 +138,17 @@ function ReassignRow({
                 .map((reviewer) => (
                   <option key={reviewer.id} value={reviewer.id}>{reviewer.displayName}</option>
                 ))}
-            </Select>
+            </select>
             <Button
               type="button"
+              variant="secondary"
               disabled={!selectedReviewer || pending}
               onClick={() => {
                 onReassign(selectedReviewer)
                 setSelectedReviewer('')
               }}
-              startIcon={<IconSwap />}
             >
+              <IconSwap />
               Reassign
             </Button>
           </div>
@@ -304,18 +299,18 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
       <InfoBox icon={<IconSwap />}>
         <p>Move a publication to a different reviewer who has been added to this project.</p>
       </InfoBox>
-      <div className={toolbarClass}>
+      <div className="toolbar">
         <label>
           Stage
-          <Select value={stage} onChange={(event) => setStage(event.target.value)}>
+          <select value={stage} onChange={(event) => setStage(event.target.value)}>
             {STAGES.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
-          </Select>
+          </select>
         </label>
         <label>
           Search
-          <Input
+          <input
             type="search"
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
@@ -324,22 +319,22 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
         </label>
         <label>
           Status
-          <Select value={status} onChange={(event) => setStatus(event.target.value)}>
+          <select value={status} onChange={(event) => setStatus(event.target.value)}>
             <option value="">All statuses</option>
             <option value="available">Available</option>
             <option value="reserved">Reserved</option>
             <option value="submitted">Submitted</option>
-          </Select>
+          </select>
         </label>
         <label>
           Reviewer
-          <Select value={reviewerId} onChange={(event) => setReviewerId(event.target.value)}>
+          <select value={reviewerId} onChange={(event) => setReviewerId(event.target.value)}>
             <option value="">All reviewers</option>
             <option value="unassigned">Unassigned</option>
             {eligibleReviewers.map((reviewer) => (
               <option key={reviewer.id} value={reviewer.id}>{reviewer.displayName}</option>
             ))}
-          </Select>
+          </select>
         </label>
       </div>
       {assignments.data ? (
@@ -348,9 +343,9 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
         </CountPill>
       ) : null}
       {assignments.data && reassignableTotal > 0 ? (
-        <div className="rounded-md border border-border bg-bg-elevated p-4">
-          <label className="flex items-center gap-2 text-sm font-semibold text-text-secondary">
-            <Input
+        <div className="bulk-selection-panel">
+          <label className="bulk-selection-panel__all">
+            <input
               type="checkbox"
               checked={selectAllFiltered}
               onChange={(event) => {
@@ -361,10 +356,10 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
             />
             Select all {reassignableTotal} filtered assignments
           </label>
-          <div className="my-5 flex flex-wrap items-end gap-3">
-            <label className="grid gap-1 text-sm font-semibold text-text-secondary">
+          <div className="toolbar bulk-selection-panel__controls">
+            <label>
               Reassign selected to
-              <Select
+              <select
                 value={bulkReviewerId}
                 onChange={(event) => setBulkReviewerId(event.target.value)}
               >
@@ -372,19 +367,19 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
                 {eligibleReviewers.map((reviewer) => (
                   <option key={reviewer.id} value={reviewer.id}>{reviewer.displayName}</option>
                 ))}
-              </Select>
+              </select>
             </label>
-            <Button
+            <button
               type="button"
               disabled={!bulkReviewerId || selectedCount === 0 || bulkReassign.isPending}
               onClick={() => bulkReassign.mutate()}
             >
               <IconSwap />
               {bulkReassign.isPending ? 'Reassigning…' : `Reassign selected (${selectedCount})`}
-            </Button>
+            </button>
           </div>
           {selectAllFiltered && excludedIds.size > 0 ? (
-            <p className="text-text-muted">{excludedIds.size} assignment{excludedIds.size === 1 ? '' : 's'} excluded from this selection.</p>
+            <p className="muted">{excludedIds.size} assignment{excludedIds.size === 1 ? '' : 's'} excluded from this selection.</p>
           ) : null}
         </div>
       ) : null}
@@ -392,16 +387,16 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
         <p role="status">Reassigned {bulkReassign.data.reassigned} assignment{bulkReassign.data.reassigned === 1 ? '' : 's'}.</p>
       ) : null}
       {reassign.error || bulkReassign.error ? (
-        <p className="text-danger" role="alert">{(reassign.error ?? bulkReassign.error)?.message}</p>
+        <p className="error" role="alert">{(reassign.error ?? bulkReassign.error)?.message}</p>
       ) : null}
-      {assignments.error ? <p className="text-danger" role="alert">{assignments.error.message}</p> : null}
+      {assignments.error ? <p className="error" role="alert">{assignments.error.message}</p> : null}
       {assignments.isLoading ? <p>Loading…</p> : null}
       {assignments.data && assignments.data.items.length === 0 ? (
-        <p className="text-text-muted">No publications match these filters.</p>
+        <p className="muted">No publications match these filters.</p>
       ) : null}
       {assignments.data && assignments.data.items.length > 0 ? (
         <>
-          <table className={tableCompactClass}>
+          <table className="table-compact">
             <thead>
               <tr>
                 <th scope="col">Select</th>
@@ -425,12 +420,12 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
               ))}
             </tbody>
           </table>
-          <div className={toolbarClass}>
-            <Button type="button" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>
+          <div className="toolbar">
+            <Button type="button" variant="secondary" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>
               Previous
             </Button>
-            <span className="text-text-muted">Page {page} of {totalPages} ({total} total)</span>
-            <Button type="button" disabled={page >= totalPages} onClick={() => setPage((current) => current + 1)}>
+            <span className="muted">Page {page} of {totalPages} ({total} total)</span>
+            <Button type="button" variant="secondary" disabled={page >= totalPages} onClick={() => setPage((current) => current + 1)}>
               Next
             </Button>
           </div>

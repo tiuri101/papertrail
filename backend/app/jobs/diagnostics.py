@@ -10,6 +10,7 @@ from app.analysis.rq_jobs import RQ_SYNTHESIS_JOB
 from app.fulltext.models import PublicationDocument
 from app.imports.models import ImportBatch
 from app.jobs.models import BackgroundJob
+from app.jobs.registry import JOB_LABELS, JOB_STAGES, TASK_STAGES
 from app.llm.models import LlmExtractionRun, LlmTaskType
 from app.llm.service import LLM_JOB_TYPE_BY_TASK, TEXT_JOB
 from app.notifications.models import EmailNotification
@@ -17,53 +18,14 @@ from app.notifications.service import CHECK_LLM_STAGE_EMAIL_JOB, SEND_EMAIL_JOB
 from app.projects.models import Project
 from app.publications.models import Publication
 
-TASK_STAGES = {
-    LlmTaskType.TITLE_ABSTRACT_SCREENING: "Title/abstract screening",
-    LlmTaskType.FULL_TEXT_SCREENING: "Full-text screening",
-    LlmTaskType.DATA_EXTRACTION: "Data extraction",
-    LlmTaskType.EXTRACTION_VALIDATION: "Extraction validation",
-}
-
 # The job types whose diagnostic context is looked up via an LlmExtractionRun
 # keyed by payload["run_id"]. Deliberately narrower than
-# app.llm.service.LLM_JOB_TYPES (which additionally includes RQ_SYNTHESIS_JOB
-# for --llm worker-pool routing purposes): RQ synthesis jobs are keyed by a
-# ResearchQuestionAnalysisRun and payload["rq_run_id"] instead, and
-# STAGE_ANALYSIS_JOB has no run row at all -- both get their own branches
-# below rather than being folded into this set.
+# app.jobs.registry.LLM_JOB_TYPES (which additionally includes
+# RQ_SYNTHESIS_JOB and STAGE_ANALYSIS_JOB for --llm worker-pool routing
+# purposes): RQ synthesis jobs are keyed by a ResearchQuestionAnalysisRun and
+# payload["rq_run_id"] instead, and STAGE_ANALYSIS_JOB has no run row at all
+# -- both get their own branches below rather than being folded into this set.
 EXTRACTION_RUN_JOB_TYPES = set(LLM_JOB_TYPE_BY_TASK.values())
-
-JOB_LABELS = {
-    "parse_import": "Parse publication import",
-    "enrich_publication": "Enrich publication metadata",
-    "detect_duplicates": "Detect duplicate publications",
-    "generate_export": "Generate project export",
-    TEXT_JOB: "Extract text from a full-text document",
-    SEND_EMAIL_JOB: "Send email notification",
-    CHECK_LLM_STAGE_EMAIL_JOB: "Check LLM bulk-completion notifications",
-    RQ_SYNTHESIS_JOB: "Run LLM research-question synthesis",
-    STAGE_ANALYSIS_JOB: "Generate stage analysis narrative",
-    **{
-        job_type: f"Run LLM {TASK_STAGES[task_type].lower()}"
-        for task_type, job_type in LLM_JOB_TYPE_BY_TASK.items()
-    },
-}
-
-JOB_STAGES = {
-    "parse_import": "Publication import",
-    "enrich_publication": "Publication metadata",
-    "detect_duplicates": "Duplicate review",
-    "generate_export": "Reporting and export",
-    TEXT_JOB: "Full-text preparation",
-    SEND_EMAIL_JOB: "Notifications",
-    CHECK_LLM_STAGE_EMAIL_JOB: "Notifications",
-    RQ_SYNTHESIS_JOB: "Research question synthesis",
-    STAGE_ANALYSIS_JOB: "Stage narrative",
-    **{
-        job_type: TASK_STAGES[task_type]
-        for task_type, job_type in LLM_JOB_TYPE_BY_TASK.items()
-    },
-}
 
 STAGE_ORDER = [
     "Publication import",

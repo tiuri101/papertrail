@@ -18,7 +18,7 @@ from app.jobs.models import BackgroundJob, JobStatus
 from app.projects.models import Project, ScreeningStage
 from app.publications.models import Publication
 from app.quality.models import QualityStatus, QualityWorkItem
-from app.screening.cohorts import count_for_outcome
+from app.screening.cohorts import count_for_outcome, outcome_filter_any_stage
 from app.screening.models import ScreeningOutcome, ScreeningWorkItem, WorkItemStatus
 
 
@@ -92,9 +92,7 @@ def project_dashboard(db: Session, project_id: str) -> dict[str, int | str]:
             select(func.count())
             .select_from(FinalDecision)
             .where(
-                FinalDecision.project_id == project_id,
-                FinalDecision.is_valid.is_(True),
-                FinalDecision.outcome == ScreeningOutcome.UNCERTAIN,
+                outcome_filter_any_stage(project_id, ScreeningOutcome.UNCERTAIN)
             )
         )
         or 0

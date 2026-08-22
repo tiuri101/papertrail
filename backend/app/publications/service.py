@@ -10,7 +10,12 @@ from sqlalchemy.orm import Session
 
 from app.imports.models import ImportBatch, ImportedRecord
 from app.projects.models import Project, ProjectStage
-from app.publications.models import MetadataConflict, Publication, PublicationSource
+from app.publications.models import (
+    ConflictStatus,
+    MetadataConflict,
+    Publication,
+    PublicationSource,
+)
 
 IMPORTANT_FIELDS = {"doi", "title", "authors", "publication_year", "abstract", "venue"}
 
@@ -251,7 +256,7 @@ def apply_enrichment(
                     MetadataConflict.publication_id == publication.id,
                     MetadataConflict.field_name == field,
                     MetadataConflict.proposed_value == str(proposed_value),
-                    MetadataConflict.status == "open",
+                    MetadataConflict.status == ConflictStatus.OPEN,
                 )
             )
             if not already:

@@ -4,7 +4,24 @@ import re
 import unicodedata
 from typing import Any
 
+from pydantic import BaseModel, ConfigDict, Field
+
 from app.llm.models import EvidenceStatus
+
+
+class EvidenceItem(BaseModel):
+    """A single evidence citation: a short verbatim quote tied to a page.
+
+    Shared by both the extraction-schema validation (``app.llm.validation``)
+    and the screening/validation task schemas (``app.llm.task_validation``) --
+    both represent the same domain concept with identical constraints.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    page: int = Field(ge=1)
+    quote: str = Field(min_length=1)
+    section: str | None = Field(default=None, max_length=300)
 
 
 def normalize_quote(value: str) -> str:

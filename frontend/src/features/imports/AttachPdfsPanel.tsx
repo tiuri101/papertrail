@@ -6,12 +6,8 @@ import { Button } from '../../components/Button'
 import { Card } from '../../components/Card'
 import { IconUpload } from '../../components/icons'
 import { FileDropZone } from './FileDropZone'
-import { PdfMatchReview, type PdfSummary } from './PdfMatchReview'
-
-interface UploadResult {
-  importBatchId: string
-  summary: PdfSummary
-}
+import { PdfMatchReview } from './PdfMatchReview'
+import type { UploadResult } from './types'
 
 export function AttachPdfsPanel({ projectId, importBatchId, onClose }: {
   projectId: string

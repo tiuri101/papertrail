@@ -6,10 +6,11 @@ from app.analysis.models import ResearchQuestionAnalysisRun
 from app.analysis.rq_jobs import RQ_SYNTHESIS_JOB, generate_rq_synthesis_job
 from app.jobs.diagnostics import JOB_LABELS, JOB_STAGES, build_job_diagnostics
 from app.jobs.models import BackgroundJob, JobStatus
-from app.jobs.service import enqueue_job
+from app.jobs.registry import JOB_DEFINITIONS, LLM_JOB_TYPES, WorkerPool
+from app.jobs.service import claim_job, enqueue_job
 from app.jobs.worker import HANDLERS, execute_next_job
 from app.llm.models import LlmExtractionRun, LlmTaskType, ProcessingStatus
-from app.llm.service import LLM_JOB_TYPE_BY_TASK, LLM_JOB_TYPES
+from app.llm.service import LLM_JOB_TYPE_BY_TASK
 from app.projects.models import (
     Project,
     ProjectMembership,
@@ -396,7 +397,7 @@ def test_rq_synthesis_job_diagnostics_identify_the_research_question(db) -> None
     payload["rq_run_id"], not an LlmExtractionRun via payload["run_id"] --
     regression guard for the two job-type sets in jobs.diagnostics staying
     correctly distinct (see EXTRACTION_RUN_JOB_TYPES vs
-    app.llm.service.LLM_JOB_TYPES)."""
+    app.jobs.registry.LLM_JOB_TYPES)."""
     project = Project(
         name="RQ Review",
         review_type=ReviewType.SYSTEMATIC_REVIEW,
@@ -457,6 +458,82 @@ def test_every_registered_job_type_has_a_handler_and_diagnostic_label() -> None:
         assert job_type in HANDLERS
     assert STAGE_ANALYSIS_JOB in HANDLERS
     assert RQ_SYNTHESIS_JOB in HANDLERS
+
+
+def test_job_registry_is_the_single_source_for_handlers_pools_and_labels() -> None:
+    """app.jobs.registry.JOB_DEFINITIONS is authoritative: HANDLERS,
+    LLM_JOB_TYPES, JOB_LABELS, and JOB_STAGES (used respectively by
+    jobs.worker and jobs.diagnostics) must all be exactly derived from it --
+    same keys, nothing added or dropped independently."""
+    assert set(JOB_DEFINITIONS) == set(HANDLERS)
+    assert set(JOB_DEFINITIONS) == set(JOB_LABELS)
+    assert set(JOB_DEFINITIONS) == set(JOB_STAGES)
+    assert set(JOB_DEFINITIONS) >= LLM_JOB_TYPES
+    for job_type, definition in JOB_DEFINITIONS.items():
+        assert HANDLERS[job_type] is definition.handler
+        assert JOB_LABELS[job_type] == definition.label
+        assert JOB_STAGES[job_type] == definition.stage
+        assert (definition.worker_pool == WorkerPool.LLM) == (
+            job_type in LLM_JOB_TYPES
+        )
+
+
+def test_stage_analysis_job_is_classified_as_llm_pool() -> None:
+    """The regression this task exists to fix: STAGE_ANALYSIS_JOB calls
+    Ollama via generate_narrative() and must run on the dedicated --llm
+    worker pool, not the unbounded general pool."""
+    assert STAGE_ANALYSIS_JOB in LLM_JOB_TYPES
+    assert JOB_DEFINITIONS[STAGE_ANALYSIS_JOB].worker_pool == WorkerPool.LLM
+
+
+def test_every_ollama_calling_job_type_is_in_the_llm_pool() -> None:
+    """Enumerate every job type known to call Ollama and confirm the
+    registry's LLM_JOB_TYPES is exactly that set -- neither missing one
+    (the STAGE_ANALYSIS_JOB bug) nor including a job that doesn't actually
+    call Ollama (which would wrongly starve the bounded --llm worker pool)."""
+    ollama_calling_job_types = {STAGE_ANALYSIS_JOB, RQ_SYNTHESIS_JOB} | set(
+        LLM_JOB_TYPE_BY_TASK.values()
+    )
+    assert ollama_calling_job_types == LLM_JOB_TYPES
+
+
+def test_no_job_type_is_claimable_by_both_worker_pools(session_factory) -> None:
+    """A job type must be routed to exactly one worker pool. Directly
+    exercises claim_job's allowed/excluded filtering (what jobs.worker.py's
+    run_worker actually uses) rather than just inspecting the registry."""
+    with session_factory() as db:
+        stage_job = enqueue_job(
+            db,
+            STAGE_ANALYSIS_JOB,
+            {"stage": "extraction_quality"},
+            project_id=None,
+            created_by_id=None,
+        )
+        general_job = enqueue_job(
+            db, "parse_import", {}, project_id=None, created_by_id=None
+        )
+        db.commit()
+        stage_job_id, general_job_id = stage_job.id, general_job.id
+
+    # LLM worker (allowed_job_types=LLM_JOB_TYPES): claims the stage-analysis
+    # job, never the general one.
+    with session_factory() as db:
+        claimed = claim_job(db, "llm-worker", allowed_job_types=LLM_JOB_TYPES)
+        assert claimed is not None
+        assert claimed.id == stage_job_id
+        db.commit()
+
+    # General worker (excluded_job_types=LLM_JOB_TYPES): claims the general
+    # job, and must not be able to claim the (already-claimed) stage job either.
+    with session_factory() as db:
+        claimed = claim_job(db, "general-worker", excluded_job_types=LLM_JOB_TYPES)
+        assert claimed is not None
+        assert claimed.id == general_job_id
+        db.commit()
+
+    with session_factory() as db:
+        remaining = claim_job(db, "general-worker-2", excluded_job_types=LLM_JOB_TYPES)
+        assert remaining is None
 
 
 def test_retried_llm_job_returns_run_to_pending(session_factory, monkeypatch) -> None:

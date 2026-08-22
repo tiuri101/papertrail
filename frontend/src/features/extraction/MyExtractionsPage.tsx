@@ -1,20 +1,12 @@
-import { toolbarClass } from '../../components/layoutStyles'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMemo, useState, type MouseEvent } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useMemo, useState } from 'react'
+import { Link, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
-import { Page } from '../../components/Page'
-import { Button } from '../../components/Button'
-import { Badge } from '../../components/Badge'
 import { CountPill } from '../../components/CountPill'
-import { DoiPill } from '../../components/DoiPill'
-import { HighlightedText } from '../../components/HighlightedText'
-import { Input } from '../../components/Input'
-import { PublicationListSortHeader } from '../../components/PublicationListSortHeader'
-import { Select } from '../../components/Select'
-import { reviewWorkActionsClass, reviewWorkCardClass, reviewWorkDoiClass, reviewWorkEditorClass, reviewWorkGridClass, reviewWorkListClass, reviewWorkMetadataClass, reviewWorkStatusClass, reviewWorkSubmittedClass, reviewWorkTitleClass, reviewWorkTitleLinkClass, reviewWorkTitleTextClass, reviewWorkVenueClass } from '../../components/reviewWorkStyles'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
+import { type SortDirection, sortByValue } from '../../lib/sort'
+import { ReviewWorkRow } from '../reviews/ReviewWorkRow'
 import { StageEyebrow } from '../projects/StageEyebrow'
 import { ExtractionWorkspace } from './ExtractionWorkspace'
 
@@ -38,7 +30,6 @@ interface CompletedExtraction {
 }
 
 type ExtractionSortKey = 'title' | 'authors' | 'venue' | 'version' | 'doi' | 'submitted'
-type SortDirection = 'asc' | 'desc'
 
 function sortValue(entry: CompletedExtraction, key: ExtractionSortKey): string | number {
   switch (key) {
@@ -52,21 +43,12 @@ function sortValue(entry: CompletedExtraction, key: ExtractionSortKey): string |
 }
 
 function sortItems(items: CompletedExtraction[], key: ExtractionSortKey, direction: SortDirection) {
-  return [...items].sort((left, right) => {
-    const leftValue = sortValue(left, key)
-    const rightValue = sortValue(right, key)
-    const comparison = typeof leftValue === 'number' && typeof rightValue === 'number'
-      ? leftValue - rightValue
-      : String(leftValue).localeCompare(String(rightValue), undefined, { sensitivity: 'base' })
-    if (comparison !== 0) return direction === 'asc' ? comparison : -comparison
-    return left.publication.title.localeCompare(right.publication.title)
-  })
-}
-
-function formatSubmittedAt(value: string | null) {
-  if (!value) return '—'
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString()
+  return sortByValue(
+    items,
+    direction,
+    (item) => sortValue(item, key),
+    (left, right) => left.publication.title.localeCompare(right.publication.title),
+  )
 }
 
 function ExtractionRow({ projectId, entry, highlightKeywords }: {
@@ -74,59 +56,35 @@ function ExtractionRow({ projectId, entry, highlightKeywords }: {
   entry: CompletedExtraction
   highlightKeywords: string[]
 }) {
-  const navigate = useNavigate()
-  const [editing, setEditing] = useState(false)
   const queryClient = useQueryClient()
   const publication = entry.publication
   const detailHref = `/projects/${projectId}/publications/${publication.id}`
 
-  const openPublication = (event: MouseEvent<HTMLLIElement>) => {
-    if ((event.target as HTMLElement).closest('a, button, input, select, textarea, label, [data-review-work-editor]')) return
-    navigate(detailHref)
-  }
-
   return (
-    <li className={reviewWorkCardClass} onClick={openPublication}>
-      <div className={reviewWorkGridClass}>
-        <div className={reviewWorkTitleClass}>
-          <Link className={reviewWorkTitleLinkClass} to={detailHref}>
-            <h2 className={reviewWorkTitleTextClass}>
-              <HighlightedText text={publication.title} keywords={highlightKeywords} />
-            </h2>
-          </Link>
-          <div className={reviewWorkMetadataClass}>{publication.authors ?? 'Unknown authors'}</div>
-        </div>
-        <span className={reviewWorkVenueClass} title={publication.venue ?? undefined}>
-          {publication.venue ?? '—'}{publication.publicationYear ? ` (${publication.publicationYear})` : ''}
-        </span>
-        <span className={reviewWorkStatusClass}><Badge>v{entry.version}</Badge></span>
-        <span className={reviewWorkDoiClass}>
-          {publication.doi ? <DoiPill doi={publication.doi} /> : <span className="text-text-muted">—</span>}
-        </span>
-        <time className={reviewWorkSubmittedClass} dateTime={entry.completedAt ?? undefined}>
-          {formatSubmittedAt(entry.completedAt)}
-        </time>
-        <span className={reviewWorkActionsClass}>
-          {!editing ? (
-            <Button type="button" variant="secondary" size="sm" onClick={() => setEditing(true)}>Edit Extraction</Button>
-          ) : null}
-        </span>
-      </div>
-      {editing ? (
-        <div data-review-work-editor="true" className={reviewWorkEditorClass}>
-          <ExtractionWorkspace
-            projectId={projectId}
-            itemId={entry.id}
-            variant="inline"
-            onCancel={() => setEditing(false)}
-            onSubmitted={() => {
-              setEditing(false)
-              queryClient.invalidateQueries({ queryKey: ['my-extractions', projectId] })
-            }}
-          />
-        </div>
-      ) : null}
-    </li>
+    <ReviewWorkRow
+      detailHref={detailHref}
+      title={publication.title}
+      authors={publication.authors}
+      venue={publication.venue}
+      publicationYear={publication.publicationYear}
+      doi={publication.doi}
+      submittedAt={entry.completedAt}
+      statusContent={<span className="status-pill">v{entry.version}</span>}
+      editLabel="Edit Extraction"
+      highlightKeywords={highlightKeywords}
+      renderEditor={({ onDone }) => (
+        <ExtractionWorkspace
+          projectId={projectId}
+          itemId={entry.id}
+          variant="inline"
+          onCancel={onDone}
+          onSubmitted={() => {
+            onDone()
+            queryClient.invalidateQueries({ queryKey: ['my-extractions', projectId] })
+          }}
+        />
+      )}
+    />
   )
 }
 
@@ -153,21 +111,13 @@ export function MyExtractionsPage() {
     return sortItems(items, sortKey, sortDirection)
   }, [query.data, search, sortDirection, sortKey])
 
-  const toggleSort = (key: ExtractionSortKey) => {
-    if (key === sortKey) setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
-    else {
-      setSortKey(key)
-      setSortDirection(key === 'submitted' ? 'desc' : 'asc')
-    }
-  }
-
   return (
-    <Page>
+    <main className="page">
       <StageEyebrow stage="extraction_quality" />
       <h1>My Submitted Extractions</h1>
-      <p className="text-text-muted">Publications you have already extracted. Select a publication to view its details, or edit your extraction.</p>
+      <p className="muted">Publications you have already extracted. Select a publication to view its details, or edit your extraction.</p>
       <p><Link to={`/projects/${projectId}/extraction`}>← Back to extraction queue</Link></p>
-      {query.error ? <p className="text-danger" role="alert">{query.error.message}</p> : null}
+      {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
       {query.isLoading ? <p>Loading…</p> : null}
       {query.data ? (
         <>
@@ -176,14 +126,14 @@ export function MyExtractionsPage() {
               <CountPill count={search ? filteredItems.length : query.data.length}>
                 {search ? `of ${query.data.length} extractions match your filters` : `extraction${query.data.length === 1 ? '' : 's'}`}
               </CountPill>
-              <div className={toolbarClass}>
-                <label className="w-full flex-[0_1_32rem] max-w-lg">
+              <div className="toolbar">
+                <label className="paper-search-field">
                   Search papers
-                  <Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Title, author, DOI…" />
+                  <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Title, author, DOI…" />
                 </label>
-                <label className="hidden max-[520px]:block">
+                <label>
                   Sort by
-                  <Select value={`${sortKey}:${sortDirection}`} onChange={(event) => {
+                  <select value={`${sortKey}:${sortDirection}`} onChange={(event) => {
                     const [key, direction] = event.target.value.split(':') as [ExtractionSortKey, SortDirection]
                     setSortKey(key)
                     setSortDirection(direction)
@@ -198,35 +148,22 @@ export function MyExtractionsPage() {
                     <option value="venue:desc">Venue Z–A</option>
                     <option value="version:desc">Newest version</option>
                     <option value="version:asc">Oldest version</option>
-                  </Select>
+                  </select>
                 </label>
               </div>
             </>
           ) : null}
           {query.data.length === 0 ? (
-            <p className="text-text-muted">You have not submitted any extractions yet.</p>
+            <p className="muted">You have not submitted any extractions yet.</p>
           ) : filteredItems.length === 0 ? (
-            <p className="text-text-muted">No extractions match your filters.</p>
+            <p className="muted">No extractions match your filters.</p>
           ) : (
-            <>
-              <div className={`${reviewWorkGridClass} mb-2 px-4 text-[0.72rem] font-bold tracking-[0.04em] text-text-muted uppercase max-[520px]:hidden`}>
-                <span className="flex items-center gap-0.5">
-                  <PublicationListSortHeader label="Title" sortKey="title" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />{' / '}
-                  <PublicationListSortHeader label="Authors" sortKey="authors" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
-                </span>
-                <PublicationListSortHeader label="Venue" sortKey="venue" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
-                <PublicationListSortHeader label="Version" sortKey="version" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
-                <PublicationListSortHeader label="DOI" sortKey="doi" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
-                <PublicationListSortHeader label="Submitted" sortKey="submitted" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
-                <span className={reviewWorkActionsClass}>Actions</span>
-              </div>
-              <ul className={reviewWorkListClass}>
+            <ul className="card-list stacked publication-list">
                 {filteredItems.map((entry) => <ExtractionRow key={entry.id} projectId={projectId} entry={entry} highlightKeywords={highlightKeywords} />)}
-              </ul>
-            </>
+            </ul>
           )}
         </>
       ) : null}
-    </Page>
+    </main>
   )
 }

@@ -1,63 +1,36 @@
-import { toolbarClass } from '../../components/layoutStyles'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
-import { Badge } from '../../components/Badge'
 import { ConfirmButton } from '../../components/ConfirmButton'
-import { Button, IconButton } from '../../components/Button'
+import { Button } from '../../components/Button'
 import { CountPill } from '../../components/CountPill'
-import { Card } from '../../components/Card'
-import { Page } from '../../components/Page'
 import { DragHandle } from '../../components/DragHandle'
 import { IconCheckCircle, IconPlus, IconTrash } from '../../components/icons'
-import { Input } from '../../components/Input'
-import { Select } from '../../components/Select'
-import { Textarea } from '../../components/Textarea'
 import { useRegisterSectionItems } from '../../components/sectionNavigation'
 import { useProjectManageState } from '../../hooks/useCanManageProject'
 import { useSession } from '../auth/sessionQuery'
 import { StageEyebrow } from '../projects/StageEyebrow'
 import { DynamicForm } from './DynamicForm'
+import { FieldEditForm } from './FieldEditForm'
 import {
   buildScoring,
   describeRatingScale,
   fieldTypeLabels,
-  fieldTypes,
   parseOptions,
   selectFieldTypes,
-  weightedFieldTypes,
 } from './fieldTypes'
+import { NewFieldDraftCard } from './NewFieldDraftCard'
+import type { FormField, ReviewForm } from './types'
+import { useFormFieldEditor } from './useFormFieldEditor'
 import {InfoBox} from "../../components/InfoBox";
-import { cn } from '../../lib/cn'
-import { llmSchemaContentClass, llmSchemaFieldClass, llmSchemaFieldsClass, llmSchemaMappingClass, llmSchemaPreviewClass, llmSchemaSummaryClass, llmSchemaTitleClass } from '../llm/llmStyles'
 
 const formBuilderSections = [
   { id: 'section-create-form', label: 'Create Project Form' },
   { id: 'section-edit-form', label: 'Edit a Form' },
   { id: 'section-manage-templates', label: 'Manage Templates' },
 ]
-
-interface ReviewForm {
-  id: string
-  name: string
-  kind: string
-  isTemplate: boolean
-  activeVersionId: string | null
-}
-
-interface FormField {
-  id: string
-  stableKey: string
-  label: string
-  fieldType: string
-  required: boolean
-  position: number
-  isArchived: boolean
-  options: string[]
-  scoring: Record<string, unknown>
-}
 
 export function FormBuilderPage() {
   const { projectId = '' } = useParams()
@@ -72,33 +45,6 @@ export function FormBuilderPage() {
   const [templateName, setTemplateName] = useState('')
   const [selectedForm, setSelectedForm] = useState('')
   const [selectedFormName, setSelectedFormName] = useState('')
-  const [fieldLabel, setFieldLabel] = useState('')
-  const [fieldType, setFieldType] = useState('long_text')
-  const [required, setRequired] = useState(false)
-  const [optionsText, setOptionsText] = useState('')
-  const [ratingMin, setRatingMin] = useState('1')
-  const [ratingMax, setRatingMax] = useState('5')
-  const [weight, setWeight] = useState('')
-  const [optionScores, setOptionScores] = useState<Record<string, string>>({})
-  const [trueScore, setTrueScore] = useState('')
-  const [falseScore, setFalseScore] = useState('')
-  const [addingField, setAddingField] = useState(false)
-
-  const [editingKey, setEditingKey] = useState<string | null>(null)
-  const [editingLabel, setEditingLabel] = useState('')
-  const [editingType, setEditingType] = useState('long_text')
-  const [editingRequired, setEditingRequired] = useState(false)
-  const [editingOptionsText, setEditingOptionsText] = useState('')
-  const [editingRatingMin, setEditingRatingMin] = useState('1')
-  const [editingRatingMax, setEditingRatingMax] = useState('5')
-  const [editingWeight, setEditingWeight] = useState('')
-  const [editingOptionScores, setEditingOptionScores] = useState<Record<string, string>>({})
-  const [editingTrueScore, setEditingTrueScore] = useState('')
-  const [editingFalseScore, setEditingFalseScore] = useState('')
-  const [fieldOrder, setFieldOrder] = useState<string[]>([])
-  const [draggedFieldKey, setDraggedFieldKey] = useState<string | null>(null)
-  const [dragOverFieldKey, setDragOverFieldKey] = useState<string | null>(null)
-  const [previewAnswers, setPreviewAnswers] = useState<Record<string, unknown>>({})
 
   const forms = useQuery({
     queryKey: ['forms', projectId],
@@ -119,9 +65,6 @@ export function FormBuilderPage() {
     ),
     enabled: Boolean(selectedForm) && canManage,
   })
-  useEffect(() => {
-    setFieldOrder(fields.data?.map((field) => field.stableKey) ?? [])
-  }, [fields.data])
   const templateCatalog = templates.data?.filter((template) => template.isTemplate) ?? []
   const templatesForKind = templateCatalog.filter((template) => template.kind === kind)
   const existingFormOfKind = forms.data?.find((form) => !form.isTemplate && form.kind === kind)
@@ -136,6 +79,7 @@ export function FormBuilderPage() {
 
   useEffect(() => {
     setAddingField(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedForm])
 
   const createForm = useMutation({
@@ -175,6 +119,34 @@ export function FormBuilderPage() {
   })
   const selectedFormKind = selectedFormDefinition?.kind
   const isQualityForm = selectedFormKind === 'quality'
+
+  const saveFieldOrder = useMutation({
+    mutationFn: ({ stableKey, position }: { stableKey: string; position: number }) => apiRequest<FormField>(
+      `/api/v1/forms/${selectedForm}/fields/${stableKey}`,
+      { method: 'PATCH', body: JSON.stringify({ position }) },
+    ),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['form-fields', selectedForm] }),
+    onError: () => queryClient.invalidateQueries({ queryKey: ['form-fields', selectedForm] }),
+  })
+
+  const {
+    fieldLabel, setFieldLabel, fieldType, setFieldType, required, setRequired,
+    optionsText, setOptionsText, ratingMin, setRatingMin, ratingMax, setRatingMax,
+    weight, setWeight, optionScores, setOptionScores, trueScore, setTrueScore,
+    falseScore, setFalseScore, addingField, setAddingField,
+    editingKey, setEditingKey, editingLabel, setEditingLabel, editingType, setEditingType,
+    editingRequired, setEditingRequired, editingOptionsText, setEditingOptionsText,
+    editingRatingMin, setEditingRatingMin, editingRatingMax, setEditingRatingMax,
+    editingWeight, setEditingWeight, editingOptionScores, setEditingOptionScores,
+    editingTrueScore, setEditingTrueScore, editingFalseScore, setEditingFalseScore,
+    fieldOrder, draggedFieldKey, setDraggedFieldKey, dragOverFieldKey, setDragOverFieldKey,
+    previewAnswers, setPreviewAnswers,
+    beginEditingField, moveFieldTo, orderedFields, resetNewField, cancelEditing,
+  } = useFormFieldEditor(
+    fields.data,
+    (stableKey, position) => saveFieldOrder.mutate({ stableKey, position }),
+  )
+
   const showOptions = selectFieldTypes.has(fieldType)
   const showRatingScale = fieldType === 'rating'
   const options = parseOptions(optionsText)
@@ -195,15 +167,7 @@ export function FormBuilderPage() {
       },
     ),
     onSuccess: () => {
-      setFieldLabel('')
-      setRequired(false)
-      setOptionsText('')
-      setRatingMin('1')
-      setRatingMax('5')
-      setWeight('')
-      setOptionScores({})
-      setTrueScore('')
-      setFalseScore('')
+      resetNewField()
       setAddingField(false)
       queryClient.invalidateQueries({
         queryKey: ['form-fields', selectedForm],
@@ -244,14 +208,6 @@ export function FormBuilderPage() {
       queryClient.invalidateQueries({ queryKey: ['form-fields', selectedForm] })
     },
   })
-  const saveFieldOrder = useMutation({
-    mutationFn: ({ stableKey, position }: { stableKey: string; position: number }) => apiRequest<FormField>(
-      `/api/v1/forms/${selectedForm}/fields/${stableKey}`,
-      { method: 'PATCH', body: JSON.stringify({ position }) },
-    ),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['form-fields', selectedForm] }),
-    onError: () => queryClient.invalidateQueries({ queryKey: ['form-fields', selectedForm] }),
-  })
   const deleteField = useMutation({
     mutationFn: (stableKey: string) => apiRequest<FormField>(
       `/api/v1/forms/${selectedForm}/fields/${stableKey}`,
@@ -275,86 +231,36 @@ export function FormBuilderPage() {
       queryClient.invalidateQueries({ queryKey: ['form-templates'] })
     },
   })
-  const beginEditingField = (field: FormField) => {
-    const scoring = field.scoring ?? {}
-    const scoreValues = typeof scoring.values === 'object' && scoring.values !== null
-      ? scoring.values as Record<string, unknown>
-      : {}
-    setEditingKey(field.stableKey)
-    setEditingLabel(field.label)
-    setEditingType(field.fieldType)
-    setEditingRequired(field.required)
-    setEditingOptionsText(field.options.join('\n'))
-    setEditingRatingMin(field.options[0] ?? '1')
-    setEditingRatingMax(field.options[1] ?? '5')
-    setEditingWeight(scoring.weight == null ? '' : String(scoring.weight))
-    setEditingOptionScores(Object.fromEntries(
-      Object.entries(scoreValues).map(([option, score]) => [option, String(score)]),
-    ))
-    setEditingTrueScore(scoring.true == null ? '' : String(scoring.true))
-    setEditingFalseScore(scoring.false == null ? '' : String(scoring.false))
-  }
-
-  const moveFieldTo = (stableKey: string, targetStableKey: string) => {
-    const sourceIndex = fieldOrder.indexOf(stableKey)
-    const targetIndex = fieldOrder.indexOf(targetStableKey)
-    if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return
-    const next = [...fieldOrder]
-    next.splice(sourceIndex, 1)
-    next.splice(targetIndex, 0, stableKey)
-    setFieldOrder(next)
-    saveFieldOrder.mutate({ stableKey, position: targetIndex })
-  }
-
-  const orderedFields = [...(fields.data ?? [])].sort((left, right) => {
-    const leftIndex = fieldOrder.indexOf(left.stableKey)
-    const rightIndex = fieldOrder.indexOf(right.stableKey)
-    return (leftIndex < 0 ? Number.MAX_SAFE_INTEGER : leftIndex)
-      - (rightIndex < 0 ? Number.MAX_SAFE_INTEGER : rightIndex)
-  })
 
   const mutationError = createForm.error ?? addField.error ?? updateField.error ?? saveFieldOrder.error
     ?? deleteField.error ?? saveAsTemplate.error ?? deleteForm.error ?? renameForm.error
   const activeFields = orderedFields.filter((field) => !field.isArchived)
 
-  const resetNewField = () => {
-    setFieldLabel('')
-    setFieldType('long_text')
-    setRequired(false)
-    setOptionsText('')
-    setRatingMin('1')
-    setRatingMax('5')
-    setWeight('')
-    setOptionScores({})
-    setTrueScore('')
-    setFalseScore('')
-  }
-
   if (canManageLoading) {
-    return <Page><p>Loading…</p></Page>
+    return <main className="page"><p>Loading…</p></main>
   }
   if (!canManage) {
     return (
-      <Page>
+      <main className="page">
         <h1>Forms and Templates</h1>
-        <p className="text-danger" role="alert">
+        <p className="error" role="alert">
           Only the project owner or an administrator can manage forms and templates.
         </p>
-      </Page>
+      </main>
     )
   }
 
   return (
-    <Page>
+    <main className="page">
       <StageEyebrow stage="draft" />
       <h1>Forms and Templates</h1>
-      <p className="text-text-muted">
+      <p className="muted">
         Build and manage this project's extraction and quality assessment forms, and save
         reusable field templates.
       </p>
-      {forms.error ? <p className="text-danger" role="alert">{forms.error.message}</p> : null}
-      {mutationError ? <p className="text-danger" role="alert">{mutationError.message}</p> : null}
-      <Card as="section" id="section-create-form">
+      {forms.error ? <p className="error" role="alert">{forms.error.message}</p> : null}
+      {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
+      <section id="section-create-form" className="card">
         <h2>Create Project Form</h2>
         <InfoBox icon={<IconCheckCircle />}>
           <p>
@@ -364,24 +270,24 @@ export function FormBuilderPage() {
         </InfoBox>
         <label>
           Kind
-          <Select
+          <select
             value={kind}
             onChange={(event) => { setKind(event.target.value); setTemplateId('') }}
           >
             <option value="extraction">Extraction</option>
             <option value="quality">Quality assessment</option>
-          </Select>
+          </select>
         </label>
         {existingFormOfKind ? (
-          <div className="grid gap-3 [&>p]:m-0">
+          <div className="form-editor-existing-form">
             <p>
               This project already has {kind === 'quality' ? 'a quality assessment' : 'an extraction'} form:{' '}
               <strong>{existingFormOfKind.name}</strong>.
             </p>
-            <div className="flex flex-wrap gap-3">
-              <Button type="button" variant="secondary" onClick={() => setSelectedForm(existingFormOfKind.id)}>
+            <div className="toolbar form-editor-existing-form__actions">
+              <button type="button" onClick={() => setSelectedForm(existingFormOfKind.id)}>
                 Edit It Below
-              </Button>
+              </button>
               <ConfirmButton
                 label="Remove It"
                 confirmLabel="Remove Form"
@@ -397,27 +303,27 @@ export function FormBuilderPage() {
           <form onSubmit={(event) => { event.preventDefault(); createForm.mutate() }}>
             <label>
               Name
-              <Input value={name} onChange={(event) => setName(event.target.value)} />
+              <input value={name} onChange={(event) => setName(event.target.value)} />
             </label>
             <label>
               Start from template (optional)
-              <Select value={templateId} onChange={(event) => setTemplateId(event.target.value)}>
+              <select value={templateId} onChange={(event) => setTemplateId(event.target.value)}>
                 <option value="">From scratch</option>
                 {templatesForKind.map((template) => (
                   <option key={template.id} value={template.id}>{template.name}</option>
                 ))}
-              </Select>
+              </select>
             </label>
-            {templates.error ? <p className="text-danger" role="alert">{templates.error.message}</p> : null}
+            {templates.error ? <p className="error" role="alert">{templates.error.message}</p> : null}
             <Button type="submit" variant="primary" loading={createForm.isPending}><IconPlus />Create Form</Button>
           </form>
         )}
-      </Card>
-      <Card as="section" id="section-edit-form">
+      </section>
+      <section id="section-edit-form" className="card">
         <h2>Inspect or Edit a Form</h2>
         <label>
           Form to edit
-          <Select
+          <select
             value={selectedForm}
             onChange={(event) => setSelectedForm(event.target.value)}
           >
@@ -436,25 +342,25 @@ export function FormBuilderPage() {
                 </option>
               ))}
             </optgroup>
-          </Select>
+          </select>
         </label>
         {selectedForm ? (
           <>
-            <div className="my-6 grid items-start gap-4 border-b border-border pb-4">
+            <div className="form-editor-selection-heading">
               <div>
-                <span className="block text-base font-bold tracking-[0.02em] text-primary">
+                <span className="form-editor-selection-type">
                   {isTemplateSelected ? 'Reusable template' : 'Project form'}
                 </span>
                 {selectedFormReadOnly ? <h3>{selectedFormDefinition?.name}</h3> : null}
               </div>
               {!selectedFormReadOnly ? (
                 <form
-                  className="m-0 flex w-full flex-col items-stretch gap-3 min-[681px]:flex-row min-[681px]:items-end [&_label]:min-w-0 [&_label]:flex-1"
+                  className="form-editor-rename"
                   onSubmit={(event) => { event.preventDefault(); renameForm.mutate() }}
                 >
                   <label>
                     Name
-                    <Input
+                    <input
                       value={selectedFormName}
                       onChange={(event) => setSelectedFormName(event.target.value)}
                       required
@@ -467,22 +373,18 @@ export function FormBuilderPage() {
               ) : null}
             </div>
             {selectedFormReadOnly ? (
-              <p className="text-text-muted">Templates are read-only unless you are an installation administrator.</p>
+              <p className="muted">Templates are read-only unless you are an installation administrator.</p>
             ) : null}
             <h3>Fields</h3>
-            {fields.error ? <p className="text-danger" role="alert">{fields.error.message}</p> : null}
-            {fields.data?.length === 0 && selectedFormReadOnly ? <p className="text-text-muted">No fields added yet.</p> : (
-              <div className={llmSchemaFieldsClass}>
-                {fields.data?.length === 0 && !addingField ? <p className="text-text-muted">No fields added yet.</p> : null}
+            {fields.error ? <p className="error" role="alert">{fields.error.message}</p> : null}
+            {fields.data?.length === 0 && selectedFormReadOnly ? <p className="muted">No fields added yet.</p> : (
+              <div className="llm-schema-fields form-editor-fields">
+                {fields.data?.length === 0 && !addingField ? <p className="muted">No fields added yet.</p> : null}
                 {orderedFields.map((field) => {
-                  const editingOptions = parseOptions(editingOptionsText)
                   const fieldIndex = activeFields.findIndex((item) => item.stableKey === field.stableKey)
                   return (
                   <details
-                    className={llmSchemaFieldClass({ dragging: draggedFieldKey === field.stableKey, dragOver: dragOverFieldKey === field.stableKey })}
-                    data-ui="form-editor-field"
-                    data-dragging={draggedFieldKey === field.stableKey || undefined}
-                    data-drag-over={dragOverFieldKey === field.stableKey || undefined}
+                    className={`llm-schema-field form-editor-field${draggedFieldKey === field.stableKey ? ' llm-schema-field--dragging' : ''}${dragOverFieldKey === field.stableKey ? ' llm-schema-field--drag-over' : ''}`}
                     key={field.id}
                     data-field-sort-key={field.isArchived ? undefined : field.stableKey}
                     open={field.isArchived ? undefined : editingKey === field.stableKey}
@@ -502,7 +404,7 @@ export function FormBuilderPage() {
                     }}
                   >
                     <summary
-                      className={llmSchemaSummaryClass}
+                      className="llm-schema-field__summary"
                       onClick={(event) => {
                         if (field.isArchived) return
                         if (selectedFormReadOnly) return
@@ -514,21 +416,21 @@ export function FormBuilderPage() {
                         }
                       }}
                     >
-                      <span className={llmSchemaTitleClass}>
+                      <span className="llm-schema-field__title">
                         <strong>{field.label}</strong>
-                        <Badge variant="plain">
+                        <span className="status-badge">
                           {fieldTypeLabels[field.fieldType] ?? field.fieldType}
                           {field.fieldType === 'rating' ? ` (${describeRatingScale(field.options)})` : ''}
-                        </Badge>
-                        {field.required ? <Badge variant="plain">Required</Badge> : null}
-                        {field.isArchived ? <Badge variant="plain">Archived</Badge> : null}
+                        </span>
+                        {field.required ? <span className="status-badge">Required</span> : null}
+                        {field.isArchived ? <span className="status-badge">Archived</span> : null}
                       </span>
-                      <span className={llmSchemaMappingClass}>
+                      <span className="llm-schema-field__mapping">
                         {field.isArchived
                           ? 'Archived field retained for historical submissions'
                           : field.required ? 'Reviewers must complete this field' : 'Optional for reviewers'}
                       </span>
-                      <span className={llmSchemaPreviewClass}>
+                      <span className="llm-schema-field__preview">
                         {field.fieldType === 'rating'
                           ? `Rating scale ${describeRatingScale(field.options)}`
                           : selectFieldTypes.has(field.fieldType)
@@ -570,165 +472,61 @@ export function FormBuilderPage() {
                         />
                       ) : null}
                     </summary>
-                    <div className={llmSchemaContentClass}>
+                    <div className="llm-schema-field__content">
                       {editingKey === field.stableKey ? (
-                        <>
-                          <label>
-                            Label
-                            <Input
-                              aria-label={`Edit label for ${field.label}`}
-                              value={editingLabel}
-                              onChange={(event) => setEditingLabel(event.target.value)}
-                            />
-                          </label>
-                          <label>
-                            Type
-                            <Select
-                              aria-label={`Edit type for ${field.label}`}
-                              value={editingType}
-                              onChange={(event) => setEditingType(event.target.value)}
-                            >
-                              {fieldTypes.map((type) => (
-                                <option key={type} value={type}>{fieldTypeLabels[type] ?? type}</option>
-                              ))}
-                            </Select>
-                          </label>
-                          <label>
-                            <Input
-                              type="checkbox"
-                              aria-label={`Edit required for ${field.label}`}
-                              checked={editingRequired}
-                              onChange={(event) => setEditingRequired(event.target.checked)}
-                            />
-                            Required
-                          </label>
-                          {selectFieldTypes.has(editingType) ? (
-                            <label>
-                              Options (one per line)
-                              <Textarea
-                                aria-label={`Edit options for ${field.label}`}
-                                value={editingOptionsText}
-                                onChange={(event) => setEditingOptionsText(event.target.value)}
-                                rows={4}
-                              />
-                            </label>
-                          ) : null}
-                          {editingType === 'rating' ? (
-                            <div className="grid grid-cols-1 gap-4 min-[681px]:grid-cols-2">
-                              <label>
-                                Scale minimum
-                                <Input
-                                  type="number"
-                                  aria-label={`Edit scale minimum for ${field.label}`}
-                                  value={editingRatingMin}
-                                  onChange={(event) => setEditingRatingMin(event.target.value)}
-                                />
-                              </label>
-                              <label>
-                                Scale maximum
-                                <Input
-                                  type="number"
-                                  aria-label={`Edit scale maximum for ${field.label}`}
-                                  value={editingRatingMax}
-                                  onChange={(event) => setEditingRatingMax(event.target.value)}
-                                />
-                              </label>
-                            </div>
-                          ) : null}
-                          {isQualityForm && weightedFieldTypes.has(editingType) ? (
-                            <label>
-                              Score weight
-                              <Input
-                                type="number"
-                                aria-label={`Edit score weight for ${field.label}`}
-                                value={editingWeight}
-                                onChange={(event) => setEditingWeight(event.target.value)}
-                              />
-                            </label>
-                          ) : null}
-                          {isQualityForm && editingType === 'single_select' ? (
-                            <fieldset>
-                              <legend>Score per option</legend>
-                              {editingOptions.length === 0 ? <p className="text-text-muted">Add options above first.</p> : null}
-                              {editingOptions.map((option) => (
-                                <label key={option}>
-                                  {option}
-                                  <Input
-                                    type="number"
-                                    aria-label={`Edit score for ${option}`}
-                                    value={editingOptionScores[option] ?? ''}
-                                    onChange={(event) => setEditingOptionScores((current) => ({
-                                      ...current,
-                                      [option]: event.target.value,
-                                    }))}
-                                  />
-                                </label>
-                              ))}
-                            </fieldset>
-                          ) : null}
-                          {isQualityForm && editingType === 'checkbox' ? (
-                            <div className="grid grid-cols-1 gap-4 min-[681px]:grid-cols-2">
-                              <label>
-                                Score if checked
-                                <Input
-                                  type="number"
-                                  aria-label={`Edit checked score for ${field.label}`}
-                                  value={editingTrueScore}
-                                  onChange={(event) => setEditingTrueScore(event.target.value)}
-                                />
-                              </label>
-                              <label>
-                                Score if unchecked
-                                <Input
-                                  type="number"
-                                  aria-label={`Edit unchecked score for ${field.label}`}
-                                  value={editingFalseScore}
-                                  onChange={(event) => setEditingFalseScore(event.target.value)}
-                                />
-                              </label>
-                            </div>
-                          ) : null}
-                          <div className={toolbarClass}>
-                            <Button
-                              type="button"
-                              disabled={updateField.isPending}
-                              onClick={() => {
-                                const nextOptions = selectFieldTypes.has(editingType)
-                                  ? editingOptions
-                                  : editingType === 'rating' ? [editingRatingMin, editingRatingMax] : []
-                                updateField.mutate({
-                                  stableKey: field.stableKey,
-                                  label: editingLabel,
-                                  fieldType: editingType,
-                                  originalFieldType: field.fieldType,
-                                  required: editingRequired,
-                                  position: fieldOrder.indexOf(field.stableKey),
-                                  options: nextOptions,
-                                  scoring: buildScoring({
-                                    isQualityForm,
-                                    fieldType: editingType,
-                                    weight: editingWeight,
-                                    options: nextOptions,
-                                    optionScores: editingOptionScores,
-                                    trueScore: editingTrueScore,
-                                    falseScore: editingFalseScore,
-                                  }),
-                                })
-                              }}
-                            >
-                              <IconCheckCircle />
-                              Save
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="secondary"
-                              onClick={() => {
-                                setEditingKey(null)
-                                setFieldOrder(fields.data?.map((item) => item.stableKey) ?? [])
-                              }}
-                            >
-                              Cancel
-                            </Button>
+                        <FieldEditForm
+                          field={field}
+                          isQualityForm={isQualityForm}
+                          editingLabel={editingLabel}
+                          editingType={editingType}
+                          editingRequired={editingRequired}
+                          editingOptionsText={editingOptionsText}
+                          editingRatingMin={editingRatingMin}
+                          editingRatingMax={editingRatingMax}
+                          editingWeight={editingWeight}
+                          editingOptionScores={editingOptionScores}
+                          editingTrueScore={editingTrueScore}
+                          editingFalseScore={editingFalseScore}
+                          onEditingLabelChange={setEditingLabel}
+                          onEditingTypeChange={setEditingType}
+                          onEditingRequiredChange={setEditingRequired}
+                          onEditingOptionsTextChange={setEditingOptionsText}
+                          onEditingRatingMinChange={setEditingRatingMin}
+                          onEditingRatingMaxChange={setEditingRatingMax}
+                          onEditingWeightChange={setEditingWeight}
+                          onEditingOptionScoreChange={(option, value) => setEditingOptionScores((current) => ({
+                            ...current,
+                            [option]: value,
+                          }))}
+                          onEditingTrueScoreChange={setEditingTrueScore}
+                          onEditingFalseScoreChange={setEditingFalseScore}
+                          saving={updateField.isPending}
+                          onSave={() => {
+                            const editingOptions = parseOptions(editingOptionsText)
+                            const nextOptions = selectFieldTypes.has(editingType)
+                              ? editingOptions
+                              : editingType === 'rating' ? [editingRatingMin, editingRatingMax] : []
+                            updateField.mutate({
+                              stableKey: field.stableKey,
+                              label: editingLabel,
+                              fieldType: editingType,
+                              originalFieldType: field.fieldType,
+                              required: editingRequired,
+                              position: fieldOrder.indexOf(field.stableKey),
+                              options: nextOptions,
+                              scoring: buildScoring({
+                                isQualityForm,
+                                fieldType: editingType,
+                                weight: editingWeight,
+                                options: nextOptions,
+                                optionScores: editingOptionScores,
+                                trueScore: editingTrueScore,
+                                falseScore: editingFalseScore,
+                              }),
+                            })
+                          }}
+                          onCancel={cancelEditing}
+                          trailingAction={!field.isArchived ? (
                             <ConfirmButton
                               label="Archive"
                               confirmLabel="Archive Field"
@@ -737,10 +535,10 @@ export function FormBuilderPage() {
                               disabled={deleteField.isPending}
                               variant="danger"
                             />
-                          </div>
-                        </>
+                          ) : null}
+                        />
                       ) : field.isArchived ? (
-                        <p className="text-text-muted">
+                        <p className="muted">
                           This field is no longer shown on new submissions. Previously recorded values are preserved.
                         </p>
                       ) : null}
@@ -749,158 +547,61 @@ export function FormBuilderPage() {
                   )
                 })}
                 {!selectedFormReadOnly && addingField ? (
-                  <div className={llmSchemaFieldClass({ draft: true })} data-ui="form-editor-field" data-draft="true">
-                    <div className={cn(llmSchemaSummaryClass, 'cursor-default')}>
-                      <span className={llmSchemaTitleClass}>
-                        <strong>{fieldLabel.trim() || 'New field'}</strong>
-                        <Badge variant="plain">{fieldTypeLabels[fieldType] ?? fieldType}</Badge>
-                        {required ? <Badge variant="plain">Required</Badge> : null}
-                      </span>
-                      <span className={llmSchemaMappingClass}>
-                        {required ? 'Reviewers must complete this field' : 'Optional for reviewers'}
-                      </span>
-                      <span className={llmSchemaPreviewClass}>Configure the new response field below.</span>
-                    </div>
-                    <form
-                      className={cn(llmSchemaContentClass, 'grid-cols-1')}
-                      onSubmit={(event) => { event.preventDefault(); addField.mutate() }}
-                    >
-                      <label>
-                        Label
-                        <Input
-                          value={fieldLabel}
-                          onChange={(event) => setFieldLabel(event.target.value)}
-                          autoFocus
-                          required
-                        />
-                      </label>
-                      <label>
-                        Type
-                        <Select value={fieldType} onChange={(event) => setFieldType(event.target.value)}>
-                          {fieldTypes.map((type) => (
-                            <option key={type} value={type}>{fieldTypeLabels[type] ?? type}</option>
-                          ))}
-                        </Select>
-                      </label>
-                      <label>
-                        <Input
-                          type="checkbox"
-                          checked={required}
-                          onChange={(event) => setRequired(event.target.checked)}
-                        />
-                        Required
-                      </label>
-                      {showOptions ? (
-                        <label>
-                          Options (one per line)
-                          <Textarea
-                            value={optionsText}
-                            onChange={(event) => setOptionsText(event.target.value)}
-                            rows={4}
-                          />
-                        </label>
-                      ) : null}
-                      {showRatingScale ? (
-                        <div className="grid grid-cols-1 gap-4 min-[681px]:grid-cols-2">
-                          <label>
-                            Scale minimum
-                            <Input
-                              type="number"
-                              value={ratingMin}
-                              onChange={(event) => setRatingMin(event.target.value)}
-                            />
-                          </label>
-                          <label>
-                            Scale maximum
-                            <Input
-                              type="number"
-                              value={ratingMax}
-                              onChange={(event) => setRatingMax(event.target.value)}
-                            />
-                          </label>
-                        </div>
-                      ) : null}
-                      {isQualityForm && weightedFieldTypes.has(fieldType) ? (
-                        <label>
-                          Score weight
-                          <Input type="number" value={weight} onChange={(event) => setWeight(event.target.value)} />
-                        </label>
-                      ) : null}
-                      {isQualityForm && fieldType === 'single_select' ? (
-                        <fieldset>
-                          <legend>Score per option</legend>
-                          {options.length === 0 ? <p className="text-text-muted">Add options above first.</p> : null}
-                          {options.map((option) => (
-                            <label key={option}>
-                              {option}
-                              <Input
-                                type="number"
-                                value={optionScores[option] ?? ''}
-                                onChange={(event) => setOptionScores((current) => ({
-                                  ...current,
-                                  [option]: event.target.value,
-                                }))}
-                              />
-                            </label>
-                          ))}
-                        </fieldset>
-                      ) : null}
-                      {isQualityForm && fieldType === 'checkbox' ? (
-                        <div className="grid grid-cols-1 gap-4 min-[681px]:grid-cols-2">
-                          <label>
-                            Score if checked
-                            <Input type="number" value={trueScore} onChange={(event) => setTrueScore(event.target.value)} />
-                          </label>
-                          <label>
-                            Score if unchecked
-                            <Input type="number" value={falseScore} onChange={(event) => setFalseScore(event.target.value)} />
-                          </label>
-                        </div>
-                      ) : null}
-                      <div className={toolbarClass}>
-                        <Button
-                          type="submit"
-                          variant="primary"
-                          loading={addField.isPending}
-                          disabled={!fieldLabel.trim()}
-                        >
-                          <IconCheckCircle />Save Field
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="secondary"
-                          disabled={addField.isPending}
-                          onClick={() => { addField.reset(); resetNewField(); setAddingField(false) }}
-                        >
-                          Cancel
-                        </Button>
-                      </div>
-                    </form>
-                  </div>
+                  <NewFieldDraftCard
+                    fieldLabel={fieldLabel}
+                    fieldType={fieldType}
+                    required={required}
+                    optionsText={optionsText}
+                    ratingMin={ratingMin}
+                    ratingMax={ratingMax}
+                    weight={weight}
+                    optionScores={optionScores}
+                    trueScore={trueScore}
+                    falseScore={falseScore}
+                    isQualityForm={isQualityForm}
+                    showOptions={showOptions}
+                    showRatingScale={showRatingScale}
+                    options={options}
+                    onFieldLabelChange={setFieldLabel}
+                    onFieldTypeChange={setFieldType}
+                    onRequiredChange={setRequired}
+                    onOptionsTextChange={setOptionsText}
+                    onRatingMinChange={setRatingMin}
+                    onRatingMaxChange={setRatingMax}
+                    onWeightChange={setWeight}
+                    onOptionScoreChange={(option, value) => setOptionScores((current) => ({
+                      ...current,
+                      [option]: value,
+                    }))}
+                    onTrueScoreChange={setTrueScore}
+                    onFalseScoreChange={setFalseScore}
+                    onSubmit={() => addField.mutate()}
+                    onCancel={() => { addField.reset(); resetNewField(); setAddingField(false) }}
+                    saving={addField.isPending}
+                  />
                 ) : null}
                 {!selectedFormReadOnly ? (
-                  <IconButton
-                    variant="secondary"
-                    size="sm"
-                    className="size-[30px]! min-w-[30px]! min-h-[30px]! justify-self-start rounded-full! [&_svg]:size-4!"
+                  <button
+                    type="button"
+                    className="icon-button icon-button--round form-editor-fields__add-button"
                     aria-label="Add form field"
                     title="Add form field"
                     disabled={addingField || addField.isPending}
                     onClick={() => { addField.reset(); resetNewField(); setAddingField(true) }}
                   >
                     <IconPlus />
-                  </IconButton>
+                  </button>
                 ) : null}
               </div>
             )}
             {!isTemplateSelected ? (
             <>
             <h3>Save as Reusable Template</h3>
-            <p className="text-text-muted">Saves the current fields as a new template. Later edits to this project form won't affect the template, or vice versa.</p>
+            <p className="muted">Saves the current fields as a new template. Later edits to this project form won't affect the template, or vice versa.</p>
             <form onSubmit={(event) => { event.preventDefault(); saveAsTemplate.mutate() }}>
               <label>
                 Template name
-                <Input
+                <input
                   value={templateName}
                   onChange={(event) => setTemplateName(event.target.value)}
                   placeholder={forms.data?.find((form) => form.id === selectedForm)?.name ?? ''}
@@ -914,7 +615,7 @@ export function FormBuilderPage() {
             {activeFields.length ? (
               <>
                 <h3>Preview</h3>
-                <Card>
+                <div className="card">
                   <DynamicForm
                     fields={activeFields.map((field) => ({
                       stableKey: field.stableKey,
@@ -926,65 +627,63 @@ export function FormBuilderPage() {
                     value={previewAnswers}
                     onChange={(key, value) => setPreviewAnswers((current) => ({ ...current, [key]: value }))}
                   />
-                </Card>
+                </div>
               </>
             ) : null}
           </>
         ) : null}
-      </Card>
-      <Card as="section" id="section-manage-templates">
-        <div className="mb-5 flex items-start justify-between gap-4">
+      </section>
+      <section id="section-manage-templates" className="card form-template-manager">
+        <div className="form-template-manager__heading">
           <div>
             <h2>Manage Templates</h2>
           </div>
-          <CountPill count={templateCatalog.length} className="mb-0">
+          <CountPill count={templateCatalog.length}>
             template{templateCatalog.length === 1 ? '' : 's'}
           </CountPill>
         </div>
-        {templates.error ? <p className="text-danger" role="alert">{templates.error.message}</p> : null}
-        {templates.isLoading ? <p className="text-text-muted">Loading templates…</p> : null}
+        {templates.error ? <p className="error" role="alert">{templates.error.message}</p> : null}
+        {templates.isLoading ? <p className="muted">Loading templates…</p> : null}
         {templateCatalog.length === 0 ? (
-          <div className="grid justify-items-center rounded-md border border-dashed border-border-strong p-8 text-center">
+          <div className="empty-state form-template-manager__empty">
             <h3>No reusable templates yet</h3>
             <p>Open a project form above and save it as a template to build your catalog.</p>
           </div>
         ) : (
-          <ul className="m-0 grid list-none gap-4 p-0" aria-label="Form templates">
+          <ul className="form-template-grid" aria-label="Form templates">
             {templateCatalog.map((template) => (
-              <Card as="li" key={template.id}>
-                <div className="grid min-w-0 grid-cols-1 items-center gap-5 min-[681px]:grid-cols-[minmax(0,1fr)_auto]">
-                  <div>
-                    <span className="text-[0.72rem] font-bold uppercase tracking-[0.07em] text-primary">
-                      {template.kind === 'quality' ? 'Quality assessment' : 'Extraction'}
-                    </span>
-                    <h3 className="my-2">{template.name}</h3>
-                  </div>
-                  <div className="flex flex-wrap gap-3 min-[681px]:justify-self-end" data-template-actions>
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={() => setSelectedForm(template.id)}
-                    >
-                      {isAdmin ? 'Inspect & Edit' : 'Inspect'}
-                    </Button>
-                    {isAdmin ? (
-                      <ConfirmButton
-                        label="Remove"
-                        confirmLabel="Remove Template"
-                        warning={`Remove the "${template.name}" template? Existing project forms created from it won't be affected.`}
-                        onConfirm={() => deleteForm.mutate(template.id)}
-                        disabled={deleteForm.isPending}
-                        variant="danger"
-                        icon={<IconTrash />}
-                      />
-                    ) : null}
-                  </div>
+              <li className="form-template-card" key={template.id}>
+                <div>
+                  <span className="form-template-card__kind">
+                    {template.kind === 'quality' ? 'Quality assessment' : 'Extraction'}
+                  </span>
+                  <h3>{template.name}</h3>
                 </div>
-              </Card>
+                <div className="toolbar form-template-card__actions">
+                  <button
+                    type="button"
+                    className="button-secondary"
+                    onClick={() => setSelectedForm(template.id)}
+                  >
+                    {isAdmin ? 'Inspect & Edit' : 'Inspect'}
+                  </button>
+                  {isAdmin ? (
+                    <ConfirmButton
+                      label="Remove"
+                      confirmLabel="Remove Template"
+                      warning={`Remove the "${template.name}" template? Existing project forms created from it won't be affected.`}
+                      onConfirm={() => deleteForm.mutate(template.id)}
+                      disabled={deleteForm.isPending}
+                      variant="danger"
+                      icon={<IconTrash />}
+                    />
+                  ) : null}
+                </div>
+              </li>
             ))}
           </ul>
         )}
-      </Card>
-    </Page>
+      </section>
+    </main>
   )
 }

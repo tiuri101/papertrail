@@ -12,6 +12,7 @@ import { InfoBox } from '../../components/InfoBox'
 import { Input } from '../../components/Input'
 import { Select } from '../../components/Select'
 import type { User } from '../auth/types'
+import type { ProjectMembers as ProjectMembersOf } from './types'
 
 type RoleKey =
   | 'canTitleAbstractScreen'
@@ -26,10 +27,7 @@ interface Membership extends Record<RoleKey, boolean> {
   workloadWeight: number
 }
 
-interface ProjectMembers {
-  id: string
-  memberships: Membership[]
-}
+type ProjectMembers = ProjectMembersOf<Membership>
 
 const ROLE_FIELDS: Array<[RoleKey, string]> = [
   ['canTitleAbstractScreen', 'Title/abstract screening'],

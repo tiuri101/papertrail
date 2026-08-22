@@ -1,29 +1,18 @@
-import { toolbarClass } from '../../components/layoutStyles'
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { useEffect, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
-import { Button } from '../../components/Button'
-import { cardStyles } from '../../components/Card'
-import { DoiPill } from '../../components/DoiPill'
 import { IconArrowRight, IconCheckCircle, IconRestart } from '../../components/icons'
-import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
-import { PublisherLinkPill } from '../../components/PublisherLinkPill'
 import { isAnswered, normalizeForSuggestionMatch } from '../forms/answers'
-import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { DynamicForm, type DynamicFormField } from '../forms/DynamicForm'
-import { fullTextDocumentEndpoint, useFullTextDocument } from '../fulltext/useFullTextDocument'
+import { useFullTextDocument } from '../fulltext/useFullTextDocument'
 import { LlmAssistanceHeading, LlmEvidence, type LlmEvidenceItem } from '../llm/LlmTaskComponents'
-import { llmPanelClass, llmPanelHeadingClass, llmPanelToneClass, llmValidationClass } from '../llm/llmStyles'
-
-interface PublicationSummary {
-  title: string
-  authors: string | null
-  publicationYear: number | null
-  doi: string | null
-  publisherUrl: string | null
-}
+import type { PublicationSummary } from '../publications/types'
+import { ReviewPublicationHeader } from '../reviews/ReviewPublicationHeader'
+import { ReviewQueueEmptyState } from '../reviews/ReviewQueueEmptyState'
+import { useReviewWorkQueue } from '../reviews/useReviewWorkQueue'
+import type { ValidationResult } from './types'
 
 interface WorkItem {
   id: string
@@ -67,16 +56,6 @@ interface ExtractionResponse {
   formVersionId: string
 }
 
-interface ValidationResult {
-  fieldKey: string
-  fieldLabel: string
-  value: unknown
-  assessment: 'supported' | 'contradicted' | 'uncertain' | 'not_verifiable'
-  explanation: string
-  evidence: LlmEvidenceItem[]
-  evidenceValidationStatus: string
-}
-
 interface ValidationAssistance {
   state: string
   runId: string | null
@@ -104,15 +83,31 @@ export function ExtractionWorkspace({
   onSubmitted,
   onCancel,
 }: ExtractionWorkspaceProps) {
-  const navigate = useNavigate()
-  const [item, setItem] = useState<WorkItem | null>(null)
-  const [answers, setAnswers] = useState<Record<string, unknown>>({})
-  const [queueEmpty, setQueueEmpty] = useState(false)
-  const [loadingNext, setLoadingNext] = useState(true)
-  const [nextError, setNextError] = useState<string | null>(null)
   const [suggestionActions, setSuggestionActions] = useState<Record<string, 'accepted' | 'modified' | 'ignored' | 'manual'>>({})
-  const [completedResponse, setCompletedResponse] = useState<ExtractionResponse | null>(null)
-  const skippedItemIds = useRef<Set<string>>(new Set())
+  const {
+    item,
+    answers,
+    setAnswers,
+    queueEmpty,
+    loadingNext,
+    nextError,
+    completedResponse,
+    setCompletedResponse,
+    skip,
+    resetAndFetchNext,
+    titleRef,
+  } = useReviewWorkQueue<WorkItem, ExtractionResponse>({
+    baseUrl: `/api/v1/projects/${projectId}/extraction`,
+    itemId,
+    variant,
+    loadErrorFallback: 'Failed to load the next extraction',
+  })
+  // Suggestion-action tracking is extraction-only (quality has no LLM suggestions to accept/reject),
+  // so it resets locally whenever the queue hands us a different item rather than living in the
+  // shared queue hook.
+  useEffect(() => {
+    setSuggestionActions({})
+  }, [item?.id])
   const fullTextDocument = useFullTextDocument(projectId, item?.publicationId ?? '')
   const assistance = useQuery({
     queryKey: ['extraction-llm', projectId, item?.id],
@@ -131,77 +126,6 @@ export function ExtractionWorkspace({
     ),
     onSuccess: () => assistance.refetch(),
   })
-
-  const next = useMutation({
-    mutationFn: () => {
-      if (itemId) return apiRequest<WorkItem>(`/api/v1/projects/${projectId}/extraction/${itemId}`)
-      const params = new URLSearchParams()
-      skippedItemIds.current.forEach((id) => params.append('excludedItemId', id))
-      const query = params.toString()
-      return apiRequest<WorkItem | null>(
-        `/api/v1/projects/${projectId}/extraction/next${query ? `?${query}` : ''}`,
-        { method: 'POST' },
-      )
-    },
-    onSuccess: (result) => {
-      if (!itemId && result === null && skippedItemIds.current.size > 0) {
-        skippedItemIds.current.clear()
-        next.mutate()
-        return
-      }
-      setItem(result)
-      setAnswers(result?.draft ?? {})
-      setSuggestionActions({})
-      setCompletedResponse(result?.currentResponse ?? null)
-      setQueueEmpty(!itemId && result === null)
-      setLoadingNext(false)
-    },
-    onError: (error) => {
-      setNextError(error instanceof Error ? error.message : 'Failed to load the next extraction')
-      setLoadingNext(false)
-    },
-  })
-  // See TitleAbstractScreeningPage.tsx for why loading/error state is tracked locally
-  // instead of read off next.isPending/next.error.
-  const fetchNext = () => {
-    setLoadingNext(true)
-    setNextError(null)
-    next.mutate()
-  }
-
-  const skip = useMutation({
-    mutationFn: async () => {
-      if (!item) throw new Error('No extraction is open')
-      await apiRequest(
-        `/api/v1/projects/${projectId}/extraction/${item.id}/release`,
-        { method: 'POST' },
-      )
-      return item.id
-    },
-    onSuccess: (skippedId) => {
-      skippedItemIds.current.add(skippedId)
-      setItem(null)
-      setAnswers({})
-      setSuggestionActions({})
-      fetchNext()
-    },
-  })
-
-  const autoFetchKey = useRef<string | null>(null)
-  useEffect(() => {
-    const key = `${projectId}:${itemId ?? 'next'}`
-    if (autoFetchKey.current !== key) {
-      autoFetchKey.current = key
-      fetchNext()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [projectId, itemId])
-
-  const titleRef = useRef<HTMLHeadingElement>(null)
-  const visibleItemId = item?.id
-  useEffect(() => {
-    if (variant !== 'inline' && visibleItemId) titleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }, [variant, visibleItemId])
 
   const submit = useMutation({
     mutationFn: () => {
@@ -223,11 +147,7 @@ export function ExtractionWorkspace({
         setCompletedResponse(response)
         return
       }
-      setItem(null)
-      setAnswers({})
-      setSuggestionActions({})
-      setCompletedResponse(null)
-      fetchNext()
+      resetAndFetchNext()
     },
   })
 
@@ -241,16 +161,6 @@ export function ExtractionWorkspace({
       ['pending', 'queued', 'processing'].includes(query.state.data?.state ?? '') ? 5000 : false
     ),
   })
-  useEffect(() => {
-    if (!item || completedResponse) return
-    const timer = setTimeout(() => {
-      apiRequest(
-        `/api/v1/projects/${projectId}/extraction/${item.id}/draft`,
-        { method: 'PUT', body: JSON.stringify({ draft: answers }) },
-      ).catch(() => {})
-    }, 1000)
-    return () => clearTimeout(timer)
-  }, [item, projectId, answers, completedResponse])
 
   const missingRequired = item?.fields.some(
     (field) => field.required && !isAnswered(answers[field.stableKey]),
@@ -287,15 +197,15 @@ export function ExtractionWorkspace({
       <>
       {suggestion ? (
         <aside
-          className={llmPanelToneClass(applied ? 'match' : undefined)}
+          className={`llm-task-panel${applied ? ' llm-task-panel--match' : ''}`}
           aria-label={applied ? `LLM suggestion for ${field.label} — matches your value` : `LLM suggestion for ${field.label}`}
         >
-          <div className={llmPanelHeadingClass}>
+          <div className="llm-task-panel__heading">
             <strong>
-              <span className="text-primary" aria-hidden="true">✦</span>
+              <span className="llm-task-panel__icon" aria-hidden="true">✦</span>
               {' '}LLM suggestion · {status}
             </strong>
-            {applied ? <span className="text-text-muted">Reviewer value matches suggestion</span> : null}
+            {applied ? <span className="muted">Reviewer value matches suggestion</span> : null}
           </div>
           {suggestion.status === 'inferred' ? (
             <p>⚠ This value is inferred; the paper does not state it directly.</p>
@@ -305,10 +215,10 @@ export function ExtractionWorkspace({
           ) : (
             <>
               <p><code>{JSON.stringify(suggestion.value)}</code></p>
-              <div className={toolbarClass}>
-                <Button
+              <div className="toolbar">
+                <button
                   type="button"
-                  variant="secondary"
+                  className="button-secondary"
                   onClick={() => {
                     setAnswers((values) => ({
                       ...values, [field.stableKey]: suggestion.value,
@@ -319,7 +229,7 @@ export function ExtractionWorkspace({
                   }}
                 >
                   {isAnswered(current) || applied ? 'Reset to LLM suggestion' : 'Apply suggestion'}
-                </Button>
+                </button>
               </div>
             </>
           )}
@@ -333,12 +243,12 @@ export function ExtractionWorkspace({
               />
             </details>
           ) : suggestion.evidenceRequired && suggestion.value != null ? (
-            <p className="text-danger">No verified supporting evidence was returned.</p>
+            <p className="error">No verified supporting evidence was returned.</p>
           ) : null}
         </aside>
       ) : null}
       {validationResult ? (
-        <aside className={llmValidationClass(validationResult.assessment)}>
+        <aside className={`llm-validation llm-validation--${validationResult.assessment}`}>
           <strong>Validation: {validationResult.assessment.replace('_', ' ')}</strong>
           <p>{validationResult.explanation}</p>
           {validationResult.evidence.length ? (
@@ -359,108 +269,77 @@ export function ExtractionWorkspace({
 
   if (!item) {
     return (
-      <>
-        {loadingNext ? <p>Loading the next extraction…</p> : null}
-        {!loadingNext && queueEmpty ? (
-          <>
-            <p>You have completed all of your assigned extraction work.</p>
-            <Button type="button" variant="secondary" onClick={() => navigate(`/projects/${projectId}`)}>
-              Back to project
-            </Button>
-          </>
-        ) : null}
-        {!loadingNext && nextError ? (
-          <p className="text-danger" role="alert">{nextError}</p>
-        ) : null}
-      </>
+      <ReviewQueueEmptyState
+        projectId={projectId}
+        loadingNext={loadingNext}
+        loadingMessage="Loading the next extraction…"
+        queueEmpty={queueEmpty}
+        completedMessage="You have completed all of your assigned extraction work."
+        nextError={nextError}
+      />
     )
   }
 
   const body = (
     <>
       {variant !== 'inline' ? (
-        <>
-          <h2 ref={titleRef} className="publication-title">{item.publication.title}</h2>
-          <p className="text-text-muted">
-            {item.publication.authors ?? 'Unknown authors'}
-            {item.publication.publicationYear ? ` (${item.publication.publicationYear})` : ''}
-          </p>
-          {item.requiredReviewers > 1 ? (
-            <p className="text-text-muted">
+        <ReviewPublicationHeader
+          titleRef={titleRef}
+          projectId={projectId}
+          publicationId={item.publicationId}
+          publication={item.publication}
+          fullTextDocument={fullTextDocument}
+          afterAuthors={item.requiredReviewers > 1 ? (
+            <p className="muted">
               Independent extraction {item.slotNumber} of {item.requiredReviewers}. Your answers are
               kept independent from the other reviewer&apos;s until both are submitted.
               {completedResponse ? ' Once both reviewers have submitted, agreeing answers become final automatically; any disagreements go to reconciliation.' : ''}
             </p>
           ) : null}
-          <div className={toolbarClass}>
-            {fullTextDocument.data ? (
-              <PdfAvailabilityPill
-                available={fullTextDocument.data.available}
-                href={`${fullTextDocumentEndpoint(projectId, item.publicationId)}/content`}
-                pageCount={fullTextDocument.data.document?.pageCount}
-              />
-            ) : null}
-            <DoiPill doi={item.publication.doi} />
-            {isSafeHttpUrl(item.publication.publisherUrl) ? (
-              <PublisherLinkPill url={item.publication.publisherUrl} />
-            ) : null}
-          </div>
-          {fullTextDocument.data?.available ? (
-            <Button
-              as="a"
-              variant="secondary"
-              size="sm"
-              href={`${fullTextDocumentEndpoint(projectId, item.publicationId)}/content`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Open PDF
-            </Button>
-          ) : null}
-        </>
+        />
       ) : null}
       {assistance.isLoading ? (
-        <aside className={llmPanelClass} aria-label="LLM assistance">
-          <div className={llmPanelHeadingClass}>
+        <aside className="llm-task-panel" aria-label="LLM assistance">
+          <div className="llm-task-panel__heading">
             <LlmAssistanceHeading />
           </div>
-          <p className="text-text-muted">Checking for LLM suggestions…</p>
+          <p className="muted">Checking for LLM suggestions…</p>
         </aside>
       ) : null}
       {assistance.data?.state && assistance.data.state !== 'ready' && assistance.data.state !== 'disabled' ? (
-        <aside className={llmPanelClass} aria-label="LLM assistance">
-          <div className={llmPanelHeadingClass}>
+        <aside className="llm-task-panel" aria-label="LLM assistance">
+          <div className="llm-task-panel__heading">
             <LlmAssistanceHeading qualifier={assistance.data.state === 'failed' ? 'failed' : undefined} />
             {['unavailable', 'failed', 'cancelled'].includes(assistance.data.state) ? (
-              <Button
+              <button
                 type="button"
-                variant="secondary"
+                className="button-secondary"
                 onClick={() => runLlm.mutate(assistance.data?.state === 'failed')}
                 disabled={runLlm.isPending}
               >
                 {runLlm.isPending ? 'Queueing…' : assistance.data.state === 'failed' ? 'Re-run LLM extraction' : 'Run LLM extraction'}
-              </Button>
+              </button>
             ) : null}
           </div>
-          <p className={assistance.data.state === 'failed' ? 'text-danger' : 'text-text-muted'}>
+          <p className={assistance.data.state === 'failed' ? 'error' : 'muted'}>
             LLM assistance: {assistance.data.state.replaceAll('_', ' ')}
             {assistance.data.error ? ` — ${assistance.data.error}` : ''}. Manual extraction remains available.
           </p>
         </aside>
       ) : null}
       {assistance.data?.outdated ? (
-        <aside className={llmPanelClass} aria-label="LLM assistance is stale">
-          <div className={llmPanelHeadingClass}>
+        <aside className="llm-task-panel" aria-label="LLM assistance is stale">
+          <div className="llm-task-panel__heading">
             <LlmAssistanceHeading qualifier="is stale" />
-            <Button type="button" variant="secondary" onClick={() => runLlm.mutate(true)} disabled={runLlm.isPending}>
+            <button type="button" className="button-secondary" onClick={() => runLlm.mutate(true)} disabled={runLlm.isPending}>
               <IconRestart />
               Re-run with current schema
-            </Button>
+            </button>
           </div>
-          <p className="text-text-muted">LLM result uses an older schema version.</p>
+          <p className="muted">LLM result uses an older schema version.</p>
         </aside>
       ) : null}
-      {runLlm.error ? <p className="text-danger" role="alert">{runLlm.error.message}</p> : null}
+      {runLlm.error ? <p className="error" role="alert">{runLlm.error.message}</p> : null}
       <form onSubmit={(event) => { event.preventDefault(); submit.mutate() }}>
         <DynamicForm
           fields={item.fields}
@@ -475,10 +354,10 @@ export function ExtractionWorkspace({
           renderAssistance={suggestionCard}
         />
         {helpers.length ? (
-          <aside className={llmPanelClass} aria-label="Additional LLM assistance">
-            <div className={llmPanelHeadingClass}>
+          <aside className="llm-task-panel" aria-label="Additional LLM assistance">
+            <div className="llm-task-panel__heading">
               <h3>
-                <span className="text-primary" aria-hidden="true">✦</span>
+                <span className="llm-task-panel__icon" aria-hidden="true">✦</span>
                 {' '}Additional LLM assistance
               </h3>
             </div>
@@ -491,46 +370,46 @@ export function ExtractionWorkspace({
           </aside>
         ) : null}
         {missingRequired ? (
-          <p className="text-text-muted">Answer every required field before submitting.</p>
+          <p className="muted">Answer every required field before submitting.</p>
         ) : null}
-        {submit.error ? <p className="text-danger" role="alert">{submit.error.message}</p> : null}
-        {skip.error ? <p className="text-danger" role="alert">{skip.error.message}</p> : null}
-        <div className={toolbarClass}>
-          <Button type="submit" disabled={submit.isPending || skip.isPending || missingRequired}>
+        {submit.error ? <p className="error" role="alert">{submit.error.message}</p> : null}
+        {skip.error ? <p className="error" role="alert">{skip.error.message}</p> : null}
+        <div className="toolbar">
+          <button type="submit" disabled={submit.isPending || skip.isPending || missingRequired}>
             <IconCheckCircle />
             {completedResponse ? 'Save corrected extraction' : 'Submit Extraction'}
-          </Button>
+          </button>
           {!itemId ? (
-            <Button
+            <button
               type="button"
-              variant="secondary"
+              className="button-secondary"
               onClick={() => skip.mutate()}
               disabled={submit.isPending || skip.isPending}
             >
               <IconArrowRight />
               Skip for now
-            </Button>
+            </button>
           ) : null}
           {variant === 'inline' && onCancel ? (
-            <Button
+            <button
               type="button"
-              variant="secondary"
+              className="button-secondary"
               onClick={onCancel}
               disabled={submit.isPending}
             >
               Cancel
-            </Button>
+            </button>
           ) : null}
         </div>
         {completedResponse && itemId && validation.data?.state !== 'disabled' ? (
-          <section className={llmPanelClass} aria-label="Extraction validation">
+          <section className="llm-task-panel" aria-label="Extraction validation">
             <h3>
-              <span className="text-primary" aria-hidden="true">✦</span>
+              <span className="llm-task-panel__icon" aria-hidden="true">✦</span>
               {' '}LLM extraction validation
             </h3>
             {validation.isLoading ? <p>Checking validation status…</p> : null}
             {validation.data?.stale ? (
-              <p className="text-danger">Validation is stale because the extraction or source changed.</p>
+              <p className="error">Validation is stale because the extraction or source changed.</p>
             ) : null}
             {['queued', 'pending', 'processing'].includes(validation.data?.state ?? '') ? (
               <p>Validation {validation.data?.state}… Manual work remains available.</p>
@@ -544,7 +423,7 @@ export function ExtractionWorkspace({
               </p>
             ) : null}
             {validation.data?.state === 'failed' ? (
-              <p className="text-danger">{validation.data.error ?? 'Validation failed.'}</p>
+              <p className="error">{validation.data.error ?? 'Validation failed.'}</p>
             ) : null}
             <Link to={`/projects/${projectId}/extraction/validation`}>
               Back to validation review
@@ -555,5 +434,5 @@ export function ExtractionWorkspace({
     </>
   )
 
-  return variant === 'inline' ? body : <article className={cardStyles} data-ui="card">{body}</article>
+  return variant === 'inline' ? body : <article className="card">{body}</article>
 }

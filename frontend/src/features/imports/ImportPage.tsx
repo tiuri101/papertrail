@@ -17,7 +17,8 @@ import { useRegisterSectionItems } from '../../components/sectionNavigation'
 import { Textarea } from '../../components/Textarea'
 import { InfoTooltip } from '../../components/Tooltip'
 import { getCsrfToken } from '../auth/session'
-import { BackgroundJob, findJob, hasActiveJob, isJobActive } from '../jobs/jobStatus'
+import { isJobActive } from '../jobs/jobStatus'
+import { usePendingJob } from '../jobs/usePendingJob'
 import { StageEyebrow } from '../projects/StageEyebrow'
 import { AttachPdfsPanel } from './AttachPdfsPanel'
 import { FileDropZone } from './FileDropZone'
@@ -95,7 +96,6 @@ export function ImportPage() {
   const [query, setQuery] = useState('')
   const [searchDate, setSearchDate] = useState('')
   const [filters, setFilters] = useState('')
-  const [pendingJobId, setPendingJobId] = useState<string | null>(null)
   const [attachBatchId, setAttachBatchId] = useState<string | null>(null)
   const [hadSearchHistoryOnLoad, setHadSearchHistoryOnLoad] = useState<boolean | null>(null)
   const [deleteCandidate, setDeleteCandidate] = useState<
@@ -108,14 +108,6 @@ export function ImportPage() {
     queryFn: () => apiRequest<SearchSource[]>(`/api/v1/projects/${projectId}/searches`),
     enabled: Boolean(projectId),
   })
-
-  const jobs = useQuery({
-    queryKey: ['jobs', projectId],
-    queryFn: () => apiRequest<BackgroundJob[]>(`/api/v1/projects/${projectId}/jobs`),
-    enabled: Boolean(projectId) && Boolean(pendingJobId),
-    refetchInterval: (query) => (hasActiveJob(query.state.data) ? 2000 : false),
-  })
-  const pendingJob = pendingJobId ? findJob(jobs.data, pendingJobId) : undefined
 
   const pdfMatchesQueryKey = ['pdf-matches', projectId, 'project-wide']
   const projectPdfMatches = useQuery({
@@ -132,20 +124,20 @@ export function ImportPage() {
     ) > 0,
   )
 
+  const { setPendingJobId, pendingJob } = usePendingJob(projectId, {
+    clearOnComplete: false,
+    onComplete: () => {
+      queryClient.invalidateQueries({ queryKey: ['publications', projectId] })
+      queryClient.invalidateQueries({ queryKey: pdfMatchesQueryKey })
+      queryClient.invalidateQueries({ queryKey: ['searches', projectId] })
+    },
+  })
+
   useEffect(() => {
     if (!searches.isLoading && hadSearchHistoryOnLoad === null) {
       setHadSearchHistoryOnLoad(Boolean(searches.data?.length))
     }
   }, [hadSearchHistoryOnLoad, searches.data, searches.isLoading])
-
-  useEffect(() => {
-    if (pendingJob && !isJobActive(pendingJob.status)) {
-      queryClient.invalidateQueries({ queryKey: ['publications', projectId] })
-      queryClient.invalidateQueries({ queryKey: pdfMatchesQueryKey })
-      queryClient.invalidateQueries({ queryKey: ['searches', projectId] })
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingJob, projectId, queryClient])
 
   useEffect(() => {
     if (

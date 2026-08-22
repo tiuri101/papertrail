@@ -28,6 +28,20 @@ def outcome_filter(
     )
 
 
+def outcome_filter_any_stage(
+    project_id: str, outcome: ScreeningOutcome
+) -> ColumnElement[bool]:
+    """Like outcome_filter, but not scoped to a single screening stage -- for
+    callers answering "how many valid decisions across the whole project have
+    this outcome" (e.g. a project-wide uncertain count, or an "excluded at
+    either stage" export scope) rather than the per-stage inclusion cohort."""
+    return and_(
+        FinalDecision.project_id == project_id,
+        FinalDecision.outcome == outcome,
+        FinalDecision.is_valid.is_(True),
+    )
+
+
 def has_final_outcome(
     db: Session, publication_id: str, stage: ScreeningStage, outcome: ScreeningOutcome
 ) -> bool:
@@ -107,15 +121,32 @@ def decided_ids_for_stage(db: Session, project_id: str, stage: ScreeningStage) -
     )
 
 
+def decided_final_decisions_by_publication(
+    db: Session,
+    project_id: str,
+    stage: ScreeningStage,
+    publication_ids: list[str] | None = None,
+) -> dict[str, FinalDecision]:
+    """Same cohort as decided_final_decisions, indexed by publication_id --
+    for callers that need to look up individual publications' decisions
+    rather than iterate every row. Optionally scoped to a subset of
+    publication ids to avoid pulling every valid decision at this stage."""
+    if publication_ids is not None and not publication_ids:
+        return {}
+    conditions = [
+        FinalDecision.project_id == project_id,
+        FinalDecision.stage == stage,
+        FinalDecision.is_valid.is_(True),
+    ]
+    if publication_ids is not None:
+        conditions.append(FinalDecision.publication_id.in_(publication_ids))
+    rows = db.scalars(select(FinalDecision).where(*conditions))
+    return {row.publication_id: row for row in rows}
+
+
 def title_abstract_included_ids(db: Session, project_id: str) -> list[str]:
     return publication_ids_for_outcome(
         db, project_id, ScreeningStage.TITLE_ABSTRACT, ScreeningOutcome.INCLUDE
-    )
-
-
-def title_abstract_excluded_ids(db: Session, project_id: str) -> list[str]:
-    return publication_ids_for_outcome(
-        db, project_id, ScreeningStage.TITLE_ABSTRACT, ScreeningOutcome.EXCLUDE
     )
 
 

@@ -1,20 +1,23 @@
 from __future__ import annotations
 
+import asyncio
 import zipfile
 from io import BytesIO
 
 import pytest
+from fastapi import UploadFile
 from pypdf import PdfWriter
 from sqlalchemy import func, select
 
 from app.accounts.service import create_user
+from app.api.errors import PayloadTooLargeError, UnsupportedMediaError
 from app.audit.models import AuditEvent
 from app.core.config import get_settings
 from app.deduplication.models import DuplicateCandidate
 from app.deduplication.service import merge_publications
 from app.fulltext.documents import attach_staged_pdf
 from app.fulltext.models import DocumentSource, PublicationDocument
-from app.fulltext.storage import stage_pdf_stream
+from app.fulltext.storage import stage_pdf_stream, stage_pdf_upload
 from app.imports.models import (
     ImportBatch,
     ImportedRecord,
@@ -116,6 +119,75 @@ def add_item(db, batch, data, filename="paper.pdf"):
     db.add(item)
     db.flush()
     return item
+
+
+def test_sync_and_async_pdf_staging_agree_on_valid_and_invalid_input() -> None:
+    valid_bytes = pdf_bytes(
+        "Shared paper", doi="10.1000/shared", author="Doe, Jane"
+    )
+
+    sync_result = stage_pdf_stream(
+        BytesIO(valid_bytes), "paper.pdf", import_batch_id="parity-sync"
+    )
+    async_result = asyncio.run(
+        stage_pdf_upload(
+            UploadFile(file=BytesIO(valid_bytes), filename="paper.pdf"),
+            import_batch_id="parity-async",
+        )
+    )
+
+    assert sync_result.original_filename == async_result.original_filename
+    assert sync_result.file_size == async_result.file_size == len(valid_bytes)
+    assert sync_result.sha256 == async_result.sha256
+    assert sync_result.detected_doi == async_result.detected_doi == "10.1000/shared"
+    assert sync_result.detected_title == async_result.detected_title == "Shared paper"
+    assert sync_result.detected_authors == async_result.detected_authors == "Doe, Jane"
+    assert sync_result.detected_year == async_result.detected_year
+
+    bad_header = b"NOT-A-PDF" + valid_bytes[9:]
+    with pytest.raises(UnsupportedMediaError):
+        stage_pdf_stream(
+            BytesIO(bad_header), "paper.pdf", import_batch_id="bad-header-sync"
+        )
+    with pytest.raises(UnsupportedMediaError):
+        asyncio.run(
+            stage_pdf_upload(
+                UploadFile(file=BytesIO(bad_header), filename="paper.pdf"),
+                import_batch_id="bad-header-async",
+            )
+        )
+
+    truncated = valid_bytes.split(b"%%EOF")[0]
+    assert b"%%EOF" not in truncated[-4096:]
+    with pytest.raises(UnsupportedMediaError):
+        stage_pdf_stream(
+            BytesIO(truncated), "paper.pdf", import_batch_id="truncated-sync"
+        )
+    with pytest.raises(UnsupportedMediaError):
+        asyncio.run(
+            stage_pdf_upload(
+                UploadFile(file=BytesIO(truncated), filename="paper.pdf"),
+                import_batch_id="truncated-async",
+            )
+        )
+
+    settings = get_settings()
+    original_limit = settings.max_pdf_size_mb
+    settings.max_pdf_size_mb = 0
+    try:
+        with pytest.raises(PayloadTooLargeError):
+            stage_pdf_stream(
+                BytesIO(valid_bytes), "paper.pdf", import_batch_id="oversized-sync"
+            )
+        with pytest.raises(PayloadTooLargeError):
+            asyncio.run(
+                stage_pdf_upload(
+                    UploadFile(file=BytesIO(valid_bytes), filename="paper.pdf"),
+                    import_batch_id="oversized-async",
+                )
+            )
+    finally:
+        settings.max_pdf_size_mb = original_limit
 
 
 def test_bulk_matching_by_doi_title_ambiguity_and_conflict(db) -> None:

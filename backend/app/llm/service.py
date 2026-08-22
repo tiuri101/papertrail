@@ -6,7 +6,6 @@ from collections.abc import Mapping
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.analysis.rq_jobs import RQ_SYNTHESIS_JOB
 from app.core.time import utcnow
 from app.extraction.models import ExtractionResponse, ExtractionWorkItem
 from app.fulltext.documents import active_document
@@ -43,13 +42,13 @@ LLM_JOB_TYPE_BY_TASK: dict[LlmTaskType, str] = {
     LlmTaskType.DATA_EXTRACTION: LLM_JOB_DATA_EXTRACTION,
     LlmTaskType.EXTRACTION_VALIDATION: LLM_JOB_EXTRACTION_VALIDATION,
 }
-# RQ synthesis isn't keyed to LlmTaskType/LlmExtractionRun (it has its own
-# ResearchQuestionAnalysisRun model), but it makes real Ollama calls like
-# every other member here, so it belongs on the dedicated --llm worker pool
-# too. Unlike STAGE_ANALYSIS_JOB (a pre-existing, out-of-scope inconsistency
-# that also calls Ollama but is not in this set), RQ synthesis does not
-# repeat that gap.
-LLM_JOB_TYPES = set(LLM_JOB_TYPE_BY_TASK.values()) | {RQ_SYNTHESIS_JOB}
+# The canonical "which job types run on the --llm worker pool" set lives in
+# app.jobs.registry.LLM_JOB_TYPES (derived from JOB_DEFINITIONS, which also
+# covers STAGE_ANALYSIS_JOB and RQ_SYNTHESIS_JOB -- neither is keyed to
+# LlmTaskType, so they can't be expressed via LLM_JOB_TYPE_BY_TASK above).
+# Not re-exported here to avoid a circular import: jobs.registry needs
+# TEXT_JOB/LLM_JOB_TYPE_BY_TASK from this module to build its per-task-type
+# definitions.
 
 
 def title_abstract_included(db: Session, publication_id: str) -> bool:
