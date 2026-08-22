@@ -1,61 +1,173 @@
 # Administrator Guide
 
-The installation administrator creates all local user accounts and has full access to every review project. Any signed-in user can create a project; the user who creates it becomes that project's **owner** and gets the same management rights as the administrator, scoped to that one project.
+Papertrail has one installation-wide administrator role and project-scoped ownership. Any signed-in user can create a project; the creator becomes that project's **owner**. Installation administrators can manage every project as though they were its owner, but reviewer eligibility remains explicit per project.
 
-## Project ownership
+## Roles and permissions
 
-- **Administrator** — one or more installation-wide accounts. Can create and disable any user account, and manages every project as if they owned it.
-- **Project owner** — whoever created the project. Can manage members, their screening eligibility, and their workload weight; screening, extraction, and quality-assessment allocation configuration; highlighted keywords, project details, publication metadata and enrichment, metadata-conflict resolution, screening-conflict resolution, project-specific forms, the audit log, and lifecycle actions (mark ready for duplicate review, reopen, move back, reset, delete, reverse a merge) — for that project only.
-- **Reviewer / project member** — anyone added to a project. Can perform the screening, extraction, and quality-assessment activities they're eligible for; edit the project's research questions and inclusion/exclusion criteria; document searches and upload import files; resolve duplicate candidates (not a duplicate, or merge); and generate and download exports. Members only see the projects they belong to, and only the actions within a project they're actually permitted to perform.
+- **Installation administrator** — creates/disables/reactivates local user accounts, edits Global Settings, and has project-manager rights on every project.
+- **Project owner** — manages one project's membership, reviewer eligibility/workload weights, screening/extraction/quality configuration, project forms, metadata/enrichment conflicts, screening conflict resolution, project jobs/integrity, audit log, and lifecycle operations.
+- **Project member/reviewer** — sees only projects they belong to. Members may perform reviewer work for activities for which they are eligible. Regardless of reviewer eligibility, project members can edit research questions and inclusion/exclusion criteria, document searches and upload imports, resolve duplicate candidates, and create/download exports.
+- **Adjudicator permission** — a project membership flag used for extraction reconciliation. Project owners and administrators can always reconcile; other members need `canAdjudicate`.
 
-An administrator is not automatically a reviewer on a project — reviewer eligibility (screening, extraction, quality assessment, adjudication) is still granted per member, independently of ownership.
+An administrator is not automatically an ordinary reviewer. Grant title/abstract, full-text, extraction, and quality eligibility when the administrator should also receive reviewer work.
 
-## Recommended project sequence
+## Recommended project setup
 
-1. Create reviewer accounts (administrator only).
-2. Create a project — any user can do this and becomes its owner — and add eligible reviewers.
-3. Define research questions and criteria (owner, administrator, or any project member); configure screening settings, including the number of reviewers required per stage, how publications are allocated to reviewers, and how disagreements and uncertain decisions are resolved (owner or administrator).
-4. Document each database search and import its export file (any project member).
-5. Review metadata and run enrichment where required (owner or administrator).
-6. Resolve all duplicate candidates (any project member marks each as not a duplicate or merges it; the owner or administrator marks the project ready to enter duplicate review and can reverse a merge).
-7. Complete title/abstract screening and resolve disagreements.
-8. Track full-text retrieval (manual, or browser-assisted via a paired Chrome extension) and complete full-text screening.
-9. Configure extraction and quality-assessment forms.
-10. Complete extraction and quality assessment.
-11. Review integrity warnings and generate PRISMA, XLSX, Parquet, JSON, CSV, and BibTeX exports.
+The **Setup Wizard** and Project Administration expose the same underlying project configuration. A practical sequence is:
 
-## Accounts
+1. Create local reviewer accounts (administrator only).
+2. Create the project and add members.
+3. Define research questions and inclusion/exclusion criteria.
+4. Configure reviewer eligibility, workload weights, reviewer counts, allocation modes, and disagreement/uncertain-resolution settings.
+5. Configure highlighted screening keywords and project-specific LLM prompt instructions when used.
+6. Document each database search and import its export; optionally upload PDFs/ZIP archives with the import.
+7. Review normalized metadata, manually add records when needed, and run metadata enrichment.
+8. Resolve duplicate candidates and mark the project ready for screening.
+9. Complete title/abstract screening and resolve unresolved conflicts.
+10. Retrieve/store full text and complete full-text screening.
+11. Configure extraction and quality forms before those stages begin.
+12. Complete extraction, optional reconciliation, and quality assessment.
+13. Review project integrity/job failures, then generate PRISMA and data exports.
 
-Only the administrator creates and disables user accounts. An email address is optional; when email support is enabled, creating an account with an address queues a welcome message containing the username and login link, but never the temporary password. Users may maintain their own address in Account Settings. Disable accounts rather than deleting them when historical decisions must remain attributable. Password resets replace the password while retaining the account identity.
+Papertrail advances lifecycle stages automatically when completion conditions are satisfied. Project managers can also reopen, move back, reset, or delete projects from Project Administration; these operations are audited and have different data-retention consequences, so read the confirmation text before executing them.
 
-Deactivating a user or resetting their password (by an administrator, or the user's own emailed reset link) also revokes any browser helpers (paired Chrome extensions) they hold, in addition to their sessions -- a browser helper's bearer token authenticates independently of the password, so it must not remain usable once the account is disabled or considered compromised.
+## Account administration
 
-## Browser-assisted PDF retrieval
+Only installation administrators create and manage local accounts.
 
-Reviewers can optionally pair a Chrome extension ("Browser Helper") from their own Account Settings so it retrieves publisher PDFs through their own computer's network access and sign-in state, then uploads them through the normal PDF pipeline -- see the [Reviewer guide](user-guide.md#browser-assisted-pdf-retrieval). The Papertrail server itself never scrapes publisher content or receives publisher credentials/cookies through this feature; it only issues short-lived retrieval jobs and validates whatever PDF the extension uploads, exactly as it would a manual upload. A user can revoke their own browser helpers at any time from Account Settings, which immediately prevents further use of that credential.
+When creating an account:
 
-## Email notifications
+- username and temporary password are required;
+- email is optional;
+- the user is required to change the administrator-set password after first sign-in;
+- when SMTP is enabled and an email is present, Papertrail queues a welcome email with the username/login URL but never sends the temporary password.
 
-Email is opt-in at installation level through SMTP configuration. The initial notification set covers account creation, notifying active administrators when a project is created, being added to or removed from a project (permission-only edits deliberately do not send mail), and a project-owner summary when all currently scheduled LLM jobs for one task stage reach a terminal state. Failed LLM jobs are counted separately in that summary. Each event has a durable, deduplicated notification record and is delivered by the normal worker with retries; SMTP downtime does not roll back the originating account, project, membership, or LLM operation.
+Administrators can update account profile fields, reset a password, disable an account, and reactivate it later. Historical screening/extraction/audit attribution is retained when an account is disabled.
+
+Disabling an account or resetting its password revokes its active sessions and paired Browser Helper credentials. An emailed self-service password reset does the same because a Browser Helper bearer token is independent of the user's password.
+
+Users can maintain their own display name/email and password under Account Settings. Forgot-password recovery requires email delivery to be configured; the public response does not reveal whether an account exists for the submitted email.
+
+## Global Settings
+
+Installation administrators can open **Global Settings** (`/instance-settings`). The page has sections for:
+
+- LLM connection/model/runtime limits and connection testing;
+- installation-wide AI base-prompt overrides;
+- SMTP delivery and the public base URL, including a test-email action;
+- password-reset lifetime/throttling;
+- full-text PDF size and Browser Helper retrieval lease;
+- background-job thread/poll/lease values.
+
+Most saved values are stored in PostgreSQL and override environment defaults for code paths using Papertrail's effective-settings services. There are current process-level exceptions for worker thread count/poll interval, LLM concurrency, and the forgot-password email-enabled gate; use the environment values described in [Configuration](configuration.md) where those paths are involved.
+
+Changes to Global Settings are audit logged. SMTP/Ollama secrets stored there are database secrets and are included in a PostgreSQL backup.
 
 ## Reviewer allocation
 
-Each stage that assigns publications to individual reviewers (title/abstract screening, full-text screening, data extraction, quality assessment) has its own allocation setting, configured from Project Members and each stage's settings in Project Administration or the Setup Wizard:
+Each stage that assigns publications to reviewers has its own allocation setting.
 
-- **Claim** (default for every stage) — publications are left unassigned; a reviewer's queue hands them the next available one as they work, rather than pre-committing publications to specific people.
-- **Divided** / **Pre-assigned** — publications are split across eligible reviewers up front, round-robin, weighted by each reviewer's **workload weight** (set per reviewer in Project Members; a reviewer with weight 2 receives roughly twice as many publications as one with weight 1, default 1 for everyone).
-- **Independent** (title/abstract and full-text screening only) — every eligible reviewer sees every publication, rather than the work being split up at all.
+### Screening
 
-Workload weight only affects stages using Divided/Pre-assigned allocation; it has no effect on a stage using Claim or Independent allocation, since nothing is being pre-divided in those modes.
+- **Claim** — publications are not assigned ahead of time; reviewers claim the next available item as they work.
+- **Divided** — publications are pre-assigned round-robin across eligible reviewers, weighted by membership workload weight.
+- **Independent** — every eligible reviewer receives every publication; decisions remain hidden until the required reviewer count has submitted.
 
-## Data extraction: one or two extractors
+The required reviewer count is configured separately for title/abstract and full-text screening.
 
-Extraction Settings (Project Administration) lets you choose one extractor per publication (default) or two independent extractors with reconciliation of disagreements — see [Review Workflow](review-workflow.md) for the full mechanics. This choice is locked once any extraction response exists in the project, so decide before extraction work begins. In two-extractor projects, grant the **Adjudication** permission to specific members from Project Members if you want reviewers other than yourself or an administrator to resolve disagreements; project owners and administrators can always reconcile regardless of this flag.
+### Extraction and quality assessment
 
-## Lifecycle changes
+- **Claim** — reviewers claim available items.
+- **Pre-assigned** — work is divided up front across eligible reviewers using workload weights.
 
-Papertrail advances stages automatically when their completion rules are satisfied. A completed project may be reopened at a selected earlier stage. Reopening retains downstream data but excludes data that is no longer applicable from active counts.
+Extraction can use one or two reviewers per publication. Quality assessment currently uses one assessor per publication.
 
-## Background jobs
+Workload weight only affects pre-divided/pre-assigned allocation. It has no effect in Claim or Independent modes.
 
-Imports, enrichment, duplicate detection, exports, and email delivery are durable PostgreSQL jobs processed by the threaded worker. Screening/extraction/validation LLM inference and research-question synthesis are claimed only by the separate, resource-limited LLM worker (`python -m app.jobs.worker --llm`), so a busy Ollama backend never starves ordinary workflow jobs. Inspect failed jobs before retrying. Restarting the API does not lose queued jobs.
+## Dual extraction and reconciliation
+
+Extraction Settings can select one extractor (default) or two independent extractors per publication. The reviewer-count setting is locked once extraction responses exist.
+
+In a two-extractor project:
+
+1. both reviewers submit independently;
+2. Papertrail compares authoritative field values after both slots are complete;
+3. full agreement creates the final extraction automatically;
+4. disagreements enter the **Reconciliation** queue;
+5. a project owner, administrator, or member with adjudication permission resolves each disagreeing field using reviewer A, reviewer B, or a manual value and supplies the required note.
+
+Individual reviewer responses remain intact. The reconciled `FinalExtraction` is a separate authoritative result.
+
+## Quality-assessment configuration
+
+Quality assessment is optional and currently uses one assessor per publication. Project forms can be qualitative, numerical, or both. Scoring metadata can assign values to select/checkbox answers and weights to numeric/rating fields. The configured aggregation supports `sum`, `average`, and `weighted_average`; quality scores are reported but never automatically include/exclude a publication.
+
+## Screening conflicts
+
+Papertrail can automatically finalize unanimous decisions and, when configured, an unambiguous majority. Other unresolved screening cases appear in Conflict Resolution for the project owner/administrator. The manager can record a final consensus or request an additional reviewer. Original reviewer decisions remain preserved separately from the final project decision.
+
+## Publications and metadata
+
+Project managers can:
+
+- manually add a publication;
+- edit normalized metadata;
+- trigger metadata enrichment individually or in bulk;
+- inspect and resolve proposed metadata conflicts;
+- export an individual record as BibTeX or its active PDF;
+- remove project publications through the authorized workflow.
+
+Imported source rows remain available for provenance even when normalized metadata is edited.
+
+## Browser-assisted PDF retrieval
+
+Reviewers can pair the optional Chrome Browser Helper from Account Settings. It retrieves publisher PDFs through that reviewer's browser network access/sign-in state and uploads them to Papertrail; publisher credentials/cookies are never sent to Papertrail.
+
+A title/abstract final **Include** can automatically queue retrieval for that publication when it is missing a PDF and an eligible paired helper is available. Full-text reviewers/managers can also use **Retrieve missing PDFs** to create a batch manually.
+
+See [Browser Helper](browser-helper.md) for released-extension installation, pairing, retries, token behavior, and API boundaries.
+
+## Email notifications
+
+Email is installation-level optional configuration. Current durable email events include:
+
+- account creation;
+- notification to active administrators when a project is created;
+- project membership added/removed (permission-only membership edits do not send mail);
+- project-owner summary when the currently scheduled LLM jobs for a task stage have all reached a terminal state.
+
+Email delivery is a normal background job with retry state. SMTP failure does not roll back the domain operation that caused the notification.
+
+## Background jobs and diagnostics
+
+Imports, enrichment, duplicate detection, export generation, PDF text processing, notifications, and AI/analysis tasks are durable PostgreSQL jobs. Restarting the API does not discard queued work.
+
+Project managers can open a project's **Jobs** page to inspect:
+
+- job type/stage;
+- queued, running, completed, or failed state;
+- attempts and retry limits;
+- progress/result metadata;
+- summarized failure diagnostics;
+- detailed error information where authorized;
+- restart actions for failed jobs that are eligible for retry.
+
+Do not repeatedly restart a deterministic failure without addressing the cause (for example, invalid input or unavailable external service). Leases make an interrupted claimed job available again after expiry; an active worker heartbeat renews the lease while work is still running.
+
+Screening/extraction/validation LLM inference and research-question synthesis are claimed only by the separate resource-limited LLM worker (`python -m app.jobs.worker --llm`), so a busy Ollama backend does not consume the normal worker pool.
+
+## Project integrity
+
+Project Administration exposes an integrity check and repair operation backed by `/projects/{project_id}/integrity` and `/integrity/repair`. Use the scan when a project appears to have inconsistent downstream work after lifecycle changes, form changes, or other exceptional conditions.
+
+Review the reported findings before repair. Repairs operate through domain cleanup/reinitialization logic and are audit logged; they are not a substitute for a database restore when persistent storage itself is damaged.
+
+## Backup, upgrade, and security
+
+Use the bundled consistency-preserving backup/restore scripts rather than backing up PostgreSQL alone. Papertrail also requires `papertrail_files` and `papertrail_pdf_data`, and backups can contain credentials. See:
+
+- [Configuration](configuration.md)
+- [Backup and Restore](backup-and-restore.md)
+- [Upgrade Guide](upgrade.md)
+- [Reliability Operations](operations/reliability.md)
+- [Security Operations](operations/security.md)

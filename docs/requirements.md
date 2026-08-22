@@ -3,7 +3,7 @@
 ## Project Description and Requirements Specification
 
 **Project name:** Papertrail  
-**Document status:** Initial requirements baseline  
+**Document status:** Living requirements and implemented-capabilities specification (synchronized with the current codebase)  
 **Application type:** Self-hosted multi-user web application  
 **Primary purpose:** Support systematic and structured academic literature reviews from search-result import through screening, data extraction, quality assessment, and PRISMA 2020 reporting.
 
@@ -42,19 +42,18 @@ Papertrail should:
 
 ## 3. Non-Goals
 
-The initial version will not:
+The current scope does not:
 
-- Retrieve or download publication full texts.
-- Automatically include or exclude records.
+- Automatically include or exclude records on behalf of reviewers.
 - Search academic databases directly.
-- Manage repeated or updated search runs over time.
+- Model repeated/living-review search updates as first-class review cycles.
 - Model several publications as reports of one underlying study.
 - Provide public registration or self-service account creation.
 - Support institutional single sign-on.
-- Provide an archived project state.
+- Provide an archived/read-only project state.
 - Act as a reference manager intended to replace Zotero, EndNote, or similar tools.
 - Support conditional logic in extraction forms.
-- Support independent duplicate extraction or quality assessment for the same publication.
+- Support two independent quality assessors with quality-assessment reconciliation. Dual independent data extraction is supported.
 
 ---
 
@@ -102,7 +101,7 @@ A reviewer can belong to multiple projects. Reviewer eligibility is configured i
 - Full-text screening
 - Data extraction
 - Quality assessment
-- Conflict adjudication
+- Extraction reconciliation/adjudication
 
 Reviewers can only access and perform activities for which they are eligible, and only within projects they are a member of. The interface does not show actions a reviewer isn't permitted to take.
 
@@ -230,6 +229,7 @@ Manually added records and records found through citation chasing are supported.
 Papertrail supports:
 
 - CSV
+- TSV
 - XLSX
 - RIS
 - BibTeX
@@ -451,13 +451,14 @@ When a revision affects a record with an existing final consensus decision:
 
 The project manager configures how uncertain and conflicting decisions are resolved.
 
-Supported resolution methods include:
+Supported screening resolution behavior includes:
 
-- Discussion followed by consensus
-- Consensus recorded by the project owner or administrator
-- Additional independent reviewer
-- Designated adjudicator
-- Majority decision
+- Automatic finalization when all required current decisions agree
+- Automatic majority finalization when majority resolution is configured and there is an unambiguous majority
+- An additional independent reviewer requested by the project owner/administrator
+- A final consensus/override recorded by the project owner or administrator
+
+The screening configuration model also contains an `adjudicator` resolution value, but the current screening-conflict endpoints are manager-restricted; the membership `can_adjudicate` permission is used for extraction reconciliation rather than delegated screening conflict resolution.
 
 Papertrail stores the original reviewer decisions separately from the final project decision.
 
@@ -506,11 +507,11 @@ Full-text screening uses the standard decisions:
 
 ## 17. Data Extraction
 
-Every publication included after full-text screening receives exactly one extraction assignment.
+Every publication included after full-text screening receives one extraction slot, or two independent extraction slots when the project is configured for dual extraction. The extractor-count setting is locked once extraction responses exist.
 
-Multiple reviewers may perform extraction work within a project, but each publication has only one responsible extraction reviewer.
+With one extractor, the submitted response becomes the authoritative final extraction. With two extractors, Papertrail compares both completed responses: exact agreement finalizes automatically, while disagreements enter a reconciliation queue for a project manager or member with adjudication permission. Individual reviewer responses are retained separately from the authoritative `FinalExtraction`.
 
-Assignments are distributed through a queue.
+Extraction work is distributed through Claim or Pre-assigned allocation.
 
 ### 17.1 Extraction forms
 
@@ -779,7 +780,7 @@ The screening view should display at least:
 - Optional notes
 - Queue actions
 
-Keyboard shortcuts may be added for common decisions but are not required for the first version.
+Keyboard shortcuts are provided for common screening actions and are configurable/viewable from Account Settings.
 
 ### 24.3 Administrative views
 
@@ -810,7 +811,7 @@ Requirements include:
 - Session management
 - Login rate limiting
 - Account disabling
-- Password reset by the administrator
+- Password reset by the administrator and email-based self-service reset when SMTP is enabled
 - Role and project authorization checks
 
 Institutional login, OAuth, OpenID Connect, and public registration are outside the initial scope.
@@ -820,9 +821,10 @@ A containerized deployment using Docker or Docker Compose is recommended.
 The deployment should support:
 
 - Persistent database storage
-- Persistent imported source-file storage
-- Environment-based configuration
-- Database backups
+- Persistent imported source-file/export storage
+- Persistent full-text PDF storage
+- Environment-based configuration plus administrator-managed database overrides for selected settings
+- Consistent PostgreSQL + application-file + PDF backups and tested restoration
 - HTTPS through an external reverse proxy
 - Application logs
 - Health checks
@@ -888,15 +890,15 @@ The primary workflow is desktop-oriented. Mobile support may be limited to basic
 
 ---
 
-## 27. Recommended MVP Scope
+## 27. Current Delivered Core Scope
 
-The first usable release should include:
+The current implementation includes:
 
 1. Local authentication and user administration
 2. Project creation and lifecycle management
 3. Research questions and criteria
 4. Search documentation
-5. CSV, XLSX, RIS, and BibTeX imports
+5. CSV, TSV, XLSX, RIS, and BibTeX imports
 6. Known database mappings and manual column mapping
 7. Normalized publication records
 8. Crossref and Semantic Scholar enrichment
@@ -916,6 +918,14 @@ The first usable release should include:
 22. PRISMA 2020 tables and SVG flow diagram
 23. Audit logging
 24. Docker-based self-hosted deployment
+25. Protected PDF upload/storage with version history and bulk PDF matching
+26. Optional paired Chrome Browser Helper for browser-assisted PDF retrieval
+27. One- or two-reviewer data extraction with authoritative final results and reconciliation
+28. Optional evidence-backed Ollama assistance for screening, extraction, validation, and research-question synthesis
+29. Anonymized reviewer-agreement analysis and server-side Evidence Matrix
+30. Durable background-job diagnostics/retry and project integrity scan/repair
+31. Administrator Global Settings for selected SMTP, PDF, worker, password-reset, and LLM configuration
+32. Consistency-preserving backup/restore scripts covering PostgreSQL, imports/exports, and PDFs
 
 ---
 
@@ -923,33 +933,30 @@ The first usable release should include:
 
 Potential later additions include:
 
-- AI-assisted duplicate detection
-- LLM-assisted title/abstract suggestions with post-decision reveal (implemented)
-- Evidence-backed LLM full-text screening assistance (implemented)
-- Automated abstract summarization
-- PDF upload, protected storage, version history, bulk matching, and manual full-text management (implemented)
-- External-Ollama-assisted structured extraction and optional human-value validation with page evidence (implemented)
+- Study-level grouping of multiple publication reports
+- Versioned review protocols and protocol-registration metadata
+- Dual independent quality/risk-of-bias assessment with reconciliation
+- OCR for image-only PDFs and multiple document roles (supplement, protocol, correction)
+- Active-learning prioritization of the screening queue without automated decisions
+- Living-review/search-update cycles
+- Tags, collections, saved filters, and review samples
+- Open-access PDF discovery and citation chasing
+- Structured risk-of-bias instrument libraries/visualizations
+- PRISMA-S and additional review-type reporting standards
+- Direct reference-manager integrations such as Zotero synchronization
 - PDF annotation
-- Direct database or reference-manager integrations
-- Zotero synchronization
-- Saved import profiles for recurring custom formats
-- Inter-rater agreement statistics
-- Screening calibration rounds
-- In-application notifications (email notifications are implemented)
-- Public project reports
-- Protocol registration support
-- Additional reporting standards
-- Study-level grouping of multiple publications
 - Institutional authentication
-- Portable project backup and restoration
+- Read-only/finer-grained project roles
+- In-application notification center/deadlines beyond the existing email notifications
+- API tokens/webhooks for external automation
 
-These extensions are not required for the initial implementation.
+These are potential enhancements rather than requirements of the current delivered workflow.
 
 ---
 
 ## 29. Core Acceptance Criteria
 
-Papertrail can be considered functionally complete for its first release when an administrator can create user accounts, any user can create a review project, and a project manager (the project's owner or the administrator) can:
+The current core workflow is considered functionally complete when an administrator can create user accounts, any user can create a review project, and a project manager (the project's owner or the administrator) can:
 
 1. Add and configure eligible reviewers.
 2. Define research questions, criteria, and reviewer rules.
@@ -959,21 +966,21 @@ Papertrail can be considered functionally complete for its first release when an
 6. Run title/abstract screening with one or multiple reviewers.
 7. Keep independent decisions hidden until all required decisions are submitted.
 8. Resolve uncertain and conflicting decisions.
-9. Track manual full-text retrieval and full-text screening.
-10. Assign exactly one extractor and one quality assessor per included publication.
+9. Track full-text retrieval (manual or Browser Helper-assisted), store versioned PDFs, and run full-text screening.
+10. Assign one or two extractors per included publication according to project configuration, reconcile dual-extractor disagreements, and assign one quality assessor when quality assessment is enabled.
 11. Collect project-specific structured extraction and quality data.
 12. Modify forms with warnings, versioning, and data preservation.
 13. Complete and reopen a project without losing downstream information.
 14. Export a structured Excel workbook.
 15. Export an analysis-ready Parquet dataset.
 16. Export configurable BibTeX files.
-16. Generate PRISMA 2020 tables and a valid SVG flow diagram.
-17. Review an audit trail of all significant project actions.
+17. Generate PRISMA 2020 tables and a valid SVG flow diagram.
+18. Review an audit trail of significant project actions.
 
 ---
 
 ## 30. Summary
 
-Papertrail is a collaborative, self-hosted review-management application centered on transparent manual decision-making. It imports bibliographic exports, normalizes and deduplicates records, supports configurable multi-reviewer screening, tracks manual full-text retrieval, and provides structured extraction and quality-assessment workflows.
+Papertrail is a collaborative, self-hosted review-management application centered on transparent human decision-making. It imports bibliographic exports, normalizes and deduplicates records, supports configurable multi-reviewer screening, stores full-text PDFs obtained manually or through the paired Browser Helper, supports one- or two-reviewer structured extraction with authoritative reconciliation, and provides configurable quality-assessment workflows.
 
 Its primary differentiators are a focused queue-based review process, flexible project-specific forms, strict decision provenance, reversible duplicate handling, and direct generation of PRISMA 2020 and academic export outputs.

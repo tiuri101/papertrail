@@ -73,9 +73,9 @@ The frontend CI job runs, in order:
 1. Dependency installation
 2. Production and test type checking
 3. ESLint
-4. Production build
-5. Vitest
+4. Vitest
+5. Production build
 6. Chromium installation
 7. Playwright
 
-A frontend change should not be merged when any of these steps fails.
+A frontend change should not be merged when any of these steps fails. CI also has separate backend and Browser Helper verification jobs; pull requests and manually dispatched CI runs execute the test jobs, while release pushes build/package artifacts instead.

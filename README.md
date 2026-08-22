@@ -17,28 +17,29 @@ Papertrail imports bibliographic exports and optional full-text PDFs, preserves 
 ```mermaid
 flowchart LR
     A[📥 Import<br/>bibliographic exports] --> B[🧬 Deduplicate<br/>reviewer-driven merges]
-    B --> C[🔍 Screen<br/>title/abstract & full-text]
+    B --> C[🔍 Screen<br/>title/abstract]
     C --> D[📄 Retrieve<br/>full-text PDFs]
-    D --> E[📝 Extract<br/>versioned dynamic forms]
-    E --> F[✅ Quality assess<br/>risk-of-bias review]
-    F --> G[📊 Report<br/>PRISMA, Excel, Parquet, JSON, CSV, BibTeX]
+    D --> E[🔎 Screen<br/>full text]
+    E --> F[📝 Extract<br/>versioned dynamic forms]
+    F --> G[✅ Quality assess<br/>risk-of-bias review]
+    G --> H[📊 Report<br/>PRISMA, Excel, Parquet, JSON, CSV, BibTeX]
 ```
 
-Every step is logged to an immutable audit trail, and an optional local LLM can suggest — never decide — screening and extraction answers.
+Significant workflow, administrative, and reviewer actions are recorded in an immutable audit trail, and an optional local LLM can suggest (but never decide) screening and extraction answers.
 
 ## ✨ Features
 
-- **Import and provenance** — import bibliographic exports from multiple databases
-- **PDF management** — attach full-text PDFs with version history, stored locally; an optional paired Chrome extension can retrieve them through the reviewer's own browser network access and sign-in state
-- **Duplicate review** — configurable duplicate scoring with reviewer-driven merge decisions
-- **Multi-reviewer screening** — title/abstract and full-text screening stages with configurable reviewer counts and conflict resolution
-- **Dynamic extraction forms** — versioned, project-defined forms with stable field identifiers for structured data extraction, optionally with two independent extractors per publication and adjudicator-led reconciliation of disagreements
-- **Quality assessment** — reviewer-recorded quality/risk-of-bias evaluation, kept separate from extraction data
-- **Optional LLM assistance** — evidence-backed suggestions for screening, extraction, and validation, plus source-cited research-question synthesis, via an external Ollama service; suggestions are advisory only and reviewer decisions remain authoritative
-- **Charts & Analysis** — anonymized inter-rater agreement, a searchable/filterable evidence matrix of every result with its source traceable, and optional LLM-generated per-research-question synthesis
-- **Reporting and export** — PRISMA flow outputs, Excel workbooks, Parquet datasets, JSON and CSV exports, and BibTeX export
-- **Audit trail** — durable audit logging of workflow and reviewer actions
-- **Role-based access** — project-scoped membership so reviewers only see projects and actions they're eligible for
+- **Import and provenance:** import bibliographic exports from multiple databases
+- **PDF management:** attach full-text PDFs with version history, stored locally; an optional paired Chrome extension can retrieve them through the reviewer's own browser network access and sign-in state
+- **Duplicate review:** configurable duplicate scoring with reviewer-driven merge decisions
+- **Multi-reviewer screening:** title/abstract and full-text screening stages with configurable reviewer counts and conflict resolution
+- **Dynamic extraction forms:** versioned, project-defined forms with stable field identifiers for structured data extraction, optionally with two independent extractors per publication and adjudicator-led reconciliation of disagreements
+- **Quality assessment:** reviewer-recorded quality/risk-of-bias evaluation, kept separate from extraction data
+- **Optional LLM assistance:** evidence-backed suggestions for screening, extraction, and validation, plus source-cited research-question synthesis, via an external Ollama service; suggestions are advisory only and reviewer decisions remain authoritative
+- **Charts & Analysis:** anonymized inter-reviewer agreement, a searchable/filterable evidence matrix of every result with its source traceable, and optional LLM-generated per-research-question synthesis
+- **Reporting and export:** PRISMA flow outputs, Excel workbooks, Parquet datasets, JSON and CSV exports, and BibTeX export
+- **Audit trail:** durable audit logging of workflow and reviewer actions
+- **Role-based access:** project-scoped membership so reviewers only see projects and actions they're eligible for
 
 ## 🏗️ Architecture
 
@@ -101,11 +102,13 @@ See [Installation](docs/installation.md) for production configuration.
 | --- | --- |
 | [Local development](docs/local-development.md) | Manual setup, testing, database management, troubleshooting |
 | [Architecture](docs/architecture.md) | System design and component overview |
-| [Administrator guide](docs/administrator-guide.md) | Managing users, projects, and settings |
-| [Reviewer guide](docs/user-guide.md) | Screening, extraction, and quality assessment workflows |
+| [Administrator guide](docs/administrator-guide.md) | Managing users, projects, jobs, integrity, and global settings |
+| [Reviewer guide](docs/user-guide.md) | Screening, PDFs, account settings, extraction, quality assessment, and analysis |
 | [Developer guide](docs/developer-guide.md) | Contributing and codebase conventions |
 | [Frontend testing](docs/frontend-testing.md) | Running and writing frontend tests |
+| [Configuration](docs/configuration.md) | Environment variables, Global Settings, precedence, and runtime behavior |
+| [Browser Helper](docs/browser-helper.md) | Installing, pairing, and operating browser-assisted PDF retrieval |
 | [Backup and restore](docs/backup-and-restore.md) | Data durability and disaster recovery |
 | [Import formats](docs/import-formats.md) | Supported bibliographic export formats |
 | [LLM-assisted extraction](docs/llm-assisted-extraction.md) | How the optional Ollama integration works |
-| [API overview](docs/api.md) | REST API reference |
+| [API overview](docs/api.md) | API conventions and integration overview; `/docs` and `/openapi.json` are authoritative |

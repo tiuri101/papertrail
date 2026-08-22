@@ -191,7 +191,7 @@ Vite serves the frontend at http://localhost:5173 and proxies `/api` requests to
 
 ## Browser extension development
 
-The Chrome Manifest V3 "Papertrail Browser Helper" extension lives in `browser-extension/`, a standalone package -- it is not part of the frontend workspace and has its own `package.json`.
+The Chrome Manifest V3 "Papertrail Browser Helper" extension lives in `browser-extension/`, a standalone package -- it is not part of the frontend workspace and has its own `package.json`. Production releases package the built extension as `papertrail-browser-extension-<version>.zip`; normal users should follow [Browser Helper](browser-helper.md), while development uses `browser-extension/dist` directly.
 
 ```powershell
 cd browser-extension
@@ -462,6 +462,6 @@ npm install
 Use:
 
 - `docker-compose.dev.yml` for local development; it starts PostgreSQL only.
-- `docker-compose.yml` for production-like self-hosting; it starts PostgreSQL, migrations, API, worker, and frontend, pulling prebuilt images.
+- `docker-compose.yml` for production-like self-hosting; it starts PostgreSQL, migrations, API, the normal worker, the LLM worker, and frontend, pulling prebuilt images.
 
 Do not use the development database password or local cookie settings in production.
