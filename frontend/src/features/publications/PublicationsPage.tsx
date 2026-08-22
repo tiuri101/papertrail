@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { ActionListItem } from '../../components/ActionListItem'
 import { actionListItemClass } from '../../components/actionListStyles'
 import { Badge } from '../../components/Badge'
 import { Button, IconButton } from '../../components/Button'
@@ -51,7 +52,6 @@ import {
   type SortDirection,
 } from './publicationShared'
 
-const rowActionItemClass = actionListItemClass()
 const dangerRowActionItemClass = actionListItemClass({ danger: true })
 
 const publicationRowGridClass = "grid grid-cols-[1.5rem_minmax(0,1fr)_3.25rem_9rem_6.5rem_4.5rem_4.5rem] items-center gap-3 [&>*]:min-w-0 max-[900px]:grid-cols-[1.5rem_auto_minmax(0,1fr)_auto_auto] max-[900px]:grid-rows-2 max-[900px]:[grid-template-areas:'checkbox_title_title_title_actions'_'._year_source_stage_pdf'] max-[900px]:gap-y-2 max-[600px]:grid-cols-[1.5rem_minmax(0,1fr)_auto] max-[600px]:grid-rows-4 max-[600px]:[grid-template-areas:'checkbox_title_actions'_'._source_source'_'._year_stage'_'._pdf_pdf']"
@@ -275,39 +275,37 @@ function PublicationRow({
           </IconButton>
           {canManage ? (
             <RowActionsMenu label={`More actions for ${publication.title}`}>
-              <Link className={rowActionItemClass} to={`${detailHref}?edit=1`}>Edit Metadata</Link>
-              <button
+              <ActionListItem as={Link} to={`${detailHref}?edit=1`}>Edit Metadata</ActionListItem>
+              <ActionListItem
                 type="button"
-                className={rowActionItemClass}
                 onClick={() => enrich.mutate()}
                 disabled={enrich.isPending || !publication.doi}
               >
                 Enrich Metadata
-              </button>
-              <button
+              </ActionListItem>
+              <ActionListItem
                 type="button"
-                className={rowActionItemClass}
                 onClick={() => setShowFullText((current) => !current)}
               >
                 {showFullText ? 'Hide PDF' : publication.fullText?.available ? 'Manage PDF' : 'Attach PDF'}
-              </button>
-              <a
-                className={rowActionItemClass}
+              </ActionListItem>
+              <ActionListItem
+                as="a"
                 href={`/api/v1/projects/${projectId}/publications/${publication.id}/export/bib`}
                 target="_blank"
                 rel="noreferrer"
               >
                 Export BibTeX
-              </a>
+              </ActionListItem>
               {publication.fullText?.available ? (
-                <a
-                  className={rowActionItemClass}
+                <ActionListItem
+                  as="a"
                   href={`/api/v1/projects/${projectId}/publications/${publication.id}/export/pdf`}
                   target="_blank"
                   rel="noreferrer"
                 >
                   Export PDF
-                </a>
+                </ActionListItem>
               ) : null}
               <ConfirmButton
                 label="Delete"
