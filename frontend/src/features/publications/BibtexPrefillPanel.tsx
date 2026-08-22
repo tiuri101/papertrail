@@ -3,6 +3,7 @@ import { useMutation } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { getCsrfToken } from '../auth/session'
+import { Button } from '../../components/Button'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { IconSparkle } from '../../components/icons'
 import { Textarea } from '../../components/Textarea'
@@ -97,14 +98,14 @@ export function BibtexPrefillPanel({
         />
       </label>
       <div className={toolbarClass}>
-        <button
+        <Button
           type="button"
           disabled={(!bibFile.length && !bibText.trim()) || prefill.isPending}
           onClick={() => prefill.mutate()}
+          startIcon={<IconSparkle />}
         >
-          <IconSparkle />
           {prefill.isPending ? 'Parsing…' : 'Prefill form'}
-        </button>
+        </Button>
       </div>
       {prefill.isSuccess ? (
         <p>

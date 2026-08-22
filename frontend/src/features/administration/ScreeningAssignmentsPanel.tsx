@@ -145,17 +145,17 @@ function ReassignRow({
                   <option key={reviewer.id} value={reviewer.id}>{reviewer.displayName}</option>
                 ))}
             </Select>
-            <button
+            <Button
               type="button"
               disabled={!selectedReviewer || pending}
               onClick={() => {
                 onReassign(selectedReviewer)
                 setSelectedReviewer('')
               }}
+              startIcon={<IconSwap />}
             >
-              <IconSwap />
               Reassign
-            </button>
+            </Button>
           </div>
         )}
       </td>
@@ -426,13 +426,13 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
             </tbody>
           </table>
           <div className={toolbarClass}>
-            <button type="button" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>
+            <Button type="button" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>
               Previous
-            </button>
+            </Button>
             <span className="text-text-muted">Page {page} of {totalPages} ({total} total)</span>
-            <button type="button" disabled={page >= totalPages} onClick={() => setPage((current) => current + 1)}>
+            <Button type="button" disabled={page >= totalPages} onClick={() => setPage((current) => current + 1)}>
               Next
-            </button>
+            </Button>
           </div>
         </>
       ) : null}

@@ -166,10 +166,9 @@ function ProjectDetailsStep({
           </label>
           {projectId ? <p className="text-text">Review type can&apos;t be changed after the project is created.</p> : null}
           {error ? <p className="text-danger" role="alert">{error.message}</p> : null}
-          <button type="submit" disabled={pending || name.trim().length === 0}>
+          <Button type="submit" disabled={pending || name.trim().length === 0} endIcon={<IconArrowRight />}>
             {projectId ? 'Save & Continue' : 'Create Project & Continue'}
-            <IconArrowRight />
-          </button>
+          </Button>
         </form>
       )}
     </Card>
