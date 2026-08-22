@@ -8,8 +8,10 @@ const sizes = {
   md: '!min-h-[38px] !p-2 text-[0.9rem] [&_svg]:size-[18px]',
 } as const
 
+export type ActionListItemSize = keyof typeof sizes
+
 export function actionListItemClass({ size = 'sm', danger = false }: {
-  size?: keyof typeof sizes
+  size?: ActionListItemSize
   danger?: boolean
 } = {}) {
   return cn(base, sizes[size], danger && '!text-danger hover:!text-danger')
