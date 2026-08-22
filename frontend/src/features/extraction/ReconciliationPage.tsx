@@ -9,6 +9,7 @@ import { Card } from '../../components/Card'
 import { CountPill } from '../../components/CountPill'
 import { DoiPill } from '../../components/DoiPill'
 import { Input } from '../../components/Input'
+import { toolbarClass } from '../../components/layoutStyles'
 import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
 import { PublisherLinkPill } from '../../components/PublisherLinkPill'
 import { Textarea } from '../../components/Textarea'
@@ -125,7 +126,7 @@ export function ReconciliationPage() {
                 onCancel={() => setExpandedPublicationId(null)}
               />
             ) : (
-              <div className="flex flex-wrap items-center gap-3">
+              <div className={toolbarClass}>
                 <Button type="button" onClick={() => setExpandedPublicationId(item.publication.id)}>
                   Reconcile
                 </Button>
@@ -261,7 +262,7 @@ function ReconciliationForm({ projectId, publicationId, onDone, onCancel }: {
         <Textarea value={note} onChange={(event) => setNote(event.target.value)} required />
       </label>
       {submit.error ? <p className="text-danger" role="alert">{submit.error.message}</p> : null}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className={toolbarClass}>
         <Button
           type="button"
           onClick={() => submit.mutate()}

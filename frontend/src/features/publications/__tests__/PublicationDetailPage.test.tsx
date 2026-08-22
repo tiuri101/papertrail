@@ -304,18 +304,25 @@ describe('PublicationDetailPage', () => {
         fullText: null,
       },
       extraction: {
-        workItemId: 'extraction-1',
-        status: 'completed',
-        completedAt: '2026-08-01T12:00:00Z',
-        response: {
-          id: 'response-1',
-          version: 1,
-          reviewerName: 'Extractor One',
-          answers: { finding: 'Original finding' },
-          fields: [
-            { stableKey: 'finding', label: 'Main finding', fieldType: 'long_text', required: true, options: [] },
-          ],
-        },
+        requiredReviewers: 1,
+        slots: [
+          {
+            slotNumber: 1,
+            workItemId: 'extraction-1',
+            status: 'completed',
+            completedAt: '2026-08-01T12:00:00Z',
+            response: {
+              id: 'response-1',
+              version: 1,
+              reviewerName: 'Extractor One',
+              answers: { finding: 'Original finding' },
+              fields: [
+                { stableKey: 'finding', label: 'Main finding', fieldType: 'long_text', required: true, options: [] },
+              ],
+            },
+          },
+        ],
+        final: null,
       },
     }
     const fetchMock = mockFetch((input, init) => {

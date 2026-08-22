@@ -68,7 +68,7 @@ export function NewFieldDraftCard({
   saving: boolean
 }) {
   return (
-    <div className="llm-schema-field form-editor-field form-editor-field--draft">
+    <div className="llm-schema-field form-editor-field form-editor-field--draft" data-ui="form-editor-field" data-draft="true">
       <div className="llm-schema-field__summary">
         <span className="llm-schema-field__title">
           <strong>{fieldLabel.trim() || 'New field'}</strong>

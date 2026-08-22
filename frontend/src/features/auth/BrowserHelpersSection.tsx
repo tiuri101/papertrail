@@ -5,6 +5,7 @@ import { Card } from '../../components/Card'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { IconCopy, IconPlus, IconTrash, IconUpload } from '../../components/icons'
+import { toolbarClass } from '../../components/layoutStyles'
 import type { PairingSecret } from './useBrowserAgents'
 import { useBrowserAgents } from './useBrowserAgents'
 
@@ -89,7 +90,7 @@ export function BrowserHelpersSection() {
             Expires: {formatDateTime(pairingSecret.expiresAt)}. This secret is shown only once --
             paste it into the Chrome extension&apos;s setup page now.
           </p>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className={toolbarClass}>
             <Button type="button" onClick={handleCopy}>
               <IconCopy />
               {copied ? 'Copied' : 'Copy'}

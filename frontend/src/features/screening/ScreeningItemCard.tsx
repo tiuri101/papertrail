@@ -5,6 +5,7 @@ import { Button } from '../../components/Button'
 import { Card } from '../../components/Card'
 import { HighlightedText } from '../../components/HighlightedText'
 import { IconArrowRight, IconCheckCircle } from '../../components/icons'
+import { toolbarClass } from '../../components/layoutStyles'
 import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
 import { PublisherLinkPill } from '../../components/PublisherLinkPill'
 import { formatHotkey, loadScreeningHotkeys } from '../../lib/screeningHotkeys'
@@ -100,7 +101,7 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
       {decisionError ? (
         <p className="text-danger" role="alert">{decisionError.message}</p>
       ) : null}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className={toolbarClass}>
         <Button
           type="button"
           variant="primary"

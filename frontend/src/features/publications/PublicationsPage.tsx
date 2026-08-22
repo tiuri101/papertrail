@@ -660,7 +660,7 @@ export function PublicationsPage() {
             ) : null}
             {query.error ? <p className="text-danger" role="alert">{query.error.message}</p> : null}
             {query.data ? (
-              <div className="my-5 flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap items-center gap-3">
                 <label className="w-full flex-[0_1_32rem]">
                   Search publications
                   <Input

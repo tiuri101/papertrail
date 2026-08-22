@@ -6,6 +6,7 @@ import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { IconAlertTriangle, IconRestart, IconTrash } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
+import { toolbarClass } from '../../components/layoutStyles'
 
 export function DangerZonePanel({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient()
@@ -31,7 +32,7 @@ export function DangerZonePanel({ projectId }: { projectId: string }) {
 
   return (
     <>
-      <CollapsibleSection id="section-reset-project" title="Reset Project" className="border-[rgba(255,127,130,0.3)] bg-linear-to-b from-danger-container to-surface [&_h2]:text-danger [&_.collapsible-section__icon]:text-danger" icon={<IconRestart />}>
+      <CollapsibleSection id="section-reset-project" title="Reset Project" tone="danger" icon={<IconRestart />}>
         <InfoBox icon={<IconAlertTriangle />} tone="warning">
           <p>
             Wipes every imported publication and all screening, duplicate-review, full-text,
@@ -42,7 +43,7 @@ export function DangerZonePanel({ projectId }: { projectId: string }) {
         </InfoBox>
         {reset.error ? <p className="text-danger" role="alert">{reset.error.message}</p> : null}
         {reset.isSuccess ? <p>Project has been reset to draft.</p> : null}
-        <div className="flex flex-wrap items-center gap-3">
+        <div className={toolbarClass}>
           <ConfirmButton
             label="Reset Project"
             confirmLabel="Reset Project"
@@ -54,7 +55,7 @@ export function DangerZonePanel({ projectId }: { projectId: string }) {
           />
         </div>
       </CollapsibleSection>
-      <CollapsibleSection id="section-delete-project" title="Delete Project" className="border-[rgba(255,127,130,0.3)] bg-linear-to-b from-danger-container to-surface [&_h2]:text-danger [&_.collapsible-section__icon]:text-danger" icon={<IconTrash />}>
+      <CollapsibleSection id="section-delete-project" title="Delete Project" tone="danger" icon={<IconTrash />}>
         <InfoBox icon={<IconAlertTriangle />} tone="warning">
           <p>
             Permanently removes the entire project, including its configuration, publications,
@@ -62,7 +63,7 @@ export function DangerZonePanel({ projectId }: { projectId: string }) {
           </p>
         </InfoBox>
         {deleteProject.error ? <p className="text-danger" role="alert">{deleteProject.error.message}</p> : null}
-        <div className="flex flex-wrap items-center gap-3">
+        <div className={toolbarClass}>
           <ConfirmButton
             label="Delete Project"
             confirmLabel="Permanently Delete"

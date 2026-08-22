@@ -508,7 +508,9 @@ export function FormFieldsPanel({
                   <details
                     className={`llm-schema-field form-editor-field${draggedFieldKey === field.stableKey ? ' llm-schema-field--dragging' : ''}${dragOverFieldKey === field.stableKey ? ' llm-schema-field--drag-over' : ''}`}
                     key={field.id}
+                    data-ui="form-editor-field"
                     data-field-sort-key={field.stableKey}
+                    data-drag-over={dragOverFieldKey === field.stableKey ? 'true' : undefined}
                     open={editingKey === field.stableKey}
                     onDragOver={(event) => {
                       if (!draggedFieldKey) return

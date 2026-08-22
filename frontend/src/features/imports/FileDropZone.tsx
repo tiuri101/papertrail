@@ -71,6 +71,7 @@ export function FileDropZone({
       </label>
       <div
         className={`dropzone${dragging ? ' dropzone--active' : ''}`}
+        data-dropzone
         onClick={() => inputRef.current?.click()}
         onDragOver={(event) => {
           event.preventDefault()

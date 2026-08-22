@@ -6,6 +6,7 @@ import { Button } from '../../components/Button'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { IconTrash, IconUpload } from '../../components/icons'
+import { toolbarClass } from '../../components/layoutStyles'
 import {
   fullTextDocumentEndpoint,
   fullTextDocumentQueryKey,
@@ -84,7 +85,7 @@ export function FullTextDocumentPanel({ projectId, publicationId, onAvailable, o
               {active.uploadedBy ? ` by ${active.uploadedBy.displayName}` : ''}
             </span>
           </p>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className={toolbarClass}>
             <Button as="a" variant="primary" size="sm" href={`${endpoint}/content`} target="_blank" rel="noreferrer">View PDF</Button>
             <ConfirmButton
               className="h-8 min-h-8 px-3 text-[13px]"
@@ -119,7 +120,7 @@ export function FullTextDocumentPanel({ projectId, publicationId, onAvailable, o
       ) : document.data ? (
         <>
           <p className="text-text">No PDF attached</p>
-          <div className="flex flex-wrap items-center gap-3">
+          <div className={toolbarClass}>
             <Button type="button" size="sm" onClick={openFilePicker} disabled={upload.isPending}>
               <IconUpload />
               Upload PDF

@@ -20,7 +20,7 @@ export function StageProgress({ stage }: { stage: string }) {
   }, [stage])
 
   return (
-    <div className="mb-6 overflow-x-auto rounded-md border border-border bg-surface p-2 [scrollbar-width:thin]">
+    <div className="mt-6 mb-6 overflow-x-auto rounded-md border border-border bg-surface p-2 [scrollbar-width:thin]">
       <ol className="m-0 flex w-fit min-w-full list-none p-0" aria-label="Project stage">
         {STAGES.map((step) => (
           <li

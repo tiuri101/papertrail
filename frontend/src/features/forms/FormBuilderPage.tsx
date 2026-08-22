@@ -386,7 +386,9 @@ export function FormBuilderPage() {
                   <details
                     className={`llm-schema-field form-editor-field${draggedFieldKey === field.stableKey ? ' llm-schema-field--dragging' : ''}${dragOverFieldKey === field.stableKey ? ' llm-schema-field--drag-over' : ''}`}
                     key={field.id}
+                    data-ui="form-editor-field"
                     data-field-sort-key={field.isArchived ? undefined : field.stableKey}
+                    data-drag-over={dragOverFieldKey === field.stableKey ? 'true' : undefined}
                     open={field.isArchived ? undefined : editingKey === field.stableKey}
                     onDragOver={(event) => {
                       if (!draggedFieldKey || field.isArchived || selectedFormReadOnly) return
@@ -659,7 +661,7 @@ export function FormBuilderPage() {
                   </span>
                   <h3>{template.name}</h3>
                 </div>
-                <div className="toolbar form-template-card__actions">
+                <div className="toolbar form-template-card__actions" data-template-actions>
                   <button
                     type="button"
                     className="button-secondary"

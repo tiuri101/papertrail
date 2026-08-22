@@ -1,6 +1,27 @@
 import { type ReactNode, useId, useState } from 'react'
 
 import { cn } from '../lib/cn'
+import { cardPageSiblingSpacingStyles, cardPaddingStyles, cardShapeStyles, cardShellStyles } from './Card'
+
+// Mirrors cardPaddingStyles' breakpoints/values but only on the top+x axes, so the header button can
+// span the full card width (for a larger click target) while reproducing the exact inset a plain
+// Card's padding would give its heading. Deliberately axis-scoped (no bottom) to avoid two classes
+// fighting over the same CSS property.
+const headerPaddingTopXStyles = 'pt-6 px-6 max-[760px]:pt-5 max-[760px]:px-5 max-[480px]:pt-4 max-[480px]:px-4'
+const headerNegativeMarginTopXStyles = '-mt-6 -mx-6 max-[760px]:-mt-5 max-[760px]:-mx-5 max-[480px]:-mt-4 max-[480px]:-mx-4'
+
+// Full shell per tone (not just a border/background override) so a differently-toned section never
+// carries two conflicting utilities for the same CSS property fighting over Tailwind's generated
+// source order — the exact bug that left danger-zone cards rendering with the default blue-ish shell.
+const shellByTone = {
+  default: cardShellStyles,
+  danger: cn(cardShapeStyles, 'border border-danger/30 bg-linear-to-b from-danger-container to-surface'),
+} as const
+
+const textByTone = {
+  default: '',
+  danger: '[&_h2]:text-danger [&_h3]:text-danger [&_.collapsible-section__icon]:text-danger',
+} as const
 
 interface CollapsibleSectionProps {
   id?: string
@@ -12,6 +33,8 @@ interface CollapsibleSectionProps {
   className?: string
   defaultExpanded?: boolean
   headingLevel?: 2 | 3
+  /** Visual tone; 'danger' is used for destructive/irreversible actions (e.g. a project danger zone). */
+  tone?: keyof typeof shellByTone
 }
 
 export function CollapsibleSection({
@@ -24,6 +47,7 @@ export function CollapsibleSection({
   className,
   defaultExpanded = true,
   headingLevel = 2,
+  tone = 'default',
 }: CollapsibleSectionProps) {
   const [expanded, setExpanded] = useState(defaultExpanded)
   const contentId = useId()
@@ -45,14 +69,18 @@ export function CollapsibleSection({
     <section
       id={id}
       className={cn(
-        'collapsible-section relative rounded-lg border border-border bg-linear-to-b from-surface-raised to-surface shadow-sm',
-        expanded ? 'p-6' : 'p-0',
+        'collapsible-section',
+        shellByTone[tone],
+        cardPageSiblingSpacingStyles,
+        expanded ? cardPaddingStyles : 'p-0',
+        textByTone[tone],
         className,
       )}
+      data-ui="card"
       data-expanded={expanded}
     >
       {headingAccessory ? (
-        <Heading className={cn('collapsible-section__heading collapsible-section__heading--with-accessory m-0 flex items-center gap-2', expanded ? '-m-6 mb-0 pt-6 px-6 pb-0' : 'p-6')} aria-label={title}>
+        <Heading className={cn('collapsible-section__heading collapsible-section__heading--with-accessory m-0 flex items-center gap-2', expanded ? cn(headerNegativeMarginTopXStyles, headerPaddingTopXStyles) : cardPaddingStyles)} aria-label={title}>
           <button
             type="button"
             className="collapsible-section__toggle inline-flex h-auto min-h-0 w-auto cursor-pointer items-center justify-between border-0 bg-none bg-transparent p-0 text-left text-[1.25rem] leading-[1.2] font-[680] tracking-[-0.018em] text-[inherit] shadow-none hover:bg-none hover:text-primary focus-visible:rounded-sm focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-focus"
@@ -77,12 +105,12 @@ export function CollapsibleSection({
           </button>
         </Heading>
       ) : (
-        <Heading className={cn('collapsible-section__heading m-0', expanded && '-m-6 mb-0')}>
+        <Heading className={cn('collapsible-section__heading m-0', expanded && headerNegativeMarginTopXStyles)}>
           <button
             type="button"
             className={cn(
               'collapsible-section__toggle inline-flex h-auto min-h-0 w-full cursor-pointer items-center justify-between border-0 bg-none bg-transparent text-left text-[1.25rem] leading-[1.2] font-[680] tracking-[-0.018em] text-[inherit] shadow-none hover:bg-none hover:text-primary focus-visible:rounded-sm focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-focus',
-              expanded ? 'pt-6 px-6 pb-0' : 'p-6',
+              expanded ? headerPaddingTopXStyles : cardPaddingStyles,
             )}
             aria-expanded={expanded}
             aria-controls={contentId}

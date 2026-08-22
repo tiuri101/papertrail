@@ -4,7 +4,8 @@ import { Link, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { Button } from '../../components/Button'
-import { Card } from '../../components/Card'
+import { Card, cardPageSiblingSpacingStyles } from '../../components/Card'
+import { cn } from '../../lib/cn'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { IconInfo, IconRestart } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
@@ -310,7 +311,7 @@ export function ProjectPage() {
         </p>
         <h1>{project.data.name}</h1>
         {integrity.data?.issues.length ? (
-          <section className="rounded-md border border-[rgba(255,127,130,0.28)] bg-danger-container p-4 text-danger" role="alert" aria-labelledby="workflow-integrity-heading">
+          <section className={cn(cardPageSiblingSpacingStyles, 'rounded-md border border-[rgba(255,127,130,0.28)] bg-danger-container p-4 text-danger')} data-ui="card" role="alert" aria-labelledby="workflow-integrity-heading">
             <h2 id="workflow-integrity-heading">Workflow integrity issue</h2>
             <ul>
               {integrity.data.issues.map((issue) => (
@@ -339,7 +340,7 @@ export function ProjectPage() {
           </section>
         ) : null}
         {metadataConflicts.data?.length ? (
-          <section className="rounded-md border border-[rgba(255,127,130,0.28)] bg-danger-container p-4" role="status" aria-labelledby="metadata-conflict-heading">
+          <section className={cn(cardPageSiblingSpacingStyles, 'rounded-md border border-[rgba(255,127,130,0.28)] bg-danger-container p-4')} data-ui="card" role="status" aria-labelledby="metadata-conflict-heading">
             <h2 id="metadata-conflict-heading">Metadata conflicts need review</h2>
             <p>
               {metadataConflicts.data.length} open metadata conflict{metadataConflicts.data.length === 1 ? '' : 's'} found.{' '}
@@ -348,7 +349,7 @@ export function ProjectPage() {
           </section>
         ) : null}
         {pdfMatchesNeedingReview ? (
-          <section className="rounded-md border border-[rgba(255,127,130,0.28)] bg-danger-container p-4" role="status" aria-labelledby="pdf-match-heading">
+          <section className={cn(cardPageSiblingSpacingStyles, 'rounded-md border border-[rgba(255,127,130,0.28)] bg-danger-container p-4')} data-ui="card" role="status" aria-labelledby="pdf-match-heading">
             <h2 id="pdf-match-heading">PDF matches need review</h2>
             <p>
               {pdfMatchesNeedingReview} imported PDF{pdfMatchesNeedingReview === 1 ? '' : 's'} still
@@ -382,14 +383,14 @@ export function ProjectPage() {
             const summaryText = jobSummaryText(jobSummary.data ?? [], group.jobStages)
             return (
               <li
-                className={`grid grid-cols-[56px_minmax(0,1fr)] items-center gap-4${upcoming ? ' opacity-45' : ''}`}
+                className="grid grid-cols-[56px_minmax(0,1fr)] items-center gap-4"
                 data-upcoming={upcoming || undefined}
                 key={group.heading}
                 style={groupColorStyle(group)}
               >
-                <span className="inline-flex size-14 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--group-color)_18%,transparent)] text-2xl leading-none font-bold text-(--group-color)" data-workflow-index={index} aria-hidden="true">{index}</span>
+                <span className={`inline-flex size-14 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--group-color)_18%,transparent)] text-2xl leading-none font-bold text-(--group-color)${upcoming ? ' opacity-45' : ''}`} data-workflow-index={index} aria-hidden="true">{index}</span>
                 <div className="min-w-0 border-l-[3px] border-(--group-color) py-1 pl-4">
-                  <h3 className="mb-3 text-base font-bold text-(--group-color)">
+                  <h3 className={`mb-3 text-base font-bold text-(--group-color)${upcoming ? ' opacity-45' : ''}`}>
                     {group.heading}
                     {summaryText ? (
                       <span className="text-[0.78rem] font-medium text-text-secondary">{'\u00a0·\u00a0'}{summaryText}</span>

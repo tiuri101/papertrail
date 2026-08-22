@@ -6,6 +6,7 @@ import { apiRequest } from '../../api/client'
 import { Button } from '../../components/Button'
 import { CountPill } from '../../components/CountPill'
 import { Input } from '../../components/Input'
+import { toolbarClass } from '../../components/layoutStyles'
 import { Page } from '../../components/Page'
 import { Select } from '../../components/Select'
 import { SortableColumnHeader } from '../../components/SortableColumnHeader'
@@ -311,7 +312,7 @@ export function FinalResultsPage() {
             </div>
           )}
           {pageCount > 1 ? (
-            <div className="flex flex-wrap items-center gap-3">
+            <div className={toolbarClass}>
               <Button type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={currentPage <= 1}>
                 Previous
               </Button>

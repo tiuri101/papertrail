@@ -5,6 +5,7 @@ import { apiRequest } from '../../api/client'
 import { Button } from '../../components/Button'
 import { Card } from '../../components/Card'
 import { IconUpload } from '../../components/icons'
+import { toolbarClass } from '../../components/layoutStyles'
 import { FileDropZone } from './FileDropZone'
 import { PdfMatchReview } from './PdfMatchReview'
 import type { UploadResult } from './types'
@@ -61,7 +62,7 @@ export function AttachPdfsPanel({ projectId, importBatchId, onClose }: {
         onChange={setPdfArchives}
         disabled={upload.isPending}
       />
-      <div className="flex flex-wrap items-center gap-3">
+      <div className={toolbarClass}>
         <Button
           type="button"
           size="sm"
