@@ -245,7 +245,7 @@ export function PublicationDetailPage() {
         <h1>Publication not found</h1>
         <p className="text-text-muted">
           It may have been deleted or merged into another record.{' '}
-          <Link to={`/projects/${projectId}/publications`}>Back to Publications</Link>
+          <Button as={Link} to={`/projects/${projectId}/publications`} variant="text">Back to Publications</Button>
         </p>
       </main>
     )
@@ -266,7 +266,7 @@ export function PublicationDetailPage() {
         <AdministrationEyebrow />
         <p>
           {openedFromList ? (
-            <Link to={`/projects/${projectId}/publications`}>← Back to Publications</Link>
+            <Button as={Link} to={`/projects/${projectId}/publications`} variant="text">← Back to Publications</Button>
           ) : (
             <Button type="button" variant="text" onClick={closeEditing}>← Back to Publication</Button>
           )}
@@ -298,7 +298,7 @@ export function PublicationDetailPage() {
   return (
       <main className={pageStyles}>
       <AdministrationEyebrow />
-      <p><Link to={`/projects/${projectId}/publications`}>← Back to Publications</Link></p>
+      <p><Button as={Link} to={`/projects/${projectId}/publications`} variant="text">← Back to Publications</Button></p>
 
       <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 min-[961px]:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="min-w-0 max-[960px]:contents">
