@@ -504,6 +504,13 @@ textarea {
   resize: vertical;
 }
 
+input:disabled,
+select:disabled,
+textarea:disabled {
+  opacity: var(--button-disabled-opacity);
+  cursor: not-allowed;
+}
+
 /* Compact controls should reflect the amount of data they contain instead of
    inheriting the full-width treatment used by free-text fields. */
 select:not([multiple]) {

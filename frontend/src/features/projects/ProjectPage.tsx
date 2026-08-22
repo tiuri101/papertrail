@@ -401,7 +401,7 @@ export function ProjectPage() {
                       upcoming && !alwaysAvailable ? (
                         <span
                           key={path}
-                          className="inline-flex min-h-[38px] cursor-not-allowed items-center rounded-sm border border-border bg-surface-raised px-[13px] py-2 text-[0.88rem] font-semibold text-text-secondary"
+                          className="inline-flex min-h-[38px] cursor-not-allowed items-center rounded-sm border border-border bg-surface-raised px-[13px] py-2 text-[0.88rem] font-semibold text-text-secondary opacity-[.48]"
                           aria-disabled="true"
                           title="Not available yet — this stage hasn't started."
                         >
