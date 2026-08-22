@@ -163,7 +163,10 @@ function ScreeningResponseForm({
                   {answer === true ? (
                     <span className={cn(
                       'inline-flex min-w-[2.2rem] items-center justify-center rounded-full border border-current px-[7px] py-0.5 text-[0.72rem] font-extrabold',
-                      criterion.kind === 'exclusion' ? 'bg-success-container text-success' : 'bg-surface-active text-text-secondary',
+                      // An inclusion criterion being fulfilled is a good sign; an exclusion
+                      // criterion being fulfilled means the exclusion applies, arguing against
+                      // inclusion — same color meanings as the live screening queue's checkboxes.
+                      criterion.kind === 'exclusion' ? 'bg-danger-container text-danger' : 'bg-success-container text-success',
                     )}
                     >
                       Yes
@@ -174,7 +177,7 @@ function ScreeningResponseForm({
                   {answer === false ? (
                     <span className={cn(
                       'inline-flex min-w-[2.2rem] items-center justify-center rounded-full border border-current px-[7px] py-0.5 text-[0.72rem] font-extrabold',
-                      criterion.kind === 'exclusion' ? 'bg-danger-container text-danger' : 'bg-surface-active text-text-secondary',
+                      criterion.kind === 'exclusion' ? 'bg-success-container text-success' : 'bg-danger-container text-danger',
                     )}
                     >
                       No
@@ -331,6 +334,10 @@ export function PublicationReviewDetails({
     extraction?.slots.find((slot) => slot.response?.fields.some((field) => field.stableKey === stableKey))
       ?.response?.fields.find((field) => field.stableKey === stableKey)?.label ?? stableKey
   )
+  // The override endpoint targets one reviewer's work item, not the resolved final answer
+  // directly. With the (typical) single-required-reviewer extraction this is unambiguous; the
+  // first completed slot is used as the target either way.
+  const overridableSlot = extraction?.slots.find((slot) => slot.response)
 
   return (
     <div className="ml-0 mt-2 text-[0.86rem] text-text-secondary">
@@ -351,73 +358,44 @@ export function PublicationReviewDetails({
               <p className="text-text-muted">No screening decisions have been recorded.</p>
             ) : null}
 
-            {extraction ? (
-              <div className="grid grid-cols-1 gap-3">
-                {extraction.final ? (
-                  <section className="rounded-sm border border-border bg-[color-mix(in_srgb,var(--color-surface-hover)_55%,transparent)] p-3">
-                    <div className="flex items-center justify-between gap-2">
-                      <h4>Data extraction</h4>
-                      <Badge variant="plain">Final</Badge>
+            {extraction?.final ? (
+              <section className="rounded-sm border border-border bg-[color-mix(in_srgb,var(--color-surface-hover)_55%,transparent)] p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <h4>Data extraction</h4>
+                  <Badge variant="plain">Final</Badge>
+                </div>
+                <p className="text-text-muted my-1 text-[0.8rem]">
+                  Final via {extraction.final.resolutionMethod.replaceAll('_', ' ')}
+                  {formatDate(extraction.final.resolvedAt) ? ` on ${formatDate(extraction.final.resolvedAt)}` : ''}
+                </p>
+                <dl className="my-2 grid grid-cols-1 gap-x-4 min-[681px]:grid-cols-2">
+                  {Object.keys(extraction.final.answers).map((stableKey) => (
+                    <div className="flex justify-between gap-2 border-b border-border py-1" key={stableKey}>
+                      <dt className="text-text-muted">{extractionFieldLabel(stableKey)}</dt>
+                      <dd className="m-0 text-right font-semibold text-text">{valueLabel(extraction.final!.answers[stableKey])}</dd>
                     </div>
-                    <p className="text-text-muted my-1 text-[0.8rem]">
-                      Final via {extraction.final.resolutionMethod.replaceAll('_', ' ')}
-                      {formatDate(extraction.final.resolvedAt) ? ` on ${formatDate(extraction.final.resolvedAt)}` : ''}
-                    </p>
-                    <dl className="my-2 grid grid-cols-1 gap-x-4 min-[681px]:grid-cols-2">
-                      {Object.keys(extraction.final.answers).map((stableKey) => (
-                        <div className="flex justify-between gap-2 border-b border-border py-1" key={stableKey}>
-                          <dt className="text-text-muted">{extractionFieldLabel(stableKey)}</dt>
-                          <dd className="m-0 text-right font-semibold text-text">{valueLabel(extraction.final!.answers[stableKey])}</dd>
-                        </div>
-                      ))}
-                    </dl>
-                  </section>
-                ) : null}
-                {extraction.slots.length === 0 ? (
-                  <p className="text-text-muted">No completed data extraction is available.</p>
-                ) : extraction.slots.map((slot) => (
-                  <section
-                    className="rounded-sm border border-border bg-[color-mix(in_srgb,var(--color-surface-hover)_55%,transparent)] p-3"
-                    key={slot.workItemId}
+                  ))}
+                </dl>
+                {canManage && overridableSlot ? (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setExtractionOverride({
+                      workItemId: overridableSlot.workItemId,
+                      fields: overridableSlot.response!.fields,
+                      answers: { ...overridableSlot.response!.answers },
+                      reason: '',
+                    })}
                   >
-                    <div className="flex items-center justify-between gap-2">
-                      <h4>{extraction.slots.length > 1 ? `Extraction — slot ${slot.slotNumber}` : 'Data extraction'}</h4>
-                      <Badge variant="plain">{slot.status.replaceAll('_', ' ')}</Badge>
-                    </div>
-                    {slot.response ? (
-                      <>
-                        <p className="text-text-muted my-1 text-[0.8rem]">
-                          Version {slot.response.version}{slot.response.reviewerName ? ` by ${slot.response.reviewerName}` : ''}
-                          {formatDate(slot.completedAt) ? ` on ${formatDate(slot.completedAt)}` : ''}
-                        </p>
-                        <dl className="my-2 grid grid-cols-1 gap-x-4 min-[681px]:grid-cols-2">
-                          {slot.response.fields.map((field) => (
-                            <div className="flex justify-between gap-2 border-b border-border py-1" key={field.stableKey}>
-                              <dt className="text-text-muted">{field.label}</dt>
-                              <dd className="m-0 text-right font-semibold text-text">{valueLabel(slot.response!.answers[field.stableKey])}</dd>
-                            </div>
-                          ))}
-                        </dl>
-                        {canManage ? (
-                          <Button
-                            type="button"
-                            variant="secondary"
-                            size="sm"
-                            onClick={() => setExtractionOverride({
-                              workItemId: slot.workItemId,
-                              fields: slot.response!.fields,
-                              answers: { ...slot.response!.answers },
-                              reason: '',
-                            })}
-                          >
-                            Override data extraction
-                          </Button>
-                        ) : null}
-                      </>
-                    ) : <p className="text-text-muted">No completed data extraction is available.</p>}
-                  </section>
-                ))}
-              </div>
+                    Override data extraction
+                  </Button>
+                ) : null}
+              </section>
+            ) : extraction && extraction.slots.length > 0 ? (
+              <p className="text-text-muted">Data extraction is in progress; no final result yet.</p>
+            ) : extraction ? (
+              <p className="text-text-muted">No completed data extraction is available.</p>
             ) : null}
 
             {responseOverride ? (
@@ -454,7 +432,12 @@ export function PublicationReviewDetails({
                           <button
                             type="button"
                             role="checkbox"
-                            className="inline-flex size-8 min-h-8 items-center justify-center rounded-md border border-border bg-none bg-bg-elevated p-0 text-text-muted shadow-none transition-colors hover:border-border-strong hover:bg-surface-hover aria-checked:border-success aria-checked:bg-success-container aria-checked:text-success [&_svg]:size-4 [&_svg]:fill-current"
+                            className={cn(
+                              'inline-flex size-8 min-h-8 items-center justify-center rounded-md border border-border bg-none bg-bg-elevated p-0 text-text-muted shadow-none transition-colors hover:border-border-strong hover:bg-surface-hover [&_svg]:size-4 [&_svg]:fill-current',
+                              criterion.kind === 'exclusion'
+                                ? 'aria-checked:border-danger aria-checked:bg-danger-container aria-checked:text-danger'
+                                : 'aria-checked:border-success aria-checked:bg-success-container aria-checked:text-success',
+                            )}
                             aria-checked={responseOverride.criteriaAnswers[criterion.id] === true}
                             aria-label={`${criterion.number}: Set fulfilled`}
                             onClick={() => setResponseOverride({
@@ -472,7 +455,12 @@ export function PublicationReviewDetails({
                           <button
                             type="button"
                             role="checkbox"
-                            className="inline-flex size-8 min-h-8 items-center justify-center rounded-md border border-border bg-none bg-bg-elevated p-0 text-text-muted shadow-none transition-colors hover:border-border-strong hover:bg-surface-hover aria-checked:border-danger aria-checked:bg-danger-container aria-checked:text-danger [&_svg]:size-4 [&_svg]:fill-current"
+                            className={cn(
+                              'inline-flex size-8 min-h-8 items-center justify-center rounded-md border border-border bg-none bg-bg-elevated p-0 text-text-muted shadow-none transition-colors hover:border-border-strong hover:bg-surface-hover [&_svg]:size-4 [&_svg]:fill-current',
+                              criterion.kind === 'exclusion'
+                                ? 'aria-checked:border-success aria-checked:bg-success-container aria-checked:text-success'
+                                : 'aria-checked:border-danger aria-checked:bg-danger-container aria-checked:text-danger',
+                            )}
                             aria-checked={responseOverride.criteriaAnswers[criterion.id] === false}
                             aria-label={`${criterion.number}: Set not fulfilled`}
                             onClick={() => setResponseOverride({

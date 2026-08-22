@@ -648,7 +648,12 @@ export function PublicationsPage() {
       />
       <TabPanel idPrefix="publications" id={activeTab}>
         {activeTab === 'publications' ? (
-          <>
+          // A plain block (not a Fragment): TabPanel's `flex flex-col gap-6` would otherwise
+          // apply between every one of this tab's direct children *in addition to* each one's
+          // own margin (gap and margin don't collapse together the way two margins do), roughly
+          // doubling every gap in this tab. Wrapping in a block lets each child's own margin
+          // collapse normally with its neighbors instead.
+          <div>
             {query.data && (search || titleAbstractFilter || fullTextFilter || pdfStatusFilter) ? (
               <CountPill count={filteredPublications.length}>
                 of {query.data.length} publications match your filters
@@ -806,7 +811,7 @@ export function PublicationsPage() {
                 </a>
               </p>
             ) : null}
-        <div className={cn(publicationRowGridClass, 'mb-2 px-4 text-[0.72rem] font-bold tracking-[0.04em] text-text-muted uppercase max-[900px]:hidden')}>
+            <div className={cn(publicationRowGridClass, 'mt-6 mb-2 px-4 text-[0.72rem] font-bold tracking-[0.04em] text-text-muted uppercase max-[900px]:hidden')}>
               <span aria-hidden="true" />
               <span className="flex items-center gap-0.5">
                 <PublicationListSortHeader label="Title" sortKey="title" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />{' / '}
@@ -817,8 +822,8 @@ export function PublicationsPage() {
               <PublicationListSortHeader label="Stage" sortKey="stage" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
               <PublicationListSortHeader label="PDF" sortKey="pdf" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
               <span aria-hidden="true" />
-        </div>
-        <ul className="m-0 grid list-none gap-2 p-0">
+            </div>
+            <ul className="m-0 grid list-none gap-2 p-0">
               {sortedPublications.map((publication) => (
                 <PublicationRow
                   key={publication.id}
@@ -831,7 +836,7 @@ export function PublicationsPage() {
                 />
               ))}
             </ul>
-          </>
+          </div>
         ) : null}
         {activeTab === 'add' ? (
           <AddPublicationForm projectId={projectId} />

@@ -97,7 +97,19 @@ export function CriteriaAnswerFields({
           </tr>
         </thead>
         <tbody>
-          {sorted.map((criterion, row) => (
+          {sorted.map((criterion, row) => {
+            // An inclusion criterion being fulfilled is a good sign (keep it green); an exclusion
+            // criterion being fulfilled means the exclusion applies, which argues against inclusion
+            // (so that's the "bad" red one instead) — the two checkbox columns swap color meaning
+            // depending on the criterion's kind, even though "Fulfilled"/"Not fulfilled" stay in the
+            // same columns either way.
+            const fulfilledColorClasses = criterion.kind === 'exclusion'
+              ? 'aria-checked:border-danger aria-checked:bg-danger-container aria-checked:text-danger'
+              : 'aria-checked:border-success aria-checked:bg-success-container aria-checked:text-success'
+            const notFulfilledColorClasses = criterion.kind === 'exclusion'
+              ? 'aria-checked:border-success aria-checked:bg-success-container aria-checked:text-success'
+              : 'aria-checked:border-danger aria-checked:bg-danger-container aria-checked:text-danger'
+            return (
             <tr key={criterion.id}>
               <th scope="row">
                 <CriterionBadge kind={criterion.kind} className="mr-2">{numbers[criterion.id]}</CriterionBadge> {criterion.text}
@@ -106,7 +118,7 @@ export function CriteriaAnswerFields({
                 <button
                   type="button"
                   role="checkbox"
-                  className="inline-flex size-8 min-h-8 items-center justify-center rounded-md border border-border bg-none bg-bg-elevated p-0 text-text-muted shadow-none transition-colors hover:border-border-strong hover:bg-surface-hover aria-checked:border-success aria-checked:bg-success-container aria-checked:text-success [&_svg]:size-4 [&_svg]:fill-current"
+                  className={`inline-flex size-8 min-h-8 items-center justify-center rounded-md border border-border bg-none bg-bg-elevated p-0 text-text-muted shadow-none transition-colors hover:border-border-strong hover:bg-surface-hover [&_svg]:size-4 [&_svg]:fill-current ${fulfilledColorClasses}`}
                   aria-checked={answers[criterion.id] === true}
                   aria-label={`${capitalize(criterion.kind)}: ${criterion.text} — Fulfilled`}
                   tabIndex={focusedCell.row === row && focusedCell.column === 0 ? 0 : -1}
@@ -128,7 +140,7 @@ export function CriteriaAnswerFields({
                 <button
                   type="button"
                   role="checkbox"
-                  className="inline-flex size-8 min-h-8 items-center justify-center rounded-md border border-border bg-none bg-bg-elevated p-0 text-text-muted shadow-none transition-colors hover:border-border-strong hover:bg-surface-hover aria-checked:border-danger aria-checked:bg-danger-container aria-checked:text-danger [&_svg]:size-4 [&_svg]:fill-current"
+                  className={`inline-flex size-8 min-h-8 items-center justify-center rounded-md border border-border bg-none bg-bg-elevated p-0 text-text-muted shadow-none transition-colors hover:border-border-strong hover:bg-surface-hover [&_svg]:size-4 [&_svg]:fill-current ${notFulfilledColorClasses}`}
                   aria-checked={answers[criterion.id] === false}
                   aria-label={`${capitalize(criterion.kind)}: ${criterion.text} — Not fulfilled`}
                   tabIndex={focusedCell.row === row && focusedCell.column === 1 ? 0 : -1}
@@ -147,7 +159,8 @@ export function CriteriaAnswerFields({
                 </button>
               </td>
             </tr>
-          ))}
+            )
+          })}
         </tbody>
       </table>
       <InfoBox icon={<IconCheckCircle />} className="hotkey-hint">
@@ -156,9 +169,17 @@ export function CriteriaAnswerFields({
           personalized hotkeys to include/exclude the paper and submit.
         </p>
       </InfoBox>
-      <div className="grid gap-2">
+      <div className="@container grid gap-2">
         <span className="text-sm font-semibold text-text-secondary">Decision</span>
-        <div className="grid grid-cols-2 gap-2 min-[681px]:grid-cols-4" role="radiogroup" aria-label="Decision">
+        {/*
+          A container query (keyed to this row's own available width) rather than a viewport
+          media query: the identical decision grid is embedded both in the full-width live
+          screening queue and in narrower contexts (e.g. revising a past decision inline in a
+          list item on My Decisions), and a viewport breakpoint made the buttons collapse to a
+          cramped 2-column layout in the narrower context even on a wide screen, since the
+          viewport itself was plenty wide — only the local container wasn't.
+        */}
+        <div className="grid grid-cols-2 gap-2 @[520px]:grid-cols-4" role="radiogroup" aria-label="Decision">
           {DECISION_OPTIONS.map(({ value, label, hotkeyAction }) => {
             const hotkey = formatHotkey(hotkeys[hotkeyAction])
             const selected = outcome === value

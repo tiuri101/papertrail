@@ -4,6 +4,16 @@ import { Link, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { CountPill } from '../../components/CountPill'
+import { Input } from '../../components/Input'
+import { toolbarClass } from '../../components/layoutStyles'
+import { Page } from '../../components/Page'
+import { PublicationListSortHeader } from '../../components/PublicationListSortHeader'
+import {
+  reviewWorkActionsClass,
+  reviewWorkGridClass,
+  reviewWorkListClass,
+} from '../../components/reviewWorkStyles'
+import { Select } from '../../components/Select'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 import { type SortDirection, sortByValue } from '../../lib/sort'
 import { ReviewWorkRow } from '../reviews/ReviewWorkRow'
@@ -116,13 +126,21 @@ export function MyQualityPage() {
     return sortItems(items, sortKey, sortDirection)
   }, [query.data, search, sortDirection, sortKey])
 
+  const toggleSort = (key: QualitySortKey) => {
+    if (key === sortKey) setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+    else {
+      setSortKey(key)
+      setSortDirection(key === 'submitted' ? 'desc' : 'asc')
+    }
+  }
+
   return (
-    <main className="page">
+    <Page>
       <StageEyebrow stage="extraction_quality" />
       <h1>My Submitted Quality Assessments</h1>
-      <p className="muted">Publications you have already assessed. Select a publication to view its details, or edit your assessment.</p>
+      <p className="text-text-muted">Publications you have already assessed. Select a publication to view its details, or edit your assessment.</p>
       <p><Link to={`/projects/${projectId}/quality`}>← Back to quality assessment queue</Link></p>
-      {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
+      {query.error ? <p className="text-danger" role="alert">{query.error.message}</p> : null}
       {query.isLoading ? <p>Loading…</p> : null}
       {query.data ? (
         <>
@@ -131,14 +149,14 @@ export function MyQualityPage() {
               <CountPill count={search ? filteredItems.length : query.data.length}>
                 {search ? `of ${query.data.length} assessments match your filters` : `assessment${query.data.length === 1 ? '' : 's'}`}
               </CountPill>
-              <div className="toolbar">
-                <label className="paper-search-field">
+              <div className={toolbarClass}>
+                <label className="grid min-w-[min(20rem,100%)] flex-1 gap-1 text-sm font-semibold text-text-secondary">
                   Search papers
-                  <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Title, author, DOI…" />
+                  <Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Title, author, DOI…" />
                 </label>
-                <label>
+                <label className="grid gap-1 text-sm font-semibold text-text-secondary hidden max-[520px]:grid">
                   Sort by
-                  <select value={`${sortKey}:${sortDirection}`} onChange={(event) => {
+                  <Select value={`${sortKey}:${sortDirection}`} onChange={(event) => {
                     const [key, direction] = event.target.value.split(':') as [QualitySortKey, SortDirection]
                     setSortKey(key)
                     setSortDirection(direction)
@@ -153,22 +171,35 @@ export function MyQualityPage() {
                     <option value="venue:desc">Venue Z–A</option>
                     <option value="score:desc">Highest score</option>
                     <option value="score:asc">Lowest score</option>
-                  </select>
+                  </Select>
                 </label>
               </div>
             </>
           ) : null}
           {query.data.length === 0 ? (
-            <p className="muted">You have not submitted any quality assessments yet.</p>
+            <p className="text-text-muted">You have not submitted any quality assessments yet.</p>
           ) : filteredItems.length === 0 ? (
-            <p className="muted">No assessments match your filters.</p>
+            <p className="text-text-muted">No assessments match your filters.</p>
           ) : (
-            <ul className="card-list stacked publication-list">
+            <>
+              <div className={`${reviewWorkGridClass} mt-6 mb-2 px-4 text-[0.72rem] font-bold tracking-[0.04em] text-text-muted uppercase max-[520px]:hidden`}>
+                <span className="flex items-center gap-0.5">
+                  <PublicationListSortHeader label="Title" sortKey="title" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />{' / '}
+                  <PublicationListSortHeader label="Authors" sortKey="authors" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+                </span>
+                <PublicationListSortHeader label="Venue" sortKey="venue" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+                <PublicationListSortHeader label="Score" sortKey="score" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+                <PublicationListSortHeader label="DOI" sortKey="doi" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+                <PublicationListSortHeader label="Submitted" sortKey="submitted" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+                <span className={reviewWorkActionsClass}>Actions</span>
+              </div>
+              <ul className={reviewWorkListClass} aria-label="Submitted quality assessments">
                 {filteredItems.map((entry) => <QualityRow key={entry.id} projectId={projectId} entry={entry} highlightKeywords={highlightKeywords} />)}
-            </ul>
+              </ul>
+            </>
           )}
         </>
       ) : null}
-    </main>
+    </Page>
   )
 }

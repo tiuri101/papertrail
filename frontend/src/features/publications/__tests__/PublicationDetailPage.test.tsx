@@ -322,7 +322,11 @@ describe('PublicationDetailPage', () => {
             },
           },
         ],
-        final: null,
+        final: {
+          answers: { finding: 'Original finding' },
+          resolutionMethod: 'single_reviewer',
+          resolvedAt: '2026-08-01T12:00:00Z',
+        },
       },
     }
     const fetchMock = mockFetch((input, init) => {
