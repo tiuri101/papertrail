@@ -16,6 +16,7 @@ import { OutcomeBadge } from '../../components/OutcomeBadge'
 import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
 import { PublisherLinkPill } from '../../components/PublisherLinkPill'
 import { useSession } from '../auth/sessionQuery'
+import type { AuditEvent } from '../audit/types'
 import { FullTextDocumentPanel } from '../fulltext/FullTextDocumentPanel'
 import { AdministrationEyebrow } from '../projects/StageEyebrow'
 import { useCanManageProject, useCanManagePublications } from '../../hooks/useCanManageProject'
@@ -28,17 +29,6 @@ import {
   screeningLabel,
   type Publication,
 } from './publicationShared'
-
-interface AuditEvent {
-  id: string
-  createdAt: string
-  actorUsername: string | null
-  action: string
-  entityType: string
-  entityId: string | null
-  summary: string
-  metadata: Record<string, unknown>
-}
 
 interface FinalExtraction {
   id: string

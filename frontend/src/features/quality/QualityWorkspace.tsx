@@ -11,14 +11,7 @@ import { isAnswered } from '../forms/answers'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { DynamicForm, type DynamicFormField } from '../forms/DynamicForm'
 import { fullTextDocumentEndpoint, useFullTextDocument } from '../fulltext/useFullTextDocument'
-
-interface PublicationSummary {
-  title: string
-  authors: string | null
-  publicationYear: number | null
-  doi: string | null
-  publisherUrl: string | null
-}
+import type { PublicationSummary } from '../publications/types'
 
 interface WorkItem {
   id: string

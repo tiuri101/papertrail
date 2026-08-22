@@ -4,12 +4,8 @@ import { useState } from 'react'
 import { apiRequest } from '../../api/client'
 import { IconUpload } from '../../components/icons'
 import { FileDropZone } from './FileDropZone'
-import { PdfMatchReview, type PdfSummary } from './PdfMatchReview'
-
-interface UploadResult {
-  importBatchId: string
-  summary: PdfSummary
-}
+import { PdfMatchReview } from './PdfMatchReview'
+import type { UploadResult } from './types'
 
 export function AttachPdfsPanel({ projectId, importBatchId, onClose }: {
   projectId: string

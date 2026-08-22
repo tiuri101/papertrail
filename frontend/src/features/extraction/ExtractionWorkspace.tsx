@@ -12,14 +12,8 @@ import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { DynamicForm, type DynamicFormField } from '../forms/DynamicForm'
 import { fullTextDocumentEndpoint, useFullTextDocument } from '../fulltext/useFullTextDocument'
 import { LlmAssistanceHeading, LlmEvidence, type LlmEvidenceItem } from '../llm/LlmTaskComponents'
-
-interface PublicationSummary {
-  title: string
-  authors: string | null
-  publicationYear: number | null
-  doi: string | null
-  publisherUrl: string | null
-}
+import type { PublicationSummary } from '../publications/types'
+import type { ValidationResult } from './types'
 
 interface WorkItem {
   id: string
@@ -61,16 +55,6 @@ interface ExtractionResponse {
   answers: Record<string, unknown>
   version: number
   formVersionId: string
-}
-
-interface ValidationResult {
-  fieldKey: string
-  fieldLabel: string
-  value: unknown
-  assessment: 'supported' | 'contradicted' | 'uncertain' | 'not_verifiable'
-  explanation: string
-  evidence: LlmEvidenceItem[]
-  evidenceValidationStatus: string
 }
 
 interface ValidationAssistance {
