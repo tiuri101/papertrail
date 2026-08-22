@@ -4,7 +4,7 @@ import { clearConnection, loadConnection, saveConnection } from '../shared/stora
 import { PapertrailClient } from './client'
 import type { StoredConnection } from './types'
 
-export { clearConnection, loadConnection }
+export { loadConnection }
 
 export class PairingError extends Error {}
 

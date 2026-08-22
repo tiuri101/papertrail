@@ -46,7 +46,7 @@ export async function renderConnectionPanel(
     return
   }
 
-  container.innerHTML = `<pair
+  container.innerHTML = `
     <p class="muted">
       Pair this browser with your Papertrail account. Generate a pairing secret from
       Papertrail &rarr; Account Settings &rarr; Browser Helpers &rarr; Pair new browser helper.
