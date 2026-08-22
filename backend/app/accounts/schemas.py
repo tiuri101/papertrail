@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
 
-
-class ApiModel(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, from_attributes=True)
+from app.api.schemas import ApiModel
 
 
 class LoginRequest(ApiModel):

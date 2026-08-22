@@ -10,7 +10,6 @@ from uuid import uuid4
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
-from app.conflicts.models import FinalDecision
 from app.extraction.final import (
     get_current_final_extraction,
     get_current_final_extractions,
@@ -41,6 +40,13 @@ from app.llm.task_prompt import (
 )
 from app.projects.models import Criterion, ResearchQuestion, ScreeningStage
 from app.publications.models import Publication
+from app.screening.cohorts import (
+    decided_ids_for_stage,
+    full_text_excluded_ids,
+    full_text_included_ids,
+    has_final_outcome,
+    title_abstract_included_ids,
+)
 from app.screening.models import ScreeningOutcome
 
 
@@ -343,30 +349,14 @@ def queue_title_abstract_suggestion(
 
 
 def _title_included(db: Session, publication_id: str) -> bool:
-    return (
-        db.scalar(
-            select(FinalDecision.id).where(
-                FinalDecision.publication_id == publication_id,
-                FinalDecision.stage == ScreeningStage.TITLE_ABSTRACT,
-                FinalDecision.outcome == ScreeningOutcome.INCLUDE,
-                FinalDecision.is_valid.is_(True),
-            )
-        )
-        is not None
+    return has_final_outcome(
+        db, publication_id, ScreeningStage.TITLE_ABSTRACT, ScreeningOutcome.INCLUDE
     )
 
 
 def _full_text_excluded(db: Session, publication_id: str) -> bool:
-    return (
-        db.scalar(
-            select(FinalDecision.id).where(
-                FinalDecision.publication_id == publication_id,
-                FinalDecision.stage == ScreeningStage.FULL_TEXT,
-                FinalDecision.outcome == ScreeningOutcome.EXCLUDE,
-                FinalDecision.is_valid.is_(True),
-            )
-        )
-        is not None
+    return has_final_outcome(
+        db, publication_id, ScreeningStage.FULL_TEXT, ScreeningOutcome.EXCLUDE
     )
 
 
@@ -724,13 +714,7 @@ def backfill_title_abstract(
     """Queue missing title/abstract suggestions after the capability is
     turned on, prioritizing publications not yet screened at this stage."""
     decided_ids = set(
-        db.scalars(
-            select(FinalDecision.publication_id).where(
-                FinalDecision.project_id == project_id,
-                FinalDecision.stage == ScreeningStage.TITLE_ABSTRACT,
-                FinalDecision.is_valid.is_(True),
-            )
-        )
+        decided_ids_for_stage(db, project_id, ScreeningStage.TITLE_ABSTRACT)
     )
     publication_ids = list(
         db.scalars(
@@ -757,35 +741,9 @@ def backfill_full_text(
 ) -> None:
     """Queue missing full-text assistance after the capability is turned on,
     prioritizing publications not yet screened at this stage."""
-    included_ids = set(
-        db.scalars(
-            select(FinalDecision.publication_id).where(
-                FinalDecision.project_id == project_id,
-                FinalDecision.stage == ScreeningStage.TITLE_ABSTRACT,
-                FinalDecision.outcome == ScreeningOutcome.INCLUDE,
-                FinalDecision.is_valid.is_(True),
-            )
-        )
-    )
-    excluded_ids = set(
-        db.scalars(
-            select(FinalDecision.publication_id).where(
-                FinalDecision.project_id == project_id,
-                FinalDecision.stage == ScreeningStage.FULL_TEXT,
-                FinalDecision.outcome == ScreeningOutcome.EXCLUDE,
-                FinalDecision.is_valid.is_(True),
-            )
-        )
-    )
-    decided_ids = set(
-        db.scalars(
-            select(FinalDecision.publication_id).where(
-                FinalDecision.project_id == project_id,
-                FinalDecision.stage == ScreeningStage.FULL_TEXT,
-                FinalDecision.is_valid.is_(True),
-            )
-        )
-    )
+    included_ids = set(title_abstract_included_ids(db, project_id))
+    excluded_ids = set(full_text_excluded_ids(db, project_id))
+    decided_ids = set(decided_ids_for_stage(db, project_id, ScreeningStage.FULL_TEXT))
     for publication_id in included_ids - excluded_ids:
         priority = 0 if publication_id not in decided_ids else -10
         queue_full_text_assistance(
@@ -802,16 +760,7 @@ def backfill_data_extraction(
 ) -> None:
     """Queue missing data extraction after the capability is turned on,
     prioritizing publications not yet manually extracted."""
-    included_ids = set(
-        db.scalars(
-            select(FinalDecision.publication_id).where(
-                FinalDecision.project_id == project_id,
-                FinalDecision.stage == ScreeningStage.FULL_TEXT,
-                FinalDecision.outcome == ScreeningOutcome.INCLUDE,
-                FinalDecision.is_valid.is_(True),
-            )
-        )
-    )
+    included_ids = set(full_text_included_ids(db, project_id))
     completed_ids = set(
         db.scalars(
             select(ExtractionWorkItem.publication_id).where(
@@ -847,6 +796,97 @@ def backfill_extraction_validation(
         priority=0,
         bulk_id=bulk_id,
     )
+
+
+def queue_project_title_abstract_reanalysis(
+    db: Session, project_id: str, *, created_by_id: str | None, priority: int, bulk_id: str
+) -> int:
+    """Force-queue title/abstract screening for every active publication in
+    the project, for a manager-triggered bulk re-analysis (as opposed to
+    backfill_title_abstract, which only queues what's missing)."""
+    publication_ids = list(
+        db.scalars(
+            select(Publication.id).where(
+                Publication.project_id == project_id,
+                Publication.is_active.is_(True),
+                Publication.merged_into_id.is_(None),
+            )
+        )
+    )
+    queued = 0
+    for publication_id in publication_ids:
+        result = queue_title_abstract_suggestion(
+            db,
+            publication_id,
+            created_by_id=created_by_id,
+            priority=priority,
+            force=True,
+            bulk_id=bulk_id,
+        )
+        if result is not None:
+            queued += 1
+    return queued
+
+
+def queue_project_full_text_reanalysis(
+    db: Session, project_id: str, *, created_by_id: str | None, priority: int, bulk_id: str
+) -> int:
+    """Force-queue full-text screening assistance for the project's
+    currently title/abstract-included, not-yet-full-text-excluded cohort."""
+    included_ids = set(title_abstract_included_ids(db, project_id))
+    excluded_ids = set(full_text_excluded_ids(db, project_id))
+    queued = 0
+    for publication_id in included_ids - excluded_ids:
+        result = queue_full_text_assistance(
+            db,
+            publication_id,
+            created_by_id=created_by_id,
+            priority=priority,
+            force=True,
+            bulk_id=bulk_id,
+        )
+        if result is not None:
+            queued += 1
+    return queued
+
+
+def queue_project_data_extraction_reanalysis(
+    db: Session, project_id: str, *, created_by_id: str | None, priority: int, bulk_id: str
+) -> int:
+    """Force-queue data extraction for the project's full-text-included
+    cohort: text preparation, and (once completed text is available) the
+    extraction run itself."""
+    from app.llm.service import queue_llm_run_after_text, queue_preparation_if_eligible
+
+    queued = 0
+    for publication_id in full_text_included_ids(db, project_id):
+        result = queue_preparation_if_eligible(
+            db,
+            publication_id,
+            created_by_id=created_by_id,
+            priority=priority,
+            bulk_id=bulk_id,
+        )
+        document = active_document(db, publication_id)
+        if document:
+            extraction = db.scalar(
+                select(DocumentTextExtraction).where(
+                    DocumentTextExtraction.document_id == document.id,
+                    DocumentTextExtraction.status == ProcessingStatus.COMPLETED,
+                )
+            )
+            if extraction:
+                result = queue_llm_run_after_text(
+                    db,
+                    extraction,
+                    created_by_id=created_by_id,
+                    priority=priority,
+                    force=True,
+                    bulk_id=bulk_id,
+                )
+        if result is not None:
+            queued += 1
+    return queued
 
 
 def latest_task_run(

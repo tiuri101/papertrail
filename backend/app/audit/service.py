@@ -18,6 +18,7 @@ from app.jobs.models import BackgroundJob, JobStatus
 from app.projects.models import Project, ScreeningStage
 from app.publications.models import Publication
 from app.quality.models import QualityStatus, QualityWorkItem
+from app.screening.cohorts import count_for_outcome
 from app.screening.models import ScreeningOutcome, ScreeningWorkItem, WorkItemStatus
 
 
@@ -69,31 +70,11 @@ def project_dashboard(db: Session, project_id: str) -> dict[str, int | str]:
         )
         or 0
     )
-    papers_after_title_abstract_screening = (
-        db.scalar(
-            select(func.count())
-            .select_from(FinalDecision)
-            .where(
-                FinalDecision.project_id == project_id,
-                FinalDecision.stage == ScreeningStage.TITLE_ABSTRACT,
-                FinalDecision.is_valid.is_(True),
-                FinalDecision.outcome == ScreeningOutcome.INCLUDE,
-            )
-        )
-        or 0
+    papers_after_title_abstract_screening = count_for_outcome(
+        db, project_id, ScreeningStage.TITLE_ABSTRACT, ScreeningOutcome.INCLUDE
     )
-    papers_after_full_text_screening = (
-        db.scalar(
-            select(func.count())
-            .select_from(FinalDecision)
-            .where(
-                FinalDecision.project_id == project_id,
-                FinalDecision.stage == ScreeningStage.FULL_TEXT,
-                FinalDecision.is_valid.is_(True),
-                FinalDecision.outcome == ScreeningOutcome.INCLUDE,
-            )
-        )
-        or 0
+    papers_after_full_text_screening = count_for_outcome(
+        db, project_id, ScreeningStage.FULL_TEXT, ScreeningOutcome.INCLUDE
     )
     unresolved_duplicates = (
         db.scalar(

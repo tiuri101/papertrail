@@ -10,6 +10,8 @@ from sqlalchemy.orm import Session, selectinload
 from app.api.errors import ConflictError, DomainError
 from app.audit.service import record_audit
 from app.forms.models import FieldType, FormField, FormKind, ReviewForm
+from app.forms.service import active_fields as forms_active_fields
+from app.forms.service import project_form_by_kind
 from app.llm.models import (
     LlmSchemaField,
     LlmSchemaVersion,
@@ -34,28 +36,14 @@ def project_settings(
 
 
 def extraction_form(db: Session, project_id: str) -> ReviewForm | None:
-    return db.scalar(
-        select(ReviewForm).where(
-            ReviewForm.project_id == project_id,
-            ReviewForm.kind == FormKind.EXTRACTION,
-        )
-    )
+    return project_form_by_kind(db, project_id, FormKind.EXTRACTION)
 
 
 def active_extraction_fields(db: Session, project_id: str) -> list[FormField]:
     form = extraction_form(db, project_id)
     if form is None or not form.active_version_id:
         return []
-    return list(
-        db.scalars(
-            select(FormField)
-            .where(
-                FormField.form_version_id == form.active_version_id,
-                FormField.is_archived.is_(False),
-            )
-            .order_by(FormField.position)
-        )
-    )
+    return forms_active_fields(db, form)
 
 
 def latest_schema(db: Session, project_id: str) -> LlmSchemaVersion | None:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from collections import defaultdict
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 from typing import Any
 from uuid import uuid4
 
@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.accounts.models import User
 from app.api.errors import DomainError, ForbiddenError, NotFoundError
+from app.core.time import utcnow
 from app.projects.models import (
     AllocationMode,
     Criterion,
@@ -30,10 +31,6 @@ from app.screening.models import (
 )
 
 RESERVATION_HOURS = 1
-
-
-def utcnow() -> datetime:
-    return datetime.now(UTC)
 
 
 def rank_for(project: Project, publication_id: str, stage: ScreeningStage) -> str:

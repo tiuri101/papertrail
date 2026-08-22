@@ -31,6 +31,7 @@ from app.forms.service import (
     delete_field,
     delete_form,
     find_field,
+    project_form_by_kind,
     rename_field,
     replace_field,
     save_form_as_template,
@@ -97,11 +98,7 @@ def add_project_form(
 ) -> ReviewForm:
     get_project(db, project_id)
     kind = FormKind(payload.kind)
-    existing = db.scalar(
-        select(ReviewForm).where(
-            ReviewForm.project_id == project_id, ReviewForm.kind == kind
-        )
-    )
+    existing = project_form_by_kind(db, project_id, kind)
     if existing is not None:
         raise ConflictError(
             f"Project already has a {kind.value} form ('{existing.name}'). "

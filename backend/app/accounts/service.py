@@ -4,7 +4,7 @@ import contextlib
 import hashlib
 import secrets
 from dataclasses import dataclass
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, timedelta
 from email.utils import parseaddr
 
 from argon2 import PasswordHasher
@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.accounts.models import PasswordResetToken, User, UserSession
 from app.api.errors import ConflictError, DomainError, NotFoundError
 from app.core.config import get_settings
+from app.core.time import utcnow
 from app.instance_settings.service import effective_instance_settings
 
 password_hasher = PasswordHasher()
@@ -24,10 +25,6 @@ password_hasher = PasswordHasher()
 # username exists -- otherwise the skipped Argon2 verify makes username
 # existence observable via response timing.
 _DUMMY_PASSWORD_HASH = password_hasher.hash(secrets.token_urlsafe(32))
-
-
-def utcnow() -> datetime:
-    return datetime.now(UTC)
 
 
 def hash_token(token: str) -> str:
