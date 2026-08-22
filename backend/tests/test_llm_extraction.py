@@ -22,6 +22,7 @@ from app.fulltext.documents import attach_staged_pdf
 from app.fulltext.models import DocumentSource
 from app.fulltext.storage import stage_pdf_stream
 from app.jobs.models import BackgroundJob, JobStatus
+from app.jobs.registry import LLM_JOB_TYPES
 from app.jobs.service import claim_job, enqueue_job
 from app.llm.evidence import verify_evidence
 from app.llm.extraction import run_llm_extraction_job
@@ -49,7 +50,6 @@ from app.llm.schema_service import (
 )
 from app.llm.service import (
     LLM_JOB_DATA_EXTRACTION,
-    LLM_JOB_TYPES,
     TEXT_JOB,
     cancel_task_type_jobs,
     queue_preparation_if_eligible,
@@ -195,6 +195,50 @@ def test_message_builders_honor_base_prompt_override() -> None:
         [], research_questions, "paper text", base_prompt="Custom validation base."
     )
     assert overridden_validation[0]["content"] == "Custom validation base."
+
+
+def test_research_questions_context_is_shared_between_prompt_modules() -> None:
+    from app.llm.prompt import research_questions_context
+    from app.llm.task_prompt import _research_questions_context
+    from app.projects.models import ResearchQuestion
+
+    # task_prompt.py must reuse prompt.py's implementation rather than
+    # redefining it -- the two previously-separate call sites are now
+    # literally the same function.
+    assert _research_questions_context is research_questions_context
+
+    questions = [
+        ResearchQuestion(id="rq-1", project_id="proj-1", text="What effect?"),
+        ResearchQuestion(id="rq-2", project_id="proj-1", text="In which population?"),
+    ]
+    assert research_questions_context(questions) == _research_questions_context(
+        questions
+    )
+
+
+def test_evidence_item_is_shared_across_validation_modules() -> None:
+    from app.llm.evidence import EvidenceItem
+    from app.llm.task_validation import CriterionResult, ValidationFieldResult
+    from app.llm.validation import FieldResult
+
+    field_result = FieldResult(
+        value="x", status="explicit", evidence=[{"page": 1, "quote": "hello"}]
+    )
+    assert isinstance(field_result.evidence[0], EvidenceItem)
+
+    criterion_result = CriterionResult(
+        assessment="met",
+        explanation="because",
+        evidence=[{"page": 2, "quote": "world"}],
+    )
+    assert isinstance(criterion_result.evidence[0], EvidenceItem)
+
+    validation_result = ValidationFieldResult(
+        assessment="supported",
+        explanation="because",
+        evidence=[{"page": 3, "quote": "!"}],
+    )
+    assert isinstance(validation_result.evidence[0], EvidenceItem)
 
 
 def setup_llm_project(db):
