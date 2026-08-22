@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { ActionListItem } from '../../components/ActionListItem'
 import { actionListItemClass } from '../../components/actionListStyles'
 import { Badge } from '../../components/Badge'
 import { Button } from '../../components/Button'
@@ -38,7 +39,6 @@ import {
 } from './publicationShared'
 import { TabList, TabPanel } from '../../components/Tabs'
 
-const quickActionItemClass = actionListItemClass({ size: 'md' })
 const dangerQuickActionItemClass = actionListItemClass({ size: 'md', danger: true })
 
 interface FinalExtraction {
@@ -499,38 +499,40 @@ export function PublicationDetailPage() {
             <h2>Quick Actions</h2>
             <div className="grid gap-0.5">
               {publication.fullText?.available ? (
-                <a
-                  className={quickActionItemClass}
+                <ActionListItem
+                  as="a"
+                  size="md"
                   href={`/api/v1/projects/${projectId}/publications/${publicationId}/full-text/content`}
                   target="_blank"
                   rel="noreferrer"
                 >
                   <IconFile /> View PDF
-                </a>
+                </ActionListItem>
               ) : null}
               {canManage ? (
-                <button type="button" className={quickActionItemClass} onClick={() => setEditing(true)}>
+                <ActionListItem type="button" size="md" onClick={() => setEditing(true)}>
                   <IconEdit /> Edit Metadata
-                </button>
+                </ActionListItem>
               ) : null}
               {canManage ? (
-                <button
+                <ActionListItem
                   type="button"
-                  className={quickActionItemClass}
+                  size="md"
                   onClick={() => enrich.mutate()}
                   disabled={enrich.isPending || !publication.doi}
                 >
                   <IconSparkle /> Enrich Metadata
-                </button>
+                </ActionListItem>
               ) : null}
-              <a
-                className={quickActionItemClass}
+              <ActionListItem
+                as="a"
+                size="md"
                 href={`/api/v1/projects/${projectId}/publications/${publicationId}/export/bib`}
                 target="_blank"
                 rel="noreferrer"
               >
                 <IconDownload /> Export BibTeX
-              </a>
+              </ActionListItem>
               {canManage ? (
                 <ConfirmButton
                   label="Delete Publication"
