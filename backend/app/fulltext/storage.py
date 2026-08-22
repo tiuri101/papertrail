@@ -75,6 +75,56 @@ def _metadata(path: Path) -> tuple[str | None, str | None, str | None, int | Non
     return doi, title, authors, year
 
 
+@dataclass(frozen=True)
+class _StagingKey:
+    """Precomputed destination for a staged upload, before any bytes are read."""
+
+    original_filename: str
+    storage_key: str
+    path: Path
+    limit: int
+
+
+def _prepare_staging(
+    filename: str | None,
+    *,
+    import_batch_id: str,
+    settings: Settings,
+) -> _StagingKey:
+    safe_name = safe_display_filename(filename)
+    limit = settings.max_pdf_size_mb * 1024 * 1024
+    key = f"staging/imports/{import_batch_id}/{uuid4()}.pdf"
+    path = storage_path(key, settings)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    return _StagingKey(
+        original_filename=safe_name, storage_key=key, path=path, limit=limit
+    )
+
+
+def _validate_staged_pdf(*, size: int, first: bytes, tail: bytes) -> None:
+    """Validate a fully-read staged file's header/trailer once the size-limit
+    check (which happens mid-stream, inside each reader's own read loop) has
+    already passed."""
+    if size == 0:
+        raise DomainError("PDF is empty")
+    if not first.lstrip().startswith(b"%PDF-") or b"%%EOF" not in tail:
+        raise UnsupportedMediaError("File is not a valid PDF")
+
+
+def _finalize_staged_pdf(staging: _StagingKey, *, size: int, digest: Any) -> StoredPdf:
+    doi, title, authors, year = _metadata(staging.path)
+    return StoredPdf(
+        original_filename=staging.original_filename,
+        storage_key=staging.storage_key,
+        file_size=size,
+        sha256=digest.hexdigest(),
+        detected_doi=doi,
+        detected_title=title,
+        detected_authors=authors,
+        detected_year=year,
+    )
+
+
 def _stage_stream(
     stream: IO[bytes],
     filename: str | None,
@@ -82,20 +132,18 @@ def _stage_stream(
     import_batch_id: str,
     settings: Settings,
 ) -> StoredPdf:
-    safe_name = safe_display_filename(filename)
-    limit = settings.max_pdf_size_mb * 1024 * 1024
-    key = f"staging/imports/{import_batch_id}/{uuid4()}.pdf"
-    path = storage_path(key, settings)
-    path.parent.mkdir(parents=True, exist_ok=True)
+    staging = _prepare_staging(
+        filename, import_batch_id=import_batch_id, settings=settings
+    )
     digest = hashlib.sha256()
     size = 0
     first = b""
     tail = b""
     try:
-        with path.open("xb") as destination:
+        with staging.path.open("xb") as destination:
             while chunk := stream.read(1024 * 1024):
                 size += len(chunk)
-                if size > limit:
+                if size > staging.limit:
                     raise PayloadTooLargeError(
                         f"PDF exceeds the {settings.max_pdf_size_mb} MB limit"
                     )
@@ -104,23 +152,10 @@ def _stage_stream(
                 tail = (tail + chunk)[-4096:]
                 digest.update(chunk)
                 destination.write(chunk)
-        if size == 0:
-            raise DomainError("PDF is empty")
-        if not first.lstrip().startswith(b"%PDF-") or b"%%EOF" not in tail:
-            raise UnsupportedMediaError("File is not a valid PDF")
-        doi, title, authors, year = _metadata(path)
-        return StoredPdf(
-            original_filename=safe_name,
-            storage_key=key,
-            file_size=size,
-            sha256=digest.hexdigest(),
-            detected_doi=doi,
-            detected_title=title,
-            detected_authors=authors,
-            detected_year=year,
-        )
+        _validate_staged_pdf(size=size, first=first, tail=tail)
+        return _finalize_staged_pdf(staging, size=size, digest=digest)
     except Exception:
-        path.unlink(missing_ok=True)
+        staging.path.unlink(missing_ok=True)
         raise
 
 
@@ -146,19 +181,18 @@ async def stage_pdf_upload(
     settings: Settings | None = None,
 ) -> StoredPdf:
     settings = settings or get_settings()
-    key = f"staging/imports/{import_batch_id}/{uuid4()}.pdf"
-    path = storage_path(key, settings)
-    path.parent.mkdir(parents=True, exist_ok=True)
+    staging = _prepare_staging(
+        upload.filename, import_batch_id=import_batch_id, settings=settings
+    )
     digest = hashlib.sha256()
     size = 0
     first = b""
     tail = b""
-    limit = settings.max_pdf_size_mb * 1024 * 1024
     try:
-        with path.open("xb") as destination:
+        with staging.path.open("xb") as destination:
             while chunk := await upload.read(1024 * 1024):
                 size += len(chunk)
-                if size > limit:
+                if size > staging.limit:
                     raise PayloadTooLargeError(
                         f"PDF exceeds the {settings.max_pdf_size_mb} MB limit"
                     )
@@ -167,23 +201,10 @@ async def stage_pdf_upload(
                 tail = (tail + chunk)[-4096:]
                 digest.update(chunk)
                 destination.write(chunk)
-        if size == 0:
-            raise DomainError("PDF is empty")
-        if not first.lstrip().startswith(b"%PDF-") or b"%%EOF" not in tail:
-            raise UnsupportedMediaError("File is not a valid PDF")
-        doi, title, authors, year = _metadata(path)
-        return StoredPdf(
-            original_filename=safe_display_filename(upload.filename),
-            storage_key=key,
-            file_size=size,
-            sha256=digest.hexdigest(),
-            detected_doi=doi,
-            detected_title=title,
-            detected_authors=authors,
-            detected_year=year,
-        )
+        _validate_staged_pdf(size=size, first=first, tail=tail)
+        return _finalize_staged_pdf(staging, size=size, digest=digest)
     except Exception:
-        path.unlink(missing_ok=True)
+        staging.path.unlink(missing_ok=True)
         raise
     finally:
         await upload.close()

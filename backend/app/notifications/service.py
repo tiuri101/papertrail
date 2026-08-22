@@ -33,6 +33,19 @@ def _hash_key(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+def _project_owner_users(db: Session, project_id: str) -> list[User]:
+    return list(
+        db.scalars(
+            select(User)
+            .join(ProjectMembership, ProjectMembership.user_id == User.id)
+            .where(
+                ProjectMembership.project_id == project_id,
+                ProjectMembership.is_owner.is_(True),
+            )
+        )
+    )
+
+
 def queue_email_notification(
     db: Session,
     *,
@@ -188,16 +201,7 @@ def queue_project_completed_emails(
     db: Session, project: Project, completed_at: datetime
 ) -> list[EmailNotification]:
     """Notify active project owners once for this completion cycle."""
-    owners = list(
-        db.scalars(
-            select(User)
-            .join(ProjectMembership, ProjectMembership.user_id == User.id)
-            .where(
-                ProjectMembership.project_id == project.id,
-                ProjectMembership.is_owner.is_(True),
-            )
-        )
-    )
+    owners = _project_owner_users(db, project.id)
     settings = effective_instance_settings(db)
     notifications: list[EmailNotification] = []
     completion_key = completed_at.isoformat()
@@ -232,16 +236,7 @@ def queue_project_stage_completed_emails(
     """
     from app.projects.checklist import STAGE_LABELS
 
-    owners = list(
-        db.scalars(
-            select(User)
-            .join(ProjectMembership, ProjectMembership.user_id == User.id)
-            .where(
-                ProjectMembership.project_id == project.id,
-                ProjectMembership.is_owner.is_(True),
-            )
-        )
-    )
+    owners = _project_owner_users(db, project.id)
     settings = effective_instance_settings(db)
     notifications: list[EmailNotification] = []
     stage_key = completed_stage.value
@@ -303,16 +298,7 @@ def queue_llm_bulk_completion_emails(
     project = db.get(Project, project_id)
     if project is None:
         return []
-    owners = list(
-        db.scalars(
-            select(User)
-            .join(ProjectMembership, ProjectMembership.user_id == User.id)
-            .where(
-                ProjectMembership.project_id == project.id,
-                ProjectMembership.is_owner.is_(True),
-            )
-        )
-    )
+    owners = _project_owner_users(db, project.id)
     completed = sum(item.status == ProcessingStatus.COMPLETED for item in runs)
     failed = sum(item.status == ProcessingStatus.FAILED for item in runs) + sum(
         job.status == JobStatus.FAILED for job in preparation_jobs
