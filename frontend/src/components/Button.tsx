@@ -26,8 +26,11 @@ export type ButtonProps<C extends ElementType = 'button'> = ButtonOwnProps & { a
   C extends 'button' ? ButtonHTMLAttributes<HTMLButtonElement> : Omit<ComponentPropsWithoutRef<C>, keyof ButtonOwnProps | 'as' | 'ref'>
 )
 
+// `justify-self-start` matters when a <Button> lands as the lone child of a CSS grid
+// container (the legacy `form`/`fieldset` grid rules in index.css) — without it, a grid
+// item with no explicit size stretches across its full track instead of sizing to content.
 const base =
-  'inline-flex items-center justify-center gap-2 rounded-sm text-sm font-semibold leading-none whitespace-nowrap select-none cursor-pointer transition-[background-color,border-color,color,box-shadow,transform,opacity] duration-150 disabled:cursor-not-allowed disabled:opacity-[.48] [&_svg]:shrink-0 [&_svg]:fill-current'
+  'inline-flex items-center justify-center justify-self-start gap-2 rounded-sm text-sm font-semibold leading-none whitespace-nowrap select-none cursor-pointer transition-[background-color,border-color,color,box-shadow,transform,opacity] duration-150 disabled:cursor-not-allowed disabled:opacity-[.48] [&_svg]:shrink-0 [&_svg]:fill-current'
 
 // Icon sizing lives here, one rule per size, rather than a single blanket rule on `base` that
 // `iconOnlySizes` would then need to out-rank: Tailwind v4 orders same-property utilities by
