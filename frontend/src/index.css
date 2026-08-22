@@ -1,3 +1,25 @@
+/*
+ * Cascade layer order. This declaration must come before the Tailwind import
+ * below: layer priority is fixed by each name's FIRST mention (across the
+ * whole stylesheet, not physical rule position), so pre-declaring all five
+ * names here — in this relative order — fixes it before `@import` re-mentions
+ * its own four. `papertrail` contains the intentional global and browser-level
+ * rules that remain after migration. It sits above Preflight but below
+ * component and utility classes, so local Tailwind styling stays authoritative.
+ */
+@layer theme, base, papertrail, components, utilities;
+@import "tailwindcss";
+
+/*
+ * Papertrail design tokens.
+ *
+ * The concrete values below live on `:root` (and are overridden per
+ * `data-theme`) so JS-driven theme switching (see app/theme.ts, which sets
+ * `<html data-theme="dark|light">`) only ever touches these two blocks.
+ * The `@theme inline` block below does not redeclare values — it exposes
+ * the same runtime variables as Tailwind utilities (bg-surface, text-muted,
+ * rounded-md, shadow-lg, ...) so both themes stay derived from one source.
+ */
 :root,
 :root[data-theme='dark'] {
   font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
@@ -28,6 +50,11 @@
   --color-danger-container: rgba(255, 127, 130, 0.12);
   --color-focus: rgba(143, 166, 255, 0.35);
   --color-overlay: rgba(3, 7, 18, 0.64);
+
+  /* Tooltips stay neutral grey/white regardless of the app's blue-tinted surface tokens. */
+  --tooltip-bg: #4a4e57;
+  --tooltip-border: #6b7078;
+  --tooltip-text: #ffffff;
 
   /* Shared button system */
   --button-height: 40px;
@@ -134,6 +161,11 @@
   --color-focus: rgba(83, 105, 216, 0.25);
   --color-overlay: rgba(21, 29, 43, 0.4);
 
+  /* Tooltips stay neutral grey/white regardless of the app's blue-tinted surface tokens. */
+  --tooltip-bg: #ffffff;
+  --tooltip-border: #c8ccd2;
+  --tooltip-text: #23262b;
+
   --button-primary-bg: #5369d8;
   --button-primary-bg-hover: #6176e4;
   --button-primary-bg-active: #4358c6;
@@ -182,6 +214,66 @@
   color: var(--color-text);
   background: var(--color-bg);
 }
+
+@custom-variant dark (&:where([data-theme='dark'], [data-theme='dark'] *));
+
+@theme inline {
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  --color-bg: var(--color-bg);
+  --color-bg-elevated: var(--color-bg-elevated);
+  --color-surface: var(--color-surface);
+  --color-surface-raised: var(--color-surface-raised);
+  --color-surface-hover: var(--color-surface-hover);
+  --color-surface-active: var(--color-surface-active);
+  --color-border: var(--color-border);
+  --color-border-strong: var(--color-border-strong);
+  --color-text: var(--color-text);
+  --color-text-secondary: var(--color-text-secondary);
+  --color-text-muted: var(--color-text-muted);
+  --color-primary: var(--color-primary);
+  --color-primary-strong: var(--color-primary-strong);
+  --color-primary-contrast: var(--color-primary-contrast);
+  --color-primary-container: var(--color-primary-container);
+  --color-primary-container-hover: var(--color-primary-container-hover);
+  --color-success: var(--color-success);
+  --color-success-container: var(--color-success-container);
+  --color-warning: var(--color-warning);
+  --color-warning-container: var(--color-warning-container);
+  --color-danger: var(--color-danger);
+  --color-danger-strong: var(--color-danger-strong);
+  --color-danger-container: var(--color-danger-container);
+  --color-focus: var(--color-focus);
+  --color-overlay: var(--color-overlay);
+
+  --color-kw-0-fg: var(--kw-0-fg);
+  --color-kw-0-bg: var(--kw-0-bg);
+  --color-kw-1-fg: var(--kw-1-fg);
+  --color-kw-1-bg: var(--kw-1-bg);
+  --color-kw-2-fg: var(--kw-2-fg);
+  --color-kw-2-bg: var(--kw-2-bg);
+  --color-kw-3-fg: var(--kw-3-fg);
+  --color-kw-3-bg: var(--kw-3-bg);
+  --color-kw-4-fg: var(--kw-4-fg);
+  --color-kw-4-bg: var(--kw-4-bg);
+  --color-kw-5-fg: var(--kw-5-fg);
+  --color-kw-5-bg: var(--kw-5-bg);
+  --color-kw-6-fg: var(--kw-6-fg);
+  --color-kw-6-bg: var(--kw-6-bg);
+  --color-kw-7-fg: var(--kw-7-fg);
+  --color-kw-7-bg: var(--kw-7-bg);
+
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+}
+
+@layer papertrail {
 
 * {
   box-sizing: border-box;
@@ -9116,4 +9208,6 @@ button.rq-source-badge--untraceable:hover:not(:disabled),
   height: 32px;
   padding: 5px 10px;
   font-size: 0.82rem;
+}
+
 }
