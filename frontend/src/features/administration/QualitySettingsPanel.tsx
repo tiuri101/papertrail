@@ -5,17 +5,9 @@ import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { InfoBox } from '../../components/InfoBox'
 import { IconCheckCircle } from '../../components/icons'
-import { Input } from '../../components/Input'
-import { Select } from '../../components/Select'
+import type { QualityConfig } from '../quality/types'
 
-type TaskAllocationMode = 'pre_assigned' | 'claim'
-
-interface QualityConfig {
-  enabled: boolean
-  mode: string
-  aggregation: string
-  allocationMode: TaskAllocationMode
-}
+type TaskAllocationMode = QualityConfig['allocationMode']
 
 const TASK_ALLOCATION_MODE_LABELS: Record<TaskAllocationMode, string> = {
   claim: 'Claim (reviewers pick up publications themselves)',
@@ -64,43 +56,43 @@ export function QualitySettingsPanel({ projectId }: { projectId: string }) {
       <InfoBox icon={<IconCheckCircle />}>
         <p>Configure whether reviewers assess methodological quality and how numerical scores are combined.</p>
       </InfoBox>
-      {config.error ? <p className="text-danger" role="alert">{config.error.message}</p> : null}
+      {config.error ? <p className="error" role="alert">{config.error.message}</p> : null}
       {config.isLoading ? <p>Loadingâ€¦</p> : (
-        <div data-quality-settings="true" className="grid gap-5">
+        <div className="quality-settings-fields">
           <label>
-            <Input
+            <input
               type="checkbox"
               checked={enabled}
               onChange={(event) => update({ enabled: event.target.checked, mode, aggregation, allocationMode })}
             />
             Enable quality assessment
           </label>
-          <div data-quality-settings-selects="true" className="grid grid-cols-1 gap-4 min-[561px]:grid-cols-2">
+          <div className="quality-settings-selects">
             <label>
               Mode
-              <Select
+              <select
                 value={mode}
                 onChange={(event) => update({ enabled, mode: event.target.value, aggregation, allocationMode })}
               >
                 <option value="qualitative">Qualitative only</option>
                 <option value="numeric">Numerical scoring only</option>
                 <option value="both">Both</option>
-              </Select>
+              </select>
             </label>
             <label>
               Aggregation
-              <Select
+              <select
                 value={aggregation}
                 onChange={(event) => update({ enabled, mode, aggregation: event.target.value, allocationMode })}
               >
                 <option value="sum">Simple sum</option>
                 <option value="average">Average</option>
                 <option value="weighted_average">Weighted average</option>
-              </Select>
+              </select>
             </label>
             <label>
               Allocation
-              <Select
+              <select
                 value={allocationMode}
                 onChange={(event) => update({
                   enabled, mode, aggregation, allocationMode: event.target.value as TaskAllocationMode,
@@ -109,13 +101,13 @@ export function QualitySettingsPanel({ projectId }: { projectId: string }) {
                 {(Object.keys(TASK_ALLOCATION_MODE_LABELS) as TaskAllocationMode[]).map((value) => (
                   <option key={value} value={value}>{TASK_ALLOCATION_MODE_LABELS[value]}</option>
                 ))}
-              </Select>
+              </select>
             </label>
           </div>
         </div>
       )}
-      {save.error ? <p className="text-danger" role="alert">{save.error.message}</p> : null}
-      {save.isPending || save.isSuccess ? <p className="text-text-muted" aria-live="polite">
+      {save.error ? <p className="error" role="alert">{save.error.message}</p> : null}
+      {save.isPending || save.isSuccess ? <p className="muted" aria-live="polite">
         {save.isPending ? 'Savingâ€¦' : save.isSuccess ? 'Saved.' : ' '}
       </p> : null}
     </CollapsibleSection>

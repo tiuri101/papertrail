@@ -1,12 +1,13 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useState } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { Button } from '../../components/Button'
 import { Card } from '../../components/Card'
 import { IconFile } from '../../components/icons'
 import { LlmEvidence } from '../llm/LlmTaskComponents'
-import { type BackgroundJob, findJob, hasActiveJob, isJobActive } from '../jobs/jobStatus'
+import { isJobActive } from '../jobs/jobStatus'
+import { usePendingJob } from '../jobs/usePendingJob'
 import {
   useResearchQuestions,
   useRqAnalysis,
@@ -151,26 +152,14 @@ function ResearchQuestionCard({
   questionNumber: number
 }) {
   const queryClient = useQueryClient()
-  const [pendingJobId, setPendingJobId] = useState<string | null>(null)
   const [expandedSourceId, setExpandedSourceId] = useState<string | null>(null)
   const analysis = useRqAnalysis(projectId, researchQuestionId)
 
-  const jobs = useQuery({
-    queryKey: ['jobs', projectId],
-    queryFn: () => apiRequest<BackgroundJob[]>(`/api/v1/projects/${projectId}/jobs`),
-    enabled: Boolean(projectId) && Boolean(pendingJobId),
-    refetchInterval: (query) => (hasActiveJob(query.state.data) ? 2000 : false),
+  const { setPendingJobId, pendingJob } = usePendingJob(projectId, {
+    onComplete: () => queryClient.invalidateQueries({
+      queryKey: ['rq-analysis', projectId, researchQuestionId],
+    }),
   })
-  const pendingJob = pendingJobId ? findJob(jobs.data, pendingJobId) : undefined
-
-  useEffect(() => {
-    if (pendingJob && !isJobActive(pendingJob.status)) {
-      queryClient.invalidateQueries({
-        queryKey: ['rq-analysis', projectId, researchQuestionId],
-      })
-      setPendingJobId(null)
-    }
-  }, [pendingJob, projectId, researchQuestionId, queryClient])
 
   const regenerate = useMutation({
     mutationFn: () => apiRequest<{ jobId: string }>(

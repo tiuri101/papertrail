@@ -29,9 +29,9 @@ from app.analysis.reviewer_stats import (
     pseudonymize,
     raw_agreement_rate,
 )
-from app.conflicts.models import FinalDecision
 from app.projects.models import Criterion, Project, ProjectMembership, ScreeningConfig
 from app.projects.models import ScreeningStage as ProjectScreeningStage
+from app.screening.cohorts import decided_final_decisions_by_publication
 from app.screening.models import ScreeningDecision, ScreeningOutcome, ScreeningWorkItem
 
 
@@ -101,25 +101,6 @@ def _gather_complete_publication_sets(
                 )
             )
     return sets
-
-
-def _final_decision_by_publication(
-    db: Session,
-    project_id: str,
-    stage: ProjectScreeningStage,
-    publication_ids: list[str],
-) -> dict[str, FinalDecision]:
-    if not publication_ids:
-        return {}
-    rows = db.scalars(
-        select(FinalDecision).where(
-            FinalDecision.project_id == project_id,
-            FinalDecision.stage == stage,
-            FinalDecision.is_valid.is_(True),
-            FinalDecision.publication_id.in_(publication_ids),
-        )
-    )
-    return {row.publication_id: row for row in rows}
 
 
 def _all_reviewer_ids(sets: list[PublicationDecisionSet]) -> list[str]:
@@ -221,7 +202,9 @@ def compute_reviewer_analysis(
     )
 
     publication_ids = [s.publication_id for s in sets]
-    finals = _final_decision_by_publication(db, project_id, stage, publication_ids)
+    finals = decided_final_decisions_by_publication(
+        db, project_id, stage, publication_ids
+    )
     non_agreement_finals = sum(
         1
         for publication_id in publication_ids

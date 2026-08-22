@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
@@ -10,7 +10,8 @@ import { CountPill } from '../../components/CountPill'
 import { IconDownload, IconTrash } from '../../components/icons'
 import { Page } from '../../components/Page'
 import { useCanManagePublications } from '../../hooks/useCanManageProject'
-import { BackgroundJob, findJob, hasActiveJob, isJobActive } from '../jobs/jobStatus'
+import { isJobActive } from '../jobs/jobStatus'
+import { usePendingJob } from '../jobs/usePendingJob'
 import { StageEyebrow } from '../projects/StageEyebrow'
 
 interface ExportArtifact {
@@ -87,7 +88,6 @@ export function ReportingPage() {
   const { projectId = '' } = useParams()
   const queryClient = useQueryClient()
   const canManage = useCanManagePublications(projectId)
-  const [pendingJobId, setPendingJobId] = useState<string | null>(null)
   const [exportToDelete, setExportToDelete] = useState<ExportArtifact | null>(null)
   const prisma = useQuery({
     queryKey: ['prisma', projectId],
@@ -101,19 +101,10 @@ export function ReportingPage() {
       `/api/v1/projects/${projectId}/exports`,
     ),
   })
-  const jobs = useQuery({
-    queryKey: ['jobs', projectId],
-    queryFn: () => apiRequest<BackgroundJob[]>(`/api/v1/projects/${projectId}/jobs`),
-    enabled: Boolean(projectId) && Boolean(pendingJobId),
-    refetchInterval: (query) => (hasActiveJob(query.state.data) ? 2000 : false),
+  const { setPendingJobId, pendingJob } = usePendingJob(projectId, {
+    clearOnComplete: false,
+    onComplete: () => queryClient.invalidateQueries({ queryKey: ['exports', projectId] }),
   })
-  const pendingJob = pendingJobId ? findJob(jobs.data, pendingJobId) : undefined
-
-  useEffect(() => {
-    if (pendingJob && !isJobActive(pendingJob.status)) {
-      queryClient.invalidateQueries({ queryKey: ['exports', projectId] })
-    }
-  }, [pendingJob, projectId, queryClient])
 
   const createExport = useMutation({
     mutationFn: (exportType: string) => apiRequest<{ jobId: string }>(

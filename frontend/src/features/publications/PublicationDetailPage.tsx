@@ -22,6 +22,7 @@ import { OutcomeBadge } from '../../components/OutcomeBadge'
 import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
 import { PublisherLinkPill } from '../../components/PublisherLinkPill'
 import { useSession } from '../auth/sessionQuery'
+import type { AuditEvent } from '../audit/types'
 import { FullTextDocumentPanel } from '../fulltext/FullTextDocumentPanel'
 import { AdministrationEyebrow } from '../projects/StageEyebrow'
 import { useCanManageProject, useCanManagePublications } from '../../hooks/useCanManageProject'
@@ -39,17 +40,6 @@ import { TabList, TabPanel } from '../../components/Tabs'
 
 const quickActionItemClass = actionListItemClass({ size: 'md' })
 const dangerQuickActionItemClass = actionListItemClass({ size: 'md', danger: true })
-
-interface AuditEvent {
-  id: string
-  createdAt: string
-  actorUsername: string | null
-  action: string
-  entityType: string
-  entityId: string | null
-  summary: string
-  metadata: Record<string, unknown>
-}
 
 interface FinalExtraction {
   id: string

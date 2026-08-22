@@ -1,8 +1,5 @@
-import { toolbarClass } from '../../components/layoutStyles'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
-import { Button } from '../../components/Button'
-import { Page } from '../../components/Page'
 import { CountPill } from '../../components/CountPill'
 import { GoBackButton } from '../../components/GoBackButton'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
@@ -23,7 +20,7 @@ export function TitleAbstractScreeningPage() {
   const queue = useScreeningQueue(projectId, STAGE)
 
   return (
-    <Page>
+    <main className="page">
       <StageEyebrow stage="title_abstract_screening" />
       <h1>Title and Abstract Screening</h1>
       {queue.progress ? (
@@ -35,13 +32,13 @@ export function TitleAbstractScreeningPage() {
       ) : null}
       <p><Link to={`/projects/${projectId}/screening/${STAGE}/my-decisions`}>Review or change my past decisions</Link></p>
       {!queue.previousItem && queue.lastCompletedItem ? (
-        <div className={toolbarClass}>
+        <div className="toolbar">
           <GoBackButton onClick={() => queue.goBack.mutate()} disabled={queue.goBack.isPending}>
             ← Go back to “{queue.lastCompletedItem.title}”
           </GoBackButton>
         </div>
       ) : null}
-      {queue.goBack.error ? <p className="text-danger" role="alert">{queue.goBack.error.message}</p> : null}
+      {queue.goBack.error ? <p className="error" role="alert">{queue.goBack.error.message}</p> : null}
       {queue.previousItem ? (
         <PreviousItemCard
           projectId={projectId}
@@ -57,18 +54,18 @@ export function TitleAbstractScreeningPage() {
           {!queue.loadingNext && queue.queueEmpty ? (
             <>
               <p>You have completed all of your assigned screening work.</p>
-              <Button type="button" variant="secondary" onClick={() => navigate(`/projects/${projectId}`)}>
+              <button type="button" className="button-secondary" onClick={() => navigate(`/projects/${projectId}`)}>
                 Back to project
-              </Button>
+              </button>
             </>
           ) : null}
           {!queue.loadingNext && queue.nextError ? (
-            <p className="text-danger" role="alert">{queue.nextError}</p>
+            <p className="error" role="alert">{queue.nextError}</p>
           ) : null}
         </>
       ) : (
         <ScreeningItemCard {...queue} highlightKeywords={highlightKeywords} />
       )}
-    </Page>
+    </main>
   )
 }

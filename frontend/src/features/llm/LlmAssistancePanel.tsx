@@ -1,30 +1,14 @@
-import { tableCompactClass, tableNarrowClass, toolbarClass } from '../../components/layoutStyles'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { CSSProperties } from 'react'
 import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
-import { Badge } from '../../components/Badge'
 import { Button } from '../../components/Button'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { DragHandle } from '../../components/DragHandle'
-import { DetailList } from '../../components/DetailList'
 import { InfoBox } from '../../components/InfoBox'
 import { IconCheckCircle, IconChart, IconSettings, IconSparkle, IconTrash } from '../../components/icons'
-import { Input } from '../../components/Input'
-import { Select } from '../../components/Select'
-import { Textarea } from '../../components/Textarea'
 import { InfoTooltip } from '../../components/Tooltip'
-import {
-  llmSchemaContentClass,
-  llmSchemaFieldClass,
-  llmSchemaFieldsClass,
-  llmSchemaMappingClass,
-  llmSchemaPreviewClass,
-  llmSchemaSummaryClass,
-  llmSchemaTitleClass,
-  llmSchemaToggleClass,
-} from './llmStyles'
 import { STAGES } from '../projects/StageProgress'
 
 const stageColors = Object.fromEntries(STAGES.map((stage) => [stage.value, stage.color]))
@@ -274,18 +258,18 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
         </p>
       </InfoBox>
       {settings.data ? (
-        <DetailList>
+        <dl className="detail-list">
           <dt>Model</dt><dd>{settings.data.model ?? 'Not configured'}</dd>
           <dt>Context length</dt><dd>{settings.data.contextLength.toLocaleString()}</dd>
-        </DetailList>
+        </dl>
       ) : null}
-      <div className={toolbarClass}>
-        <Button type="button" onClick={() => test.mutate()} disabled={test.isPending}>
+      <div className="toolbar">
+        <button type="button" onClick={() => test.mutate()} disabled={test.isPending}>
           {test.isPending ? 'Testing…' : 'Test Connection'}
-        </Button>
+        </button>
       </div>
       {connection ? (
-        <p className={connection.ok ? 'text-success' : 'text-danger'} role={connection.ok ? 'status' : 'alert'}>
+        <p className={connection.ok ? 'success' : 'error'} role={connection.ok ? 'status' : 'alert'}>
           {connection.message}
         </p>
       ) : null}
@@ -299,9 +283,9 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
       </InfoBox>
       {settings.data ? (
         <fieldset>
-          <legend className="mb-3 text-base font-semibold leading-[1.2] text-text">Stages</legend>
+          <legend className="subsection-heading">Stages</legend>
           <label>
-            <Input
+            <input
               type="checkbox"
               checked={settings.data.titleAbstractScreeningEnabled}
               disabled={!settings.data.installationEnabled || toggle.isPending}
@@ -310,7 +294,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
             Title/abstract screening suggestions (revealed only after reviewer decision)
           </label>
           <label>
-            <Input
+            <input
               type="checkbox"
               checked={settings.data.fullTextScreeningEnabled}
               disabled={!settings.data.installationEnabled || toggle.isPending}
@@ -319,7 +303,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
             Full-text screening assistance
           </label>
           <label>
-            <Input
+            <input
               type="checkbox"
               checked={settings.data.enabled}
               disabled={!settings.data.installationEnabled || toggle.isPending}
@@ -328,7 +312,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
             LLM data extraction
           </label>
           <label>
-            <Input
+            <input
               type="checkbox"
               checked={settings.data.extractionValidationEnabled}
               disabled={!settings.data.installationEnabled || toggle.isPending}
@@ -337,7 +321,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
             Validate completed human extractions automatically
           </label>
           <label>
-            <Input
+            <input
               type="checkbox"
               checked={settings.data.analysisNarrativeEnabled}
               disabled={!settings.data.installationEnabled || toggle.isPending}
@@ -347,7 +331,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
           </label>
         </fieldset>
       ) : null}
-      {capabilitiesError ? <p className="text-danger" role="alert">{capabilitiesError.message}</p> : null}
+      {capabilitiesError ? <p className="error" role="alert">{capabilitiesError.message}</p> : null}
     </CollapsibleSection>
 
     <CollapsibleSection id="section-llm-extraction-schema" title="LLM Extraction Schema" icon={<IconSparkle />}>
@@ -358,25 +342,20 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
         </p>
       </InfoBox>
         {!currentSchema ? (
-          <Button type="button" onClick={() => initialize.mutate()} disabled={initialize.isPending}>
+          <button type="button" onClick={() => initialize.mutate()} disabled={initialize.isPending}>
             Create LLM schema from extraction form
-          </Button>
+          </button>
         ) : (
           <>
           <p>Version {currentSchema.versionNumber} · {currentSchema.status}</p>
-          <div className={llmSchemaFieldsClass}>
+          <div className="llm-schema-fields">
           {fields.map((field, index) => {
             const mappedField = schema.data?.extractionFields.find(
               (item) => item.stableKey === field.mappedExtractionFieldKey,
             )
             return (
             <details
-              className={llmSchemaFieldClass({
-                dragging: draggedFieldKey === field.stableKey,
-                dragOver: dragOverFieldKey === field.stableKey,
-              })}
-              data-dragging={draggedFieldKey === field.stableKey || undefined}
-              data-drag-over={dragOverFieldKey === field.stableKey || undefined}
+              className={`llm-schema-field${draggedFieldKey === field.stableKey ? ' llm-schema-field--dragging' : ''}${dragOverFieldKey === field.stableKey ? ' llm-schema-field--drag-over' : ''}`}
               key={field.stableKey}
               data-field-sort-key={field.stableKey}
               onDragOver={(event) => {
@@ -393,16 +372,16 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
                 setDragOverFieldKey(null)
               }}
             >
-              <summary className={llmSchemaSummaryClass}>
-                <span className={llmSchemaTitleClass}>
+              <summary className="llm-schema-field__summary">
+                <span className="llm-schema-field__title">
                   <strong>{field.label || `Field ${index + 1}`}</strong>
-                  <Badge variant="plain">{field.fieldType.replaceAll('_', ' ')}</Badge>
-                  {!field.enabled ? <Badge variant="plain">Disabled</Badge> : null}
+                  <span className="status-badge">{field.fieldType.replaceAll('_', ' ')}</span>
+                  {!field.enabled ? <span className="status-badge">Disabled</span> : null}
                 </span>
-                <span className={llmSchemaMappingClass}>
+                <span className="llm-schema-field__mapping">
                   {mappedField ? `Maps to ${mappedField.label}` : 'LLM-only helper field'}
                 </span>
-                <span className={llmSchemaPreviewClass}>
+                <span className="llm-schema-field__preview">
                   {field.instruction || 'No extraction instruction provided.'}
                 </span>
                 <DragHandle
@@ -438,20 +417,20 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
                   }}
                 />
               </summary>
-              <div className={llmSchemaContentClass}>
+              <div className="llm-schema-field__content">
               <label>Label
-                <Input value={field.label} onChange={(event) => edit(index, { label: event.target.value })} />
+                <input value={field.label} onChange={(event) => edit(index, { label: event.target.value })} />
               </label>
               <label>Extraction instruction
-                <Textarea value={field.instruction} onChange={(event) => edit(index, { instruction: event.target.value })} />
+                <textarea value={field.instruction} onChange={(event) => edit(index, { instruction: event.target.value })} />
               </label>
               <label>Output type
-                <Select value={field.fieldType} onChange={(event) => edit(index, { fieldType: event.target.value })}>
+                <select value={field.fieldType} onChange={(event) => edit(index, { fieldType: event.target.value })}>
                   {FIELD_TYPES.map((type) => <option value={type} key={type}>{type.replaceAll('_', ' ')}</option>)}
-                </Select>
+                </select>
               </label>
               <label>Mapped extraction field
-                <Select
+                <select
                   value={field.mappedExtractionFieldKey ?? ''}
                   onChange={(event) => {
                     const target = schema.data?.extractionFields.find((item) => item.stableKey === event.target.value)
@@ -466,11 +445,11 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
                   {schema.data?.extractionFields.map((target) => (
                     <option key={target.stableKey} value={target.stableKey}>{target.label}</option>
                   ))}
-                </Select>
+                </select>
               </label>
               {!field.mappedExtractionFieldKey && ['single_select', 'multiple_select', 'rating'].includes(field.fieldType) ? (
                 <label>Allowed values or rating bounds (comma-separated)
-                  <Input
+                  <input
                     value={field.options.join(', ')}
                     onChange={(event) => edit(index, {
                       options: event.target.value.split(',').map((value) => value.trim()).filter(Boolean),
@@ -479,11 +458,11 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
                 </label>
               ) : null}
               {field.mappingState && !['active', 'helper'].includes(field.mappingState) ? (
-                <p className="text-danger">Mapping is {field.mappingState}; resolve it before publishing.</p>
+                <p className="error">Mapping is {field.mappingState}; resolve it before publishing.</p>
               ) : null}
-              <div className={llmSchemaToggleClass}>
+              <div className="llm-schema-field__toggle-setting">
                 <label>
-                  <Input
+                  <input
                     type="checkbox"
                     checked={field.evidenceRequired}
                     onChange={(event) => edit(index, { evidenceRequired: event.target.checked })}
@@ -491,14 +470,13 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
                   Require evidence
                 </label>
                 <InfoTooltip
-                  className="absolute top-1/2 left-full -translate-y-1/2"
                   label="About requiring evidence"
                   text="Require the LLM to support a returned value with a quote from the publication. Papertrail verifies the quote against the cited PDF page and flags missing or unverifiable evidence."
                 />
               </div>
-              <div className={llmSchemaToggleClass}>
+              <div className="llm-schema-field__toggle-setting">
                 <label>
-                  <Input
+                  <input
                     type="checkbox"
                     checked={field.allowInferred}
                     onChange={(event) => edit(index, { allowInferred: event.target.checked })}
@@ -506,43 +484,42 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
                   Allow inferred values
                 </label>
                 <InfoTooltip
-                  className="absolute top-1/2 left-full -translate-y-1/2"
                   label="About inferred values"
                   text="Allow the LLM to derive a value from information in the paper when it is not stated directly. Inferred results are rejected when this is turned off."
                 />
               </div>
-              <label><Input type="checkbox" checked={field.enabled} onChange={(event) => edit(index, { enabled: event.target.checked })} /> Enabled</label>
-              <Button type="button" variant="destructive" onClick={() => setFields((current) => current.filter((_, i) => i !== index))}>
+              <label><input type="checkbox" checked={field.enabled} onChange={(event) => edit(index, { enabled: event.target.checked })} /> Enabled</label>
+              <button type="button" className="button-danger" onClick={() => setFields((current) => current.filter((_, i) => i !== index))}>
                 <IconTrash />
                 Remove field
-              </Button>
+              </button>
               </div>
             </details>
             )
           })}
           </div>
-          <div className={toolbarClass}>
-            <Button type="button" variant="secondary" onClick={addHelper}>Add helper field</Button>
+          <div className="toolbar">
+            <button type="button" className="button-secondary" onClick={addHelper}>Add helper field</button>
             {!setupMode ? (
-              <Button type="button" onClick={() => save.mutate()} disabled={save.isPending}>Save draft</Button>
+              <button type="button" onClick={() => save.mutate()} disabled={save.isPending}>Save draft</button>
             ) : null}
           </div>
           {!setupMode ? (
-            <div className={toolbarClass}>
-              <Button
+            <div className="toolbar">
+              <button
                 type="button"
-                variant="success"
+                className="button-success"
                 onClick={() => publish.mutate()}
                 disabled={publish.isPending || currentSchema.status !== 'draft'}
               >
                 <IconCheckCircle />
                 Publish version
-              </Button>
+              </button>
             </div>
           ) : null}
           </>
         )}
-      {schemaError ? <p className="text-danger" role="alert">{schemaError.message}</p> : null}
+      {schemaError ? <p className="error" role="alert">{schemaError.message}</p> : null}
     </CollapsibleSection>
 
     {showProcessingStatus ? (
@@ -555,8 +532,8 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
         </InfoBox>
           {overview.data ? (
             <>
-              <div className="flex flex-wrap items-start gap-5">
-                <table className={`${tableCompactClass} ${tableNarrowClass} min-w-0 flex-[0_1_auto]`}>
+              <div className="llm-processing-status">
+                <table className="table-compact table-narrow llm-processing-status__table">
                   <thead>
                     <tr>
                       <th scope="col">Metric</th>
@@ -575,43 +552,47 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
                     <tr><th scope="row">Average generated tokens</th><td>{Math.round(overview.data.statistics.averageGeneratedTokens ?? 0)}</td></tr>
                   </tbody>
                 </table>
-                <div data-llm-rerun-actions="true" className="flex shrink-0 flex-col items-start gap-2">
-                  <button
+                <div className="llm-rerun-actions">
+                  <Button
                     type="button"
-                    className="border-[color-mix(in_srgb,var(--stage-color)_35%,transparent)] bg-none bg-[color-mix(in_srgb,var(--stage-color)_14%,transparent)] text-(--stage-color) shadow-none hover:not-disabled:border-(--stage-color) hover:not-disabled:bg-[color-mix(in_srgb,var(--stage-color)_22%,transparent)] hover:not-disabled:text-(--stage-color) hover:not-disabled:shadow-none"
+                    variant="secondary"
+                    className="llm-stage-button"
                     style={stageButtonStyle('title_abstract_screening')}
                     onClick={() => reanalyze.mutate('title_abstract_screening')}
                     disabled={reanalyze.isPending || !settings.data?.titleAbstractScreeningEnabled}
                   >
                     Re-Run LLM Title/Abstract Screening
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
-                    className="border-[color-mix(in_srgb,var(--stage-color)_35%,transparent)] bg-none bg-[color-mix(in_srgb,var(--stage-color)_14%,transparent)] text-(--stage-color) shadow-none hover:not-disabled:border-(--stage-color) hover:not-disabled:bg-[color-mix(in_srgb,var(--stage-color)_22%,transparent)] hover:not-disabled:text-(--stage-color) hover:not-disabled:shadow-none"
+                    variant="secondary"
+                    className="llm-stage-button"
                     style={stageButtonStyle('full_text_screening')}
                     onClick={() => reanalyze.mutate('full_text_screening')}
                     disabled={reanalyze.isPending || !settings.data?.fullTextScreeningEnabled}
                   >
                     Re-Run LLM Full-Text Screening
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
-                    className="border-[color-mix(in_srgb,var(--stage-color)_35%,transparent)] bg-none bg-[color-mix(in_srgb,var(--stage-color)_14%,transparent)] text-(--stage-color) shadow-none hover:not-disabled:border-(--stage-color) hover:not-disabled:bg-[color-mix(in_srgb,var(--stage-color)_22%,transparent)] hover:not-disabled:text-(--stage-color) hover:not-disabled:shadow-none"
+                    variant="secondary"
+                    className="llm-stage-button"
                     style={stageButtonStyle('extraction_quality')}
                     onClick={() => reanalyze.mutate('data_extraction')}
                     disabled={reanalyze.isPending || !settings.data?.enabled}
                   >
                     Re-Run LLM Data Extraction
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
-                    className="border-[color-mix(in_srgb,var(--stage-color)_35%,transparent)] bg-none bg-[color-mix(in_srgb,var(--stage-color)_14%,transparent)] text-(--stage-color) shadow-none hover:not-disabled:border-(--stage-color) hover:not-disabled:bg-[color-mix(in_srgb,var(--stage-color)_22%,transparent)] hover:not-disabled:text-(--stage-color) hover:not-disabled:shadow-none"
+                    variant="secondary"
+                    className="llm-stage-button"
                     style={stageButtonStyle('extraction_quality')}
                     onClick={() => reanalyze.mutate('extraction_validation')}
                     disabled={reanalyze.isPending || !settings.data?.extractionValidationEnabled}
                   >
                     Re-Run LLM Human Extraction Validation
-                  </button>
+                  </Button>
                 </div>
               </div>
               {overview.data.runs.some((run) => run.outdated) ? <p>Some results use an older schema version.</p> : null}
@@ -627,7 +608,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
               ) : null}
             </>
           ) : <p>Loading processing status…</p>}
-          {processingError ? <p className="text-danger" role="alert">{processingError.message}</p> : null}
+          {processingError ? <p className="error" role="alert">{processingError.message}</p> : null}
       </CollapsibleSection>
     ) : null}
     </>

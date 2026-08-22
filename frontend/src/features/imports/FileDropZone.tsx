@@ -1,18 +1,6 @@
 import { useRef, useState } from 'react'
 
-import { cn } from '../../lib/cn'
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  const units = ['KB', 'MB', 'GB']
-  let value = bytes / 1024
-  let unitIndex = 0
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024
-    unitIndex += 1
-  }
-  return `${value.toFixed(value < 10 ? 1 : 0)} ${units[unitIndex]}`
-}
+import { formatFileSize } from '../../lib/format'
 
 function fileKey(file: File): string {
   return `${file.name}:${file.size}:${file.lastModified}`
@@ -64,13 +52,13 @@ export function FileDropZone({
   }
 
   return (
-    <div className="grid gap-2 has-[input:focus-visible]:[&_[data-dropzone]]:outline-3 has-[input:focus-visible]:[&_[data-dropzone]]:outline-offset-2 has-[input:focus-visible]:[&_[data-dropzone]]:outline-focus">
+    <div className="dropzone-field">
       <label htmlFor={id}>
         {label}
         <input
           ref={inputRef}
           id={id}
-          className="sr-only"
+          className="visually-hidden"
           type="file"
           accept={accept}
           multiple={multiple}
@@ -82,11 +70,7 @@ export function FileDropZone({
         />
       </label>
       <div
-        className={cn(
-          'grid min-h-[92px] cursor-pointer justify-items-center gap-1 rounded-md border-2 border-dashed border-border-strong bg-bg-elevated p-4 text-center text-[0.88rem] text-text-secondary transition-[border-color,background-color,color] duration-150 hover:border-primary hover:bg-surface-hover hover:text-text',
-          dragging && 'border-primary bg-primary-container text-primary',
-        )}
-        data-dropzone
+        className={`dropzone${dragging ? ' dropzone--active' : ''}`}
         onClick={() => inputRef.current?.click()}
         onDragOver={(event) => {
           event.preventDefault()
@@ -100,20 +84,20 @@ export function FileDropZone({
         }}
       >
         <p>
-          <span className="font-semibold text-primary">Click to browse</span>
+          <span className="dropzone__browse">Click to browse</span>
           {' '}or drag and drop {multiple ? 'files' : 'a file'} here
         </p>
-        {hint ? <p className="text-[0.78rem] text-text-muted">{hint}</p> : null}
+        {hint ? <p className="muted dropzone__hint">{hint}</p> : null}
       </div>
       {files.length ? (
-        <ul className="m-0 grid list-none grid-cols-[minmax(0,1fr)] gap-2 p-0">
+        <ul className="file-list">
           {files.map((file, index) => (
-            <li key={fileKey(file)} className="flex min-w-0 items-center gap-3 rounded-sm border border-border bg-surface px-3 py-2">
-              <span className="min-w-0 flex-1 truncate text-[0.88rem] font-semibold text-text">{file.name}</span>
-              <span className="shrink-0 text-[0.78rem] text-text-muted">{formatFileSize(file.size)}</span>
+            <li key={fileKey(file)} className="file-chip">
+              <span className="file-chip__name">{file.name}</span>
+              <span className="file-chip__size muted">{formatFileSize(file.size)}</span>
               <button
                 type="button"
-                className="inline-flex size-[26px] min-h-[26px] min-w-[26px] shrink-0 cursor-pointer items-center justify-center rounded-full border-0 bg-none p-0 text-text-muted shadow-none hover:bg-danger-container hover:text-danger disabled:cursor-not-allowed disabled:opacity-[.48] [&_svg]:size-3.5 [&_svg]:fill-current"
+                className="file-chip__remove"
                 aria-label={`Remove ${file.name}`}
                 disabled={disabled}
                 onClick={() => onChange(files.filter((_, i) => i !== index))}

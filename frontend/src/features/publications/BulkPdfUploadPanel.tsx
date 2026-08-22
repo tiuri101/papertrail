@@ -6,12 +6,8 @@ import { Button } from '../../components/Button'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { IconUpload } from '../../components/icons'
 import { FileDropZone } from '../imports/FileDropZone'
-import { PdfMatchReview, type PdfSummary } from '../imports/PdfMatchReview'
-
-interface UploadResult {
-  importBatchId: string
-  summary: PdfSummary
-}
+import { PdfMatchReview } from '../imports/PdfMatchReview'
+import type { UploadResult } from '../imports/types'
 
 export function BulkPdfUploadPanel({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient()

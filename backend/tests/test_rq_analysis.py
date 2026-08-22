@@ -18,11 +18,11 @@ from app.extraction.models import ExtractionWorkItem
 from app.extraction.service import submit_extraction
 from app.forms.service import rename_field
 from app.jobs.models import BackgroundJob, JobStatus
+from app.jobs.registry import LLM_JOB_TYPES
 from app.llm.ollama import OllamaResponse, OllamaResponseError
 from app.llm.rq_chunking import chunk_facts
 from app.llm.rq_sources import SourceEntry, assign_source_ids, validate_source_ids
 from app.llm.rq_synthesis import run_rq_synthesis
-from app.llm.service import LLM_JOB_TYPES
 from app.projects.models import Project, ResearchQuestion, ReviewType
 from app.quality.models import QualityWorkItem
 from app.quality.service import submit_quality

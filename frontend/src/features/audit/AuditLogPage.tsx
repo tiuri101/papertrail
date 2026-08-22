@@ -11,17 +11,7 @@ import { Select } from '../../components/Select'
 import { SortableColumnHeader } from '../../components/SortableColumnHeader'
 import { InfoTooltip } from '../../components/Tooltip'
 import { useProjectManageState } from '../../hooks/useCanManageProject'
-
-interface AuditEvent {
-  id: string
-  createdAt: string
-  actorUsername: string | null
-  action: string
-  entityType: string
-  entityId: string | null
-  summary: string
-  metadata: Record<string, unknown>
-}
+import type { AuditEvent } from './types'
 
 type SortKey = 'createdAt' | 'actorUsername' | 'action' | 'entityType' | 'summary'
 type SortDirection = 'asc' | 'desc'

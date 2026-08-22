@@ -1,35 +1,19 @@
-import { toolbarClass } from '../../components/layoutStyles'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import { useMemo, useState, type MouseEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
-import { Page } from '../../components/Page'
-import { Button } from '../../components/Button'
-import { cardStyles } from '../../components/Card'
-import { Badge, type BadgeVariant } from '../../components/Badge'
 import { CountPill } from '../../components/CountPill'
 import { DoiPill } from '../../components/DoiPill'
 import { HighlightedText } from '../../components/HighlightedText'
-import { Input } from '../../components/Input'
 import { PublicationListSortHeader } from '../../components/PublicationListSortHeader'
-import { Select } from '../../components/Select'
 import { Tooltip } from '../../components/Tooltip'
-import { reviewWorkActionsClass, reviewWorkCardClass, reviewWorkDoiClass, reviewWorkGridClass, reviewWorkListClass, reviewWorkMetadataClass, reviewWorkStatusClass, reviewWorkSubmittedClass, reviewWorkTitleClass, reviewWorkTitleLinkClass, reviewWorkTitleTextClass, reviewWorkVenueClass } from '../../components/reviewWorkStyles'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
-import { LlmEvidence, type LlmEvidenceItem } from '../llm/LlmTaskComponents'
-import { llmValidationClass } from '../llm/llmStyles'
+import { formatSubmittedAt } from '../../lib/format'
+import { type SortDirection, sortByValue } from '../../lib/sort'
+import { LlmEvidence } from '../llm/LlmTaskComponents'
 import { StageEyebrow } from '../projects/StageEyebrow'
-
-interface ValidationResult {
-  fieldKey: string
-  fieldLabel: string
-  value: unknown
-  assessment: 'supported' | 'contradicted' | 'uncertain' | 'not_verifiable'
-  explanation: string
-  evidence: LlmEvidenceItem[]
-  evidenceValidationStatus: string
-}
+import type { ValidationResult } from './types'
 
 interface ValidationReviewItem {
   workItemId: string
@@ -66,7 +50,6 @@ interface ValidationReview {
 
 type ReviewItem = ValidationReviewItem & { issues: ValidationResult[] }
 type ValidationSortKey = 'title' | 'authors' | 'venue' | 'status' | 'doi' | 'submitted'
-type SortDirection = 'asc' | 'desc'
 
 const NEEDS_REVIEW = new Set(['contradicted', 'uncertain', 'not_verifiable'])
 
@@ -91,10 +74,10 @@ function statusLabel(item: ReviewItem) {
   return labels[item.state] ?? item.state.replaceAll('_', ' ')
 }
 
-function statusVariant(item: ReviewItem): BadgeVariant {
-  if (item.state === 'failed') return 'danger'
-  if (item.state === 'ready' && item.issues.length > 0) return 'warning'
-  return 'neutral'
+function statusClass(item: ReviewItem) {
+  if (item.state === 'failed') return 'status-pill status-pill--danger'
+  if (item.state === 'ready' && item.issues.length > 0) return 'status-pill status-pill--warning'
+  return 'status-pill'
 }
 
 function sortValue(item: ReviewItem, key: ValidationSortKey): string | number {
@@ -109,21 +92,12 @@ function sortValue(item: ReviewItem, key: ValidationSortKey): string | number {
 }
 
 function sortItems(items: ReviewItem[], key: ValidationSortKey, direction: SortDirection) {
-  return [...items].sort((left, right) => {
-    const leftValue = sortValue(left, key)
-    const rightValue = sortValue(right, key)
-    const comparison = typeof leftValue === 'number' && typeof rightValue === 'number'
-      ? leftValue - rightValue
-      : String(leftValue).localeCompare(String(rightValue), undefined, { sensitivity: 'base' })
-    if (comparison !== 0) return direction === 'asc' ? comparison : -comparison
-    return left.publication.title.localeCompare(right.publication.title)
-  })
-}
-
-function formatSubmittedAt(value: string | null) {
-  if (!value) return '—'
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString()
+  return sortByValue(
+    items,
+    direction,
+    (item) => sortValue(item, key),
+    (left, right) => left.publication.title.localeCompare(right.publication.title),
+  )
 }
 
 function ValidationRow({
@@ -142,44 +116,44 @@ function ValidationRow({
   const detailHref = `/projects/${projectId}/publications/${publication.id}`
 
   const openPublication = (event: MouseEvent<HTMLLIElement>) => {
-    if ((event.target as HTMLElement).closest('a, button, details, summary, [data-validation-issues]')) return
+    if ((event.target as HTMLElement).closest('a, button, details, summary, .validation-review-card__issues')) return
     navigate(detailHref)
   }
 
   return (
-    <li className={reviewWorkCardClass} onClick={openPublication}>
-      <div className={reviewWorkGridClass}>
-        <div className={reviewWorkTitleClass}>
-          <Link className={reviewWorkTitleLinkClass} to={detailHref}>
-            <h2 className={reviewWorkTitleTextClass}>
+    <li className="card publication-card review-work-card--clickable" onClick={openPublication}>
+      <div className="publication-card__summary review-work-row-grid">
+        <div className="review-work-row-grid__title">
+          <Link className="publication-card__title-button" to={detailHref}>
+            <h2 className="decision-card__title">
               <HighlightedText text={publication.title} keywords={highlightKeywords} />
             </h2>
           </Link>
-          <div className={reviewWorkMetadataClass}>{publication.authors ?? 'Unknown authors'}</div>
+          <div className="review-work-row-grid__authors">{publication.authors ?? 'Unknown authors'}</div>
         </div>
-        <span className={reviewWorkVenueClass} title={publication.venue ?? undefined}>
+        <span className="review-work-row-grid__venue" title={publication.venue ?? undefined}>
           {publication.venue ?? '—'}{publication.publicationYear ? ` (${publication.publicationYear})` : ''}
         </span>
-        <span className={reviewWorkStatusClass}><Badge variant={statusVariant(item)}>{statusLabel(item)}</Badge></span>
-        <span className={reviewWorkDoiClass}>
-          {publication.doi ? <DoiPill doi={publication.doi} /> : <span className="text-text-muted">—</span>}
+        <span className="review-work-row-grid__status"><span className={statusClass(item)}>{statusLabel(item)}</span></span>
+        <span className="review-work-row-grid__doi">
+          {publication.doi ? <DoiPill doi={publication.doi} /> : <span className="muted">—</span>}
         </span>
-        <time className={reviewWorkSubmittedClass} dateTime={item.submittedAt ?? undefined}>
+        <time className="review-work-row-grid__submitted" dateTime={item.submittedAt ?? undefined}>
           {formatSubmittedAt(item.submittedAt)}
         </time>
-        <span className={reviewWorkActionsClass}>
-          <Button as={Link} variant="secondary" size="sm" to={`/projects/${projectId}/extraction/review/${item.workItemId}`}>
+        <span className="review-work-row-grid__actions">
+          <Link className="button-secondary button-sm" to={`/projects/${projectId}/extraction/review/${item.workItemId}`}>
             Review and correct extraction
-          </Button>
+          </Link>
         </span>
       </div>
 
       {item.issues.length > 0 || item.error || item.fullTextAvailable || ['failed', 'awaiting_validation'].includes(item.state) ? (
-        <details data-validation-issues="true" className="mt-4 cursor-default border-t border-border pt-4 [&>summary]:w-fit [&>summary]:cursor-pointer [&>summary]:font-semibold [&>summary]:text-primary" open={item.issues.length > 0}>
+        <details className="validation-review-card__issues" open={item.issues.length > 0}>
           <summary>{item.issues.length > 0 ? `Validation findings (${item.issues.length})` : 'Validation details'}</summary>
-          {item.error ? <p className="text-danger">{item.error}</p> : null}
+          {item.error ? <p className="error">{item.error}</p> : null}
           {item.issues.map((result) => (
-            <section className={llmValidationClass(result.assessment)} key={result.fieldKey}>
+            <section className={`llm-validation llm-validation--${result.assessment}`} key={result.fieldKey}>
               <h3>{result.fieldLabel}</h3>
               <p>
                 <Tooltip text={ASSESSMENT_HELP[result.assessment]}>
@@ -196,14 +170,14 @@ function ValidationRow({
               ) : null}
             </section>
           ))}
-          <div className={toolbarClass}>
+          <div className="toolbar">
             {item.fullTextAvailable ? (
               <a href={`/api/v1/projects/${projectId}/publications/${item.publicationId}/full-text/content`} target="_blank" rel="noreferrer">
                 View PDF
               </a>
             ) : null}
             {['failed', 'awaiting_validation'].includes(item.state) ? (
-              <Button type="button" variant="secondary" onClick={() => retry(item)}>Retry validation</Button>
+              <button type="button" className="button-secondary" onClick={() => retry(item)}>Retry validation</button>
             ) : null}
           </div>
         </details>
@@ -257,17 +231,17 @@ export function ValidationReviewPage() {
     }
   }
 
-  if (review.isLoading) return <Page><p>Loading validation review…</p></Page>
-  if (review.isError || !review.data) return <Page><p className="text-danger" role="alert">Validation review could not be loaded.</p></Page>
+  if (review.isLoading) return <main className="page"><p>Loading validation review…</p></main>
+  if (review.isError || !review.data) return <main className="page"><p className="error" role="alert">Validation review could not be loaded.</p></main>
   if (!review.data.enabled) {
-    return <Page><StageEyebrow stage="extraction_quality" /><h1>LLM Extraction Validation</h1><p>LLM extraction validation is not enabled for this project.</p></Page>
+    return <main className="page"><StageEyebrow stage="extraction_quality" /><h1>LLM Extraction Validation</h1><p>LLM extraction validation is not enabled for this project.</p></main>
   }
 
   return (
-    <Page>
+    <main className="page">
       <StageEyebrow stage="extraction_quality" />
       <h1>Review LLM Extraction Validation</h1>
-      <section className={cardStyles} data-ui="card">
+      <section className="card">
         <h2>Validation progress</h2>
         <CountPill count={review.data.progress.completed}>
           of {review.data.progress.total} validated
@@ -275,23 +249,23 @@ export function ValidationReviewPage() {
           {review.data.progress.failed ? ` · ${review.data.progress.failed} failed` : ''}
           {review.data.progress.unavailable ? ` · ${review.data.progress.unavailable} unavailable` : ''}
         </CountPill>
-        <p className="text-text-muted">Human extraction values remain authoritative. Review flagged fields, then correct the extraction if needed.</p>
+        <p className="muted">Human extraction values remain authoritative. Review flagged fields, then correct the extraction if needed.</p>
       </section>
 
-      {retry.error ? <p className="text-danger" role="alert">{retry.error.message}</p> : null}
+      {retry.error ? <p className="error" role="alert">{retry.error.message}</p> : null}
       {totalReviewItems > 0 ? (
         <>
           <CountPill count={search ? visibleItems.length : totalReviewItems}>
             {search ? `of ${totalReviewItems} publications match your filters` : `publication${totalReviewItems === 1 ? '' : 's'} need review`}
           </CountPill>
-          <div className={toolbarClass}>
-            <label className="w-full flex-[0_1_32rem] max-w-lg">
+          <div className="toolbar">
+            <label className="paper-search-field">
               Search papers
-              <Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Title, author, DOI…" />
+              <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Title, author, DOI…" />
             </label>
-            <label className="hidden max-[520px]:block">
+            <label className="review-work-mobile-sort">
               Sort by
-              <Select value={`${sortKey}:${sortDirection}`} onChange={(event) => {
+              <select value={`${sortKey}:${sortDirection}`} onChange={(event) => {
                 const [key, direction] = event.target.value.split(':') as [ValidationSortKey, SortDirection]
                 setSortKey(key)
                 setSortDirection(direction)
@@ -306,20 +280,20 @@ export function ValidationReviewPage() {
                 <option value="venue:desc">Venue Z–A</option>
                 <option value="status:asc">Status A–Z</option>
                 <option value="status:desc">Status Z–A</option>
-              </Select>
+              </select>
             </label>
           </div>
         </>
       ) : null}
 
       {totalReviewItems === 0 ? (
-        <section className={cardStyles} data-ui="card"><p>No validation mismatches require review.</p></section>
+        <section className="card"><p>No validation mismatches require review.</p></section>
       ) : visibleItems.length === 0 ? (
-        <p className="text-text-muted">No validation items match your filters.</p>
+        <p className="muted">No validation items match your filters.</p>
       ) : (
         <>
-          <div className={`${reviewWorkGridClass} mb-2 px-4 text-[0.72rem] font-bold tracking-[0.04em] text-text-muted uppercase max-[520px]:hidden`}>
-            <span className="flex items-center gap-0.5">
+          <div className="review-work-row-grid publication-list__header">
+            <span className="publication-list__header-group">
               <PublicationListSortHeader label="Title" sortKey="title" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />{' / '}
               <PublicationListSortHeader label="Authors" sortKey="authors" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
             </span>
@@ -327,15 +301,15 @@ export function ValidationReviewPage() {
             <PublicationListSortHeader label="Status" sortKey="status" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
             <PublicationListSortHeader label="DOI" sortKey="doi" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
             <PublicationListSortHeader label="Submitted" sortKey="submitted" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
-            <span className={reviewWorkActionsClass}>Actions</span>
+            <span className="review-work-row-grid__actions">Actions</span>
           </div>
-          <ul className={reviewWorkListClass}>
+          <ul className="card-list stacked publication-list">
             {visibleItems.map((item) => (
               <ValidationRow key={item.workItemId} projectId={projectId} item={item} highlightKeywords={highlightKeywords} retry={(target) => retry.mutate(target)} />
             ))}
           </ul>
         </>
       )}
-    </Page>
+    </main>
   )
 }
