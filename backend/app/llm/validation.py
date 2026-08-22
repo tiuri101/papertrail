@@ -4,19 +4,11 @@ from datetime import date
 from typing import Any, Literal, cast
 from urllib.parse import urlsplit
 
-from pydantic import BaseModel, ConfigDict, Field, ValidationError
+from pydantic import BaseModel, ConfigDict, ValidationError
 
 from app.api.errors import DomainError
+from app.llm.evidence import EvidenceItem
 from app.llm.models import LlmSchemaField, SuggestionStatus
-
-
-class EvidenceItem(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    page: int = Field(ge=1)
-    quote: str = Field(min_length=1)
-    section: str | None = Field(default=None, max_length=300)
-
 
 StatusLiteral = Literal[
     "explicit", "inferred", "ambiguous", "not_found", "not_applicable"

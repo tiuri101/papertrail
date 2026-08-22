@@ -615,6 +615,33 @@ def test_email_job_retries_and_records_terminal_failure(
     assert job.status == JobStatus.FAILED
 
 
+def test_project_owner_users_returns_only_owners(db) -> None:
+    from app.notifications.service import _project_owner_users
+
+    owner = create_user(db, "owner", "Project Owner", "secret-password")
+    second_owner = create_user(db, "co-owner", "Co Owner", "secret-password")
+    reviewer = create_user(db, "reviewer", "Reviewer", "secret-password")
+    project = create_project(
+        db, "Evidence Review", None, ReviewType.SYSTEMATIC_REVIEW, owner
+    )
+    db.add(
+        ProjectMembership(
+            project_id=project.id, user_id=second_owner.id, is_owner=True
+        )
+    )
+    db.add(
+        ProjectMembership(
+            project_id=project.id, user_id=reviewer.id, can_extract=True
+        )
+    )
+    db.flush()
+
+    owners = _project_owner_users(db, project.id)
+
+    assert {user.id for user in owners} == {owner.id, second_owner.id}
+    assert reviewer.id not in {user.id for user in owners}
+
+
 def test_owner_notified_once_when_entire_llm_bulk_finishes(db, monkeypatch) -> None:
     monkeypatch.setattr(
         "app.notifications.service.effective_instance_settings", email_settings

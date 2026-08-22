@@ -7,18 +7,11 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from app.api.errors import DomainError
+from app.llm.evidence import EvidenceItem
 from app.projects.models import CriterionKind
 
 ScreeningDecision = Literal["include", "exclude", "uncertain"]
 ScreeningConfidence = Literal["low", "medium", "high"]
-
-
-class TaskEvidence(BaseModel):
-    model_config = ConfigDict(extra="forbid")
-
-    page: int = Field(ge=1)
-    quote: str = Field(min_length=1)
-    section: str | None = Field(default=None, max_length=300)
 
 
 class CriterionResult(BaseModel):
@@ -26,7 +19,7 @@ class CriterionResult(BaseModel):
 
     assessment: Literal["met", "not_met", "unclear"]
     explanation: str
-    evidence: list[TaskEvidence] = Field(default_factory=list)
+    evidence: list[EvidenceItem] = Field(default_factory=list)
 
 
 class ScreeningTaskResult(BaseModel):
@@ -50,7 +43,7 @@ class ValidationFieldResult(BaseModel):
 
     assessment: Literal["supported", "contradicted", "uncertain", "not_verifiable"]
     explanation: str
-    evidence: list[TaskEvidence] = Field(default_factory=list)
+    evidence: list[EvidenceItem] = Field(default_factory=list)
 
 
 class ExtractionValidationResult(BaseModel):

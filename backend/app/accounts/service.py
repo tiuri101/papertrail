@@ -214,11 +214,10 @@ def consume_password_reset_token(db: Session, token: PasswordResetToken) -> None
     token.used_at = utcnow()
 
 
-def ensure_password_reset_allowed(db: Session, email: str, client_address: str) -> None:
+def _ensure_throttle_allowed(db: Session, identity: str, error_message: str) -> None:
     from app.accounts.models import LoginThrottle
     from app.api.errors import RateLimitError
 
-    identity = login_identity_hash(f"pwreset:{email}", client_address)
     throttle = db.scalar(
         select(LoginThrottle).where(LoginThrottle.identity_hash == identity)
     )
@@ -228,15 +227,20 @@ def ensure_password_reset_allowed(db: Session, email: str, client_address: str) 
     if blocked_until.tzinfo is None:
         blocked_until = blocked_until.replace(tzinfo=UTC)
     if blocked_until > utcnow():
-        raise RateLimitError("Too many password reset requests. Try again later.")
+        raise RateLimitError(error_message)
 
 
-def record_password_reset_attempt(db: Session, email: str, client_address: str) -> None:
+def _record_throttle_attempt(
+    db: Session,
+    identity: str,
+    *,
+    window_seconds: int,
+    max_attempts: int,
+    block_seconds: int,
+) -> None:
     from app.accounts.models import LoginThrottle
 
-    settings = effective_instance_settings(db)
     now = utcnow()
-    identity = login_identity_hash(f"pwreset:{email}", client_address)
     throttle = db.scalar(
         select(LoginThrottle).where(LoginThrottle.identity_hash == identity)
     )
@@ -251,14 +255,33 @@ def record_password_reset_attempt(db: Session, email: str, client_address: str) 
     window_started_at = throttle.window_started_at
     if window_started_at.tzinfo is None:
         window_started_at = window_started_at.replace(tzinfo=UTC)
-    if now - window_started_at > timedelta(seconds=settings.login_window_seconds):
+    if now - window_started_at > timedelta(seconds=window_seconds):
         throttle.attempts = 0
         throttle.window_started_at = now
         throttle.blocked_until = None
     throttle.attempts += 1
-    if throttle.attempts >= settings.password_reset_max_attempts:
-        throttle.blocked_until = now + timedelta(seconds=settings.login_block_seconds)
+    if throttle.attempts >= max_attempts:
+        throttle.blocked_until = now + timedelta(seconds=block_seconds)
     db.flush()
+
+
+def ensure_password_reset_allowed(db: Session, email: str, client_address: str) -> None:
+    identity = login_identity_hash(f"pwreset:{email}", client_address)
+    _ensure_throttle_allowed(
+        db, identity, "Too many password reset requests. Try again later."
+    )
+
+
+def record_password_reset_attempt(db: Session, email: str, client_address: str) -> None:
+    settings = effective_instance_settings(db)
+    identity = login_identity_hash(f"pwreset:{email}", client_address)
+    _record_throttle_attempt(
+        db,
+        identity,
+        window_seconds=settings.login_window_seconds,
+        max_attempts=settings.password_reset_max_attempts,
+        block_seconds=settings.login_block_seconds,
+    )
 
 
 def get_user_or_raise(db: Session, user_id: str) -> User:
@@ -274,50 +297,22 @@ def login_identity_hash(username: str, client_address: str) -> str:
 
 
 def ensure_login_allowed(db: Session, username: str, client_address: str) -> None:
-    from app.accounts.models import LoginThrottle
-    from app.api.errors import RateLimitError
-
     identity = login_identity_hash(username, client_address)
-    throttle = db.scalar(
-        select(LoginThrottle).where(LoginThrottle.identity_hash == identity)
+    _ensure_throttle_allowed(
+        db, identity, "Too many failed login attempts. Try again later."
     )
-    if throttle is None or throttle.blocked_until is None:
-        return
-    blocked_until = throttle.blocked_until
-    if blocked_until.tzinfo is None:
-        blocked_until = blocked_until.replace(tzinfo=UTC)
-    if blocked_until > utcnow():
-        raise RateLimitError("Too many failed login attempts. Try again later.")
 
 
 def record_login_failure(db: Session, username: str, client_address: str) -> None:
-    from app.accounts.models import LoginThrottle
-
     settings = get_settings()
-    now = utcnow()
     identity = login_identity_hash(username, client_address)
-    throttle = db.scalar(
-        select(LoginThrottle).where(LoginThrottle.identity_hash == identity)
+    _record_throttle_attempt(
+        db,
+        identity,
+        window_seconds=settings.login_window_seconds,
+        max_attempts=settings.login_max_attempts,
+        block_seconds=settings.login_block_seconds,
     )
-    if throttle is None:
-        throttle = LoginThrottle(
-            identity_hash=identity,
-            attempts=0,
-            window_started_at=now,
-        )
-        db.add(throttle)
-        db.flush()
-    window_started_at = throttle.window_started_at
-    if window_started_at.tzinfo is None:
-        window_started_at = window_started_at.replace(tzinfo=UTC)
-    if now - window_started_at > timedelta(seconds=settings.login_window_seconds):
-        throttle.attempts = 0
-        throttle.window_started_at = now
-        throttle.blocked_until = None
-    throttle.attempts += 1
-    if throttle.attempts >= settings.login_max_attempts:
-        throttle.blocked_until = now + timedelta(seconds=settings.login_block_seconds)
-    db.flush()
 
 
 def clear_login_failures(db: Session, username: str, client_address: str) -> None:
