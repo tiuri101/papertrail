@@ -1,75 +1,157 @@
 # Reviewer Guide
 
-Reviewers only see projects in which they are members and activities for which they are eligible. The interface only shows actions you're allowed to take — for example, project setup and administration pages are only visible to that project's owner or an administrator.
+Reviewers see only projects in which they are members. Within a project, reviewer work is further controlled by eligibility for title/abstract screening, full-text screening, extraction, and quality assessment. Project-management screens are limited to the project owner and installation administrators.
 
-Any project member can edit the project's research questions and inclusion/exclusion criteria, document a database search and upload its import file, resolve duplicate candidates, and generate and download exports (PRISMA outputs, the Excel workbook, Parquet, JSON, CSV, and BibTeX).
+Regardless of reviewer eligibility, project members can edit the project's research questions and inclusion/exclusion criteria, document searches and upload imports, resolve duplicate candidates, and create/download project exports.
+
+## Account settings and password recovery
+
+Open **Account Settings** from the application navigation to manage:
+
+- display name and email address;
+- your password;
+- screening hotkeys;
+- paired Browser Helpers.
+
+Changing your password requires the current password and revokes your other active sessions. If an administrator gave you a temporary password, Papertrail requires a password change before normal application use.
+
+If you forget your password, choose **Forgot password?** on the login page and enter the email address associated with the account. For privacy, Papertrail gives the same public response whether or not that email exists. When self-service password-recovery email is fully configured (see [Configuration](configuration.md)) and a matching active account exists, the reset link is sent by email. Resetting the password revokes existing sessions and Browser Helper tokens and signs you in with a fresh session.
+
+Administrators configure reset-link lifetime and request throttling in Global Settings.
 
 ## Search documentation and imports
 
-Record the database, search string, date, and any filters used for each search, and upload the corresponding export file. You may select multiple PDFs and/or multiple ZIP archives of PDFs in the same form. After import, review only ambiguous, unmatched, or existing-PDF conflicts; high-confidence DOI and title matches are attached automatically. Unrecognized metadata columns can be mapped to a normalized field before import.
+For each database search, record the database/platform, exact search string, search date, and filters used, then upload the corresponding bibliographic export.
+
+Supported metadata imports include CSV, TSV, XLSX, RIS, and BibTeX; see [Import Formats](import-formats.md). Unknown tabular columns can be mapped to normalized fields during import.
+
+The same import flow can accept multiple PDFs and/or ZIP archives of PDFs. High-confidence DOI/title matches can be attached automatically; ambiguous, unmatched, and existing-PDF conflicts remain available for review and manual resolution.
+
+## Publications and metadata
+
+Project members can browse the project publication set and open publication details. Project owners/administrators can edit normalized publication metadata, trigger enrichment, and resolve conflicting enrichment proposals. Source/import provenance remains separate from normalized metadata edits.
+
+Project managers can also manually add a publication when it did not come from one of the documented import files.
 
 ## Duplicate review
 
-Any project member can resolve a suggested duplicate as not a duplicate, or merge it and choose which record stays canonical. Marking the project ready to enter duplicate review, and reversing a completed merge, is done by the project owner or an administrator.
+Any project member can resolve a suggested duplicate as **not a duplicate** or merge the pair and choose which publication remains canonical. The project owner/administrator marks the project ready to enter duplicate review and can reverse a completed merge.
+
+A merge preserves provenance and transfers related data/documents to the canonical publication according to the workflow rules; it is not a hard delete of the duplicate history.
 
 ## Screening
 
-Open the active screening queue, inspect the publication metadata, complete every inclusion and exclusion criterion, and select include, exclude, uncertain, or duplicate. Notes are optional for every decision. Draft work is autosaved, and a reserved item remains assigned for up to one hour unless released.
+Open the active screening queue, inspect the publication metadata, complete each inclusion/exclusion criterion, and choose **Include**, **Exclude**, **Uncertain**, or **Duplicate**. Notes are optional unless a particular follow-up workflow requires a reason.
 
-In independent screening, other reviewers' answers remain hidden until all required decisions have been submitted. A submitted decision can be revised; any existing consensus is then invalidated and must be resolved again.
+Draft state is saved while you work. A claimed/reserved item has a finite reservation and can be released when you do not intend to complete it.
 
-How publications reach your queue depends on the stage's allocation setting, configured by the project owner or an administrator: with **Claim** (the default), publications aren't assigned in advance — the queue hands you the next unclaimed one as you work. With **Divided**, publications are pre-assigned round-robin across eligible reviewers, weighted by each reviewer's configured workload weight.
+How records reach you depends on the stage configuration:
+
+- **Claim** — the next eligible unclaimed record is assigned as you work;
+- **Divided** — records are pre-assigned across eligible reviewers using workload weights;
+- **Independent** — each eligible reviewer receives each publication (screening only).
+
+When multiple independent decisions are required, other reviewers' decisions remain hidden until the configured decision count has been submitted. Submitted screening decisions can be revised; revising a decision invalidates any final decision that depended on the superseded response and may return the publication to conflict resolution.
+
+Screening hotkeys can be configured/viewed from Account Settings.
 
 ## Full text
 
-Papertrail provides DOI and publisher links and stores PDFs supplied by authorized project users. During full-text work, upload a missing PDF directly from the screening page. An attached PDF can be viewed in the browser, replaced, or logically removed. Replacement creates a new stable document version and retains the previous file in the collapsible history; removal preserves history and does not change any screening decision. PDFs imported before screening become available when the publication reaches the full-text stage.
+Papertrail stores full-text PDFs supplied by authorized project users and provides DOI/publisher links for manual retrieval. Full-text reviewers, project owners, and administrators can upload/replace/remove PDFs; other project members can view authorized project PDF metadata/content.
 
-Only project members can view PDF metadata or content. Full-text reviewers, project owners, and administrators can upload, replace, and remove PDFs. The Papertrail server does not scrape publisher content itself; only upload files you are authorized to access and store, or use the optional browser-assisted retrieval described below.
+Replacing a PDF creates a new stable document version and preserves the prior version in history. Logical removal removes the active association without erasing document history. PDFs imported before full-text screening become available when the publication reaches the appropriate workflow stage.
 
-When a newly retrieved document is marked available, save that retrieval status first. Papertrail then opens the normal full-text screening item so page-aware LLM assistance can be prepared and shown without combining retrieval and eligibility into one premature decision.
+A publication's human retrieval status is separate from the full-text eligibility decision. A newly available PDF opens/enables the normal full-text screening work; obtaining a PDF never includes/excludes a publication automatically.
 
 ### Browser-assisted PDF retrieval
 
-If your institution provides IP-based publisher access, a VPN, or you're already signed in to a publisher in Chrome, you can pair the optional **Papertrail Browser Helper** Chrome extension so it retrieves PDFs through your own computer's network connection and browser sign-in state, then uploads them through this same PDF pipeline. Papertrail never receives your institutional credentials, publisher passwords, or browser cookies through this feature -- only the resulting PDF.
+The optional **Papertrail Browser Helper** retrieves publisher PDFs through your own Chrome network access/sign-in state. Papertrail never receives publisher passwords, institutional credentials, or browser cookies through this feature.
 
-**Pairing:** In Papertrail, go to Account Settings → Browser Helpers → **Pair new browser helper**. Copy the one-time pairing secret shown (it is displayed once and expires after about 10 minutes). Click the Papertrail Browser Helper icon in Chrome's toolbar and **Set up** -- this opens a small setup window near the toolbar button. Enter your Papertrail server URL, the pairing secret, and a device name, then **Pair**. Chrome will prompt you to allow the extension access to your Papertrail server's address -- allow it; this only grants access to your own Papertrail server, not to any publisher site.
+For installation instructions, see [Browser Helper](browser-helper.md). Released Papertrail versions attach a matching Browser Helper ZIP to the GitHub release; it is installed as an unpacked Chrome extension.
 
-**Running a retrieval batch:** On a project's Full-Text page, if a browser helper is paired you'll see how many publications are missing full text and a **Retrieve missing PDFs** button. Clicking it queues persistent retrieval jobs in Papertrail -- open the Papertrail Browser Helper extension and start the retrieval session to process them; it keeps working even if you close the Papertrail tab. As PDFs are retrieved, they automatically become available and enter the normal full-text screening queue, exactly as a manual upload would; no screening or inclusion decision is made automatically.
+To pair it:
 
-The extension checks in the background every few minutes for jobs waiting to be processed and shows the count as a badge on its toolbar icon -- so you don't need to keep the retrieval window open just to notice that a batch was queued. This check only reports a count; you still open the extension and click **Start** to actually retrieve anything.
+1. Open **Account Settings → Browser Helpers → Pair new browser helper**.
+2. Copy the one-time pairing secret (10 minutes by default).
+3. Open the Browser Helper and choose **Set up**.
+4. Enter the Papertrail server URL, secret, and a device name.
+5. Pair and approve Chrome access to your Papertrail server origin.
 
-**When retrieval can't complete automatically:** publications that need institutional sign-in, weren't found, or otherwise failed remain visible with a short reason. Signing in to the publisher in Chrome and retrying (from either the extension or the project's PDF retrieval panel) often resolves an authentication requirement. A publication that can't be retrieved automatically simply stays in the normal manual retrieval workflow -- upload it yourself, search elsewhere, use interlibrary loan, or mark it not found/inaccessible as usual. An automated attempt failing never marks a paper as unobtainable on your behalf.
+Retrieval work can be queued in two ways:
 
-You can revoke a browser helper at any time from Account Settings, which immediately prevents it from claiming or completing further retrieval jobs.
+- after a title/abstract final **Include**, Papertrail can automatically queue that publication when it is still missing a PDF and an eligible paired helper is available;
+- on the Full-Text page, **Retrieve missing PDFs** creates a manual batch for missing publications.
+
+The extension periodically checks only the pending count and shows it on the toolbar badge. It does not retrieve anything until you open it and choose **Start**.
+
+A successful Browser Helper upload goes through the same server-side PDF validation/storage path as a manual upload and makes the PDF available for normal screening. An automated failure does not mark the human retrieval outcome as not found/inaccessible. Sign in to the publisher/VPN and retry, upload manually, or use another authorized retrieval method as appropriate.
+
+You can revoke a helper at any time from Account Settings.
 
 ## LLM assistance
 
-Administrators can independently enable title/abstract suggestions, full-text assistance, extraction suggestions, and post-extraction validation. A title/abstract result is generated independently as soon as screening work is created and is withheld by the server until the assigned reviewer submits their own decision. The suggestion panel appears below Notes on the same form. After **Submit Decision**, it is revealed and the action changes to **Submit Decision**; the reviewer can change their answers before confirming, but the LLM never changes them automatically. Full-text screening uses the same submit-and-confirm interaction, while its evidence assistance remains visible during review and points to verified passages and physical PDF pages.
+LLM support is configured at two levels:
 
-In Data Extraction, the assigned reviewer sees each mapped suggestion beside the normal editable field, including explicit/inferred/ambiguous/missing status and verified or unverified page evidence. Existing drafts are never overwritten; apply a suggestion explicitly or enter any different value. LLM-only helper fields are informational and are not submitted or exported. If optional extraction validation is enabled, it starts only after every paper has been manually extracted. Its progress appears as a separate extraction-stage checklist item. Use **Review LLM Extraction Validation** on the project page to inspect contradicted, uncertain, or unverifiable values and reopen the normal human extraction for correction. Validation never changes reviewer data, and LLM errors never prevent screening or manual extraction.
+- the **installation administrator** enables/configures the Ollama integration in Global Settings;
+- a **project owner or administrator** enables the individual LLM capabilities for a project.
 
-The normal submitted extraction and exports always use reviewer-controlled values. Papertrail retains the immutable original suggestion separately for audit and evaluation. See [LLM-assisted extraction](llm-assisted-extraction.md) for processing, privacy, and versioning details.
+For title/abstract screening, Papertrail can prepare a suggestion independently but withholds it until you submit your own current decision. The first action is **Submit Decision**. After the hidden comparison is revealed, the action becomes **Confirm Decision**. You can change your human answer before confirmation; the LLM never changes it automatically.
+
+Full-text screening uses the same submit/confirm interaction, while evidence assistance can be visible during review because it is designed to help locate eligibility evidence in the PDF.
+
+In Data Extraction, suggestions appear beside mapped controls with explicit/inferred/ambiguous/missing status and page-aware evidence. Existing drafts are never overwritten. Applying a suggestion is explicit, and you remain free to edit/replace it. LLM-only helper fields are informational and do not become submitted/exported extraction data.
+
+Optional extraction validation runs against authoritative final extractions after the project's eligible extraction cohort has completed (including reconciliation where two extractors are used). **Review LLM Extraction Validation** shows contradicted/uncertain/unverifiable fields and links back to the normal human revision workflow. Validation never edits reviewer data.
+
+Project-level **AI-generated interpretive analysis** also controls stage narrative/research-question synthesis views. Project owners/administrators control that capability. See [LLM-assisted extraction](llm-assisted-extraction.md) for prompt/version/evidence/privacy details.
 
 ## Email notifications
 
-If the installation administrator enables email and records your address, Papertrail emails you when your account is created and when you are added to or removed from a project. Administrators are notified whenever a new project is created. Project owners also receive a summary after all currently scheduled LLM jobs for a task stage have finished. You can update or clear your address under Account Settings.
+When the installation administrator enables SMTP and your account has an email address, Papertrail can email you when your account is created and when you are added to or removed from a project. Active administrators are notified of new projects. Project owners can receive stage-completion summaries for scheduled LLM work.
+
+You can update or clear your email in Account Settings.
 
 ## Extraction and quality assessment
 
-Each included publication has one extractor, or — if the project owner or administrator has configured **two independent extractors** (Project Administration → Extraction Settings, locked once any response exists) — two reviewers who extract it independently without seeing each other's answers until their own is complete. When enabled, each publication also has one quality assessor. As with screening, the project owner or an administrator chooses how publications reach reviewers for each of these stages: **Claim** (the default) lets reviewers pick up the next unclaimed publication themselves, while **Pre-assigned** divides publications round-robin across eligible reviewers ahead of time, weighted by workload weight. Complete all required fields before submission. Submitted work can be revised, or reopened by the project owner or an administrator.
+Each finally included publication has one extractor, or two independent extractors if the project owner/administrator configured dual extraction before extraction responses existed. Quality assessment currently assigns one assessor per publication when enabled.
 
-In two-extractor projects, once both reviewers finish a publication Papertrail compares their answers field by field. Full agreement finalizes the result immediately — no extra step. A disagreement sends the publication to the **Reconciliation** queue, visible only to the project owner, an administrator, or a member granted the adjudicator permission. There, the adjudicator sees both answers per field, picks reviewer A's, reviewer B's, or enters a manual value for whichever fields disagree (agreeing fields are pre-filled), adds a required note, and submits — this becomes the authoritative result, and both original reviewer responses are kept as-is. See [Review Workflow](review-workflow.md) for the full mechanics.
+For extraction and quality, allocation can be:
 
-## Final results
+- **Claim** — eligible reviewers claim the next available item;
+- **Pre-assigned** — work is divided round-robin across eligible reviewers using workload weights.
 
-Any project member can browse a sortable, paginated table of every finally included publication alongside its extraction answers and, when enabled, quality-assessment answers and score.
+Complete all required form fields before submission. Submitted work can be revised by the responsible reviewer and can be reopened through the authorized management workflow.
+
+When the quality form uses numerical scoring, Papertrail calculates the configured total/average/weighted-average score from the field scoring metadata. The displayed score is an assessment result only; it does not automatically include or exclude the publication.
+
+### Dual-extractor reconciliation
+
+When two extractors are configured, each works independently. Once both complete a publication, Papertrail compares their answers field-by-field.
+
+- Full agreement creates the authoritative final extraction automatically.
+- A disagreement enters **Reconciliation**.
+- The project owner, an administrator, or a member with adjudication permission can choose reviewer A's value, reviewer B's value, or a manual value for each disagreement and must provide the reconciliation note required by the workflow.
+
+Original reviewer responses remain preserved separately from the final result. See [Review Workflow](review-workflow.md).
+
+## Final results and exports
+
+Any project member can browse the project's authoritative final results: finally included publications plus final extraction values and, when configured/completed, quality-assessment values/scores.
+
+Exports include PRISMA outputs and structured XLSX, Parquet, JSON, CSV, and BibTeX artifacts. Export generation is asynchronous; the generated artifact is downloaded through the project after the background job completes.
 
 ## Charts & Analysis
 
-Beyond the per-stage progress charts, the Charts & Analysis page has three views built on the project's authoritative results:
+The Charts & Analysis area reads authoritative project results.
 
-**Reviewer Analysis** shows how independent reviewers agreed with each other for title/abstract and full-text screening, without ever naming who made which decision — reviewers are shown only as anonymous "Reviewer A", "Reviewer B", etc. Alongside raw percent agreement, it reports **Cohen's kappa** (for two reviewers) or **Fleiss' kappa** (for more than two): a measure of agreement that corrects for how often reviewers would agree purely by chance. Kappa ranges roughly from 0 (no better than chance) to 1 (perfect agreement); as a rough guide, below 0.4 is usually considered weak agreement, 0.4–0.75 moderate to good, and above 0.75 excellent — but always read it alongside the raw agreement rate and how many decisions it's based on. Kappa shows as "N/A" (never a bare "0") when there isn't enough data to compute it meaningfully, or when every reviewer picked the same option so there's no variation to measure agreement over.
+### Reviewer Analysis
 
-**Evidence Matrix** is a spreadsheet-like view of every included publication against every extraction and quality field, with the authoritative (single-reviewer, agreed, reconciled, or overridden) value in each cell. A publication still awaiting reconciliation shows as a distinct "pending reconciliation" state rather than looking like a blank/missing answer. Search, per-field filters, and column visibility all work server-side for large projects. Click a cell to see its resolution method and, where traceable, the exact quoted evidence behind it.
+Reviewer Analysis reports anonymized agreement for title/abstract and full-text screening. It includes raw agreement and Cohen's kappa (two reviewers) or Fleiss' kappa (more than two) where mathematically defined. Reviewer identities are not exposed in the analysis response.
 
-**Research Question Analysis** optionally generates an LLM synthesis of the authoritative results for each research question, when your administrator has enabled "AI-generated interpretive analysis" for the project (the same toggle that controls the per-stage narrative summaries above). Every statement links to `[SRC-xxxx]` badges you can expand to see exactly which publication, field, and value it's based on — including the original evidence quote when one is traceable. The synthesis never invents a citation: a claim the model couldn't tie back to real project data is dropped rather than shown unsupported. A "may be outdated" banner appears once the underlying data has changed since the synthesis was generated; regenerate it from the same card.
+### Evidence Matrix
+
+The Evidence Matrix shows included publications against extraction/quality fields. Search/filter/column controls operate against server-side result data. Opening a cell shows its authoritative value/resolution method and traceable suggestion evidence where Papertrail can prove that lineage. A publication still awaiting extraction reconciliation is shown as pending reconciliation rather than as an ordinary blank value.
+
+### Research Question Analysis
+
+When **AI-generated interpretive analysis** is enabled for the project, Papertrail can generate one synthesis per research question over authoritative extraction/quality data. Statements cite `[SRC-xxxx]` source badges that resolve back to the specific publication/field/value and, where traceable, original evidence. Data changes can make a prior synthesis stale; regenerate from the analysis card when needed.
