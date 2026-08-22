@@ -14,7 +14,12 @@ from app.deduplication.models import DuplicateCandidate, PublicationMerge
 from app.fulltext.models import PublicationDocument
 from app.jobs.service import enqueue_job
 from app.projects.models import Project, ProjectStage
-from app.publications.models import MetadataConflict, Publication, PublicationSource
+from app.publications.models import (
+    ConflictStatus,
+    MetadataConflict,
+    Publication,
+    PublicationSource,
+)
 from app.publications.service import IMPORTANT_FIELDS
 
 UNIQUE_IDENTIFIER_FIELDS = ("pubmed_id", "arxiv_id")
@@ -213,7 +218,7 @@ def merge_publications(
                     MetadataConflict.publication_id == canonical.id,
                     MetadataConflict.field_name == field,
                     MetadataConflict.proposed_value == str(duplicate_value),
-                    MetadataConflict.status == "open",
+                    MetadataConflict.status == ConflictStatus.OPEN,
                 )
             )
             if not already:
@@ -307,7 +312,7 @@ def reverse_merge(
             select(MetadataConflict).where(
                 MetadataConflict.publication_id == canonical.id,
                 MetadataConflict.source_name == "merge",
-                MetadataConflict.status == "open",
+                MetadataConflict.status == ConflictStatus.OPEN,
             )
         )
     )
