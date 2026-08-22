@@ -160,10 +160,10 @@ function ProjectDetailsStep({
           </label>
           {projectId ? <p className="muted">Review type can&apos;t be changed after the project is created.</p> : null}
           {error ? <p className="error" role="alert">{error.message}</p> : null}
-          <button type="submit" disabled={pending || name.trim().length === 0}>
+          <Button type="submit" disabled={pending || name.trim().length === 0}>
             {projectId ? 'Save & Continue' : 'Create Project & Continue'}
             <IconArrowRight />
-          </button>
+          </Button>
         </form>
       )}
     </section>

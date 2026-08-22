@@ -1,12 +1,12 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMemo, useState, type MouseEvent } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useMemo, useState } from 'react'
+import { Link, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { CountPill } from '../../components/CountPill'
-import { DoiPill } from '../../components/DoiPill'
-import { HighlightedText } from '../../components/HighlightedText'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
+import { type SortDirection, sortByValue } from '../../lib/sort'
+import { ReviewWorkRow } from '../reviews/ReviewWorkRow'
 import { StageEyebrow } from '../projects/StageEyebrow'
 import { QualityWorkspace } from './QualityWorkspace'
 
@@ -31,7 +31,6 @@ interface CompletedQualityAssessment {
 }
 
 type QualitySortKey = 'title' | 'authors' | 'venue' | 'score' | 'doi' | 'submitted'
-type SortDirection = 'asc' | 'desc'
 
 function sortValue(entry: CompletedQualityAssessment, key: QualitySortKey): string | number {
   switch (key) {
@@ -45,21 +44,12 @@ function sortValue(entry: CompletedQualityAssessment, key: QualitySortKey): stri
 }
 
 function sortItems(items: CompletedQualityAssessment[], key: QualitySortKey, direction: SortDirection) {
-  return [...items].sort((left, right) => {
-    const leftValue = sortValue(left, key)
-    const rightValue = sortValue(right, key)
-    const comparison = typeof leftValue === 'number' && typeof rightValue === 'number'
-      ? leftValue - rightValue
-      : String(leftValue).localeCompare(String(rightValue), undefined, { sensitivity: 'base' })
-    if (comparison !== 0) return direction === 'asc' ? comparison : -comparison
-    return left.publication.title.localeCompare(right.publication.title)
-  })
-}
-
-function formatSubmittedAt(value: string | null) {
-  if (!value) return '—'
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString()
+  return sortByValue(
+    items,
+    direction,
+    (item) => sortValue(item, key),
+    (left, right) => left.publication.title.localeCompare(right.publication.title),
+  )
 }
 
 function QualityRow({ projectId, entry, highlightKeywords }: {
@@ -67,63 +57,39 @@ function QualityRow({ projectId, entry, highlightKeywords }: {
   entry: CompletedQualityAssessment
   highlightKeywords: string[]
 }) {
-  const navigate = useNavigate()
-  const [editing, setEditing] = useState(false)
   const queryClient = useQueryClient()
   const publication = entry.publication
   const detailHref = `/projects/${projectId}/publications/${publication.id}`
 
-  const openPublication = (event: MouseEvent<HTMLLIElement>) => {
-    if ((event.target as HTMLElement).closest('a, button, input, select, textarea, label, .review-work-card__editor')) return
-    navigate(detailHref)
-  }
-
   return (
-    <li className="card publication-card review-work-card--clickable" onClick={openPublication}>
-      <div className="publication-card__summary review-work-row-grid">
-        <div className="review-work-row-grid__title">
-          <Link className="publication-card__title-button" to={detailHref}>
-            <h2 className="decision-card__title">
-              <HighlightedText text={publication.title} keywords={highlightKeywords} />
-            </h2>
-          </Link>
-          <div className="review-work-row-grid__authors">{publication.authors ?? 'Unknown authors'}</div>
-        </div>
-        <span className="review-work-row-grid__venue" title={publication.venue ?? undefined}>
-          {publication.venue ?? '—'}{publication.publicationYear ? ` (${publication.publicationYear})` : ''}
+    <ReviewWorkRow
+      detailHref={detailHref}
+      title={publication.title}
+      authors={publication.authors}
+      venue={publication.venue}
+      publicationYear={publication.publicationYear}
+      doi={publication.doi}
+      submittedAt={entry.completedAt}
+      statusContent={(
+        <span className="status-pill">
+          {entry.totalScore === null ? `Version ${entry.version}` : `Total score ${entry.totalScore} · v${entry.version}`}
         </span>
-        <span className="review-work-row-grid__status">
-          <span className="status-pill">
-            {entry.totalScore === null ? `Version ${entry.version}` : `Total score ${entry.totalScore} · v${entry.version}`}
-          </span>
-        </span>
-        <span className="review-work-row-grid__doi">
-          {publication.doi ? <DoiPill doi={publication.doi} /> : <span className="muted">—</span>}
-        </span>
-        <time className="review-work-row-grid__submitted" dateTime={entry.completedAt ?? undefined}>
-          {formatSubmittedAt(entry.completedAt)}
-        </time>
-        <span className="review-work-row-grid__actions">
-          {!editing ? (
-            <button type="button" className="button-secondary button-sm" onClick={() => setEditing(true)}>Edit Quality Assessment</button>
-          ) : null}
-        </span>
-      </div>
-      {editing ? (
-        <div className="review-work-card__editor">
-          <QualityWorkspace
-            projectId={projectId}
-            itemId={entry.id}
-            variant="inline"
-            onCancel={() => setEditing(false)}
-            onSubmitted={() => {
-              setEditing(false)
-              queryClient.invalidateQueries({ queryKey: ['my-quality-assessments', projectId] })
-            }}
-          />
-        </div>
-      ) : null}
-    </li>
+      )}
+      editLabel="Edit Quality Assessment"
+      highlightKeywords={highlightKeywords}
+      renderEditor={({ onDone }) => (
+        <QualityWorkspace
+          projectId={projectId}
+          itemId={entry.id}
+          variant="inline"
+          onCancel={onDone}
+          onSubmitted={() => {
+            onDone()
+            queryClient.invalidateQueries({ queryKey: ['my-quality-assessments', projectId] })
+          }}
+        />
+      )}
+    />
   )
 }
 

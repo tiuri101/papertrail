@@ -5,15 +5,9 @@ import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { InfoBox } from '../../components/InfoBox'
 import { IconCheckCircle } from '../../components/icons'
+import type { QualityConfig } from '../quality/types'
 
-type TaskAllocationMode = 'pre_assigned' | 'claim'
-
-interface QualityConfig {
-  enabled: boolean
-  mode: string
-  aggregation: string
-  allocationMode: TaskAllocationMode
-}
+type TaskAllocationMode = QualityConfig['allocationMode']
 
 const TASK_ALLOCATION_MODE_LABELS: Record<TaskAllocationMode, string> = {
   claim: 'Claim (reviewers pick up publications themselves)',

@@ -8,6 +8,7 @@ import { CountPill } from '../../components/CountPill'
 import { IconCheckCircle, IconPlus, IconTrash, IconUsers } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
 import type { User } from '../auth/types'
+import type { ProjectMembers as ProjectMembersOf } from './types'
 
 type RoleKey =
   | 'canTitleAbstractScreen'
@@ -22,10 +23,7 @@ interface Membership extends Record<RoleKey, boolean> {
   workloadWeight: number
 }
 
-interface ProjectMembers {
-  id: string
-  memberships: Membership[]
-}
+type ProjectMembers = ProjectMembersOf<Membership>
 
 const ROLE_FIELDS: Array<[RoleKey, string]> = [
   ['canTitleAbstractScreen', 'Title/abstract screening'],

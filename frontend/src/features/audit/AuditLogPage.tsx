@@ -6,17 +6,7 @@ import { apiRequest } from '../../api/client'
 import { CountPill } from '../../components/CountPill'
 import { InfoTooltip } from '../../components/Tooltip'
 import { useProjectManageState } from '../../hooks/useCanManageProject'
-
-interface AuditEvent {
-  id: string
-  createdAt: string
-  actorUsername: string | null
-  action: string
-  entityType: string
-  entityId: string | null
-  summary: string
-  metadata: Record<string, unknown>
-}
+import type { AuditEvent } from './types'
 
 type SortKey = 'createdAt' | 'actorUsername' | 'action' | 'entityType' | 'summary'
 type SortDirection = 'asc' | 'desc'

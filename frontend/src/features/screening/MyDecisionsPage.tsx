@@ -11,6 +11,8 @@ import { IconAlertTriangle } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
 import { OutcomeBadge } from '../../components/OutcomeBadge'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
+import { formatSubmittedAt } from '../../lib/format'
+import { type SortDirection, sortByValue } from '../../lib/sort'
 import { ScreeningLlmPanel } from '../llm/LlmTaskComponents'
 import { StageEyebrow } from '../projects/StageEyebrow'
 import { CriteriaAnswerFields } from './CriteriaAnswerFields'
@@ -202,7 +204,6 @@ const decisionFilterOptions = [
 ]
 
 type DecisionSortKey = 'title' | 'authors' | 'venue' | 'decision' | 'doi' | 'submitted'
-type SortDirection = 'asc' | 'desc'
 
 function itemStatus(item: MyDecisionItem): string {
   return item.decision?.outcome ?? item.retrievalStatus ?? ''
@@ -237,21 +238,12 @@ function sortDecisionItems(
   key: DecisionSortKey,
   direction: SortDirection,
 ): MyDecisionItem[] {
-  return [...items].sort((left, right) => {
-    const leftValue = decisionSortValue(left, key)
-    const rightValue = decisionSortValue(right, key)
-    const comparison = typeof leftValue === 'number' && typeof rightValue === 'number'
-      ? leftValue - rightValue
-      : String(leftValue).localeCompare(String(rightValue), undefined, { sensitivity: 'base' })
-    if (comparison !== 0) return direction === 'asc' ? comparison : -comparison
-    return left.publication.title.localeCompare(right.publication.title)
-  })
-}
-
-function formatSubmittedAt(value: string | null): string {
-  if (!value) return '—'
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString()
+  return sortByValue(
+    items,
+    direction,
+    (item) => decisionSortValue(item, key),
+    (left, right) => left.publication.title.localeCompare(right.publication.title),
+  )
 }
 
 function DecisionRow({

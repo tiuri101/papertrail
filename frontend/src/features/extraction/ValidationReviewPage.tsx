@@ -9,18 +9,11 @@ import { HighlightedText } from '../../components/HighlightedText'
 import { PublicationListSortHeader } from '../../components/PublicationListSortHeader'
 import { Tooltip } from '../../components/Tooltip'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
-import { LlmEvidence, type LlmEvidenceItem } from '../llm/LlmTaskComponents'
+import { formatSubmittedAt } from '../../lib/format'
+import { type SortDirection, sortByValue } from '../../lib/sort'
+import { LlmEvidence } from '../llm/LlmTaskComponents'
 import { StageEyebrow } from '../projects/StageEyebrow'
-
-interface ValidationResult {
-  fieldKey: string
-  fieldLabel: string
-  value: unknown
-  assessment: 'supported' | 'contradicted' | 'uncertain' | 'not_verifiable'
-  explanation: string
-  evidence: LlmEvidenceItem[]
-  evidenceValidationStatus: string
-}
+import type { ValidationResult } from './types'
 
 interface ValidationReviewItem {
   workItemId: string
@@ -57,7 +50,6 @@ interface ValidationReview {
 
 type ReviewItem = ValidationReviewItem & { issues: ValidationResult[] }
 type ValidationSortKey = 'title' | 'authors' | 'venue' | 'status' | 'doi' | 'submitted'
-type SortDirection = 'asc' | 'desc'
 
 const NEEDS_REVIEW = new Set(['contradicted', 'uncertain', 'not_verifiable'])
 
@@ -100,21 +92,12 @@ function sortValue(item: ReviewItem, key: ValidationSortKey): string | number {
 }
 
 function sortItems(items: ReviewItem[], key: ValidationSortKey, direction: SortDirection) {
-  return [...items].sort((left, right) => {
-    const leftValue = sortValue(left, key)
-    const rightValue = sortValue(right, key)
-    const comparison = typeof leftValue === 'number' && typeof rightValue === 'number'
-      ? leftValue - rightValue
-      : String(leftValue).localeCompare(String(rightValue), undefined, { sensitivity: 'base' })
-    if (comparison !== 0) return direction === 'asc' ? comparison : -comparison
-    return left.publication.title.localeCompare(right.publication.title)
-  })
-}
-
-function formatSubmittedAt(value: string | null) {
-  if (!value) return '—'
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString()
+  return sortByValue(
+    items,
+    direction,
+    (item) => sortValue(item, key),
+    (left, right) => left.publication.title.localeCompare(right.publication.title),
+  )
 }
 
 function ValidationRow({
