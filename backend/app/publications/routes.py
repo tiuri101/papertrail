@@ -30,7 +30,7 @@ from app.jobs.service import enqueue_job
 from app.projects.dependencies import require_project_member_csrf
 from app.projects.models import Criterion, ScreeningStage
 from app.projects.service import is_project_manager, require_project_access
-from app.publications.models import MetadataConflict, Publication
+from app.publications.models import ConflictStatus, MetadataConflict, Publication
 from app.publications.schemas import (
     BulkDeleteRequest,
     BulkEnrichmentRequest,
@@ -465,7 +465,8 @@ def list_conflicts(
             select(MetadataConflict)
             .join(Publication)
             .where(
-                Publication.project_id == project_id, MetadataConflict.status == "open"
+                Publication.project_id == project_id,
+                MetadataConflict.status == ConflictStatus.OPEN,
             )
         )
     )
@@ -491,9 +492,9 @@ def resolve_conflict(
         if conflict.field_name == "publication_year":
             value = int(proposed_value) if proposed_value else None
         setattr(conflict.publication, conflict.field_name, value)
-        conflict.status = "accept_proposed"
+        conflict.status = ConflictStatus.ACCEPT_PROPOSED
     else:
-        conflict.status = "keep_current"
+        conflict.status = ConflictStatus.KEEP_CURRENT
     record_audit(
         db,
         action="metadata_conflict.resolved",

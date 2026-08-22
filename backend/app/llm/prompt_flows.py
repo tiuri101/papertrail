@@ -3,8 +3,6 @@ from __future__ import annotations
 from app.llm.prompt import SYSTEM_PROMPT
 from app.llm.task_prompt import SCREENING_SYSTEM_PROMPT, VALIDATION_SYSTEM_PROMPT
 
-PROMPT_FLOW_KEYS: list[str] = ["titleAbstract", "fullText", "extraction", "validation"]
-
 PROMPT_FLOW_LABELS: dict[str, str] = {
     "titleAbstract": "Title/abstract screening",
     "fullText": "Full-text screening",

@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Mapping
-from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.analysis.rq_jobs import RQ_SYNTHESIS_JOB
-from app.conflicts.models import FinalDecision
+from app.core.time import utcnow
 from app.extraction.models import ExtractionResponse, ExtractionWorkItem
 from app.fulltext.documents import active_document
 from app.fulltext.models import PublicationDocument
@@ -29,6 +28,7 @@ from app.llm.schema_service import current_schema, mapping_state, project_settin
 from app.llm.value_compare import canonical_json as _canonical_json
 from app.llm.value_compare import values_equal
 from app.projects.models import ScreeningStage
+from app.screening.cohorts import has_final_outcome
 from app.screening.models import ScreeningOutcome
 
 TEXT_JOB = "extract_document_text"
@@ -52,35 +52,15 @@ LLM_JOB_TYPE_BY_TASK: dict[LlmTaskType, str] = {
 LLM_JOB_TYPES = set(LLM_JOB_TYPE_BY_TASK.values()) | {RQ_SYNTHESIS_JOB}
 
 
-def utcnow() -> datetime:
-    return datetime.now(UTC)
-
-
 def title_abstract_included(db: Session, publication_id: str) -> bool:
-    return (
-        db.scalar(
-            select(FinalDecision.id).where(
-                FinalDecision.publication_id == publication_id,
-                FinalDecision.stage == ScreeningStage.TITLE_ABSTRACT,
-                FinalDecision.outcome == ScreeningOutcome.INCLUDE,
-                FinalDecision.is_valid.is_(True),
-            )
-        )
-        is not None
+    return has_final_outcome(
+        db, publication_id, ScreeningStage.TITLE_ABSTRACT, ScreeningOutcome.INCLUDE
     )
 
 
 def full_text_excluded(db: Session, publication_id: str) -> bool:
-    return (
-        db.scalar(
-            select(FinalDecision.id).where(
-                FinalDecision.publication_id == publication_id,
-                FinalDecision.stage == ScreeningStage.FULL_TEXT,
-                FinalDecision.outcome == ScreeningOutcome.EXCLUDE,
-                FinalDecision.is_valid.is_(True),
-            )
-        )
-        is not None
+    return has_final_outcome(
+        db, publication_id, ScreeningStage.FULL_TEXT, ScreeningOutcome.EXCLUDE
     )
 
 
@@ -99,20 +79,6 @@ def project_llm_is_enabled(db: Session, project_id: str) -> bool:
             if field.enabled
         )
     )
-
-
-def _pending_job(
-    db: Session, job_type: str, key: str, value: str
-) -> BackgroundJob | None:
-    jobs = list(
-        db.scalars(
-            select(BackgroundJob).where(
-                BackgroundJob.job_type == job_type,
-                BackgroundJob.status.in_([JobStatus.QUEUED, JobStatus.RUNNING]),
-            )
-        )
-    )
-    return next((job for job in jobs if str(job.payload.get(key)) == value), None)
 
 
 def queue_preparation_if_eligible(

@@ -16,13 +16,17 @@ from app.extraction.service import active_fields as extraction_active_fields
 from app.extraction.service import project_form
 from app.forms.models import FieldType, FormField
 from app.fulltext.models import FullTextRetrieval, RetrievalStatus
-from app.projects.lifecycle import included_publication_ids
 from app.projects.models import Criterion, CriterionKind
 from app.projects.models import ScreeningStage as ProjectScreeningStage
 from app.quality.models import QualityConfig, QualityResponse, QualityWorkItem
 from app.quality.service import active_fields as quality_active_fields
 from app.quality.service import quality_form
 from app.reporting.prisma import calculate_prisma_counts
+from app.screening.cohorts import (
+    decided_final_decisions,
+    full_text_included_ids,
+    publication_ids_for_outcome,
+)
 from app.screening.models import ScreeningDecision, ScreeningOutcome, ScreeningWorkItem
 
 OPTION_FIELD_TYPES = {
@@ -141,7 +145,7 @@ def _current_extraction_answers(
 ) -> dict[str, dict[str, Any]]:
     """The authoritative answers per publication -- from FinalExtraction,
     never an individual (possibly unresolved) reviewer response."""
-    publication_ids = included_publication_ids(db, project_id)
+    publication_ids = full_text_included_ids(db, project_id)
     return {
         publication_id: final.answers
         for publication_id, final in get_current_final_extractions(
@@ -176,7 +180,7 @@ def _current_quality(
 
 
 def compute_extraction_stats(db: Session, project_id: str) -> dict[str, Any]:
-    total_publications = len(included_publication_ids(db, project_id))
+    total_publications = len(full_text_included_ids(db, project_id))
 
     extraction_form = project_form(db, project_id)
     extraction_fields = (
@@ -259,14 +263,7 @@ def _criterion_exclusion_counts(
     db: Session, project_id: str, stage: ProjectScreeningStage
 ) -> list[dict[str, Any]]:
     excluded_publication_ids = set(
-        db.scalars(
-            select(FinalDecision.publication_id).where(
-                FinalDecision.project_id == project_id,
-                FinalDecision.stage == stage,
-                FinalDecision.outcome == ScreeningOutcome.EXCLUDE,
-                FinalDecision.is_valid.is_(True),
-            )
-        )
+        publication_ids_for_outcome(db, project_id, stage, ScreeningOutcome.EXCLUDE)
     )
     if not excluded_publication_ids:
         return []
@@ -309,14 +306,8 @@ def _criterion_exclusion_counts(
 
 def compute_title_abstract_stats(db: Session, project_id: str) -> dict[str, Any]:
     counts = calculate_prisma_counts(db, project_id)
-    title_finals = list(
-        db.scalars(
-            select(FinalDecision).where(
-                FinalDecision.project_id == project_id,
-                FinalDecision.stage == ProjectScreeningStage.TITLE_ABSTRACT,
-                FinalDecision.is_valid.is_(True),
-            )
-        )
+    title_finals = decided_final_decisions(
+        db, project_id, ProjectScreeningStage.TITLE_ABSTRACT
     )
     return {
         "recordsScreened": counts["recordsScreened"],
@@ -336,14 +327,8 @@ def compute_full_text_stats(db: Session, project_id: str) -> dict[str, Any]:
             select(FullTextRetrieval).where(FullTextRetrieval.project_id == project_id)
         )
     )
-    full_finals = list(
-        db.scalars(
-            select(FinalDecision).where(
-                FinalDecision.project_id == project_id,
-                FinalDecision.stage == ProjectScreeningStage.FULL_TEXT,
-                FinalDecision.is_valid.is_(True),
-            )
-        )
+    full_finals = decided_final_decisions(
+        db, project_id, ProjectScreeningStage.FULL_TEXT
     )
     return {
         "reportsSought": counts["reportsSought"],

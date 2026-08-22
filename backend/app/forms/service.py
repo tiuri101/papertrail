@@ -9,6 +9,37 @@ from app.api.errors import ConflictError, DomainError, NotFoundError
 from app.forms.models import FieldType, FormField, FormKind, FormVersion, ReviewForm
 
 
+def active_fields(db: Session, form: ReviewForm) -> list[FormField]:
+    """The non-archived fields of a form's active version, in display order.
+    Canonical query for "what fields does a reviewer actually see" -- used by
+    extraction, quality, and LLM schema management alike."""
+    return list(
+        db.scalars(
+            select(FormField)
+            .where(
+                FormField.form_version_id == form.active_version_id,
+                FormField.is_archived.is_(False),
+            )
+            .order_by(FormField.position)
+        )
+    )
+
+
+def project_form_by_kind(
+    db: Session, project_id: str, kind: FormKind
+) -> ReviewForm | None:
+    """The project's form of a given kind, if one has been created.
+
+    Canonical lookup for "does this project have a form of kind X" -- extraction,
+    quality, and LLM schema management all need this same query.
+    """
+    return db.scalar(
+        select(ReviewForm).where(
+            ReviewForm.project_id == project_id, ReviewForm.kind == kind
+        )
+    )
+
+
 def create_form(
     db: Session,
     name: str,

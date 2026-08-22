@@ -5,12 +5,12 @@ from xml.sax.saxutils import escape as xml_escape
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.conflicts.models import FinalDecision
 from app.deduplication.models import PublicationMerge
 from app.fulltext.models import FullTextRetrieval, RetrievalStatus
 from app.imports.models import ImportBatch, ImportedRecord
 from app.projects.models import ScreeningStage
 from app.publications.models import Publication, PublicationSource
+from app.screening.cohorts import decided_final_decisions
 from app.screening.models import ScreeningOutcome
 
 
@@ -59,24 +59,8 @@ def calculate_prisma_counts(
         )
         or 0
     )
-    title_finals = list(
-        db.scalars(
-            select(FinalDecision).where(
-                FinalDecision.project_id == project_id,
-                FinalDecision.stage == ScreeningStage.TITLE_ABSTRACT,
-                FinalDecision.is_valid.is_(True),
-            )
-        )
-    )
-    full_finals = list(
-        db.scalars(
-            select(FinalDecision).where(
-                FinalDecision.project_id == project_id,
-                FinalDecision.stage == ScreeningStage.FULL_TEXT,
-                FinalDecision.is_valid.is_(True),
-            )
-        )
-    )
+    title_finals = decided_final_decisions(db, project_id, ScreeningStage.TITLE_ABSTRACT)
+    full_finals = decided_final_decisions(db, project_id, ScreeningStage.FULL_TEXT)
     retrievals = list(
         db.scalars(
             select(FullTextRetrieval).where(FullTextRetrieval.project_id == project_id)

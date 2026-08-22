@@ -1,16 +1,13 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 from typing import Any
 
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
+from app.core.time import utcnow
 from app.jobs.models import BackgroundJob, JobStatus
-
-
-def utcnow() -> datetime:
-    return datetime.now(UTC)
 
 
 def enqueue_job(
@@ -73,15 +70,6 @@ def claim_job(
     job.attempts += 1
     db.flush()
     return job
-
-
-def update_progress(
-    db: Session, job: BackgroundJob, current: int, total: int, message: str
-) -> None:
-    job.progress_current = current
-    job.progress_total = total
-    job.progress_message = message
-    db.commit()
 
 
 def restart_job(db: Session, job: BackgroundJob) -> None:

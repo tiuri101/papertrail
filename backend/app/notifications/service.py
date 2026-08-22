@@ -357,15 +357,6 @@ def queue_llm_bulk_completion_emails(
     return notifications
 
 
-def queue_llm_stage_completion_emails(
-    db: Session, run: LlmExtractionRun
-) -> list[EmailNotification]:
-    """Compatibility wrapper that deliberately ignores individually queued runs."""
-    if not run.bulk_id:
-        return []
-    return queue_llm_bulk_completion_emails(db, run.project_id, run.bulk_id)
-
-
 def queue_llm_bulk_completion_check(
     db: Session, *, project_id: str, bulk_id: str
 ) -> BackgroundJob | None:
