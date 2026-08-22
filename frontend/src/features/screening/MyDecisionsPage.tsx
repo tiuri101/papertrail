@@ -16,9 +16,9 @@ import { Input } from '../../components/Input'
 import { OutcomeBadge } from '../../components/OutcomeBadge'
 import { PublicationListSortHeader } from '../../components/PublicationListSortHeader'
 import { Select } from '../../components/Select'
-import { reviewWorkActionsClass, reviewWorkCardClass, reviewWorkDoiClass, reviewWorkEditorClass, reviewWorkGridClass, reviewWorkListClass, reviewWorkMetadataClass, reviewWorkStatusClass, reviewWorkSubmittedClass, reviewWorkTitleClass, reviewWorkTitleLinkClass, reviewWorkTitleTextClass, reviewWorkVenueClass } from '../../components/reviewWorkStyles'
+import { reviewWorkActionsClass, reviewWorkCardClass, reviewWorkDoiClass, reviewWorkEditorClass, reviewWorkGridClass, reviewWorkListClass, reviewWorkMetadataClass, reviewWorkStatusClass, reviewWorkSubmittedClass, reviewWorkSubmittedTimeClass, reviewWorkTitleClass, reviewWorkTitleLinkClass, reviewWorkTitleTextClass, reviewWorkVenueClass } from '../../components/reviewWorkStyles'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
-import { formatSubmittedAt } from '../../lib/format'
+import { formatSubmittedAtParts } from '../../lib/format'
 import { type SortDirection, sortByValue } from '../../lib/sort'
 import { ScreeningLlmPanel } from '../llm/LlmTaskComponents'
 import { StageEyebrow } from '../projects/StageEyebrow'
@@ -275,6 +275,7 @@ function DecisionRow({
   const publication = item.publication
   const decision = item.decision
   const detailHref = `/projects/${projectId}/publications/${publication.id}`
+  const submitted = formatSubmittedAtParts(item.submittedAt)
 
   const openPublication = (event: MouseEvent<HTMLLIElement>) => {
     if ((event.target as HTMLElement).closest('a, button, input, select, textarea, label, [data-decision-editor]')) return
@@ -307,7 +308,8 @@ function DecisionRow({
           {publication.doi ? <DoiPill doi={publication.doi} /> : <span className="text-text-muted">—</span>}
         </span>
         <time className={reviewWorkSubmittedClass} dateTime={item.submittedAt ?? undefined}>
-          {formatSubmittedAt(item.submittedAt)}
+          <span>{submitted.date}</span>
+          {submitted.time ? <span className={reviewWorkSubmittedTimeClass}>{submitted.time}</span> : null}
         </time>
         <span className={reviewWorkActionsClass}>
           {!editing && decision ? (

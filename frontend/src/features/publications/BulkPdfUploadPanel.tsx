@@ -5,6 +5,7 @@ import { apiRequest } from '../../api/client'
 import { Button } from '../../components/Button'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { IconUpload } from '../../components/icons'
+import { toolbarClass } from '../../components/layoutStyles'
 import { FileDropZone } from '../imports/FileDropZone'
 import { PdfMatchReview } from '../imports/PdfMatchReview'
 import type { UploadResult } from '../imports/types'
@@ -71,7 +72,7 @@ export function BulkPdfUploadPanel({ projectId }: { projectId: string }) {
         onChange={setPdfArchives}
         disabled={upload.isPending}
       />
-      <div className="flex flex-wrap items-center gap-3">
+      <div className={toolbarClass}>
         <Button
           type="button"
           size="sm"

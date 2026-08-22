@@ -57,10 +57,8 @@ describe('MyDecisionsPage', () => {
     expect(screen.getByText('A. Author')).toBeInTheDocument()
     expect(screen.getByText('Journal of Immersive Analytics')).toBeInTheDocument()
     expect(screen.getAllByText('Include').some((element) => element.tagName === 'SPAN')).toBe(true)
-    expect(screen.getByText(new Date(baseItem.submittedAt).toLocaleString(), { selector: 'time' })).toHaveAttribute(
-      'datetime',
-      baseItem.submittedAt,
-    )
+    const submittedTime = document.querySelector(`time[datetime="${baseItem.submittedAt}"]`)
+    expect(submittedTime).toHaveTextContent(new Date(baseItem.submittedAt).toLocaleDateString())
     expect(screen.getByRole('button', { name: 'Edit Decision' })).toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
@@ -86,7 +84,9 @@ describe('MyDecisionsPage', () => {
     expect(
       (await screen.findAllByText('Full text inaccessible')).find((element) => element.tagName === 'SPAN'),
     ).toBeInTheDocument()
-    expect(screen.getByText(new Date(baseItem.submittedAt).toLocaleString(), { selector: 'time' })).toBeInTheDocument()
+    expect(document.querySelector(`time[datetime="${baseItem.submittedAt}"]`)).toHaveTextContent(
+      new Date(baseItem.submittedAt).toLocaleDateString(),
+    )
     expect(screen.queryByRole('button', { name: 'Edit Decision' })).not.toBeInTheDocument()
   })
 

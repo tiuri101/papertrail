@@ -65,7 +65,7 @@ function ResearchQuestionRow({
             }}
           >
             <Input value={draft} onChange={(event) => setDraft(event.target.value)} required />
-            <div className={`${toolbarClass} flex-nowrap!`}>
+            <div className={`${toolbarClass} flex-nowrap! my-0!`}>
               <Button type="submit" disabled={pending}><IconCheckCircle />Save</Button>
               <Button type="button" variant="secondary" onClick={() => { setDraft(question.text); setEditing(false) }}>Cancel</Button>
             </div>
@@ -80,7 +80,7 @@ function ResearchQuestionRow({
       <td><CriterionBadge>{number}</CriterionBadge></td>
       <td>{question.text}</td>
       <td>
-        <div className={`${toolbarClass} flex-nowrap!`}>
+        <div className={`${toolbarClass} flex-nowrap! my-0!`}>
           <Button type="button" variant="secondary" size="sm" onClick={() => setEditing(true)} disabled={pending}>Edit</Button>
           <ConfirmButton
             label="Delete"
@@ -139,7 +139,7 @@ function CriterionRow({
               </Select>
             </label>
             <Input value={draftText} onChange={(event) => setDraftText(event.target.value)} required />
-            <div className={`${toolbarClass} flex-nowrap!`}>
+            <div className={`${toolbarClass} flex-nowrap! my-0!`}>
               <Button type="submit" disabled={pending}><IconCheckCircle />Save</Button>
               <Button
                 type="button"
@@ -162,7 +162,7 @@ function CriterionRow({
       </td>
       <td>{criterion.text}</td>
       <td>
-        <div className={`${toolbarClass} flex-nowrap!`}>
+        <div className={`${toolbarClass} flex-nowrap! my-0!`}>
           <Button type="button" variant="secondary" size="sm" onClick={() => setEditing(true)} disabled={pending}>Edit</Button>
           <ConfirmButton
             label="Delete"
@@ -220,7 +220,7 @@ function InlineAgendaDraftRow({
             autoFocus
             required
           />
-          <div className={`${toolbarClass} flex-nowrap! max-[680px]:justify-end`}>
+          <div className={`${toolbarClass} flex-nowrap! my-0! max-[680px]:justify-end`}>
             <Button type="submit" size="sm" disabled={pending || !value.trim()}>
               <IconCheckCircle />Save
             </Button>

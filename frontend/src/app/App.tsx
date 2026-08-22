@@ -21,6 +21,7 @@ import { Page, pageStyles } from '../components/Page'
 import { IconClock, IconSettings, IconSparkle, IconSwap, IconTrash } from '../components/icons'
 import { InfoBox } from '../components/InfoBox'
 import { useRegisterSectionItems } from '../components/sectionNavigation'
+import { ScrollToTop } from '../components/ScrollToTop'
 import type { SectionNavigationItem } from '../components/SectionNavigationLayout'
 import { TabList, TabPanel } from '../components/Tabs'
 import { AdminGate } from '../features/auth/AdminGate'
@@ -248,7 +249,9 @@ function ResearchAgendaPage() {
 
 export function App() {
   return (
-    <Routes>
+    <>
+      <ScrollToTop />
+      <Routes>
       <Route path="/login" element={<LoginPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
@@ -324,6 +327,7 @@ export function App() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Route>
-    </Routes>
+      </Routes>
+    </>
   )
 }

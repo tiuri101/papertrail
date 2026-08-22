@@ -552,7 +552,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
                     <tr><th scope="row">Average generated tokens</th><td>{Math.round(overview.data.statistics.averageGeneratedTokens ?? 0)}</td></tr>
                   </tbody>
                 </table>
-                <div className="llm-rerun-actions">
+                <div className="llm-rerun-actions" data-llm-rerun-actions="true">
                   <Button
                     type="button"
                     variant="secondary"

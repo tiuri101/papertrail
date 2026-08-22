@@ -4,6 +4,7 @@ import type { KeyboardEvent } from 'react'
 import { Button } from '../../components/Button'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { IconKeyboard } from '../../components/icons'
+import { toolbarClass } from '../../components/layoutStyles'
 import {
   DEFAULT_SCREENING_HOTKEYS,
   formatHotkey,
@@ -81,12 +82,12 @@ export function ScreeningHotkeysSection() {
           const hasConflict = key ? conflicts.has(key.toLowerCase()) : false
           const displayKey = key ? formatHotkey(key) : 'Not set'
           return (
-            <div key={action} className="grid grid-cols-[minmax(8rem,1fr)_minmax(8rem,12rem)] items-center gap-4 border-b border-border py-2 last:border-b-0">
-              <span className="text-sm font-medium text-text-secondary" id={`hotkey-label-${action}`}>{ACTION_LABELS[action]}</span>
+            <div key={action} className="flex items-center gap-3 border-b border-border py-2 last:border-b-0">
+              <span className="w-32 shrink-0 text-sm font-medium text-text-secondary" id={`hotkey-label-${action}`}>{ACTION_LABELS[action]}</span>
               <button
                 type="button"
                 aria-labelledby={`hotkey-label-${action} hotkey-value-${action}`}
-                className={`min-h-10 rounded-md border bg-bg-elevated px-3 py-2 text-center text-sm font-semibold shadow-none transition-colors hover:bg-surface-hover ${hasConflict ? 'border-danger text-danger' : capturing === action ? 'border-primary text-text ring-2 ring-primary-container' : 'border-border text-text-secondary'}`}
+                className={`min-h-9 min-w-24 rounded-md border bg-surface-raised px-3 py-1.5 text-center text-sm font-semibold shadow-none transition-colors hover:bg-surface-hover ${hasConflict ? 'border-danger text-danger' : capturing === action ? 'border-primary text-text ring-2 ring-primary-container' : 'border-border text-text-secondary'}`}
                 onClick={() => startCapture(action)}
                 onKeyDown={capturing === action ? handleCaptureKeyDown(action) : undefined}
                 onBlur={() => setCapturing((current) => (current === action ? null : current))}
@@ -104,7 +105,7 @@ export function ScreeningHotkeysSection() {
           Two actions share the same key. Only one will trigger when you press it.
         </p>
       ) : null}
-      <div className="flex flex-wrap items-center gap-3">
+      <div className={toolbarClass}>
         <Button type="button" variant="secondary" onClick={() => update({ ...DEFAULT_SCREENING_HOTKEYS })}>
           Reset to defaults
         </Button>

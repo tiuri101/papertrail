@@ -109,67 +109,70 @@ function StageConfigForm({
     >
       <fieldset>
         <legend className="mb-3 text-base font-semibold leading-[1.2] text-text">{label}</legend>
-        <FormField label="Reviewers required per publication">
-          <Input
-            type="number"
-            min={1}
-            max={10}
-            value={draft.requiredReviewers}
-            onChange={(event) => setDraft({ ...draft, requiredReviewers: event.target.value })}
-            required
-          />
-        </FormField>
-        <FormField
-          label="Allocation"
-          htmlFor={`${fieldId}-allocation`}
-          accessory={(
-            <InfoTooltip text="Independent: every reviewer screens every publication, and any disagreement becomes a conflict to resolve. Divided: publications are pre-assigned round-robin so each one is seen by only the required number of reviewers, which reduces workload but means fewer people double-check each decision. Claim: publications are left unassigned and reviewers pick them up themselves as they work, rather than being pre-assigned." />
-          )}
-        >
-          <Select
-            id={`${fieldId}-allocation`}
-            value={draft.allocationMode}
-            onChange={(event) => setDraft({ ...draft, allocationMode: event.target.value as AllocationMode })}
+        <div className="grid grid-cols-2 gap-4 max-[560px]:grid-cols-1">
+          <FormField label="Reviewers required per publication">
+            <Input
+              type="number"
+              min={1}
+              max={10}
+              className="max-w-[6rem]"
+              value={draft.requiredReviewers}
+              onChange={(event) => setDraft({ ...draft, requiredReviewers: event.target.value })}
+              required
+            />
+          </FormField>
+          <FormField
+            label="Allocation"
+            htmlFor={`${fieldId}-allocation`}
+            accessory={(
+              <InfoTooltip text="Independent: every reviewer screens every publication, and any disagreement becomes a conflict to resolve. Divided: publications are pre-assigned round-robin so each one is seen by only the required number of reviewers, which reduces workload but means fewer people double-check each decision. Claim: publications are left unassigned and reviewers pick them up themselves as they work, rather than being pre-assigned." />
+            )}
           >
-            {(Object.keys(ALLOCATION_MODE_LABELS) as AllocationMode[]).map((mode) => (
-              <option key={mode} value={mode}>{ALLOCATION_MODE_LABELS[mode]}</option>
-            ))}
-          </Select>
-        </FormField>
-        <FormField
-          label="When reviewers disagree"
-          htmlFor={`${fieldId}-conflict`}
-          accessory={(
-            <InfoTooltip text="How a publication is resolved when the required reviewers reach different include/exclude decisions on it — for example through discussion, an admin's ruling, an adjudicator, bringing in another reviewer, or an automatic majority vote." />
-          )}
-        >
-          <Select
-            id={`${fieldId}-conflict`}
-            value={draft.conflictResolution}
-            onChange={(event) => setDraft({ ...draft, conflictResolution: event.target.value as ResolutionMethod })}
+            <Select
+              id={`${fieldId}-allocation`}
+              value={draft.allocationMode}
+              onChange={(event) => setDraft({ ...draft, allocationMode: event.target.value as AllocationMode })}
+            >
+              {(Object.keys(ALLOCATION_MODE_LABELS) as AllocationMode[]).map((mode) => (
+                <option key={mode} value={mode}>{ALLOCATION_MODE_LABELS[mode]}</option>
+              ))}
+            </Select>
+          </FormField>
+          <FormField
+            label="When reviewers disagree"
+            htmlFor={`${fieldId}-conflict`}
+            accessory={(
+              <InfoTooltip text="How a publication is resolved when the required reviewers reach different include/exclude decisions on it — for example through discussion, an admin's ruling, an adjudicator, bringing in another reviewer, or an automatic majority vote." />
+            )}
           >
-            {(Object.keys(RESOLUTION_METHOD_LABELS) as ResolutionMethod[]).map((method) => (
-              <option key={method} value={method}>{RESOLUTION_METHOD_LABELS[method]}</option>
-            ))}
-          </Select>
-        </FormField>
-        <FormField
-          label="When a reviewer is uncertain"
-          htmlFor={`${fieldId}-uncertain`}
-          accessory={(
-            <InfoTooltip text="How a publication is resolved when a reviewer marks their decision as uncertain instead of include or exclude, using the same set of resolution methods as a disagreement." />
-          )}
-        >
-          <Select
-            id={`${fieldId}-uncertain`}
-            value={draft.uncertainResolution}
-            onChange={(event) => setDraft({ ...draft, uncertainResolution: event.target.value as ResolutionMethod })}
+            <Select
+              id={`${fieldId}-conflict`}
+              value={draft.conflictResolution}
+              onChange={(event) => setDraft({ ...draft, conflictResolution: event.target.value as ResolutionMethod })}
+            >
+              {(Object.keys(RESOLUTION_METHOD_LABELS) as ResolutionMethod[]).map((method) => (
+                <option key={method} value={method}>{RESOLUTION_METHOD_LABELS[method]}</option>
+              ))}
+            </Select>
+          </FormField>
+          <FormField
+            label="When a reviewer is uncertain"
+            htmlFor={`${fieldId}-uncertain`}
+            accessory={(
+              <InfoTooltip text="How a publication is resolved when a reviewer marks their decision as uncertain instead of include or exclude, using the same set of resolution methods as a disagreement." />
+            )}
           >
-            {(Object.keys(RESOLUTION_METHOD_LABELS) as ResolutionMethod[]).map((method) => (
-              <option key={method} value={method}>{RESOLUTION_METHOD_LABELS[method]}</option>
-            ))}
-          </Select>
-        </FormField>
+            <Select
+              id={`${fieldId}-uncertain`}
+              value={draft.uncertainResolution}
+              onChange={(event) => setDraft({ ...draft, uncertainResolution: event.target.value as ResolutionMethod })}
+            >
+              {(Object.keys(RESOLUTION_METHOD_LABELS) as ResolutionMethod[]).map((method) => (
+                <option key={method} value={method}>{RESOLUTION_METHOD_LABELS[method]}</option>
+              ))}
+            </Select>
+          </FormField>
+        </div>
         {error ? <p className="text-danger" role="alert">{error.message}</p> : null}
         <Button type="submit" disabled={pending}><IconCheckCircle />Save {label} Settings</Button>
       </fieldset>

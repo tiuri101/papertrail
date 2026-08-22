@@ -2,9 +2,25 @@ import type { MouseEvent, ReactNode } from 'react'
 import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
+import { Button } from '../../components/Button'
 import { DoiPill } from '../../components/DoiPill'
 import { HighlightedText } from '../../components/HighlightedText'
-import { formatSubmittedAt } from '../../lib/format'
+import {
+  reviewWorkActionsClass,
+  reviewWorkCardClass,
+  reviewWorkDoiClass,
+  reviewWorkEditorClass,
+  reviewWorkGridClass,
+  reviewWorkMetadataClass,
+  reviewWorkStatusClass,
+  reviewWorkSubmittedClass,
+  reviewWorkSubmittedTimeClass,
+  reviewWorkTitleClass,
+  reviewWorkTitleLinkClass,
+  reviewWorkTitleTextClass,
+  reviewWorkVenueClass,
+} from '../../components/reviewWorkStyles'
+import { formatSubmittedAtParts } from '../../lib/format'
 
 /**
  * Shared row for the "my completed reviews" history pages (submitted
@@ -40,41 +56,43 @@ export function ReviewWorkRow({
 }) {
   const navigate = useNavigate()
   const [editing, setEditing] = useState(false)
+  const submitted = formatSubmittedAtParts(submittedAt)
 
   const openPublication = (event: MouseEvent<HTMLLIElement>) => {
-    if ((event.target as HTMLElement).closest('a, button, input, select, textarea, label, .review-work-card__editor')) return
+    if ((event.target as HTMLElement).closest('a, button, input, select, textarea, label, [data-review-work-editor]')) return
     navigate(detailHref)
   }
 
   return (
-    <li className="card publication-card review-work-card--clickable" onClick={openPublication}>
-      <div className="publication-card__summary review-work-row-grid">
-        <div className="review-work-row-grid__title">
-          <Link className="publication-card__title-button" to={detailHref}>
-            <h2 className="decision-card__title">
+    <li className={reviewWorkCardClass} onClick={openPublication}>
+      <div className={reviewWorkGridClass}>
+        <div className={reviewWorkTitleClass}>
+          <Link className={reviewWorkTitleLinkClass} to={detailHref}>
+            <h2 className={reviewWorkTitleTextClass}>
               <HighlightedText text={title} keywords={highlightKeywords} />
             </h2>
           </Link>
-          <div className="review-work-row-grid__authors">{authors ?? 'Unknown authors'}</div>
+          <div className={reviewWorkMetadataClass}>{authors ?? 'Unknown authors'}</div>
         </div>
-        <span className="review-work-row-grid__venue" title={venue ?? undefined}>
+        <span className={reviewWorkVenueClass} title={venue ?? undefined}>
           {venue ?? '—'}{publicationYear ? ` (${publicationYear})` : ''}
         </span>
-        <span className="review-work-row-grid__status">{statusContent}</span>
-        <span className="review-work-row-grid__doi">
-          {doi ? <DoiPill doi={doi} /> : <span className="muted">—</span>}
+        <span className={reviewWorkStatusClass}>{statusContent}</span>
+        <span className={reviewWorkDoiClass}>
+          {doi ? <DoiPill doi={doi} /> : <span className="text-text-muted">—</span>}
         </span>
-        <time className="review-work-row-grid__submitted" dateTime={submittedAt ?? undefined}>
-          {formatSubmittedAt(submittedAt)}
+        <time className={reviewWorkSubmittedClass} dateTime={submittedAt ?? undefined}>
+          <span>{submitted.date}</span>
+          {submitted.time ? <span className={reviewWorkSubmittedTimeClass}>{submitted.time}</span> : null}
         </time>
-        <span className="review-work-row-grid__actions">
+        <span className={reviewWorkActionsClass}>
           {!editing ? (
-            <button type="button" className="button-secondary button-sm" onClick={() => setEditing(true)}>{editLabel}</button>
+            <Button type="button" variant="secondary" size="sm" onClick={() => setEditing(true)}>{editLabel}</Button>
           ) : null}
         </span>
       </div>
       {editing ? (
-        <div className="review-work-card__editor">
+        <div className={reviewWorkEditorClass} data-review-work-editor>
           {renderEditor({ onDone: () => setEditing(false) })}
         </div>
       ) : null}

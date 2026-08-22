@@ -9,6 +9,7 @@ import { ConfirmButton } from '../../components/ConfirmButton'
 import { CountPill } from '../../components/CountPill'
 import { IconPlus, IconRestart, IconTrash } from '../../components/icons'
 import { Input } from '../../components/Input'
+import { toolbarClass } from '../../components/layoutStyles'
 import type { LoginResponse, User } from '../auth/types'
 
 export function UsersPage() {
@@ -90,14 +91,14 @@ export function UsersPage() {
                 required
               />
             </label>
-            <div className="flex flex-wrap items-center gap-3">
+            <div className={toolbarClass}>
               <Button type="submit" loading={create.isPending}><IconPlus />Create Reviewer</Button>
               <Button type="button" variant="secondary" onClick={() => setShowCreateForm(false)}>Cancel</Button>
             </div>
           </form>
         </Card>
       ) : (
-        <div className="flex flex-wrap items-center gap-3">
+        <div className={toolbarClass}>
           <Button type="button" onClick={() => setShowCreateForm(true)}><IconPlus />Add Reviewer</Button>
         </div>
       )}

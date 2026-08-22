@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { Button } from '../../components/Button'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { IconXCircle } from '../../components/icons'
+import { toolbarClass } from '../../components/layoutStyles'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import type { RetrievalBatch, RetrievalJobSummary } from './useBrowserPdfRetrieval'
 import { useBrowserPdfRetrieval } from './useBrowserPdfRetrieval'
@@ -131,7 +132,7 @@ export function BrowserPdfRetrievalPanel({ projectId }: { projectId: string }) {
                   cancelling={false}
                 />
               ) : null}
-              <div className="flex flex-wrap items-center gap-3">
+              <div className={toolbarClass}>
                 <Button
                   type="button"
                   onClick={() => createBatch.mutate(undefined)}

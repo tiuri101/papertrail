@@ -40,7 +40,7 @@ export function MoveProjectBackPanel({ projectId }: { projectId: string }) {
   if (!isActiveStage || !moveBackOptions.length) return null
 
   return (
-    <CollapsibleSection id="section-move-project-back" title="Move Project Back" className="border-[rgba(255,127,130,0.3)] bg-linear-to-b from-danger-container to-surface [&_h2]:text-danger [&_.collapsible-section__icon]:text-danger" icon={<IconRestart />}>
+    <CollapsibleSection id="section-move-project-back" title="Move Project Back" tone="danger" icon={<IconRestart />}>
       <InfoBox icon={<IconAlertTriangle />} tone="warning">
         <p>
           Move an in-progress project back to an earlier stage. Screening decisions, duplicate

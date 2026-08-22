@@ -112,6 +112,7 @@ function MemberRow({
                 min={0.1}
                 max={100}
                 step={0.1}
+                className="max-w-20"
                 value={weight}
                 onChange={(event) => setWeight(event.target.value)}
                 required
@@ -326,6 +327,7 @@ export function MembersPanel({
                 min={0.1}
                 max={100}
                 step={0.1}
+                className="max-w-20"
                 value={newWeight}
                 onChange={(event) => setNewWeight(event.target.value)}
                 required

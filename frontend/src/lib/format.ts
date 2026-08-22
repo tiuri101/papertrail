@@ -4,6 +4,14 @@ export function formatSubmittedAt(value: string | null): string {
   return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString()
 }
 
+/** Date and time as separate strings, for compact stacked display in a narrow table column. */
+export function formatSubmittedAtParts(value: string | null): { date: string; time: string | null } {
+  if (!value) return { date: '—', time: null }
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return { date: '—', time: null }
+  return { date: date.toLocaleDateString(), time: date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) }
+}
+
 export function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   const units = ['KB', 'MB', 'GB']

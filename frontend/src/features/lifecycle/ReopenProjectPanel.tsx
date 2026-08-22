@@ -32,7 +32,7 @@ export function ReopenProjectPanel({ projectId }: { projectId: string }) {
   if (!isCompleted || reopenOptions.length === 0) return null
 
   return (
-    <CollapsibleSection id="section-reopen-project" title="Reopen at an Earlier Stage" className="border-[rgba(255,127,130,0.3)] bg-linear-to-b from-danger-container to-surface [&_h2]:text-danger [&_.collapsible-section__icon]:text-danger" icon={<IconRestart />}>
+    <CollapsibleSection id="section-reopen-project" title="Reopen at an Earlier Stage" tone="danger" icon={<IconRestart />}>
       <InfoBox icon={<IconAlertTriangle />} tone="warning">
         <p>
           Move a completed project back to an earlier stage to resume work. Screening, extraction, and quality-assessment data already recorded is kept, not deleted. Only shown once a project

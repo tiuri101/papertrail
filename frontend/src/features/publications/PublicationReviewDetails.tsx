@@ -6,8 +6,8 @@ import { apiRequest } from '../../api/client'
 import { Badge } from '../../components/Badge'
 import { Button } from '../../components/Button'
 import { CriterionBadge } from '../../components/CriterionBadge'
-import { IconCheckCircle } from '../../components/icons'
-import { Input } from '../../components/Input'
+import { cn } from '../../lib/cn'
+import { IconCheckCircle, IconXCircle } from '../../components/icons'
 import { OutcomeBadge } from '../../components/OutcomeBadge'
 import { Select } from '../../components/Select'
 import { Textarea } from '../../components/Textarea'
@@ -51,11 +51,24 @@ interface ExtractionResponseDetails {
   fields: DynamicFormField[]
 }
 
-interface ExtractionDetails {
+interface ExtractionSlot {
+  slotNumber: number
   workItemId: string
   status: string
   completedAt: string | null
   response: ExtractionResponseDetails | null
+}
+
+interface ExtractionFinal {
+  answers: Record<string, unknown>
+  resolutionMethod: string
+  resolvedAt: string | null
+}
+
+interface ExtractionDetails {
+  requiredReviewers: number
+  slots: ExtractionSlot[]
+  final: ExtractionFinal | null
 }
 
 interface ReviewDetails {
@@ -148,12 +161,24 @@ function ScreeningResponseForm({
                 </th>
                 <td aria-label={`${criterion.number}: Fulfilled`}>
                   {answer === true ? (
-                    <span className="inline-flex min-w-[2.2rem] items-center justify-center rounded-full border border-current bg-success-container px-[7px] py-0.5 text-[0.72rem] font-extrabold text-success">Yes</span>
+                    <span className={cn(
+                      'inline-flex min-w-[2.2rem] items-center justify-center rounded-full border border-current px-[7px] py-0.5 text-[0.72rem] font-extrabold',
+                      criterion.kind === 'exclusion' ? 'bg-success-container text-success' : 'bg-surface-active text-text-secondary',
+                    )}
+                    >
+                      Yes
+                    </span>
                   ) : null}
                 </td>
                 <td aria-label={`${criterion.number}: Not fulfilled`}>
                   {answer === false ? (
-                    <span className="inline-flex min-w-[2.2rem] items-center justify-center rounded-full border border-current bg-danger-container px-[7px] py-0.5 text-[0.72rem] font-extrabold text-danger">Yes</span>
+                    <span className={cn(
+                      'inline-flex min-w-[2.2rem] items-center justify-center rounded-full border border-current px-[7px] py-0.5 text-[0.72rem] font-extrabold',
+                      criterion.kind === 'exclusion' ? 'bg-danger-container text-danger' : 'bg-surface-active text-text-secondary',
+                    )}
+                    >
+                      No
+                    </span>
                   ) : null}
                 </td>
               </tr>
@@ -193,9 +218,12 @@ export function PublicationReviewDetails({
     notes: string
     reason: string
   } | null>(null)
-  const [editingExtraction, setEditingExtraction] = useState(false)
-  const [extractionAnswers, setExtractionAnswers] = useState<Record<string, unknown>>({})
-  const [extractionReason, setExtractionReason] = useState('')
+  const [extractionOverride, setExtractionOverride] = useState<{
+    workItemId: string
+    fields: DynamicFormField[]
+    answers: Record<string, unknown>
+    reason: string
+  } | null>(null)
   const details = useQuery({
     queryKey: ['publication-review-details', projectId, publicationId],
     queryFn: () => apiRequest<ReviewDetails>(
@@ -230,23 +258,18 @@ export function PublicationReviewDetails({
     },
   })
   const overrideExtraction = useMutation({
-    mutationFn: () => {
-      const item = details.data?.extraction
-      if (!item) throw new Error('No extraction is available to override')
-      return apiRequest(
-        `/api/v1/projects/${projectId}/extraction/${item.workItemId}/override`,
-        {
-          method: 'POST',
-          body: JSON.stringify({
-            answers: extractionAnswers,
-            reason: extractionReason.trim(),
-          }),
-        },
-      )
-    },
+    mutationFn: (override: NonNullable<typeof extractionOverride>) => apiRequest(
+      `/api/v1/projects/${projectId}/extraction/${override.workItemId}/override`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          answers: override.answers,
+          reason: override.reason.trim(),
+        }),
+      },
+    ),
     onSuccess: async () => {
-      setEditingExtraction(false)
-      setExtractionReason('')
+      setExtractionOverride(null)
       await refresh()
     },
   })
@@ -304,7 +327,10 @@ export function PublicationReviewDetails({
   }
 
   const extraction = details.data?.extraction
-  const response = extraction?.response
+  const extractionFieldLabel = (stableKey: string): string => (
+    extraction?.slots.find((slot) => slot.response?.fields.some((field) => field.stableKey === stableKey))
+      ?.response?.fields.find((field) => field.stableKey === stableKey)?.label ?? stableKey
+  )
 
   return (
     <div className="ml-0 mt-2 text-[0.86rem] text-text-secondary">
@@ -326,42 +352,72 @@ export function PublicationReviewDetails({
             ) : null}
 
             {extraction ? (
-              <section className="rounded-sm border border-border bg-[color-mix(in_srgb,var(--color-surface-hover)_55%,transparent)] p-3">
-                <div className="flex items-center justify-between gap-2">
-                  <h4>Data extraction</h4>
-                  <Badge variant="plain">{extraction.status.replaceAll('_', ' ')}</Badge>
-                </div>
-                {response ? (
-                  <>
+              <div className="grid grid-cols-1 gap-3">
+                {extraction.final ? (
+                  <section className="rounded-sm border border-border bg-[color-mix(in_srgb,var(--color-surface-hover)_55%,transparent)] p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <h4>Data extraction</h4>
+                      <Badge variant="plain">Final</Badge>
+                    </div>
                     <p className="text-text-muted my-1 text-[0.8rem]">
-                      Version {response.version}{response.reviewerName ? ` by ${response.reviewerName}` : ''}
-                      {formatDate(extraction.completedAt) ? ` on ${formatDate(extraction.completedAt)}` : ''}
+                      Final via {extraction.final.resolutionMethod.replaceAll('_', ' ')}
+                      {formatDate(extraction.final.resolvedAt) ? ` on ${formatDate(extraction.final.resolvedAt)}` : ''}
                     </p>
                     <dl className="my-2 grid grid-cols-1 gap-x-4 min-[681px]:grid-cols-2">
-                      {response.fields.map((field) => (
-                        <div className="flex justify-between gap-2 border-b border-border py-1" key={field.stableKey}>
-                          <dt className="text-text-muted">{field.label}</dt>
-                          <dd className="m-0 text-right font-semibold text-text">{valueLabel(response.answers[field.stableKey])}</dd>
+                      {Object.keys(extraction.final.answers).map((stableKey) => (
+                        <div className="flex justify-between gap-2 border-b border-border py-1" key={stableKey}>
+                          <dt className="text-text-muted">{extractionFieldLabel(stableKey)}</dt>
+                          <dd className="m-0 text-right font-semibold text-text">{valueLabel(extraction.final!.answers[stableKey])}</dd>
                         </div>
                       ))}
                     </dl>
-                    {canManage ? (
-                      <Button
-                        type="button"
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => {
-                          setExtractionAnswers({ ...response.answers })
-                          setExtractionReason('')
-                          setEditingExtraction(true)
-                        }}
-                      >
-                        Override data extraction
-                      </Button>
-                    ) : null}
-                  </>
-                ) : <p className="text-text-muted">No completed data extraction is available.</p>}
-              </section>
+                  </section>
+                ) : null}
+                {extraction.slots.length === 0 ? (
+                  <p className="text-text-muted">No completed data extraction is available.</p>
+                ) : extraction.slots.map((slot) => (
+                  <section
+                    className="rounded-sm border border-border bg-[color-mix(in_srgb,var(--color-surface-hover)_55%,transparent)] p-3"
+                    key={slot.workItemId}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <h4>{extraction.slots.length > 1 ? `Extraction — slot ${slot.slotNumber}` : 'Data extraction'}</h4>
+                      <Badge variant="plain">{slot.status.replaceAll('_', ' ')}</Badge>
+                    </div>
+                    {slot.response ? (
+                      <>
+                        <p className="text-text-muted my-1 text-[0.8rem]">
+                          Version {slot.response.version}{slot.response.reviewerName ? ` by ${slot.response.reviewerName}` : ''}
+                          {formatDate(slot.completedAt) ? ` on ${formatDate(slot.completedAt)}` : ''}
+                        </p>
+                        <dl className="my-2 grid grid-cols-1 gap-x-4 min-[681px]:grid-cols-2">
+                          {slot.response.fields.map((field) => (
+                            <div className="flex justify-between gap-2 border-b border-border py-1" key={field.stableKey}>
+                              <dt className="text-text-muted">{field.label}</dt>
+                              <dd className="m-0 text-right font-semibold text-text">{valueLabel(slot.response!.answers[field.stableKey])}</dd>
+                            </div>
+                          ))}
+                        </dl>
+                        {canManage ? (
+                          <Button
+                            type="button"
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => setExtractionOverride({
+                              workItemId: slot.workItemId,
+                              fields: slot.response!.fields,
+                              answers: { ...slot.response!.answers },
+                              reason: '',
+                            })}
+                          >
+                            Override data extraction
+                          </Button>
+                        ) : null}
+                      </>
+                    ) : <p className="text-text-muted">No completed data extraction is available.</p>}
+                  </section>
+                ))}
+              </div>
             ) : null}
 
             {responseOverride ? (
@@ -395,34 +451,40 @@ export function PublicationReviewDetails({
                           {criterion.text}
                         </th>
                         <td>
-                          <Input
-                            type="radio"
-                            name={`criterion-${criterion.id}`}
+                          <button
+                            type="button"
+                            role="checkbox"
+                            className="inline-flex size-8 min-h-8 items-center justify-center rounded-md border border-border bg-none bg-bg-elevated p-0 text-text-muted shadow-none transition-colors hover:border-border-strong hover:bg-surface-hover aria-checked:border-success aria-checked:bg-success-container aria-checked:text-success [&_svg]:size-4 [&_svg]:fill-current"
+                            aria-checked={responseOverride.criteriaAnswers[criterion.id] === true}
                             aria-label={`${criterion.number}: Set fulfilled`}
-                            checked={responseOverride.criteriaAnswers[criterion.id] === true}
-                            onChange={() => setResponseOverride({
+                            onClick={() => setResponseOverride({
                               ...responseOverride,
                               criteriaAnswers: {
                                 ...responseOverride.criteriaAnswers,
                                 [criterion.id]: true,
                               },
                             })}
-                          />
+                          >
+                            {responseOverride.criteriaAnswers[criterion.id] === true ? <IconCheckCircle /> : null}
+                          </button>
                         </td>
                         <td>
-                          <Input
-                            type="radio"
-                            name={`criterion-${criterion.id}`}
+                          <button
+                            type="button"
+                            role="checkbox"
+                            className="inline-flex size-8 min-h-8 items-center justify-center rounded-md border border-border bg-none bg-bg-elevated p-0 text-text-muted shadow-none transition-colors hover:border-border-strong hover:bg-surface-hover aria-checked:border-danger aria-checked:bg-danger-container aria-checked:text-danger [&_svg]:size-4 [&_svg]:fill-current"
+                            aria-checked={responseOverride.criteriaAnswers[criterion.id] === false}
                             aria-label={`${criterion.number}: Set not fulfilled`}
-                            checked={responseOverride.criteriaAnswers[criterion.id] === false}
-                            onChange={() => setResponseOverride({
+                            onClick={() => setResponseOverride({
                               ...responseOverride,
                               criteriaAnswers: {
                                 ...responseOverride.criteriaAnswers,
                                 [criterion.id]: false,
                               },
                             })}
-                          />
+                          >
+                            {responseOverride.criteriaAnswers[criterion.id] === false ? <IconXCircle /> : null}
+                          </button>
                         </td>
                       </tr>
                     ))}
@@ -485,37 +547,43 @@ export function PublicationReviewDetails({
               <p className="text-danger" role="alert">{overrideScreeningResponse.error.message}</p>
             ) : null}
 
-            {editingExtraction && response ? (
+            {extractionOverride ? (
               <form
                 className="grid gap-3 overflow-x-auto rounded-sm border border-[color-mix(in_srgb,var(--color-primary)_30%,var(--color-border))] bg-primary-container p-3 [&_h4]:m-0"
-                onSubmit={(event) => { event.preventDefault(); overrideExtraction.mutate() }}
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  overrideExtraction.mutate(extractionOverride)
+                }}
               >
                 <h4>Override data extraction</h4>
                 <DynamicForm
-                  fields={response.fields}
-                  value={extractionAnswers}
-                  onChange={(key, value) => setExtractionAnswers((current) => ({
+                  fields={extractionOverride.fields}
+                  value={extractionOverride.answers}
+                  onChange={(key, value) => setExtractionOverride((current) => (current ? {
                     ...current,
-                    [key]: value,
-                  }))}
+                    answers: { ...current.answers, [key]: value },
+                  } : current))}
                 />
                 <label>
                   Reason for override
                   <Textarea
-                    value={extractionReason}
-                    onChange={(event) => setExtractionReason(event.target.value)}
+                    value={extractionOverride.reason}
+                    onChange={(event) => setExtractionOverride((current) => (current ? {
+                      ...current,
+                      reason: event.target.value,
+                    } : current))}
                     required
                   />
                 </label>
                 <div className={toolbarClass}>
                   <Button
                     type="submit"
-                    disabled={overrideExtraction.isPending || !extractionReason.trim()}
+                    disabled={overrideExtraction.isPending || !extractionOverride.reason.trim()}
                   >
                     <IconCheckCircle />
                     Save extraction override
                   </Button>
-                  <Button type="button" variant="secondary" onClick={() => setEditingExtraction(false)}>
+                  <Button type="button" variant="secondary" onClick={() => setExtractionOverride(null)}>
                     Cancel
                   </Button>
                 </div>
