@@ -1,13 +1,22 @@
 from datetime import UTC, datetime
 
 from app.accounts.service import create_user
-from app.jobs.diagnostics import build_job_diagnostics
+from app.analysis.jobs import STAGE_ANALYSIS_JOB
+from app.analysis.models import ResearchQuestionAnalysisRun
+from app.analysis.rq_jobs import RQ_SYNTHESIS_JOB, generate_rq_synthesis_job
+from app.jobs.diagnostics import JOB_LABELS, JOB_STAGES, build_job_diagnostics
 from app.jobs.models import BackgroundJob, JobStatus
 from app.jobs.service import enqueue_job
 from app.jobs.worker import HANDLERS, execute_next_job
 from app.llm.models import LlmExtractionRun, LlmTaskType, ProcessingStatus
-from app.llm.service import LLM_JOB_TYPE_BY_TASK
-from app.projects.models import Project, ProjectMembership, ProjectStage, ReviewType
+from app.llm.service import LLM_JOB_TYPE_BY_TASK, LLM_JOB_TYPES
+from app.projects.models import (
+    Project,
+    ProjectMembership,
+    ProjectStage,
+    ResearchQuestion,
+    ReviewType,
+)
 from app.publications.models import Publication
 
 
@@ -380,6 +389,74 @@ def test_llm_job_diagnostics_identify_the_exact_task_stage_and_publication(db) -
     assert diagnostics["context"]["LLM task"] == "Full-text screening"
     assert diagnostics["context"]["Publication"] == "The affected paper"
     assert diagnostics["context"]["Publication ID"] == publication.id
+
+
+def test_rq_synthesis_job_diagnostics_identify_the_research_question(db) -> None:
+    """RQ synthesis jobs are keyed by a ResearchQuestionAnalysisRun via
+    payload["rq_run_id"], not an LlmExtractionRun via payload["run_id"] --
+    regression guard for the two job-type sets in jobs.diagnostics staying
+    correctly distinct (see EXTRACTION_RUN_JOB_TYPES vs
+    app.llm.service.LLM_JOB_TYPES)."""
+    project = Project(
+        name="RQ Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.EXTRACTION,
+    )
+    db.add(project)
+    db.flush()
+    question = ResearchQuestion(project_id=project.id, text="Does X affect Y?")
+    db.add(question)
+    db.flush()
+    run = ResearchQuestionAnalysisRun(
+        project_id=project.id,
+        research_question_id=question.id,
+        research_question_text=question.text,
+        input_fingerprint="a" * 64,
+        model="qwen3:8b",
+        prompt_template_version="rq_synthesis_v1",
+        status=ProcessingStatus.PENDING,
+        queued_at=datetime.now(UTC),
+    )
+    db.add(run)
+    db.flush()
+    job = BackgroundJob(
+        project_id=project.id,
+        job_type=RQ_SYNTHESIS_JOB,
+        payload={"rq_run_id": run.id},
+    )
+    db.add(job)
+    db.flush()
+
+    diagnostics = build_job_diagnostics(db, job)
+
+    assert diagnostics["job_label"] == "Run LLM research-question synthesis"
+    assert diagnostics["affected_stage"] == "Research question synthesis"
+    assert diagnostics["context"]["Research question"] == "Does X affect Y?"
+    assert diagnostics["context"]["Model"] == "qwen3:8b"
+    # Must not be mistaken for an extraction-run-keyed job: no such context key.
+    assert "LLM run ID" not in diagnostics["context"]
+
+
+def test_rq_synthesis_job_is_llm_pool_but_not_extraction_run_keyed() -> None:
+    """RQ_SYNTHESIS_JOB must route to the --llm worker pool (it calls Ollama)
+    while staying out of jobs.diagnostics.EXTRACTION_RUN_JOB_TYPES (it isn't
+    keyed by an LlmExtractionRun) -- these are two different, correctly
+    non-identical concepts that share a superficially similar name."""
+    assert RQ_SYNTHESIS_JOB in LLM_JOB_TYPES
+    assert HANDLERS[RQ_SYNTHESIS_JOB] is generate_rq_synthesis_job
+
+
+def test_every_registered_job_type_has_a_handler_and_diagnostic_label() -> None:
+    """Guards against the job-registration drift the audit flagged: adding a
+    new job type must not silently miss a handler or a diagnostics label."""
+    for job_type in HANDLERS:
+        assert job_type in JOB_LABELS, f"{job_type} has no JOB_LABELS entry"
+        assert job_type in JOB_STAGES, f"{job_type} has no JOB_STAGES entry"
+    for job_type in LLM_JOB_TYPE_BY_TASK.values():
+        assert job_type in HANDLERS
+    assert STAGE_ANALYSIS_JOB in HANDLERS
+    assert RQ_SYNTHESIS_JOB in HANDLERS
 
 
 def test_retried_llm_job_returns_run_to_pending(session_factory, monkeypatch) -> None:

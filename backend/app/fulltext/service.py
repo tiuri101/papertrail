@@ -6,12 +6,13 @@ from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.api.errors import DomainError, ForbiddenError
-from app.conflicts.models import FinalDecision
 from app.conflicts.service import refresh_automatic_final_decision, valid_final_decision
+from app.core.time import utcnow
 from app.fulltext.models import FullTextRetrieval, PublicationDocument, RetrievalStatus
 from app.jobs.service import enqueue_job
 from app.projects.models import Project, ProjectStage, ScreeningStage
-from app.screening.models import ScreeningDecision, ScreeningOutcome, ScreeningWorkItem
+from app.screening.cohorts import decided_ids_for_stage, title_abstract_included_ids
+from app.screening.models import ScreeningDecision, ScreeningWorkItem
 from app.screening.service import (
     claim_next_work_item,
     create_screening_work_items,
@@ -23,23 +24,6 @@ RESERVATION_HOURS = 24
 # A retrieval remains claimable work until it reaches one of these; everything
 # else (available/not_found/inaccessible) is resolved and drops out of the queue.
 CLAIMABLE_STATUSES = (RetrievalStatus.NOT_YET_SOUGHT, RetrievalStatus.REQUESTED)
-
-
-def utcnow() -> datetime:
-    return datetime.now(UTC)
-
-
-def title_abstract_included_ids(db: Session, project_id: str) -> list[str]:
-    return list(
-        db.scalars(
-            select(FinalDecision.publication_id).where(
-                FinalDecision.project_id == project_id,
-                FinalDecision.stage == ScreeningStage.TITLE_ABSTRACT,
-                FinalDecision.outcome == ScreeningOutcome.INCLUDE,
-                FinalDecision.is_valid.is_(True),
-            )
-        )
-    )
 
 
 def ensure_full_text_retrieval(
@@ -312,15 +296,7 @@ def full_text_screening_remaining(db: Session, project_id: str) -> int:
     """Count publications with an available PDF but no final full-text
     decision yet -- work still outstanding regardless of whether the project
     as a whole has already moved past the full-text stage."""
-    decided_ids = set(
-        db.scalars(
-            select(FinalDecision.publication_id).where(
-                FinalDecision.project_id == project_id,
-                FinalDecision.stage == ScreeningStage.FULL_TEXT,
-                FinalDecision.is_valid.is_(True),
-            )
-        )
-    )
+    decided_ids = set(decided_ids_for_stage(db, project_id, ScreeningStage.FULL_TEXT))
     available_ids = set(
         db.scalars(
             select(FullTextRetrieval.publication_id).where(

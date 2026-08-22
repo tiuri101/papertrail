@@ -4,6 +4,9 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from app.analysis.jobs import STAGE_ANALYSIS_JOB
+from app.analysis.models import ResearchQuestionAnalysisRun
+from app.analysis.rq_jobs import RQ_SYNTHESIS_JOB
 from app.fulltext.models import PublicationDocument
 from app.imports.models import ImportBatch
 from app.jobs.models import BackgroundJob
@@ -21,7 +24,14 @@ TASK_STAGES = {
     LlmTaskType.EXTRACTION_VALIDATION: "Extraction validation",
 }
 
-LLM_JOB_TYPES = set(LLM_JOB_TYPE_BY_TASK.values())
+# The job types whose diagnostic context is looked up via an LlmExtractionRun
+# keyed by payload["run_id"]. Deliberately narrower than
+# app.llm.service.LLM_JOB_TYPES (which additionally includes RQ_SYNTHESIS_JOB
+# for --llm worker-pool routing purposes): RQ synthesis jobs are keyed by a
+# ResearchQuestionAnalysisRun and payload["rq_run_id"] instead, and
+# STAGE_ANALYSIS_JOB has no run row at all -- both get their own branches
+# below rather than being folded into this set.
+EXTRACTION_RUN_JOB_TYPES = set(LLM_JOB_TYPE_BY_TASK.values())
 
 JOB_LABELS = {
     "parse_import": "Parse publication import",
@@ -31,6 +41,8 @@ JOB_LABELS = {
     TEXT_JOB: "Extract text from a full-text document",
     SEND_EMAIL_JOB: "Send email notification",
     CHECK_LLM_STAGE_EMAIL_JOB: "Check LLM bulk-completion notifications",
+    RQ_SYNTHESIS_JOB: "Run LLM research-question synthesis",
+    STAGE_ANALYSIS_JOB: "Generate stage analysis narrative",
     **{
         job_type: f"Run LLM {TASK_STAGES[task_type].lower()}"
         for task_type, job_type in LLM_JOB_TYPE_BY_TASK.items()
@@ -45,6 +57,8 @@ JOB_STAGES = {
     TEXT_JOB: "Full-text preparation",
     SEND_EMAIL_JOB: "Notifications",
     CHECK_LLM_STAGE_EMAIL_JOB: "Notifications",
+    RQ_SYNTHESIS_JOB: "Research question synthesis",
+    STAGE_ANALYSIS_JOB: "Stage narrative",
     **{
         job_type: TASK_STAGES[task_type]
         for task_type, job_type in LLM_JOB_TYPE_BY_TASK.items()
@@ -60,6 +74,8 @@ STAGE_ORDER = [
     "Full-text screening",
     "Data extraction",
     "Extraction validation",
+    "Research question synthesis",
+    "Stage narrative",
     "Reporting and export",
     "Notifications",
 ]
@@ -122,7 +138,7 @@ def build_job_diagnostics(db: Session, job: BackgroundJob) -> dict[str, Any]:
         if document is not None:
             publication_id = document.publication_id
             context["Document"] = document.original_filename
-    elif job.job_type in LLM_JOB_TYPES:
+    elif job.job_type in EXTRACTION_RUN_JOB_TYPES:
         run_id = str(job.payload.get("run_id", ""))
         run = db.get(LlmExtractionRun, run_id) if run_id else None
         context["LLM run ID"] = run_id or None
@@ -134,6 +150,20 @@ def build_job_diagnostics(db: Session, job: BackgroundJob) -> dict[str, Any]:
             context["Model"] = run.model
             context["Document ID"] = run.document_id
             label = f"Run LLM {affected_stage.lower()}"
+    elif job.job_type == RQ_SYNTHESIS_JOB:
+        rq_run_id = str(job.payload.get("rq_run_id", ""))
+        rq_run = db.get(ResearchQuestionAnalysisRun, rq_run_id) if rq_run_id else None
+        context["RQ synthesis run ID"] = rq_run_id or None
+        if rq_run is not None:
+            context["Research question"] = rq_run.research_question_text
+            context["Model"] = rq_run.model
+    elif job.job_type == STAGE_ANALYSIS_JOB:
+        payload_stage = _as_text(job.payload.get("stage"))
+        context["Stage"] = (
+            PROJECT_STAGE_LABELS.get(payload_stage, _humanize(payload_stage))
+            if payload_stage
+            else None
+        )
     elif job.job_type == CHECK_LLM_STAGE_EMAIL_JOB:
         context["LLM bulk ID"] = _as_text(job.payload.get("bulk_id"))
     elif job.job_type == SEND_EMAIL_JOB:

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
 from typing import Any
 
 from app.llm.models import LlmSchemaField
@@ -19,12 +18,6 @@ Return not_found when information is unavailable and ambiguous when multiple int
 Distinguish explicit statements from inference. When inference is forbidden, do not return inferred.
 Evidence quotes must be short verbatim passages from the supplied physical PDF page number.
 Respect the exact JSON schema and return no commentary outside it. Never return hidden reasoning."""
-
-
-@dataclass(frozen=True)
-class PromptChunk:
-    messages: list[dict[str, str]]
-    output_schema: dict[str, Any]
 
 
 def _value_schema(field: LlmSchemaField) -> dict[str, Any]:

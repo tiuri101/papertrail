@@ -3,8 +3,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, Field
 
+from app.api.schemas import EnumApiModel as ApiModel
 from app.projects.models import (
     AllocationMode,
     CriterionKind,
@@ -13,12 +14,6 @@ from app.projects.models import (
     ReviewType,
     ScreeningStage,
 )
-
-
-class ApiModel(BaseModel):
-    model_config = ConfigDict(
-        populate_by_name=True, from_attributes=True, use_enum_values=True
-    )
 
 
 class ProjectCreate(ApiModel):

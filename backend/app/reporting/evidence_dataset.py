@@ -37,11 +37,11 @@ from app.llm.models import (
     SuggestionDisposition,
 )
 from app.llm.value_compare import values_equal
-from app.projects.lifecycle import included_publication_ids
 from app.publications.models import Publication
 from app.quality.models import QualityConfig, QualityResponse, QualityWorkItem
 from app.quality.service import active_fields as quality_active_fields
 from app.quality.service import quality_form
+from app.screening.cohorts import full_text_included_ids
 
 FieldState = Literal["answered", "missing", "pending_reconciliation"]
 SourceType = Literal["extraction", "quality"]
@@ -148,7 +148,7 @@ def _answered(value: Any) -> bool:
 def build_evidence_dataset(
     db: Session, project_id: str, *, publication_ids: Sequence[str] | None = None
 ) -> EvidenceDataset:
-    included = included_publication_ids(db, project_id)
+    included = set(full_text_included_ids(db, project_id))
     scope = included if publication_ids is None else (set(publication_ids) & included)
     publications = list(
         db.scalars(

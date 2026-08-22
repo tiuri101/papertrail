@@ -2,15 +2,15 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Mapping
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 from typing import Any
 
-from sqlalchemy import case, func, or_, select
+from sqlalchemy import case, select
 from sqlalchemy.orm import Session, aliased
 
 from app.accounts.models import User
 from app.api.errors import DomainError, ForbiddenError, NotFoundError
-from app.conflicts.models import FinalDecision
+from app.core.time import utcnow
 from app.extraction.models import (
     ExtractionConfig,
     ExtractionResponse,
@@ -18,28 +18,27 @@ from app.extraction.models import (
     ExtractionWorkItem,
 )
 from app.forms.models import FieldType, FormField, FormKind, ReviewForm
+from app.forms.service import active_fields as forms_active_fields
+from app.forms.service import project_form_by_kind
 from app.projects.models import (
     Project,
     ProjectMembership,
-    ScreeningStage,
     TaskAllocationMode,
 )
 from app.projects.service import reviewer_weights, weighted_round_robin_sequence
-from app.screening.models import ScreeningOutcome
+from app.review_work.allocation import reassign_orphaned_items, rebalance_pending_items
+from app.review_work.progress import (
+    completed_items_with_response,
+    remaining_claimable_items,
+    reviewer_progress,
+)
+from app.screening.cohorts import full_text_included_ids
 
 MAX_REQUIRED_REVIEWERS = 2
 
 
-def utcnow() -> datetime:
-    return datetime.now(UTC)
-
-
 def project_form(db: Session, project_id: str) -> ReviewForm | None:
-    return db.scalar(
-        select(ReviewForm).where(
-            ReviewForm.project_id == project_id, ReviewForm.kind == FormKind.EXTRACTION
-        )
-    )
+    return project_form_by_kind(db, project_id, FormKind.EXTRACTION)
 
 
 def eligible_extractors(db: Session, project_id: str) -> list[str]:
@@ -66,16 +65,7 @@ def eligible_extractors(db: Session, project_id: str) -> list[str]:
 
 
 def included_publication_ids(db: Session, project_id: str) -> list[str]:
-    return list(
-        db.scalars(
-            select(FinalDecision.publication_id).where(
-                FinalDecision.project_id == project_id,
-                FinalDecision.stage == ScreeningStage.FULL_TEXT,
-                FinalDecision.outcome == ScreeningOutcome.INCLUDE,
-                FinalDecision.is_valid.is_(True),
-            )
-        )
-    )
+    return full_text_included_ids(db, project_id)
 
 
 def get_extraction_config(db: Session, project_id: str) -> ExtractionConfig | None:
@@ -227,28 +217,18 @@ def reassign_work_items_from_ineligible_reviewers(db: Session, project_id: str) 
     if not eligible:
         return 0
     claim_mode = extraction_allocation_mode(db, project_id) == TaskAllocationMode.CLAIM
-    orphaned = list(
-        db.scalars(
-            select(ExtractionWorkItem)
-            .where(
-                ExtractionWorkItem.project_id == project_id,
-                ExtractionWorkItem.status != ExtractionStatus.COMPLETED,
-                ExtractionWorkItem.assigned_reviewer_id.is_not(None),
-                ExtractionWorkItem.assigned_reviewer_id.not_in(eligible),
-            )
-            .order_by(ExtractionWorkItem.random_rank)
-        )
+    reassigned = reassign_orphaned_items(
+        db,
+        ExtractionWorkItem,
+        project_id=project_id,
+        eligible=eligible,
+        claim_mode=claim_mode,
+        completed_status=ExtractionStatus.COMPLETED,
+        available_status=ExtractionStatus.AVAILABLE,
     )
-    for index, item in enumerate(orphaned):
-        item.assigned_reviewer_id = (
-            None if claim_mode else eligible[index % len(eligible)]
-        )
-        item.status = ExtractionStatus.AVAILABLE
-        item.reserved_until = None
-    db.flush()
     if not claim_mode:
         _ensure_distinct_slot_assignments(db, project_id, eligible)
-    return len(orphaned)
+    return reassigned
 
 
 def _ensure_distinct_slot_assignments(
@@ -302,29 +282,14 @@ def rebalance_pending_work_items(db: Session, project_id: str) -> int:
     if not eligible:
         return 0
     weights = reviewer_weights(db, project_id, eligible)
-    items = list(
-        db.scalars(
-            select(ExtractionWorkItem)
-            .where(ExtractionWorkItem.project_id == project_id)
-            .order_by(ExtractionWorkItem.random_rank)
-        )
+    reassigned = rebalance_pending_items(
+        db,
+        ExtractionWorkItem,
+        project_id=project_id,
+        eligible=eligible,
+        weights=weights,
+        available_status=ExtractionStatus.AVAILABLE,
     )
-    load = {reviewer_id: 0 for reviewer_id in eligible}
-    pending: list[ExtractionWorkItem] = []
-    for item in items:
-        if item.status == ExtractionStatus.AVAILABLE:
-            pending.append(item)
-        elif item.assigned_reviewer_id in load:
-            load[item.assigned_reviewer_id] += 1
-
-    reassigned = 0
-    for item in pending:
-        chosen = min(eligible, key=lambda r: (load[r] / weights.get(r, 1.0), r))
-        if item.assigned_reviewer_id != chosen:
-            item.assigned_reviewer_id = chosen
-            reassigned += 1
-        load[chosen] += 1
-    db.flush()
     _ensure_distinct_slot_assignments(db, project_id, eligible)
     return reassigned
 
@@ -334,20 +299,12 @@ def remaining_claimable_extractions(
 ) -> int:
     """How many extraction work items this reviewer could still claim or
     complete in claim mode: their own incomplete items plus unclaimed ones."""
-    return (
-        db.scalar(
-            select(func.count())
-            .select_from(ExtractionWorkItem)
-            .where(
-                ExtractionWorkItem.project_id == project_id,
-                ExtractionWorkItem.status != ExtractionStatus.COMPLETED,
-                or_(
-                    ExtractionWorkItem.assigned_reviewer_id == reviewer_id,
-                    ExtractionWorkItem.assigned_reviewer_id.is_(None),
-                ),
-            )
-        )
-        or 0
+    return remaining_claimable_items(
+        db,
+        ExtractionWorkItem,
+        project_id=project_id,
+        reviewer_id=reviewer_id,
+        completed_status=ExtractionStatus.COMPLETED,
     )
 
 
@@ -357,41 +314,21 @@ def my_progress(
     """How many extraction work items this reviewer has been assigned, and how
     many of those they've already completed. In claim mode, work items start
     unassigned, so also report how many are still available to this reviewer."""
-    assigned = (
-        db.scalar(
-            select(func.count())
-            .select_from(ExtractionWorkItem)
-            .where(
-                ExtractionWorkItem.project_id == project_id,
-                ExtractionWorkItem.assigned_reviewer_id == reviewer_id,
-            )
-        )
-        or 0
-    )
-    completed = (
-        db.scalar(
-            select(func.count())
-            .select_from(ExtractionWorkItem)
-            .where(
-                ExtractionWorkItem.project_id == project_id,
-                ExtractionWorkItem.assigned_reviewer_id == reviewer_id,
-                ExtractionWorkItem.status == ExtractionStatus.COMPLETED,
-            )
-        )
-        or 0
-    )
     claim_mode = extraction_allocation_mode(db, project_id) == TaskAllocationMode.CLAIM
     remaining = (
         remaining_claimable_extractions(db, project_id, reviewer_id)
         if claim_mode
         else 0
     )
-    return {
-        "assigned": assigned,
-        "completed": completed,
-        "remaining": remaining,
-        "claim_mode": claim_mode,
-    }
+    return reviewer_progress(
+        db,
+        ExtractionWorkItem,
+        project_id=project_id,
+        reviewer_id=reviewer_id,
+        completed_status=ExtractionStatus.COMPLETED,
+        claim_mode=claim_mode,
+        remaining=remaining,
+    )
 
 
 def claim_next_extraction(
@@ -507,16 +444,7 @@ def slot_responses_visible(
 
 
 def active_fields(db: Session, form: ReviewForm) -> list[FormField]:
-    return list(
-        db.scalars(
-            select(FormField)
-            .where(
-                FormField.form_version_id == form.active_version_id,
-                FormField.is_archived.is_(False),
-            )
-            .order_by(FormField.position)
-        )
-    )
+    return forms_active_fields(db, form)
 
 
 def validate_answers(fields: list[FormField], answers: dict[str, Any]) -> None:
@@ -690,28 +618,14 @@ def list_completed_for_reviewer(
 ) -> list[tuple[ExtractionWorkItem, ExtractionResponse]]:
     """The reviewer's own completed extractions, paired with their current
     response, so they can be revisited and corrected after submission."""
-    items = list(
-        db.scalars(
-            select(ExtractionWorkItem)
-            .where(
-                ExtractionWorkItem.project_id == project_id,
-                ExtractionWorkItem.assigned_reviewer_id == reviewer_id,
-                ExtractionWorkItem.status == ExtractionStatus.COMPLETED,
-            )
-            .order_by(ExtractionWorkItem.completed_at.desc())
-        )
+    return completed_items_with_response(
+        db,
+        ExtractionWorkItem,
+        ExtractionResponse,
+        project_id=project_id,
+        reviewer_id=reviewer_id,
+        completed_status=ExtractionStatus.COMPLETED,
     )
-    pairs: list[tuple[ExtractionWorkItem, ExtractionResponse]] = []
-    for item in items:
-        response = db.scalar(
-            select(ExtractionResponse).where(
-                ExtractionResponse.work_item_id == item.id,
-                ExtractionResponse.is_current.is_(True),
-            )
-        )
-        if response is not None:
-            pairs.append((item, response))
-    return pairs
 
 
 def reopen_for_required_field(db: Session, project_id: str) -> int:
