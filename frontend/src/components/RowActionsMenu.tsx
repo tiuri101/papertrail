@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 
+import { IconButton } from './Button'
 import { IconMoreVertical } from './icons'
 
 /**
@@ -50,10 +51,9 @@ export function RowActionsMenu({ label, children }: { label: string; children: R
 
   return (
     <>
-      <button
-        type="button"
+      <IconButton
+        variant="secondary"
         ref={triggerRef}
-        className="icon-button"
         aria-label={label}
         aria-haspopup="menu"
         aria-expanded={open}
@@ -61,11 +61,11 @@ export function RowActionsMenu({ label, children }: { label: string; children: R
         onClick={toggle}
       >
         <IconMoreVertical />
-      </button>
+      </IconButton>
       {open && position ? createPortal(
         <div
           ref={menuRef}
-          className="row-actions-menu"
+          className="fixed z-1000 flex min-w-44 flex-col gap-0.5 rounded-md border border-border bg-surface-raised p-2 shadow-lg"
           role="menu"
           aria-label={label}
           style={{ top: position.top, right: position.right }}

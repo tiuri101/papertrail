@@ -1,6 +1,7 @@
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { CountPill } from '../../components/CountPill'
+import { GoBackButton } from '../../components/GoBackButton'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 import { StageEyebrow } from '../projects/StageEyebrow'
 import { PreviousItemCard } from './PreviousItemCard'
@@ -32,14 +33,9 @@ export function TitleAbstractScreeningPage() {
       <p><Link to={`/projects/${projectId}/screening/${STAGE}/my-decisions`}>Review or change my past decisions</Link></p>
       {!queue.previousItem && queue.lastCompletedItem ? (
         <div className="toolbar">
-          <button
-            type="button"
-            className="button-secondary go-back-button"
-            onClick={() => queue.goBack.mutate()}
-            disabled={queue.goBack.isPending}
-          >
+          <GoBackButton onClick={() => queue.goBack.mutate()} disabled={queue.goBack.isPending}>
             ← Go back to “{queue.lastCompletedItem.title}”
-          </button>
+          </GoBackButton>
         </div>
       ) : null}
       {queue.goBack.error ? <p className="error" role="alert">{queue.goBack.error.message}</p> : null}

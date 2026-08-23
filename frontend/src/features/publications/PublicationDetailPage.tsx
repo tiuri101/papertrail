@@ -1,10 +1,17 @@
+import { tableScrollClass } from '../../components/layoutStyles'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { ActionListItem } from '../../components/ActionListItem'
+import { actionListItemClass } from '../../components/actionListStyles'
+import { Badge } from '../../components/Badge'
+import { Button } from '../../components/Button'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { DoiPill } from '../../components/DoiPill'
+import { cardStyles } from '../../components/Card'
+import { pageStyles } from '../../components/Page'
 import {
   IconDownload,
   IconEdit,
@@ -16,10 +23,12 @@ import { OutcomeBadge } from '../../components/OutcomeBadge'
 import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
 import { PublisherLinkPill } from '../../components/PublisherLinkPill'
 import { useSession } from '../auth/sessionQuery'
+import type { AuditEvent } from '../audit/types'
 import { FullTextDocumentPanel } from '../fulltext/FullTextDocumentPanel'
 import { AdministrationEyebrow } from '../projects/StageEyebrow'
 import { useCanManageProject, useCanManagePublications } from '../../hooks/useCanManageProject'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
+import { cn } from '../../lib/cn'
 import { PublicationEditForm } from './PublicationsPage'
 import { PublicationReviewDetails } from './PublicationReviewDetails'
 import {
@@ -28,17 +37,9 @@ import {
   screeningLabel,
   type Publication,
 } from './publicationShared'
+import { TabList, TabPanel } from '../../components/Tabs'
 
-interface AuditEvent {
-  id: string
-  createdAt: string
-  actorUsername: string | null
-  action: string
-  entityType: string
-  entityId: string | null
-  summary: string
-  metadata: Record<string, unknown>
-}
+const dangerQuickActionItemClass = actionListItemClass({ size: 'md', danger: true })
 
 interface FinalExtraction {
   id: string
@@ -225,16 +226,16 @@ export function PublicationDetailPage() {
   }, [audit.data, publicationId, reviewDetails.data])
 
   if (publications.isLoading) {
-    return <main className="page"><p>Loading…</p></main>
+    return <main className={pageStyles}><p>Loading…</p></main>
   }
   if (!publication) {
     return (
-      <main className="page">
+      <main className={pageStyles}>
         <AdministrationEyebrow />
         <h1>Publication not found</h1>
-        <p className="muted">
+        <p className="text-text-muted">
           It may have been deleted or merged into another record.{' '}
-          <Link to={`/projects/${projectId}/publications`}>Back to Publications</Link>
+          <Button as={Link} to={`/projects/${projectId}/publications`} variant="text">Back to Publications</Button>
         </p>
       </main>
     )
@@ -251,17 +252,17 @@ export function PublicationDetailPage() {
       }
     }
     return (
-      <main className="page publication-detail">
+      <main className={pageStyles}>
         <AdministrationEyebrow />
         <p>
           {openedFromList ? (
-            <Link to={`/projects/${projectId}/publications`}>← Back to Publications</Link>
+            <Button as={Link} to={`/projects/${projectId}/publications`} variant="text">← Back to Publications</Button>
           ) : (
-            <button type="button" className="link-button" onClick={closeEditing}>← Back to Publication</button>
+            <Button type="button" variant="text" onClick={closeEditing}>← Back to Publication</Button>
           )}
         </p>
         <h1>Edit publication</h1>
-        <div className="card">
+        <div className={cardStyles} data-ui="card">
           <PublicationEditForm publication={publication} projectId={projectId} onDone={closeEditing} />
         </div>
       </main>
@@ -285,29 +286,29 @@ export function PublicationDetailPage() {
     : `/projects/${projectId}/full-text`
 
   return (
-    <main className="page publication-detail">
+      <main className={pageStyles}>
       <AdministrationEyebrow />
-      <p><Link to={`/projects/${projectId}/publications`}>← Back to Publications</Link></p>
+      <p><Button as={Link} to={`/projects/${projectId}/publications`} variant="text">← Back to Publications</Button></p>
 
-      <div className="publication-detail__layout">
-        <div className="publication-detail__main">
-          <header className="publication-detail__header">
+      <div className="grid grid-cols-[minmax(0,1fr)] items-start gap-6 min-[961px]:grid-cols-[minmax(0,1fr)_20rem]">
+        <div className="min-w-0 max-[960px]:contents">
+          <header className="mb-5 max-[960px]:order-1">
             <h1>{publication.title}</h1>
-            <p className="publication-detail__authors">{publication.authors ?? 'Unknown authors'}</p>
-            <p className="muted publication-detail__meta">
+            <p className="mb-0 mt-1 text-text-secondary">{publication.authors ?? 'Unknown authors'}</p>
+            <p className="text-text-muted mb-3 mt-1">
               {[
                 [publication.publicationYear, publication.venue].filter(Boolean).join(', '),
                 publication.publicationType,
               ].filter(Boolean).join(' · ')}
             </p>
-            <div className="publication-card__workflow">
-              <span className={`status-badge ${stage.className}`}>{stage.label}</span>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <Badge variant={stage.variant}>{stage.label}</Badge>
               <PdfAvailabilityPill
                 available={Boolean(publication.fullText?.available)}
                 href={`/api/v1/projects/${projectId}/publications/${publication.id}/full-text/content`}
                 pageCount={publication.fullText?.document?.pageCount}
               />
-              {hasData ? <span className="status-badge status-badge--success">Has Data</span> : null}
+              {hasData ? <Badge variant="success">Has Data</Badge> : null}
               <DoiPill doi={publication.doi} />
               {isSafeHttpUrl(publication.publisherUrl) ? (
                 <PublisherLinkPill url={publication.publisherUrl!} />
@@ -315,43 +316,39 @@ export function PublicationDetailPage() {
             </div>
           </header>
 
-          <div className="page-tabs" role="tablist" aria-label="Publication sections">
-            {DETAIL_TABS.map((tab) => (
-              <button
-                key={tab.id}
-                type="button"
-                role="tab"
-                id={`publication-detail-tab-${tab.id}`}
-                aria-selected={tab.id === activeTab}
-                aria-controls={`publication-detail-tabpanel-${tab.id}`}
-                className={`page-tab${tab.id === activeTab ? ' page-tab--active' : ''}`}
-                onClick={() => setActiveTab(tab.id)}
-              >
-                {tab.label}
-              </button>
-            ))}
-          </div>
+          <TabList
+            idPrefix="publication-detail"
+            label="Publication sections"
+            activeId={activeTab}
+            onSelect={(id) => setActiveTab(id as typeof activeTab)}
+            className="mb-6 max-[960px]:order-3 max-[960px]:justify-self-start"
+            items={DETAIL_TABS.map((tab) => ({ id: tab.id, label: tab.label }))}
+          />
 
-          <div
-            id={`publication-detail-tabpanel-${activeTab}`}
-            className="page-tabpanel"
-            role="tabpanel"
-            aria-labelledby={`publication-detail-tab-${activeTab}`}
+          <TabPanel
+            idPrefix="publication-detail"
+            id={activeTab}
+            className="max-[960px]:order-4 max-[960px]:min-w-0 max-[960px]:max-w-full"
           >
             {activeTab === 'overview' ? (
-              <div className="publication-detail__overview">
-                <section>
-                  <h3>Abstract</h3>
-                  <p className="publication-detail__full-abstract">
+              <div className="grid min-w-0 max-w-full gap-5">
+                <section className="min-w-0 max-w-full">
+                  <h3 className="mb-2 mt-0">Abstract</h3>
+                  <p className="max-w-full leading-relaxed [overflow-wrap:anywhere]">
                     {publication.abstract?.trim() || 'No abstract available.'}
                   </p>
                 </section>
                 {subjects.length ? (
-                  <section>
-                    <h3>Subjects</h3>
-                    <div className="publication-detail__subjects">
+                  <section className="min-w-0 max-w-full">
+                    <h3 className="mb-2 mt-0">Subjects</h3>
+                    {/* `!` needed on whitespace-normal: Badge's own base class always sets
+                        `whitespace-nowrap`, and Tailwind v4 doesn't resolve two same-property
+                        utilities by className order. */}
+                    <div className="flex min-w-0 max-w-full flex-wrap gap-2">
                       {subjects.map((subject) => (
-                        <span key={subject} className="status-badge status-badge--primary">{subject}</span>
+                        <Badge key={subject} variant="primary" className="max-w-full [overflow-wrap:anywhere] whitespace-normal!">
+                          {subject}
+                        </Badge>
                       ))}
                     </div>
                   </section>
@@ -360,9 +357,9 @@ export function PublicationDetailPage() {
             ) : null}
 
             {activeTab === 'details' ? (
-              <div className="table-scroll">
+              <div className={tableScrollClass}>
                 <table>
-                  <caption className="visually-hidden">Publication details</caption>
+                  <caption className="sr-only">Publication details</caption>
                   <thead>
                     <tr>
                       <th scope="col">Field</th>
@@ -377,7 +374,7 @@ export function PublicationDetailPage() {
                           <th scope="row">{field.label}</th>
                           <td>
                             {!value ? (
-                              <span className="muted">-</span>
+                              <span className="text-text-muted">-</span>
                             ) : field.label === 'DOI' ? (
                               <a href={`https://doi.org/${value}`} target="_blank" rel="noopener noreferrer">{value}</a>
                             ) : (
@@ -393,7 +390,7 @@ export function PublicationDetailPage() {
             ) : null}
 
             {activeTab === 'history' ? (
-              <div className="publication-detail__history">
+              <div className="grid gap-6 [&_h3]:mb-3 [&_h3]:mt-0">
                 <section>
                   <h3>Screening &amp; Extraction Decisions</h3>
                   <PublicationReviewDetails
@@ -405,15 +402,15 @@ export function PublicationDetailPage() {
                 <section>
                   <h3>Activity Log</h3>
                   {!canOverride ? (
-                    <p className="muted">Only the project owner or an administrator can view the activity log.</p>
+                    <p className="text-text-muted">Only the project owner or an administrator can view the activity log.</p>
                   ) : audit.isLoading || reviewDetails.isLoading ? (
                     <p>Loading…</p>
                   ) : publicationHistory.length === 0 ? (
-                    <p className="muted">No recorded history for this publication yet.</p>
+                    <p className="text-text-muted">No recorded history for this publication yet.</p>
                   ) : (
-                    <div className="table-scroll">
+                    <div className={tableScrollClass}>
                       <table>
-                        <caption className="visually-hidden">Activity log</caption>
+                        <caption className="sr-only">Activity log</caption>
                         <thead>
                           <tr>
                             <th scope="col">Timestamp</th>
@@ -425,7 +422,7 @@ export function PublicationDetailPage() {
                           {publicationHistory.map((event) => (
                             <tr key={event.id}>
                               <td>{new Date(event.createdAt).toLocaleString()}</td>
-                              <td>{event.actorUsername ?? <span className="muted">System</span>}</td>
+                              <td>{event.actorUsername ?? <span className="text-text-muted">System</span>}</td>
                               <td>{event.summary}</td>
                             </tr>
                           ))}
@@ -451,24 +448,24 @@ export function PublicationDetailPage() {
                   </a>
                 </p>
               ) : (
-                <p className="muted">No PDF has been attached to this publication yet.</p>
+                <p className="text-text-muted">No PDF has been attached to this publication yet.</p>
               )
             ) : null}
-          </div>
+          </TabPanel>
         </div>
 
-        <aside className="publication-detail__sidebar">
-          <section className="card publication-detail__sidebar-card">
+        <aside className="sticky top-[92px] grid gap-4 max-[960px]:static max-[960px]:order-2 max-[960px]:min-w-0 max-[960px]:max-w-full">
+          <section className={cn(cardStyles, '[&_h2]:mb-3 [&_h2]:mt-0')} data-ui="card">
             <h2>Review Status</h2>
-            <dl className="publication-detail__status-list">
-              <div>
-                <dt>Stage</dt>
-                <dd><span className={`status-badge ${stage.className}`}>{stage.label}</span></dd>
+            <dl className="mb-4 grid gap-3">
+              <div className="flex items-center justify-between gap-2">
+                <dt className="text-[0.85rem] text-text-muted">Stage</dt>
+                <dd className="m-0"><Badge variant={stage.variant}>{stage.label}</Badge></dd>
               </div>
               {activeStage ? (
-                <div>
-                  <dt>Your decision</dt>
-                  <dd>
+                <div className="flex items-center justify-between gap-2">
+                  <dt className="text-[0.85rem] text-text-muted">Your decision</dt>
+                  <dd className="m-0">
                     <OutcomeBadge
                       outcome={yourDecision?.outcome}
                       label={screeningLabel(yourDecision?.outcome)}
@@ -480,65 +477,67 @@ export function PublicationDetailPage() {
             {activeStage ? (
               screeningActionable ? (
                 <>
-                  <Link className="button-secondary button-md publication-detail__screening-link" to={screeningHref}>
+                  <Button as={Link} variant="secondary" className="w-full" to={screeningHref}>
                     Open Screening Queue
-                  </Link>
-                  <p className="muted publication-detail__screening-note">
+                  </Button>
+                  <p className="text-text-muted mt-2 text-[0.82rem]">
                     Claims the next item in the {screeningStageLabel(activeStage)} queue -- not
                     guaranteed to be this publication.
                   </p>
                 </>
               ) : (
-                <p className="muted publication-detail__screening-note">
+                <p className="text-text-muted mt-2 text-[0.82rem]">
                   Awaiting full-text retrieval before it can be screened.
                 </p>
               )
             ) : (
-              <p className="muted publication-detail__screening-note">Screening complete.</p>
+              <p className="text-text-muted mt-2 text-[0.82rem]">Screening complete.</p>
             )}
           </section>
 
-          <section className="card publication-detail__sidebar-card">
+          <section className={cn(cardStyles, '[&_h2]:mb-3 [&_h2]:mt-0')} data-ui="card">
             <h2>Quick Actions</h2>
-            <div className="publication-detail__quick-actions">
+            <div className="grid gap-0.5">
               {publication.fullText?.available ? (
-                <a
-                  className="publication-detail__quick-action"
+                <ActionListItem
+                  as="a"
+                  size="md"
                   href={`/api/v1/projects/${projectId}/publications/${publicationId}/full-text/content`}
                   target="_blank"
                   rel="noreferrer"
                 >
                   <IconFile /> View PDF
-                </a>
+                </ActionListItem>
               ) : null}
               {canManage ? (
-                <button type="button" className="publication-detail__quick-action" onClick={() => setEditing(true)}>
+                <ActionListItem type="button" size="md" onClick={() => setEditing(true)}>
                   <IconEdit /> Edit Metadata
-                </button>
+                </ActionListItem>
               ) : null}
               {canManage ? (
-                <button
+                <ActionListItem
                   type="button"
-                  className="publication-detail__quick-action"
+                  size="md"
                   onClick={() => enrich.mutate()}
                   disabled={enrich.isPending || !publication.doi}
                 >
                   <IconSparkle /> Enrich Metadata
-                </button>
+                </ActionListItem>
               ) : null}
-              <a
-                className="publication-detail__quick-action"
+              <ActionListItem
+                as="a"
+                size="md"
                 href={`/api/v1/projects/${projectId}/publications/${publicationId}/export/bib`}
                 target="_blank"
                 rel="noreferrer"
               >
                 <IconDownload /> Export BibTeX
-              </a>
+              </ActionListItem>
               {canManage ? (
                 <ConfirmButton
                   label="Delete Publication"
                   variant="danger"
-                  className="publication-detail__quick-action publication-detail__quick-action--danger"
+                  className={dangerQuickActionItemClass}
                   warning={`Delete "${publication.title}"? This cannot be undone.`}
                   onConfirm={() => remove.mutate()}
                   disabled={remove.isPending}
@@ -546,9 +545,9 @@ export function PublicationDetailPage() {
                 />
               ) : null}
             </div>
-            {enrich.isSuccess ? <p className="muted">Enrichment queued.</p> : null}
-            {enrich.error ? <p className="error" role="alert">{enrich.error.message}</p> : null}
-            {remove.error ? <p className="error" role="alert">{remove.error.message}</p> : null}
+            {enrich.isSuccess ? <p className="text-text-muted">Enrichment queued.</p> : null}
+            {enrich.error ? <p className="text-danger" role="alert">{enrich.error.message}</p> : null}
+            {remove.error ? <p className="text-danger" role="alert">{remove.error.message}</p> : null}
           </section>
         </aside>
       </div>

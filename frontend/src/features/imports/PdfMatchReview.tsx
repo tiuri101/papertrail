@@ -5,6 +5,7 @@ import { apiRequest } from '../../api/client'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { CountPill } from '../../components/CountPill'
 import { IconFile, IconUpload } from '../../components/icons'
+import { formatFileSize } from '../../lib/format'
 
 interface MatchCandidate {
   publicationId: string
@@ -75,18 +76,6 @@ const CANDIDATE_REASON_LABEL: Record<string, string> = {
 
 function statusMeta(status: string): { label: string; tone: 'success' | 'warning' | 'danger' | 'neutral' } {
   return STATUS_META[status] ?? { label: status.replaceAll('_', ' '), tone: 'neutral' }
-}
-
-function formatFileSize(bytes: number): string {
-  if (bytes < 1024) return `${bytes} B`
-  const units = ['KB', 'MB', 'GB']
-  let value = bytes / 1024
-  let unitIndex = 0
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024
-    unitIndex += 1
-  }
-  return `${value.toFixed(value < 10 ? 1 : 0)} ${units[unitIndex]}`
 }
 
 function candidateDescription(candidate: MatchCandidate): string {

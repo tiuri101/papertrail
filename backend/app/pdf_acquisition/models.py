@@ -120,19 +120,6 @@ ACTIVE_JOB_STATUSES = frozenset(
     }
 )
 
-TERMINAL_JOB_STATUSES = frozenset(
-    {
-        RetrievalJobStatus.SUCCEEDED,
-        RetrievalJobStatus.NEEDS_AUTHENTICATION,
-        RetrievalJobStatus.NOT_FOUND,
-        RetrievalJobStatus.ACCESS_DENIED,
-        RetrievalJobStatus.INVALID_RESPONSE,
-        RetrievalJobStatus.FAILED,
-        RetrievalJobStatus.CANCELLED,
-        RetrievalJobStatus.SKIPPED_EXISTING,
-    }
-)
-
 # Failure outcomes that a human retry (after e.g. logging in, or once the
 # publisher is reachable again) has a real chance of succeeding at.
 RETRYABLE_JOB_STATUSES = frozenset(
@@ -144,11 +131,6 @@ RETRYABLE_JOB_STATUSES = frozenset(
         RetrievalJobStatus.FAILED,
     }
 )
-
-# Automated outcomes that must NEVER be translated into a human-authoritative
-# FullTextRetrieval terminal status -- an automated failure does not prove a
-# human can't obtain the paper by other means.
-NON_AUTHORITATIVE_FAILURE_STATUSES = RETRYABLE_JOB_STATUSES
 
 
 class PdfRetrievalJob(UUIDPrimaryKeyMixin, TimestampMixin, Base):

@@ -3,8 +3,13 @@ import { useMemo, useState, type CSSProperties } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Badge } from '../../components/Badge'
+import { Button, IconButton } from '../../components/Button'
+import { Card } from '../../components/Card'
 import { CountPill } from '../../components/CountPill'
 import { IconGear, IconPlus, IconSearch } from '../../components/icons'
+import { Page } from '../../components/Page'
+import { Select } from '../../components/Select'
 import { ProjectProgressDots, STAGES } from './StageProgress'
 
 interface Project {
@@ -160,74 +165,74 @@ export function ProjectsPage() {
   }
 
   return (
-    <main className="page projects-page">
-      <div className="projects-page__header">
-        <div>
+    <Page>
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
           <h1>Projects</h1>
-          <p className="muted">Manage and monitor all your systematic reviews.</p>
+          <p className="text-text">Manage and monitor all your systematic reviews.</p>
         </div>
-        <div className="projects-page__header-actions">
-          <label className="projects-page__search">
-            <span className="visually-hidden">Search projects</span>
-            <IconSearch />
+        <div className="flex flex-wrap items-center gap-3 max-[680px]:w-full">
+          <label className="flex h-10 w-[min(18rem,100%)] min-w-0 items-center gap-2 rounded-full border border-border bg-surface px-4 focus-within:border-primary focus-within:shadow-[0_0_0_3px_var(--color-focus)] max-[680px]:w-full">
+            <span className="sr-only">Search projects</span>
+            <span className="size-4 shrink-0 text-text-muted [&_svg]:size-full [&_svg]:fill-current"><IconSearch /></span>
             <input
               type="search"
               value={search}
               onChange={(event) => setSearch(event.target.value)}
+              className="h-full min-w-0 flex-1 border-0 bg-transparent p-0 focus:outline-none"
               placeholder="Search projects…"
             />
           </label>
-          <button type="button" onClick={() => navigate('/projects/new')}>
-            <IconPlus />
+          <Button type="button" startIcon={<IconPlus />} onClick={() => navigate('/projects/new')}>
             New Project
-          </button>
+          </Button>
         </div>
       </div>
       {projects.isLoading ? <p>Loading…</p> : null}
-      {projects.error ? <p className="error" role="alert">{projects.error.message}</p> : null}
+      {projects.error ? <p className="text-danger" role="alert">{projects.error.message}</p> : null}
       {projects.data && projects.data.length > 0 ? (
-        <section className="project-filters" aria-label="Project filters">
+        <section className="my-5 mb-4 flex flex-wrap items-center gap-3 max-[680px]:flex-col max-[680px]:items-stretch" aria-label="Project filters">
           <label>
-            <span className="visually-hidden">Stage</span>
-            <select value={stageFilter} onChange={(event) => setStageFilter(event.target.value)}>
+            <span className="sr-only">Stage</span>
+            <Select className="min-w-36 rounded-full bg-surface pl-4 max-[680px]:w-full" value={stageFilter} onChange={(event) => setStageFilter(event.target.value)}>
               <option value="">All Status</option>
               {STAGES.map((stage) => (
                 <option key={stage.value} value={stage.value}>{formatStage(stage.value)}</option>
               ))}
-            </select>
+            </Select>
           </label>
           <label>
-            <span className="visually-hidden">My role</span>
-            <select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)}>
+            <span className="sr-only">My role</span>
+            <Select className="min-w-36 rounded-full bg-surface pl-4 max-[680px]:w-full" value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)}>
               <option value="">All Roles</option>
               {Object.entries(roleLabels)
                 .filter(([value]) => value !== 'administrator')
                 .map(([value, label]) => (
                   <option key={value} value={value}>{label}</option>
                 ))}
-            </select>
+            </Select>
           </label>
           <label>
-            <span className="visually-hidden">Project type</span>
-            <select value={reviewTypeFilter} onChange={(event) => setReviewTypeFilter(event.target.value)}>
+            <span className="sr-only">Project type</span>
+            <Select className="min-w-36 rounded-full bg-surface pl-4 max-[680px]:w-full" value={reviewTypeFilter} onChange={(event) => setReviewTypeFilter(event.target.value)}>
               <option value="">All Types</option>
               {Object.entries(reviewTypeLabels).map(([value, label]) => (
                 <option key={value} value={value}>{label}</option>
               ))}
-            </select>
+            </Select>
           </label>
           <label>
-            <span className="visually-hidden">Project owner</span>
-            <select value={ownerFilter} onChange={(event) => setOwnerFilter(event.target.value)}>
+            <span className="sr-only">Project owner</span>
+            <Select className="min-w-36 rounded-full bg-surface pl-4 max-[680px]:w-full" value={ownerFilter} onChange={(event) => setOwnerFilter(event.target.value)}>
               <option value="">All Owners</option>
               {owners.map(([id, displayName]) => (
                 <option key={id} value={id}>{displayName}</option>
               ))}
-            </select>
+            </Select>
           </label>
-          <button type="button" className="button-secondary" disabled={!hasFilters} onClick={clearFilters}>
+          <Button className="max-[680px]:w-full" type="button" variant="secondary" disabled={!hasFilters} onClick={clearFilters}>
             Clear filters
-          </button>
+          </Button>
         </section>
       ) : null}
       {projects.data ? (
@@ -236,33 +241,34 @@ export function ProjectsPage() {
         </CountPill>
       ) : null}
       {projects.data?.length === 0 ? (
-        <p className="muted">No projects yet. Create your first project to get started.</p>
+        <p className="text-text">No projects yet. Create your first project to get started.</p>
       ) : null}
       {projects.data && projects.data.length > 0 && filteredProjects.length === 0 ? (
-        <p className="muted">No projects match your filters.</p>
+        <p className="text-text">No projects match your filters.</p>
       ) : null}
-      <ul className="card-list project-card-grid" aria-label="Projects">
+      <ul className="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4 p-0" aria-label="Projects">
         {filteredProjects.map((project) => (
-          <li key={project.id} className="card project-card">
-            <div className="project-card__top">
-              <span className="stage-badge" style={stageBadgeStyle(project.stage)}>
+          <Card as="li" key={project.id} className="flex flex-col">
+            <div className="flex items-start justify-between gap-3">
+              <span className="inline-flex min-h-[26px] items-center rounded-full border border-[color-mix(in_srgb,var(--stage-color,var(--color-primary))_35%,transparent)] bg-[color-mix(in_srgb,var(--stage-color,var(--color-primary))_14%,transparent)] px-2.5 py-[3px] text-[0.78rem] font-bold text-(--stage-color)" data-project-stage={project.stage} style={stageBadgeStyle(project.stage)}>
                 {formatStage(project.stage)}
               </span>
             </div>
-            <h2><Link to={`/projects/${project.id}`}>{project.name}</Link></h2>
-            {project.description ? <p className="muted project-card__description">{project.description}</p> : null}
-            <div className="project-card__pills">
+            <h2 className="mt-4"><Link to={`/projects/${project.id}`}>{project.name}</Link></h2>
+            {project.description ? <p className="mt-1 text-text-muted">{project.description}</p> : null}
+            <div className="flex flex-wrap gap-2">
               {projectPills(project).map((pill) => (
-                <span
+                <Badge
                   key={pill.text}
-                  className={pill.variant ? `pill pill--${pill.variant}` : 'pill'}
+                  variant={pill.variant === 'warning' ? 'warning' : 'neutral'}
+                  className="min-h-6 border border-border px-2.5 text-[0.76rem]"
                 >
                   {pill.text}
-                </span>
+                </Badge>
               ))}
             </div>
             <ProjectProgressDots stage={project.stage} />
-            <dl className="project-card__stats">
+            <dl className="m-0 grid grid-cols-4 gap-2 border-y border-border py-4 [&>div]:flex [&>div]:min-w-0 [&>div]:flex-col [&>div]:gap-0.5 [&>div]:text-center [&_dd]:m-0 [&_dd]:text-[1.15rem] [&_dd]:font-bold [&_dd]:text-text [&_dt]:truncate [&_dt]:text-[0.74rem] [&_dt]:text-text-muted">
               <div>
                 <dd>{project.primaryCount}</dd>
                 <dt>{project.primaryLabel}</dt>
@@ -280,36 +286,37 @@ export function ProjectsPage() {
                 <dt>Complete</dt>
               </div>
             </dl>
-            <div className="project-card__footer">
-              <span className="muted project-card__updated">
+            <div className="flex items-center justify-between gap-3">
+              <span className="min-w-0 truncate text-[0.82rem] text-text-muted">
                 Updated <time dateTime={project.updatedAt}>{formatRelativeTime(project.updatedAt)}</time>
               </span>
-              <div className="project-card__actions">
-                <Link className="button-secondary" to={`/projects/${project.id}`}>Open Project</Link>
+              <div className="flex shrink-0 items-center gap-2">
+                <Button as={Link} variant="secondary" to={`/projects/${project.id}`}>Open Project</Button>
                 {project.myRole !== 'reviewer' ? (
-                  <Link
-                    className="project-card__menu"
+                  <IconButton
+                    as={Link}
+                    variant="secondary"
                     to={`/projects/${project.id}/admin`}
                     aria-label={`Manage ${project.name}`}
                   >
                     <IconGear />
-                  </Link>
+                  </IconButton>
                 ) : null}
               </div>
             </div>
-          </li>
+          </Card>
         ))}
         {projects.data && projects.data.length > 0 ? (
-          <li className="card project-card project-card--create">
-            <button type="button" className="project-card__create-icon" onClick={() => navigate('/projects/new')}>
+          <Card as="li" className="flex flex-col items-center justify-center border-dashed bg-surface text-center">
+            <IconButton type="button" className="size-12 min-h-12 min-w-12 rounded-full [&_svg]:size-[22px]" onClick={() => navigate('/projects/new')}>
               <IconPlus />
-            </button>
+            </IconButton>
             <h2>Create New Project</h2>
-            <p className="muted">Start a new systematic review</p>
-            <button type="button" onClick={() => navigate('/projects/new')}>Get Started</button>
-          </li>
+            <p className="text-text">Start a new review project</p>
+            <Button type="button" onClick={() => navigate('/projects/new')}>Get Started</Button>
+          </Card>
         ) : null}
       </ul>
-    </main>
+    </Page>
   )
 }

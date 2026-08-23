@@ -20,14 +20,12 @@ from app.analysis.jobs import cancel_queued_stage_analysis_jobs
 from app.analysis.rq_jobs import cancel_queued_rq_synthesis_jobs
 from app.api.errors import DomainError, ForbiddenError, NotFoundError
 from app.audit.service import record_audit
-from app.conflicts.models import FinalDecision
 from app.db.session import get_db
 from app.extraction.final import get_current_final_extraction
 from app.extraction.models import ExtractionResponse, ExtractionWorkItem
 from app.forms.schemas import FieldResponse
 from app.fulltext.documents import active_document
 from app.fulltext.models import PublicationDocument
-from app.jobs.models import BackgroundJob
 from app.llm.installation_settings import (
     effective_llm_settings,
     installation_settings,
@@ -87,7 +85,10 @@ from app.llm.task_service import (
     project_validation_progress,
     queue_extraction_validation,
     queue_full_text_assistance,
+    queue_project_data_extraction_reanalysis,
     queue_project_extraction_validations,
+    queue_project_full_text_reanalysis,
+    queue_project_title_abstract_reanalysis,
     queue_title_abstract_suggestion,
     run_is_stale,
 )
@@ -99,7 +100,11 @@ from app.projects.dependencies import (
 from app.projects.models import ProjectMembership, ScreeningStage
 from app.projects.service import is_project_manager, require_project_access
 from app.publications.models import Publication
-from app.screening.models import ScreeningDecision, ScreeningOutcome, ScreeningWorkItem
+from app.screening.cohorts import (
+    full_text_excluded_ids,
+    title_abstract_included_ids,
+)
+from app.screening.models import ScreeningDecision, ScreeningWorkItem
 
 router = APIRouter(tags=["LLM-assisted extraction"])
 
@@ -580,102 +585,19 @@ def reanalyze_publications(
         raise DomainError("This LLM capability is disabled for this project")
 
     bulk_id = str(uuid4())
-    queued = 0
-    result: LlmExtractionRun | BackgroundJob | None = None
 
     if task_type == LlmTaskType.TITLE_ABSTRACT_SCREENING:
-        publication_ids = list(
-            db.scalars(
-                select(Publication.id).where(
-                    Publication.project_id == project_id,
-                    Publication.is_active.is_(True),
-                    Publication.merged_into_id.is_(None),
-                )
-            )
+        queued = queue_project_title_abstract_reanalysis(
+            db, project_id, created_by_id=manager.id, priority=-10, bulk_id=bulk_id
         )
-        for publication_id in publication_ids:
-            result = queue_title_abstract_suggestion(
-                db,
-                publication_id,
-                created_by_id=manager.id,
-                priority=-10,
-                force=True,
-                bulk_id=bulk_id,
-            )
-            if result is not None:
-                queued += 1
     elif task_type == LlmTaskType.FULL_TEXT_SCREENING:
-        included_ids = set(
-            db.scalars(
-                select(FinalDecision.publication_id).where(
-                    FinalDecision.project_id == project_id,
-                    FinalDecision.stage == ScreeningStage.TITLE_ABSTRACT,
-                    FinalDecision.outcome == ScreeningOutcome.INCLUDE,
-                    FinalDecision.is_valid.is_(True),
-                )
-            )
+        queued = queue_project_full_text_reanalysis(
+            db, project_id, created_by_id=manager.id, priority=-10, bulk_id=bulk_id
         )
-        excluded_ids = set(
-            db.scalars(
-                select(FinalDecision.publication_id).where(
-                    FinalDecision.project_id == project_id,
-                    FinalDecision.stage == ScreeningStage.FULL_TEXT,
-                    FinalDecision.outcome == ScreeningOutcome.EXCLUDE,
-                    FinalDecision.is_valid.is_(True),
-                )
-            )
-        )
-        for publication_id in included_ids - excluded_ids:
-            result = queue_full_text_assistance(
-                db,
-                publication_id,
-                created_by_id=manager.id,
-                priority=-10,
-                force=True,
-                bulk_id=bulk_id,
-            )
-            if result is not None:
-                queued += 1
     elif task_type == LlmTaskType.DATA_EXTRACTION:
-        # The Data Extraction stage's actual cohort: publications already
-        # included at full-text screening.
-        publication_ids = list(
-            db.scalars(
-                select(FinalDecision.publication_id).where(
-                    FinalDecision.project_id == project_id,
-                    FinalDecision.stage == ScreeningStage.FULL_TEXT,
-                    FinalDecision.outcome == ScreeningOutcome.INCLUDE,
-                    FinalDecision.is_valid.is_(True),
-                )
-            )
+        queued = queue_project_data_extraction_reanalysis(
+            db, project_id, created_by_id=manager.id, priority=-10, bulk_id=bulk_id
         )
-        for publication_id in publication_ids:
-            result = queue_preparation_if_eligible(
-                db,
-                publication_id,
-                created_by_id=manager.id,
-                priority=-10,
-                bulk_id=bulk_id,
-            )
-            document = active_document(db, publication_id)
-            if document:
-                extraction = db.scalar(
-                    select(DocumentTextExtraction).where(
-                        DocumentTextExtraction.document_id == document.id,
-                        DocumentTextExtraction.status == ProcessingStatus.COMPLETED,
-                    )
-                )
-                if extraction:
-                    result = queue_llm_run_after_text(
-                        db,
-                        extraction,
-                        created_by_id=manager.id,
-                        priority=-10,
-                        force=True,
-                        bulk_id=bulk_id,
-                    )
-            if result is not None:
-                queued += 1
     else:
         if not project_extractions_completed(db, project_id):
             raise DomainError(
@@ -892,7 +814,9 @@ def _screening_payload(
         "state": (
             "ready"
             if run.status == ProcessingStatus.COMPLETED
-            else "queued" if run.status == ProcessingStatus.PENDING else run.status
+            else "queued"
+            if run.status == ProcessingStatus.PENDING
+            else run.status
         ),
         "runId": run.id,
         "documentId": run.document_id,
@@ -1109,7 +1033,9 @@ def _validation_payload(db: Session, item: ExtractionWorkItem) -> dict[str, Any]
         "state": (
             "ready"
             if run.status == ProcessingStatus.COMPLETED
-            else "queued" if run.status == ProcessingStatus.PENDING else run.status
+            else "queued"
+            if run.status == ProcessingStatus.PENDING
+            else run.status
         ),
         "runId": run.id,
         "responseId": own_response.id,
@@ -1377,26 +1303,8 @@ def llm_runs(
         )
     )
     completed = [run for run in runs if run.status == ProcessingStatus.COMPLETED]
-    eligible_ids = set(
-        db.scalars(
-            select(FinalDecision.publication_id).where(
-                FinalDecision.project_id == project_id,
-                FinalDecision.stage == ScreeningStage.TITLE_ABSTRACT,
-                FinalDecision.outcome == ScreeningOutcome.INCLUDE,
-                FinalDecision.is_valid.is_(True),
-            )
-        )
-    )
-    excluded_ids = set(
-        db.scalars(
-            select(FinalDecision.publication_id).where(
-                FinalDecision.project_id == project_id,
-                FinalDecision.stage == ScreeningStage.FULL_TEXT,
-                FinalDecision.outcome == ScreeningOutcome.EXCLUDE,
-                FinalDecision.is_valid.is_(True),
-            )
-        )
-    )
+    eligible_ids = set(title_abstract_included_ids(db, project_id))
+    excluded_ids = set(full_text_excluded_ids(db, project_id))
     eligible_ids -= excluded_ids
     document_ids = (
         set(

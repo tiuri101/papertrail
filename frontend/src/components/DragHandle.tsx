@@ -2,6 +2,7 @@ import { useRef } from 'react'
 import type { DragEvent, KeyboardEvent, MouseEvent, PointerEvent } from 'react'
 
 import { IconDragHandle } from './icons'
+import { IconButton } from './Button'
 
 interface DragHandleProps {
   label: string
@@ -93,9 +94,11 @@ export function DragHandle({
   }
 
   return (
-    <button
+    <IconButton
       type="button"
-      className="icon-button field-drag-handle"
+      variant="ghost"
+      size="sm"
+      className="col-start-2 row-span-3 row-start-1 self-center cursor-grab touch-none border-transparent select-none active:cursor-grabbing pointer-coarse:size-11 pointer-coarse:min-h-11 pointer-coarse:min-w-11 [&_svg]:size-[18px]"
       draggable={!disabled}
       disabled={disabled}
       aria-label={`Reorder ${label}`}
@@ -110,6 +113,6 @@ export function DragHandle({
       onPointerCancel={handlePointerCancel}
     >
       <IconDragHandle />
-    </button>
+    </IconButton>
   )
 }

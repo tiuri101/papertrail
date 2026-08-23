@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react'
 import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { DragHandle } from '../../components/DragHandle'
 import { InfoBox } from '../../components/InfoBox'
@@ -551,43 +552,47 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
                     <tr><th scope="row">Average generated tokens</th><td>{Math.round(overview.data.statistics.averageGeneratedTokens ?? 0)}</td></tr>
                   </tbody>
                 </table>
-                <div className="llm-rerun-actions">
-                  <button
+                <div className="llm-rerun-actions" data-llm-rerun-actions="true">
+                  <Button
                     type="button"
+                    variant="secondary"
                     className="llm-stage-button"
                     style={stageButtonStyle('title_abstract_screening')}
                     onClick={() => reanalyze.mutate('title_abstract_screening')}
                     disabled={reanalyze.isPending || !settings.data?.titleAbstractScreeningEnabled}
                   >
                     Re-Run LLM Title/Abstract Screening
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
+                    variant="secondary"
                     className="llm-stage-button"
                     style={stageButtonStyle('full_text_screening')}
                     onClick={() => reanalyze.mutate('full_text_screening')}
                     disabled={reanalyze.isPending || !settings.data?.fullTextScreeningEnabled}
                   >
                     Re-Run LLM Full-Text Screening
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
+                    variant="secondary"
                     className="llm-stage-button"
                     style={stageButtonStyle('extraction_quality')}
                     onClick={() => reanalyze.mutate('data_extraction')}
                     disabled={reanalyze.isPending || !settings.data?.enabled}
                   >
                     Re-Run LLM Data Extraction
-                  </button>
-                  <button
+                  </Button>
+                  <Button
                     type="button"
+                    variant="secondary"
                     className="llm-stage-button"
                     style={stageButtonStyle('extraction_quality')}
                     onClick={() => reanalyze.mutate('extraction_validation')}
                     disabled={reanalyze.isPending || !settings.data?.extractionValidationEnabled}
                   >
                     Re-Run LLM Human Extraction Validation
-                  </button>
+                  </Button>
                 </div>
               </div>
               {overview.data.runs.some((run) => run.outdated) ? <p>Some results use an older schema version.</p> : null}

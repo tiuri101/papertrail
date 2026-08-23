@@ -1,11 +1,21 @@
+import { toolbarClass } from '../../components/layoutStyles'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { ActionListItem } from '../../components/ActionListItem'
+import { actionListItemClass } from '../../components/actionListStyles'
+import { Badge } from '../../components/Badge'
+import { Button, IconButton } from '../../components/Button'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { CountPill } from '../../components/CountPill'
+import { DetailList, DetailListRow } from '../../components/DetailList'
+import { cardStyles } from '../../components/Card'
+import { Page } from '../../components/Page'
 import { HighlightedText } from '../../components/HighlightedText'
+import { reviewWorkTitleTextClass } from '../../components/reviewWorkStyles'
+import { Input } from '../../components/Input'
 import {
   IconCheckCircle,
   IconDownload,
@@ -17,17 +27,22 @@ import {
   IconUpload,
 } from '../../components/icons'
 import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
+import { PublicationListSortHeader } from '../../components/PublicationListSortHeader'
 import { RowActionsMenu } from '../../components/RowActionsMenu'
+import { Select } from '../../components/Select'
 import { InfoTooltip } from '../../components/Tooltip'
+import { TabList, TabPanel } from '../../components/Tabs'
 import { FullTextDocumentPanel } from '../fulltext/FullTextDocumentPanel'
 import { AdministrationEyebrow } from '../projects/StageEyebrow'
 import { useCanManagePublications } from '../../hooks/useCanManageProject'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
+import { cn } from '../../lib/cn'
 import { BackgroundJob, findJob, hasActiveJob, isJobActive } from '../jobs/jobStatus'
 import { BrowserPdfRetrievalPanel } from '../fulltext/BrowserPdfRetrievalPanel'
 import { AddPublicationForm } from './AddPublicationPage'
 import { BulkPdfUploadPanel } from './BulkPdfUploadPanel'
 import { PublicationFieldInputs } from './publicationFields'
+
 import { PublicationDraft, toPayload } from './publicationFieldsData'
 import {
   primaryStage,
@@ -36,6 +51,10 @@ import {
   type PublicationSortKey,
   type SortDirection,
 } from './publicationShared'
+
+const dangerRowActionItemClass = actionListItemClass({ danger: true })
+
+const publicationRowGridClass = "grid grid-cols-[1.5rem_minmax(0,1fr)_3.25rem_9rem_6.5rem_4.5rem_4.5rem] items-center gap-3 [&>*]:min-w-0 max-[900px]:grid-cols-[1.5rem_auto_minmax(0,1fr)_auto_auto] max-[900px]:grid-rows-2 max-[900px]:[grid-template-areas:'checkbox_title_title_title_actions'_'._year_source_stage_pdf'] max-[900px]:gap-y-2 max-[600px]:grid-cols-[1.5rem_minmax(0,1fr)_auto] max-[600px]:grid-rows-4 max-[600px]:[grid-template-areas:'checkbox_title_actions'_'._source_source'_'._year_stage'_'._pdf_pdf']"
 
 const SCREENING_FILTER_OPTIONS = [
   { value: '', label: 'All' },
@@ -111,10 +130,10 @@ export function PublicationEditForm({
   return (
     <form onSubmit={(event) => { event.preventDefault(); update.mutate() }}>
       <PublicationFieldInputs draft={draft} setField={setField} />
-      {update.error ? <p className="error" role="alert">{update.error.message}</p> : null}
-      <div className="toolbar">
-        <button type="submit" disabled={update.isPending}><IconCheckCircle />Save</button>
-        <button type="button" className="button-secondary" onClick={onDone}>Cancel</button>
+      {update.error ? <p className="text-danger" role="alert">{update.error.message}</p> : null}
+      <div className={toolbarClass}>
+        <Button type="submit" disabled={update.isPending}><IconCheckCircle />Save</Button>
+        <Button type="button" variant="secondary" onClick={onDone}>Cancel</Button>
       </div>
     </form>
   )
@@ -207,12 +226,15 @@ function PublicationRow({
   const detailHref = `/projects/${projectId}/publications/${publication.id}`
 
   return (
-    <li className={`card publication-card${canManage ? ' publication-card--manageable' : ''}${selected ? ' publication-card--selected' : ''}`}>
-      <div className="publication-card__summary publication-row-grid">
-        <span className="publication-row-grid__checkbox">
+    <li data-publication-row="true" data-selected={selected || undefined} className={cn(
+      'relative rounded-md border border-border bg-linear-to-b from-surface-raised to-surface px-4 py-3 shadow-sm transition-[border-color,background-color,transform,box-shadow] duration-150 hover:-translate-y-0.5 hover:border-border-strong hover:shadow-md max-[600px]:px-3',
+      selected && 'border-primary bg-none bg-primary-container hover:border-primary',
+    )}>
+      <div className={publicationRowGridClass}>
+        <span className="flex items-center max-[900px]:[grid-area:checkbox]">
           {canManage ? (
-            <input
-              className="publication-card__checkbox"
+            <Input
+              className="shrink-0"
               type="checkbox"
               checked={selected}
               onChange={onToggleSelected}
@@ -220,20 +242,20 @@ function PublicationRow({
             />
           ) : null}
         </span>
-        <div className="publication-row-grid__title">
-          <Link className="publication-card__title-button" to={detailHref}>
-            <strong><HighlightedText text={publication.title} keywords={highlightKeywords} /></strong>
+        <div className="min-w-0 max-[900px]:[grid-area:title]">
+          <Link className="h-auto min-h-0 whitespace-normal text-left text-text [overflow-wrap:anywhere] hover:text-primary hover:no-underline" to={detailHref}>
+            <h2 className={reviewWorkTitleTextClass}><HighlightedText text={publication.title} keywords={highlightKeywords} /></h2>
           </Link>
-          <div className="publication-row-grid__authors">{publication.authors ?? 'Unknown authors'}</div>
+          <div className="overflow-hidden text-ellipsis whitespace-nowrap text-[0.86rem] text-text-secondary">{publication.authors ?? 'Unknown authors'}</div>
         </div>
-        <span className="publication-row-grid__year">{publication.publicationYear ?? '—'}</span>
-        <span className="publication-row-grid__source" title={publication.venue ?? undefined}>
+        <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[0.86rem] text-text-secondary max-[900px]:[grid-area:year]">{publication.publicationYear ?? '—'}</span>
+        <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[0.86rem] text-text-secondary max-[900px]:[grid-area:source] max-[600px]:w-full" title={publication.venue ?? undefined}>
           {publication.venue ?? '—'}
         </span>
-        <span className="publication-row-grid__stage">
-          <span className={`status-badge ${stage.className}`}>{stage.label}</span>
+        <span className="max-[900px]:[grid-area:stage]">
+          <Badge variant={stage.variant}>{stage.label}</Badge>
         </span>
-        <span className="publication-row-grid__pdf">
+        <span className="mr-2 flex items-center max-[900px]:[grid-area:pdf] max-[600px]:mr-0">
           <PdfAvailabilityPill
             available={Boolean(publication.fullText?.available)}
             href={`/api/v1/projects/${projectId}/publications/${publication.id}/full-text/content`}
@@ -241,55 +263,54 @@ function PublicationRow({
             compact
           />
         </span>
-        <span className="publication-row-grid__actions">
-          <Link
-            className="icon-button"
+        <span className="flex items-center justify-end gap-1 max-[900px]:[grid-area:actions] max-[600px]:self-start">
+          <IconButton
+            as={Link}
+            variant="secondary"
             to={detailHref}
             aria-label={`View ${publication.title}`}
             title="View details"
           >
             <IconEye />
-          </Link>
+          </IconButton>
           {canManage ? (
             <RowActionsMenu label={`More actions for ${publication.title}`}>
-              <Link className="row-actions-menu__item" to={`${detailHref}?edit=1`}>Edit Metadata</Link>
-              <button
+              <ActionListItem as={Link} to={`${detailHref}?edit=1`}>Edit Metadata</ActionListItem>
+              <ActionListItem
                 type="button"
-                className="row-actions-menu__item"
                 onClick={() => enrich.mutate()}
                 disabled={enrich.isPending || !publication.doi}
               >
                 Enrich Metadata
-              </button>
-              <button
+              </ActionListItem>
+              <ActionListItem
                 type="button"
-                className="row-actions-menu__item"
                 onClick={() => setShowFullText((current) => !current)}
               >
                 {showFullText ? 'Hide PDF' : publication.fullText?.available ? 'Manage PDF' : 'Attach PDF'}
-              </button>
-              <a
-                className="row-actions-menu__item"
+              </ActionListItem>
+              <ActionListItem
+                as="a"
                 href={`/api/v1/projects/${projectId}/publications/${publication.id}/export/bib`}
                 target="_blank"
                 rel="noreferrer"
               >
                 Export BibTeX
-              </a>
+              </ActionListItem>
               {publication.fullText?.available ? (
-                <a
-                  className="row-actions-menu__item"
+                <ActionListItem
+                  as="a"
                   href={`/api/v1/projects/${projectId}/publications/${publication.id}/export/pdf`}
                   target="_blank"
                   rel="noreferrer"
                 >
                   Export PDF
-                </a>
+                </ActionListItem>
               ) : null}
               <ConfirmButton
                 label="Delete"
                 variant="danger"
-                className="row-actions-menu__item row-actions-menu__item--danger"
+                className={dangerRowActionItemClass}
                 warning={`Delete "${publication.title}"? This cannot be undone.`}
                 onConfirm={() => remove.mutate()}
                 disabled={remove.isPending}
@@ -307,9 +328,9 @@ function PublicationRow({
           onRemoved={refreshPublications}
         />
       ) : null}
-      {enrich.isSuccess ? <p className="muted publication-row__message">Enrichment queued.</p> : null}
-      {enrich.error ? <p className="error" role="alert">{enrich.error.message}</p> : null}
-      {remove.error ? <p className="error" role="alert">{remove.error.message}</p> : null}
+      {enrich.isSuccess ? <p className="text-text-muted">Enrichment queued.</p> : null}
+      {enrich.error ? <p className="text-danger" role="alert">{enrich.error.message}</p> : null}
+      {remove.error ? <p className="text-danger" role="alert">{remove.error.message}</p> : null}
     </li>
   )
 }
@@ -342,104 +363,106 @@ function MetadataConflictsPanel({ projectId }: { projectId: string }) {
   if (!conflicts.error && (!conflicts.data || conflicts.data.length === 0)) return null
 
   return (
-    <section className="card metadata-conflicts" id="metadata-conflicts">
+    <section className={cardStyles} data-ui="card" id="metadata-conflicts">
       <h2>Metadata Conflicts</h2>
-      <p className="muted">Enrichment or a duplicate merge proposed a different value for a field that already had one. Review each side by side and choose which value to keep.</p>
-      {conflicts.error ? <p className="error" role="alert">{conflicts.error.message}</p> : null}
-      {resolve.error ? <p className="error" role="alert">{resolve.error.message}</p> : null}
-      <ul className="metadata-conflict-list">
+      <p className="text-text-muted">Enrichment or a duplicate merge proposed a different value for a field that already had one. Review each side by side and choose which value to keep.</p>
+      {conflicts.error ? <p className="text-danger" role="alert">{conflicts.error.message}</p> : null}
+      {resolve.error ? <p className="text-danger" role="alert">{resolve.error.message}</p> : null}
+      <ul className="mt-5 grid list-none gap-6 p-0">
         {conflicts.data?.map((conflict) => (
-          <li key={conflict.id} className="metadata-conflict-card">
-            <header className="metadata-conflict-card__header">
+          <li key={conflict.id} className="overflow-hidden rounded-lg border border-border bg-[color-mix(in_srgb,var(--color-surface)_92%,transparent)] shadow-sm">
+            <header className="flex items-center justify-between gap-4 border-b border-border bg-[color-mix(in_srgb,var(--color-surface-raised)_72%,transparent)] px-5 py-4 max-[680px]:flex-col max-[680px]:items-start max-[680px]:p-4 [&_h3]:mb-0 [&_h3]:mt-0.5 [&_h3]:text-base">
               <div>
-                <span className="eyebrow">Metadata conflict</span>
+                <span className="mb-1 block text-xs font-extrabold uppercase tracking-[0.08em] text-primary">Metadata conflict</span>
                 <h3>{conflict.publication?.title ?? conflict.currentValue ?? 'Publication'}</h3>
               </div>
-              <span className="metadata-conflict-card__source">
+              <span className="shrink-0 rounded-full bg-primary-container px-2.5 py-1 text-xs font-bold text-primary">
                 Proposed by {metadataSourceLabel(conflict.sourceName)}
               </span>
             </header>
-            <div className="metadata-conflict-comparison">
-              <section className="metadata-conflict-value metadata-conflict-value--current">
-                <header>
-                  <span className="metadata-conflict-value__label" aria-hidden="true">A</span>
+            <div className="grid grid-cols-[minmax(0,1fr)_minmax(13rem,0.62fr)_minmax(0,1fr)] [grid-template-areas:'current_reason_proposed'] items-stretch gap-5 p-5 max-[1020px]:grid-cols-2 max-[1020px]:[grid-template-areas:'current_proposed'_'reason_reason'] max-[680px]:grid-cols-1 max-[680px]:[grid-template-areas:'current'_'proposed'_'reason'] max-[680px]:p-4">
+              <section className="[--metadata-accent:var(--kw-1-fg)] [grid-area:current] min-w-0 overflow-hidden rounded-md border border-[color-mix(in_srgb,var(--metadata-accent)_32%,var(--color-border))] bg-bg-elevated">
+                <header className="flex items-center gap-3 border-b border-border bg-[color-mix(in_srgb,var(--metadata-accent)_8%,var(--color-surface-raised))] p-4 [&_h4]:m-0 [&_h4]:text-[0.95rem] [&_p]:mb-0 [&_p]:mt-0.5 [&_p]:text-xs [&_p]:text-text-muted">
+                  <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-sm border border-[color-mix(in_srgb,var(--metadata-accent)_55%,var(--color-border))] bg-[color-mix(in_srgb,var(--metadata-accent)_14%,transparent)] text-[1.05rem] font-extrabold text-(--metadata-accent) shadow-[0_0_0_3px_color-mix(in_srgb,var(--metadata-accent)_8%,transparent)]" aria-hidden="true">A</span>
                   <div>
                     <h4>Current Value</h4>
                     <p>{humanizeMetadataField(conflict.fieldName)}</p>
                   </div>
                 </header>
-                <div className="metadata-conflict-value__content">
-                  {conflict.currentValue ?? <span className="muted">(empty)</span>}
+                <div className="min-w-0 whitespace-pre-wrap p-5 text-[0.96rem] font-semibold leading-normal text-text [overflow-wrap:anywhere]">
+                  {conflict.currentValue ?? <span className="text-text-muted">(empty)</span>}
                 </div>
               </section>
-              <aside className="metadata-conflict-reason">
-                <span className="metadata-conflict-reason__icon" aria-hidden="true">
+              <aside className="[grid-area:reason] min-w-0 self-center rounded-md border border-[color-mix(in_srgb,var(--color-primary)_25%,var(--color-border))] bg-[color-mix(in_srgb,var(--color-primary-container)_52%,transparent)] p-4 text-center max-[1020px]:w-full max-[1020px]:text-left [&_h4]:mb-1 [&_h4]:mt-2 [&_h4]:text-sm [&_p]:m-0 [&_p]:text-[0.8rem] [&_p]:leading-normal [&_p]:text-text-secondary">
+                <span className="inline-flex size-8 items-center justify-center rounded-full bg-primary-container-hover text-primary [&_svg]:size-4 [&_svg]:fill-current" aria-hidden="true">
                   <IconSparkle />
                 </span>
                 <h4>Why was this proposed?</h4>
                 <p>{metadataConflictExplanation(conflict)}</p>
               </aside>
-              <section className="metadata-conflict-value metadata-conflict-value--proposed">
-                <header>
-                  <span className="metadata-conflict-value__label" aria-hidden="true">B</span>
+              <section className="[--metadata-accent:var(--kw-4-fg)] [grid-area:proposed] min-w-0 overflow-hidden rounded-md border border-[color-mix(in_srgb,var(--metadata-accent)_32%,var(--color-border))] bg-bg-elevated">
+                <header className="flex items-center gap-3 border-b border-border bg-[color-mix(in_srgb,var(--metadata-accent)_8%,var(--color-surface-raised))] p-4 [&_h4]:m-0 [&_h4]:text-[0.95rem] [&_p]:mb-0 [&_p]:mt-0.5 [&_p]:text-xs [&_p]:text-text-muted">
+                  <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-sm border border-[color-mix(in_srgb,var(--metadata-accent)_55%,var(--color-border))] bg-[color-mix(in_srgb,var(--metadata-accent)_14%,transparent)] text-[1.05rem] font-extrabold text-(--metadata-accent) shadow-[0_0_0_3px_color-mix(in_srgb,var(--metadata-accent)_8%,transparent)]" aria-hidden="true">B</span>
                   <div>
                     <h4>Proposed Value</h4>
                     <p>{humanizeMetadataField(conflict.fieldName)}</p>
                   </div>
                 </header>
-                <div className="metadata-conflict-value__content">
-                  {conflict.proposedValue ?? <span className="muted">(empty)</span>}
+                <div className="min-w-0 whitespace-pre-wrap p-5 text-[0.96rem] font-semibold leading-normal text-text [overflow-wrap:anywhere]">
+                  {conflict.proposedValue ?? <span className="text-text-muted">(empty)</span>}
                 </div>
               </section>
             </div>
             {conflict.publication ? (
-              <details className="metadata-conflict-card__details">
+              <details className="mx-5 mb-5 rounded-md border border-border bg-bg-elevated px-4 py-3 max-[680px]:mx-4 max-[680px]:mb-4 [&>summary]:cursor-pointer [&>summary]:text-[0.86rem] [&>summary]:font-semibold [&>summary]:text-primary">
                 <summary>All publication metadata</summary>
-                <dl className="detail-list metadata-conflict__metadata">
+                <DetailList className="[&_dd]:min-w-0 [&_dd]:[overflow-wrap:anywhere]">
                   {PUBLICATION_METADATA_FIELDS.map((field) => {
                     const value = field.value(conflict.publication!)
                     return (
-                      <div key={field.label} className="detail-list__row">
+                      <DetailListRow key={field.label}>
                         <dt>{field.label}</dt>
-                        <dd>{value || <span className="muted">(empty)</span>}</dd>
-                      </div>
+                        <dd>{value || <span className="text-text-muted">(empty)</span>}</dd>
+                      </DetailListRow>
                     )
                   })}
-                </dl>
+                </DetailList>
               </details>
             ) : null}
-            <section className="metadata-conflict-decision">
+            <section className="flex items-center justify-between gap-5 border-t border-border bg-[color-mix(in_srgb,var(--color-surface-raised)_52%,transparent)] px-5 py-4 max-[1020px]:flex-col max-[1020px]:items-start max-[680px]:p-4 [&_h4]:m-0 [&_p]:mb-0 [&_p]:mt-0.5 [&_p]:text-[0.8rem] [&_p]:text-text-muted">
               <div>
                 <h4>Your Decision</h4>
                 <p>Choose which value Papertrail should keep for this publication.</p>
               </div>
-              <div className="metadata-conflict-decision__actions">
-              <button
+              <div className="grid grid-cols-2 gap-3 max-[1020px]:w-full max-[680px]:grid-cols-1">
+              <Button
                 type="button"
-                className="metadata-conflict-decision__option metadata-conflict-decision__option--current"
+                variant="secondary"
+                className="h-auto min-h-17 min-w-0 justify-start whitespace-normal px-4 py-3 text-left hover:not-disabled:border-(--kw-1-fg)"
                 aria-label="Keep Current Value"
                 disabled={resolve.isPending}
                 onClick={() => resolve.mutate({ conflictId: conflict.id, acceptProposed: false })}
               >
-                <span className="metadata-conflict-decision__marker" aria-hidden="true" />
-                <span>
-                  <strong>Keep Current Value</strong>
-                  <small>Retain Value A</small>
+                <span className="inline-flex size-[1.4rem] shrink-0 items-center justify-center rounded-full border-2 border-[color-mix(in_srgb,var(--kw-1-fg)_62%,var(--color-border))] text-(--kw-1-fg)" aria-hidden="true" />
+                <span className="grid min-w-0 gap-1">
+                  <strong className="text-text">Keep Current Value</strong>
+                  <small className="text-xs font-medium text-text-muted">Retain Value A</small>
                 </span>
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                className="metadata-conflict-decision__option metadata-conflict-decision__option--proposed"
+                variant="secondary"
+                className="h-auto min-h-17 min-w-0 justify-start whitespace-normal px-4 py-3 text-left hover:not-disabled:border-(--kw-4-fg)"
                 aria-label="Use Proposed Value"
                 disabled={resolve.isPending}
                 onClick={() => resolve.mutate({ conflictId: conflict.id, acceptProposed: true })}
               >
-                <span className="metadata-conflict-decision__marker"><IconCheckCircle /></span>
-                <span>
-                  <strong>Use Proposed Value</strong>
-                  <small>Replace it with Value B</small>
+                <span className="inline-flex size-[1.4rem] shrink-0 items-center justify-center rounded-full border-2 border-[color-mix(in_srgb,var(--kw-4-fg)_62%,var(--color-border))] text-(--kw-4-fg) [&_svg]:size-3 [&_svg]:fill-current"><IconCheckCircle /></span>
+                <span className="grid min-w-0 gap-1">
+                  <strong className="text-text">Use Proposed Value</strong>
+                  <small className="text-xs font-medium text-text-muted">Replace it with Value B</small>
                 </span>
-              </button>
+              </Button>
               </div>
             </section>
           </li>
@@ -518,6 +541,14 @@ export function PublicationsPage() {
     () => sortPublications(filteredPublications, sortKey, sortDirection),
     [filteredPublications, sortKey, sortDirection],
   )
+
+  const toggleSort = (key: PublicationSortKey) => {
+    if (key === sortKey) setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+    else {
+      setSortKey(key)
+      setSortDirection('asc')
+    }
+  }
 
   const bulkEnrich = useMutation({
     mutationFn: (variables: { publicationIds?: string[]; missingOnly: boolean }) => apiRequest<{ jobIds: string[] }>(
@@ -601,37 +632,28 @@ export function PublicationsPage() {
   const visibleTabs = publicationsTabs.filter((tab) => tab.id !== 'metadata' || canManage)
 
   return (
-    <main className="page">
+    <Page>
       <AdministrationEyebrow />
       <h1>Publications</h1>
-      <p className="muted">
+      <p className="text-text-muted">
         Want to import a database export? Go to <Link to={`/projects/${projectId}/imports`}>Searches and Imports</Link>.
       </p>
-      <div className="page-tabs" role="tablist" aria-label="Publications sections">
-        {visibleTabs.map((tab) => (
-          <button
-            key={tab.id}
-            type="button"
-            role="tab"
-            id={`publications-tab-${tab.id}`}
-            aria-selected={tab.id === activeTab}
-            aria-controls={`publications-tabpanel-${tab.id}`}
-            className={`page-tab${tab.id === activeTab ? ' page-tab--active' : ''}`}
-            onClick={() => setActiveTab(tab.id)}
-          >
-            {tab.icon}
-            {tab.label}
-          </button>
-        ))}
-      </div>
-      <div
-        id={`publications-tabpanel-${activeTab}`}
-        className="page-tabpanel"
-        role="tabpanel"
-        aria-labelledby={`publications-tab-${activeTab}`}
-      >
+      <TabList
+        idPrefix="publications"
+        label="Publications sections"
+        activeId={activeTab}
+        onSelect={(id) => setActiveTab(id as PublicationsTabId)}
+        className="mb-6"
+        items={visibleTabs.map((tab) => ({ id: tab.id, label: <>{tab.icon}{tab.label}</> }))}
+      />
+      <TabPanel idPrefix="publications" id={activeTab}>
         {activeTab === 'publications' ? (
-          <>
+          // A plain block (not a Fragment): TabPanel's `flex flex-col gap-6` would otherwise
+          // apply between every one of this tab's direct children *in addition to* each one's
+          // own margin (gap and margin don't collapse together the way two margins do), roughly
+          // doubling every gap in this tab. Wrapping in a block lets each child's own margin
+          // collapse normally with its neighbors instead.
+          <div>
             {query.data && (search || titleAbstractFilter || fullTextFilter || pdfStatusFilter) ? (
               <CountPill count={filteredPublications.length}>
                 of {query.data.length} publications match your filters
@@ -641,12 +663,12 @@ export function PublicationsPage() {
                 publication{query.data.length === 1 ? '' : 's'} in this project
               </CountPill>
             ) : null}
-            {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
+            {query.error ? <p className="text-danger" role="alert">{query.error.message}</p> : null}
             {query.data ? (
-              <div className="toolbar publications-page__filters">
-                <label className="paper-search-field">
+              <div className="flex flex-wrap items-center gap-3">
+                <label className="w-full flex-[0_1_32rem]">
                   Search publications
-                  <input
+                  <Input
                     type="search"
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
@@ -655,31 +677,37 @@ export function PublicationsPage() {
                 </label>
                 <label>
                   Title/Abstract stage
-                  <select value={titleAbstractFilter} onChange={(event) => setTitleAbstractFilter(event.target.value)}>
+                  <Select value={titleAbstractFilter} onChange={(event) => setTitleAbstractFilter(event.target.value)}>
                     {SCREENING_FILTER_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>{option.label}</option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
                 <label>
                   Full-text stage
-                  <select value={fullTextFilter} onChange={(event) => setFullTextFilter(event.target.value)}>
+                  <Select value={fullTextFilter} onChange={(event) => setFullTextFilter(event.target.value)}>
                     {SCREENING_FILTER_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>{option.label}</option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
                 <label>
                   PDF status
-                  <select value={pdfStatusFilter} onChange={(event) => setPdfStatusFilter(event.target.value)}>
+                  <Select value={pdfStatusFilter} onChange={(event) => setPdfStatusFilter(event.target.value)}>
                     {PDF_STATUS_FILTER_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>{option.label}</option>
                     ))}
-                  </select>
+                  </Select>
                 </label>
                 <button
                   type="button"
-                  className={`publications-page__pdf-indicator${missingPdfCount ? ' publications-page__pdf-indicator--missing' : ''}${pdfStatusFilter === 'unavailable' ? ' publications-page__pdf-indicator--active' : ''}`}
+                  className={cn(
+                    'inline-flex min-h-11 w-fit items-center gap-2 self-end rounded-full border bg-none px-[11px] py-1.5 text-[0.82rem] font-bold shadow-none transition-colors hover:not-disabled:border-primary hover:not-disabled:bg-primary-container-hover hover:not-disabled:text-primary [&_svg]:size-4 [&_svg]:fill-current',
+                    missingPdfCount
+                      ? 'border-[color-mix(in_srgb,var(--color-warning)_32%,var(--color-border))] bg-warning-container text-warning'
+                      : 'border-[color-mix(in_srgb,var(--color-success)_28%,var(--color-border))] bg-success-container text-success',
+                    pdfStatusFilter === 'unavailable' && 'border-primary bg-primary-container text-primary shadow-[inset_0_0_0_1px_var(--color-primary)]',
+                  )}
                   aria-pressed={pdfStatusFilter === 'unavailable'}
                   disabled={missingPdfCount === 0}
                   onClick={() => setPdfStatusFilter((current) => (
@@ -691,9 +719,9 @@ export function PublicationsPage() {
                     ? `${missingPdfCount} paper${missingPdfCount === 1 ? '' : 's'} missing a PDF`
                     : 'All papers have a PDF'}
                 </button>
-                <label>
+                <label className="hidden max-[900px]:block">
                   Sort by
-                  <select
+                  <Select
                     value={`${sortKey}:${sortDirection}`}
                     onChange={(event) => {
                       const [key, direction] = event.target.value.split(':') as [PublicationSortKey, SortDirection]
@@ -713,14 +741,14 @@ export function PublicationsPage() {
                     <option value="stage:desc">Stage Z–A</option>
                     <option value="pdf:desc">PDF available first</option>
                     <option value="pdf:asc">PDF missing first</option>
-                  </select>
+                  </Select>
                 </label>
               </div>
             ) : null}
             {canManage && filteredPublications.length > 0 ? (
-              <div className="toolbar publication-list__bulk-actions">
+              <div className={`${toolbarClass} publication-list__bulk-actions`}>
                 <label>
-                  <input
+                  <Input
                     type="checkbox"
                     checked={allFilteredSelected}
                     onChange={toggleSelectAll}
@@ -729,27 +757,29 @@ export function PublicationsPage() {
                 </label>
                 {selectedIds.size > 0 ? (
                   <>
-                    <span className="muted">{selectedIds.size} selected</span>
-                    <button
+                    <span className="text-text-muted">{selectedIds.size} selected</span>
+                    <Button
                       type="button"
-                      className="button-secondary button-sm"
+                      variant="secondary"
+                      size="sm"
                       disabled={bulkEnrich.isPending}
                       onClick={() => bulkEnrich.mutate({ publicationIds: Array.from(selectedIds), missingOnly: false })}
                     >
                       <IconSparkle />
                       Enrich Selected Metadata ({selectedIds.size})
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
-                      className="button-secondary button-sm"
+                      variant="secondary"
+                      size="sm"
                       disabled={bulkExport.isPending || (pendingExportJob ? isJobActive(pendingExportJob.status) : false)}
                       onClick={() => bulkExport.mutate(Array.from(selectedIds))}
                     >
                       <IconDownload />
                       Export Selected ({selectedIds.size})
-                    </button>
+                    </Button>
                     <ConfirmButton
-                      className="button-sm"
+                      size="sm"
                       label={`Delete Selected (${selectedIds.size})`}
                       variant="danger"
                       warning={`Delete ${selectedIds.size} selected publication${selectedIds.size === 1 ? '' : 's'}? This cannot be undone.`}
@@ -761,15 +791,15 @@ export function PublicationsPage() {
                 ) : null}
               </div>
             ) : null}
-            {bulkEnrich.error ? <p className="error" role="alert">{bulkEnrich.error.message}</p> : null}
+            {bulkEnrich.error ? <p className="text-danger" role="alert">{bulkEnrich.error.message}</p> : null}
             {bulkEnrich.isSuccess ? <p>Enrichment queued for {bulkEnrich.data.jobIds.length} publication{bulkEnrich.data.jobIds.length === 1 ? '' : 's'}.</p> : null}
-            {bulkDelete.error ? <p className="error" role="alert">{bulkDelete.error.message}</p> : null}
-            {bulkExport.error ? <p className="error" role="alert">{bulkExport.error.message}</p> : null}
+            {bulkDelete.error ? <p className="text-danger" role="alert">{bulkDelete.error.message}</p> : null}
+            {bulkExport.error ? <p className="text-danger" role="alert">{bulkExport.error.message}</p> : null}
             {pendingExportJob && isJobActive(pendingExportJob.status) ? (
-              <p className="muted" role="status">Preparing export bundle (metadata.bib + PDFs)…</p>
+              <p className="text-text-muted" role="status">Preparing export bundle (metadata.bib + PDFs)…</p>
             ) : null}
             {pendingExportJob && pendingExportJob.status === 'failed' ? (
-              <p className="error" role="alert">
+              <p className="text-danger" role="alert">
                 Export failed{pendingExportJob.errorMessage ? `: ${pendingExportJob.errorMessage}` : ''}
               </p>
             ) : null}
@@ -781,7 +811,19 @@ export function PublicationsPage() {
                 </a>
               </p>
             ) : null}
-            <ul className="card-list stacked publication-list">
+            <div className={cn(publicationRowGridClass, 'mt-6 mb-2 px-4 text-[0.72rem] font-bold tracking-[0.04em] text-text-muted uppercase max-[900px]:hidden')}>
+              <span aria-hidden="true" />
+              <span className="flex items-center gap-0.5">
+                <PublicationListSortHeader label="Title" sortKey="title" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />{' / '}
+                <PublicationListSortHeader label="Authors" sortKey="authors" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+              </span>
+              <PublicationListSortHeader label="Year" sortKey="year" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+              <PublicationListSortHeader label="Source" sortKey="source" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+              <PublicationListSortHeader label="Stage" sortKey="stage" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+              <PublicationListSortHeader label="PDF" sortKey="pdf" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+              <span aria-hidden="true" />
+            </div>
+            <ul className="m-0 grid list-none gap-2 p-0">
               {sortedPublications.map((publication) => (
                 <PublicationRow
                   key={publication.id}
@@ -794,31 +836,31 @@ export function PublicationsPage() {
                 />
               ))}
             </ul>
-          </>
+          </div>
         ) : null}
         {activeTab === 'add' ? (
           <AddPublicationForm projectId={projectId} />
         ) : null}
         {activeTab === 'metadata' && canManage ? (
           <>
-            <section className="card" id="section-metadata-enrichment">
+            <section className={cardStyles} data-ui="card" id="section-metadata-enrichment">
               <h2>Metadata Enrichment</h2>
-              <p className="muted">
+              <p className="text-text-muted">
                 Fill in missing metadata from Crossref and Semantic Scholar for every record missing metadata.
                 <InfoTooltip text="Crossref and Semantic Scholar are free external scholarly databases. This looks up each publication there by DOI or title and fills in fields like abstract, venue, or citation count that are missing here — it doesn't overwrite fields you've already filled in." />
               </p>
-              {bulkEnrich.error ? <p className="error" role="alert">{bulkEnrich.error.message}</p> : null}
+              {bulkEnrich.error ? <p className="text-danger" role="alert">{bulkEnrich.error.message}</p> : null}
               {bulkEnrich.isSuccess ? <p>Enrichment queued for {bulkEnrich.data.jobIds.length} publication{bulkEnrich.data.jobIds.length === 1 ? '' : 's'}.</p> : null}
-              <div className="toolbar">
-                <button
+              <div className={toolbarClass}>
+                <Button
                   type="button"
-                  className="button-secondary button-md"
+                  variant="secondary"
                   disabled={bulkEnrich.isPending}
                   onClick={() => bulkEnrich.mutate({ missingOnly: true })}
                 >
                   <IconSparkle />
                   Enrich All Records with Missing Metadata
-                </button>
+                </Button>
               </div>
             </section>
             <MetadataConflictsPanel projectId={projectId} />
@@ -830,7 +872,7 @@ export function PublicationsPage() {
             {canManage ? <BulkPdfUploadPanel projectId={projectId} /> : null}
           </>
         ) : null}
-      </div>
-    </main>
+      </TabPanel>
+    </Page>
   )
 }

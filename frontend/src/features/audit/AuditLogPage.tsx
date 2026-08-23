@@ -1,22 +1,17 @@
+import { tableScrollClass } from '../../components/layoutStyles'
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Page } from '../../components/Page'
 import { CountPill } from '../../components/CountPill'
+import { Input } from '../../components/Input'
+import { Select } from '../../components/Select'
+import { SortableColumnHeader } from '../../components/SortableColumnHeader'
 import { InfoTooltip } from '../../components/Tooltip'
 import { useProjectManageState } from '../../hooks/useCanManageProject'
-
-interface AuditEvent {
-  id: string
-  createdAt: string
-  actorUsername: string | null
-  action: string
-  entityType: string
-  entityId: string | null
-  summary: string
-  metadata: Record<string, unknown>
-}
+import type { AuditEvent } from './types'
 
 type SortKey = 'createdAt' | 'actorUsername' | 'action' | 'entityType' | 'summary'
 type SortDirection = 'asc' | 'desc'
@@ -102,58 +97,58 @@ export function AuditLogPage() {
   }
 
   if (canManageLoading) {
-    return <main className="page"><p>Loading…</p></main>
+    return <Page><p>Loading…</p></Page>
   }
   if (!canManage) {
     return (
-      <main className="page">
+      <Page>
         <h1>Audit Log</h1>
-        <p className="error" role="alert">
+        <p className="text-danger" role="alert">
           Only the project owner or an administrator can view the audit log.
         </p>
-      </main>
+      </Page>
     )
   }
 
   return (
-    <main className="page">
+    <Page>
       <h1>Audit Log</h1>
-      <p className="muted">A record of significant actions taken on this project, most recent first.</p>
-      {events.error ? <p className="error" role="alert">{events.error.message}</p> : null}
+      <p className="text-text-muted">A record of significant actions taken on this project, most recent first.</p>
+      {events.error ? <p className="text-danger" role="alert">{events.error.message}</p> : null}
       {events.isLoading ? <p>Loading…</p> : null}
       {events.data && events.data.length === 0 ? <p>No audit events recorded yet.</p> : null}
       {events.data && events.data.length > 0 ? (
-        <div className="toolbar">
-          <label>
+        <div className="flex flex-wrap items-end gap-3">
+          <label className="grid gap-1 text-sm font-semibold text-text-secondary">
             Action
-            <select value={actionFilter} onChange={(event) => setActionFilter(event.target.value)}>
+            <Select value={actionFilter} onChange={(event) => setActionFilter(event.target.value)}>
               <option value="">All</option>
               {actionOptions.map((action) => (
                 <option key={action} value={action}>{action}</option>
               ))}
-            </select>
+            </Select>
           </label>
-          <label>
+          <label className="grid gap-1 text-sm font-semibold text-text-secondary">
             Entity
-            <select value={entityTypeFilter} onChange={(event) => setEntityTypeFilter(event.target.value)}>
+            <Select value={entityTypeFilter} onChange={(event) => setEntityTypeFilter(event.target.value)}>
               <option value="">All</option>
               {entityTypeOptions.map((entityType) => (
                 <option key={entityType} value={entityType}>{entityType}</option>
               ))}
-            </select>
+            </Select>
           </label>
-          <label>
+          <label className="grid gap-1 text-sm font-semibold text-text-secondary">
             User
-            <select value={actorFilter} onChange={(event) => setActorFilter(event.target.value)}>
+            <Select value={actorFilter} onChange={(event) => setActorFilter(event.target.value)}>
               <option value="">All</option>
               {actorOptions.map((actor) => (
                 <option key={actor} value={actor}>{actor}</option>
               ))}
-            </select>
+            </Select>
           </label>
-          <label>
+          <label className="grid gap-1 text-sm font-semibold text-text-secondary">
             Search
-            <input
+            <Input
               type="search"
               value={searchText}
               onChange={(event) => setSearchText(event.target.value)}
@@ -170,35 +165,30 @@ export function AuditLogPage() {
         </CountPill>
       ) : null}
       {sortedEvents.length ? (
-        <div className="table-scroll">
+        <div className={tableScrollClass}>
           <table>
-            <caption className="visually-hidden">Audit events</caption>
+            <caption className="sr-only">Audit events</caption>
             <thead>
               <tr>
-                {COLUMNS.map((column) => {
-                  const active = sortKey === column.key
-                  return (
-                    <th
-                      key={column.key}
-                      scope="col"
-                      aria-sort={active ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
-                    >
-                      <button type="button" className="link-button" onClick={() => toggleSort(column.key)}>
-                        {column.label}{active ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
-                      </button>
-                      {COLUMN_HELP[column.key] ? (
-                        <InfoTooltip text={COLUMN_HELP[column.key]!} label={`About ${column.label}`} placement="bottom" />
-                      ) : null}
-                    </th>
-                  )
-                })}
+                {COLUMNS.map((column) => (
+                  <SortableColumnHeader
+                    key={column.key}
+                    label={column.label}
+                    active={sortKey === column.key}
+                    direction={sortDirection}
+                    onSort={() => toggleSort(column.key)}
+                    accessory={COLUMN_HELP[column.key] ? (
+                      <InfoTooltip text={COLUMN_HELP[column.key]!} label={`About ${column.label}`} placement="bottom" />
+                    ) : null}
+                  />
+                ))}
               </tr>
             </thead>
             <tbody>
               {sortedEvents.map((event) => (
                 <tr key={event.id}>
                   <td>{new Date(event.createdAt).toLocaleString()}</td>
-                  <td>{event.actorUsername ?? <span className="muted">System</span>}</td>
+                  <td>{event.actorUsername ?? <span className="text-text-muted">System</span>}</td>
                   <td>{event.action}</td>
                   <td>{event.entityType}{event.entityId ? ` (${event.entityId})` : ''}</td>
                   <td>{event.summary}</td>
@@ -209,8 +199,8 @@ export function AuditLogPage() {
         </div>
       ) : null}
       {events.data && events.data.length > 0 && sortedEvents.length === 0 ? (
-        <p className="muted">No audit events match your filters.</p>
+        <p className="text-text-muted">No audit events match your filters.</p>
       ) : null}
-    </main>
+    </Page>
   )
 }

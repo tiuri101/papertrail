@@ -269,6 +269,107 @@ def test_update_field_type_is_blocked_once_responses_exist(db) -> None:
     assert renamed.label == "Key findings"
 
 
+def test_marking_a_field_required_reopens_completed_extraction_responses(db) -> None:
+    from app.conflicts.service import record_final_decision
+    from app.extraction.models import ExtractionStatus, ExtractionWorkItem
+    from app.extraction.service import (
+        claim_next_extraction,
+        initialize_extraction,
+        submit_extraction,
+    )
+    from app.projects.models import ProjectMembership, ProjectStage, ScreeningStage
+    from app.publications.models import Publication
+
+    reviewer = create_user(db, "r-extraction", "R Extraction", "password-1")
+    project = Project(
+        name="Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.EXTRACTION,
+    )
+    db.add(project)
+    db.flush()
+    db.add(
+        ProjectMembership(project_id=project.id, user_id=reviewer.id, can_extract=True)
+    )
+    form = create_form(db, "Extraction", FormKind.EXTRACTION, project_id=project.id)
+    optional = add_field(db, form, "Sample size", "short_text", required=False)
+    publication = Publication(project_id=project.id, title="Paper")
+    db.add(publication)
+    db.flush()
+    record_final_decision(
+        db, publication.id, ScreeningStage.FULL_TEXT, "include", "agreement", None, None
+    )
+    db.commit()
+
+    initialize_extraction(db, project)
+    db.commit()
+    item = claim_next_extraction(db, project.id, reviewer.id)
+    submit_extraction(db, item, reviewer.id, {optional.stable_key: "12"})
+    db.commit()
+    item_id = item.id
+    assert db.get(ExtractionWorkItem, item_id).status == ExtractionStatus.COMPLETED
+
+    update_field(db, form, optional.stable_key, required=True)
+    db.commit()
+
+    reopened = db.get(ExtractionWorkItem, item_id)
+    assert reopened.status == ExtractionStatus.AVAILABLE
+    assert reopened.completed_at is None
+
+
+def test_marking_a_field_required_reopens_completed_quality_responses(db) -> None:
+    from app.conflicts.service import record_final_decision
+    from app.projects.models import ProjectMembership, ProjectStage, ScreeningStage
+    from app.publications.models import Publication
+    from app.quality.models import QualityConfig, QualityStatus, QualityWorkItem
+    from app.quality.service import (
+        claim_next_quality,
+        initialize_quality,
+        submit_quality,
+    )
+
+    reviewer = create_user(db, "r-quality", "R Quality", "password-1")
+    project = Project(
+        name="Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.EXTRACTION,
+    )
+    db.add(project)
+    db.flush()
+    db.add(
+        ProjectMembership(
+            project_id=project.id, user_id=reviewer.id, can_assess_quality=True
+        )
+    )
+    db.add(QualityConfig(project_id=project.id))
+    form = create_form(db, "Quality", FormKind.QUALITY, project_id=project.id)
+    optional = add_field(db, form, "Reporting", "rating", required=False)
+    publication = Publication(project_id=project.id, title="Paper")
+    db.add(publication)
+    db.flush()
+    record_final_decision(
+        db, publication.id, ScreeningStage.FULL_TEXT, "include", "agreement", None, None
+    )
+    db.commit()
+
+    initialize_quality(db, project)
+    db.commit()
+    item = claim_next_quality(db, project.id, reviewer.id)
+    submit_quality(db, item, reviewer.id, {optional.stable_key: 3})
+    db.commit()
+    item_id = item.id
+    assert db.get(QualityWorkItem, item_id).status == QualityStatus.COMPLETED
+
+    update_field(db, form, optional.stable_key, required=True)
+    db.commit()
+
+    reopened = db.get(QualityWorkItem, item_id)
+    assert reopened.status == QualityStatus.AVAILABLE
+    assert reopened.completed_at is None
+
+
 def test_delete_field_removes_it_outright(db) -> None:
     form = create_form(db, "Extraction", FormKind.EXTRACTION, is_template=True)
     keep = add_field(db, form, "Main findings", "long_text", required=True)

@@ -12,17 +12,13 @@ reconciliation between two slots before it exists at all).
 from __future__ import annotations
 
 from collections.abc import Sequence
-from datetime import UTC, datetime
 from typing import Any
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.time import utcnow
 from app.extraction.models import FinalExtraction
-
-
-def utcnow() -> datetime:
-    return datetime.now(UTC)
 
 
 def get_current_final_extraction(

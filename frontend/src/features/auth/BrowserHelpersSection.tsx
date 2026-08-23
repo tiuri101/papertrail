@@ -1,8 +1,11 @@
 import { useState } from 'react'
 
+import { Button } from '../../components/Button'
+import { Card } from '../../components/Card'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { IconCopy, IconPlus, IconTrash, IconUpload } from '../../components/icons'
+import { toolbarClass } from '../../components/layoutStyles'
 import type { PairingSecret } from './useBrowserAgents'
 import { useBrowserAgents } from './useBrowserAgents'
 
@@ -35,21 +38,21 @@ export function BrowserHelpersSection() {
 
   return (
     <CollapsibleSection id="section-account-browser-helpers" title="Browser Helpers" icon={<IconUpload />}>
-      <p className="muted">
+      <p className="text-text">
         A paired Chrome extension can retrieve publisher PDFs using this computer&apos;s own
         network connection and browser sign-in (e.g. university IP access, VPN, or an
         institutional login already open in Chrome). Papertrail never receives your publisher
         credentials or browser cookies, only the resulting PDF.
       </p>
-      {agents.error ? <p className="error" role="alert">{agents.error.message}</p> : null}
-      {agents.isLoading ? <p className="muted">Loading browser helpers…</p> : null}
+      {agents.error ? <p className="text-danger" role="alert">{agents.error.message}</p> : null}
+      {agents.isLoading ? <p className="text-text">Loading browser helpers…</p> : null}
       {agents.data && agents.data.length > 0 ? (
-        <ul className="compact-list">
+        <ul className="mb-0 list-disc pl-6">
           {agents.data.map((agent) => (
             <li key={agent.id}>
               <strong>{agent.displayName}</strong>
               {' · '}
-              <span className="muted">
+              <span className="text-text">
                 Last connected: {formatDateTime(agent.lastSeenAt)}
                 {agent.extensionVersion ? ` · Extension v${agent.extensionVersion}` : ''}
               </span>
@@ -67,12 +70,12 @@ export function BrowserHelpersSection() {
           ))}
         </ul>
       ) : agents.data ? (
-        <p className="muted">No browser helper is paired with your account.</p>
+        <p className="text-text">No browser helper is paired with your account.</p>
       ) : null}
-      {revoke.error ? <p className="error" role="alert">{revoke.error.message}</p> : null}
+      {revoke.error ? <p className="text-danger" role="alert">{revoke.error.message}</p> : null}
 
       {pairingSecret ? (
-        <div className="card" role="region" aria-label="Pairing secret">
+        <Card role="region" aria-label="Pairing secret">
           <p>
             Papertrail server:
             <br />
@@ -83,29 +86,29 @@ export function BrowserHelpersSection() {
             <br />
             <code>{pairingSecret.pairingSecret}</code>
           </p>
-          <p className="muted">
+          <p className="text-text">
             Expires: {formatDateTime(pairingSecret.expiresAt)}. This secret is shown only once --
             paste it into the Chrome extension&apos;s setup page now.
           </p>
-          <div className="toolbar">
-            <button type="button" onClick={handleCopy}>
+          <div className={toolbarClass}>
+            <Button type="button" onClick={handleCopy}>
               <IconCopy />
               {copied ? 'Copied' : 'Copy'}
-            </button>
-            <button type="button" className="button-secondary" onClick={() => setPairingSecret(null)}>
+            </Button>
+            <Button type="button" variant="secondary" onClick={() => setPairingSecret(null)}>
               Done
-            </button>
+            </Button>
           </div>
-        </div>
+        </Card>
       ) : (
         <>
           {createPairingSecret.error ? (
-            <p className="error" role="alert">{createPairingSecret.error.message}</p>
+            <p className="text-danger" role="alert">{createPairingSecret.error.message}</p>
           ) : null}
-          <button type="button" onClick={handleCreatePairingSecret} disabled={createPairingSecret.isPending}>
+          <Button type="button" onClick={handleCreatePairingSecret} loading={createPairingSecret.isPending}>
             <IconPlus />
             Pair new browser helper
-          </button>
+          </Button>
         </>
       )}
     </CollapsibleSection>

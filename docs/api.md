@@ -1,65 +1,171 @@
 # API Overview
 
-The versioned API is exposed under `/api/v1`. FastAPI serves interactive OpenAPI documentation at `/docs` and the schema at `/openapi.json`.
+Papertrail exposes its versioned JSON API under `/api/v1`. FastAPI's generated OpenAPI output is the authoritative endpoint/schema reference:
 
-Authentication uses an opaque HTTP-only session cookie. The login and session-bootstrap responses provide a CSRF token. Mutating requests must include that token in the `X-CSRF-Token` header.
+- interactive Swagger UI: `/docs`
+- OpenAPI schema: `/openapi.json`
 
-Long-running operations return a background-job identifier. Poll `/api/v1/jobs/{job_id}` for status and progress. Generated artifacts are downloaded through authorization-checked project endpoints.
+This document describes conventions and the main endpoint groups. Do not treat it as a hand-maintained substitute for OpenAPI.
 
-Full-text document endpoints are publication-scoped:
+## Authentication and CSRF
 
-- `GET/POST/DELETE /projects/{projectId}/publications/{publicationId}/full-text`
-- `GET /projects/{projectId}/publications/{publicationId}/full-text/content`
-- `GET /projects/{projectId}/publications/{publicationId}/full-text/history`
-- `GET /projects/{projectId}/imports/{importId}/pdf-matches`
-- `POST /projects/{projectId}/imports/{importId}/pdf-matches/resolve`
+The web UI uses an opaque PostgreSQL-backed session stored in an HTTP-only cookie.
 
-PDF content is streamed only after project authorization with `application/pdf` and inline content disposition. Publication list/detail responses include a compact `fullText` availability object, avoiding one request per list item.
+Important authentication endpoints include:
+
+- `POST /api/v1/auth/login`
+- `POST /api/v1/auth/logout`
+- `GET /api/v1/auth/session`
+- `GET /api/v1/auth/me`
+- `PATCH /api/v1/auth/me`
+- `POST /api/v1/auth/forgot-password`
+- `POST /api/v1/auth/reset-password`
+
+Login/session responses include the current CSRF token. Mutating session-authenticated requests require it as:
+
+```http
+X-CSRF-Token: <token>
+```
+
+Browser Helper agent endpoints use a separate bearer-token mechanism described below; an agent token is not accepted as a replacement for a normal session cookie.
+
+## Health endpoints
+
+Health endpoints are not under `/api/v1`:
+
+- `GET /health` — process liveness;
+- `GET /ready` — application readiness marker. The current implementation returns `{"status":"ready"}` without probing PostgreSQL, workers, SMTP, or Ollama.
+
+Do not treat `/ready` as a full dependency health check in the current implementation; combine it with container/PostgreSQL/service checks.
+
+## Error and request conventions
+
+The API returns JSON domain errors through the central FastAPI error handlers. Authorization is enforced server-side even when the frontend hides an unavailable action.
+
+Generated file downloads and PDF streams are authorization checked. API responses under the versioned prefix are sent with `Cache-Control: no-store`, and security headers are added by application middleware.
+
+## Background jobs
+
+Long-running server-side operations return or expose a background-job identifier. Global job lookup endpoints are:
+
+- `GET /api/v1/jobs/{job_id}`
+- `GET /api/v1/jobs/{job_id}/error`
+
+Project job management is under:
+
+- `GET /api/v1/projects/{project_id}/jobs`
+- `GET /api/v1/projects/{project_id}/jobs/summary`
+- `POST /api/v1/projects/{project_id}/jobs/{job_id}/restart`
+- `POST /api/v1/projects/{project_id}/jobs/restart`
+
+Detailed error output is restricted according to project/administrator authorization.
+
+## Main endpoint groups
+
+The current API includes these major domains. Use `/docs` for exact methods, request bodies, response types, and permissions.
+
+| Area | Main path family |
+| --- | --- |
+| Accounts/users | `/auth/...`, `/users/...` |
+| Global Settings | `/instance-settings`, `/llm/installation-settings...` |
+| Projects/membership/configuration | `/projects...` |
+| Research questions/criteria/prompt settings | `/projects/{project_id}/...` |
+| Search documentation/imports/PDF matching | `/projects/{project_id}/searches...`, `/imports...`, `/pdf-matches...` |
+| Publications/metadata/enrichment | `/projects/{project_id}/publications...` |
+| Duplicate review | `/projects/{project_id}/duplicates...`, `/merges...` |
+| Screening | `/projects/{project_id}/screening...` |
+| Screening conflict resolution | `/projects/{project_id}/screening/{stage}/conflicts...` |
+| Full-text retrieval status | `/projects/{project_id}/full-text...` |
+| PDF documents | `/projects/{project_id}/publications/{publication_id}/full-text...` |
+| Browser Helper | `/browser-agents...`, `/browser-agent...`, `/projects/{project_id}/pdf-retrieval-batches...` |
+| Forms/templates | `/form-templates`, `/forms...`, `/projects/{project_id}/forms` |
+| Extraction/reconciliation | `/projects/{project_id}/extraction...` |
+| Quality assessment | `/projects/{project_id}/quality...` |
+| LLM assistance | `/llm/...`, `/projects/{project_id}/llm...`, item-specific LLM routes |
+| Analysis | `/projects/{project_id}/analysis...`, `/research-questions/{id}/analysis...` |
+| Reporting/exports | `/projects/{project_id}/prisma...`, `/final-results`, `/evidence-matrix...`, `/exports...` |
+| Audit/progress | `/projects/{project_id}/audit`, `/dashboard`, `/reviewer-progress` |
+| Integrity/lifecycle | `/projects/{project_id}/integrity...`, `/reopen`, `/move-back`, `/reset` |
+
+## Full-text document API
+
+Publication-scoped document endpoints include:
+
+- `GET /api/v1/projects/{project_id}/publications/{publication_id}/full-text`
+- `POST /api/v1/projects/{project_id}/publications/{publication_id}/full-text`
+- `DELETE /api/v1/projects/{project_id}/publications/{publication_id}/full-text`
+- `GET /api/v1/projects/{project_id}/publications/{publication_id}/full-text/content`
+- `GET /api/v1/projects/{project_id}/publications/{publication_id}/full-text/history`
+
+Bulk import/matching endpoints include project/import PDF-match routes under `/projects/{project_id}/imports/{import_batch_id}/pdf-matches` and `/projects/{project_id}/pdf-matches`.
+
+PDF content is streamed only after project authorization as `application/pdf` with inline disposition. Publication responses expose compact full-text availability information so list pages do not need one PDF-status request per publication.
 
 ## Browser-assisted PDF retrieval
 
-Session-authenticated endpoints (cookie + CSRF, same as the rest of the API):
+### Session-authenticated user endpoints
 
-- `POST/GET /browser-agents`, `POST /browser-agents/pairing-secrets`, `DELETE /browser-agents/{agentId}` -- pair, list, and revoke this account's browser helpers.
-- `POST /projects/{projectId}/pdf-retrieval-batches`, `GET .../pdf-retrieval-batches[/{batchId}]`, `GET .../pdf-retrieval-batches/missing-count`, `POST .../{batchId}/cancel`, `POST .../{batchId}/retry-failed` -- start and monitor a "retrieve missing PDFs" run for a project (requires full-text reviewer access).
+- `POST /api/v1/browser-agents/pairing-secrets` — create a one-time pairing secret;
+- `GET /api/v1/browser-agents` — list this user's paired helpers;
+- `DELETE /api/v1/browser-agents/{agent_id}` — revoke one helper;
+- `POST /api/v1/browser-agents/pair` — consume a pairing secret and return the agent bearer token exactly once. This endpoint is intentionally usable without an existing session because the one-time secret is the credential.
 
-Unauthenticated: `POST /browser-agents/pair` consumes a one-time pairing secret and returns the agent's bearer token exactly once.
+Project retrieval batches:
 
-Agent-authenticated endpoints (a paired extension's own opaque bearer token in `Authorization: Bearer <token>` -- this token is never accepted by, and never substitutes for, the session-cookie endpoints above):
+- `POST /api/v1/projects/{project_id}/pdf-retrieval-batches`
+- `GET /api/v1/projects/{project_id}/pdf-retrieval-batches`
+- `GET /api/v1/projects/{project_id}/pdf-retrieval-batches/missing-count`
+- `GET /api/v1/projects/{project_id}/pdf-retrieval-batches/{batch_id}`
+- `POST /api/v1/projects/{project_id}/pdf-retrieval-batches/{batch_id}/cancel`
+- `POST /api/v1/projects/{project_id}/pdf-retrieval-batches/{batch_id}/retry-failed`
 
-- `GET /browser-agent/me`
-- `GET /browser-agent/retrieval-jobs/pending-count`
-- `POST /browser-agent/retrieval-jobs/claim`
-- `POST /browser-agent/retrieval-jobs/{jobId}/state`
-- `POST /browser-agent/retrieval-jobs/{jobId}/upload`
-- `POST /browser-agent/retrieval-jobs/{jobId}/retry`
+Creating/cancelling/retrying a batch requires full-text-reviewer access (project owner/administrator also qualifies); read operations require project access.
 
-The claim response exposes only what the extension needs to retrieve one publication (id, title, DOI, publisher URL, and the byte limit/lease expiry) -- no reviewer notes, screening answers, or extraction data. The upload endpoint derives the target publication from the claimed job server-side; the extension cannot upload to an arbitrary publication ID. `pending-count` is a cheap, read-only count (no claiming, no per-project access re-check) the extension polls in the background every few minutes to show a badge; it never triggers retrieval by itself.
+### Agent-token endpoints
 
-## LLM assistance
+A paired extension sends `Authorization: Bearer <agent-token>` to:
 
-Project-manager endpoints under `/projects/{projectId}/llm` expose installation/project settings, connection testing, capability toggles, editable/versioned extraction-schema management, and paginated task diagnostics. `/projects/{projectId}/publications/{publicationId}/llm/run` queues extraction suggestions for a manager or assigned extractor.
+- `GET /api/v1/browser-agent/me`
+- `GET /api/v1/browser-agent/retrieval-jobs/pending-count`
+- `POST /api/v1/browser-agent/retrieval-jobs/claim`
+- `POST /api/v1/browser-agent/retrieval-jobs/{job_id}/state`
+- `POST /api/v1/browser-agent/retrieval-jobs/{job_id}/upload`
+- `POST /api/v1/browser-agent/retrieval-jobs/{job_id}/retry`
 
-Assigned screening reviewers use `GET/POST /projects/{projectId}/screening/work-items/{itemId}/llm-title-abstract` and `.../llm-full-text`. The title/abstract GET response is deliberately redacted to a `hidden` state until that reviewer has submitted a current decision; it does not return the run ID, status, model, decision, or reasoning. Extraction suggestions remain at `/projects/{projectId}/extraction/{itemId}/llm-suggestions`. When project validation is enabled, the validation cohort is queued only after every extraction work item is complete. `GET /projects/{projectId}/llm/extraction-validation-review` returns the authorized reviewer or manager overview, `GET /projects/{projectId}/extraction/{itemId}` opens a completed response for revision, and item-level `GET/POST .../llm-validation` reports or retries validation after the cohort gate has been reached.
+The claim response exposes only retrieval-relevant publication data. The upload route derives its publication from the claimed job server-side; an extension cannot supply an arbitrary target publication ID.
 
 ## Dual extraction and reconciliation
 
-- `GET/PUT /projects/{projectId}/extraction-config` — extractors-per-publication (1 or 2) and allocation mode; project manager only, and the reviewer count is rejected once any extraction response exists.
-- `GET /projects/{projectId}/extraction/publications/{publicationId}/final` — the authoritative `FinalExtraction` for a publication (any project member).
-- `GET /projects/{projectId}/extraction/reconciliation` — the derived reconciliation queue (publications where both slots are complete but no current final exists).
-- `GET /projects/{projectId}/extraction/reconciliation/{publicationId}` — both slots' answers, a per-field agree/disagree comparison, and full-text availability.
-- `POST /projects/{projectId}/extraction/reconciliation/{publicationId}` — submit a per-field A/B/manual resolution with a required note; writes a new `FinalExtraction` (`resolution_method: reconciliation`).
-- `POST /projects/{projectId}/extraction/{itemId}/override` — project-manager/administrator override of a publication's final extraction, with a required note (`resolution_method: override`).
+Representative endpoints:
 
-Reconciliation's GET and POST routes are both restricted to the project owner, an administrator, or a member with the `can_adjudicate` permission — not open to all project members, unlike most other GET endpoints in this project.
+- `GET/PUT /api/v1/projects/{project_id}/extraction-config`
+- `GET /api/v1/projects/{project_id}/extraction/publications/{publication_id}/final`
+- `GET /api/v1/projects/{project_id}/extraction/reconciliation`
+- `GET /api/v1/projects/{project_id}/extraction/reconciliation/{publication_id}`
+- `POST /api/v1/projects/{project_id}/extraction/reconciliation/{publication_id}`
+- `POST /api/v1/projects/{project_id}/extraction/{item_id}/override`
 
-## Reviewer analysis, Evidence Matrix, and research-question synthesis
+The final result is separate from the individual extraction work-item responses. Reconciliation routes are restricted to project managers or members with adjudication permission.
 
-- `GET /projects/{projectId}/analysis/reviewer-analysis/{stage}` — anonymized inter-rater agreement (`title_abstract` or `full_text`); any project member. Every field is a pseudonym or a statistic — no user ID, membership ID, username, display name, or email ever appears in the response.
-- `POST /projects/{projectId}/evidence-matrix` — paginated, filterable, searchable matrix of every included publication against every extraction/quality field; any project member. Filters are sent as a JSON body (per-field predicates) rather than query params.
-- `GET /projects/{projectId}/evidence-matrix/cell/{publicationId}/{sourceType}/{fieldKey}` — one cell's authoritative value, resolution method, and traceable evidence, if any.
-- `GET /projects/{projectId}/research-questions/{researchQuestionId}/analysis` — the latest successful LLM synthesis run for one research question, plus whether it's stale relative to current data.
-- `GET .../analysis/history` — every synthesis run for that research question, oldest results included (immutable run history, never overwritten).
-- `POST .../analysis/regenerate` — queue a new synthesis run; any project member (`require_project_member_csrf`), matching the existing stage-narrative regeneration permission. A no-op (returns the existing run) when the input fingerprint hasn't changed since the last run.
+## Analysis and Evidence Matrix
 
-Research-question synthesis and the stage-result narrative panels share one project-level toggle (`analysisNarrativeEnabled` under the project's LLM settings) — disabling it hides/rejects both.
+Representative endpoints:
+
+- `GET /api/v1/projects/{project_id}/analysis/reviewer-analysis/{stage}`
+- `POST /api/v1/projects/{project_id}/evidence-matrix`
+- `GET /api/v1/projects/{project_id}/evidence-matrix/cell/{publication_id}/{source_type}/{field_key}`
+- `GET /api/v1/projects/{project_id}/research-questions/{research_question_id}/analysis`
+- `GET /api/v1/projects/{project_id}/research-questions/{research_question_id}/analysis/history`
+- `POST /api/v1/projects/{project_id}/research-questions/{research_question_id}/analysis/regenerate`
+
+Reviewer-analysis responses are anonymized. Evidence Matrix cell details return authoritative value/resolution information and traceable evidence when available.
+
+## Global Settings API
+
+Installation administrators can read/update selected persisted instance settings with:
+
+- `GET /api/v1/instance-settings`
+- `PATCH /api/v1/instance-settings`
+- `POST /api/v1/instance-settings/test-email`
+
+LLM installation settings/prompts use `/api/v1/llm/installation-settings...` routes. See [Configuration](configuration.md) for precedence and the process-level settings that still come directly from the environment.

@@ -6,6 +6,7 @@ import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { IconAlertTriangle, IconRestart } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
+import { Select } from '../../components/Select'
 import { activeStages, humanizeStage, stageOrder, stages } from './lifecycleStages'
 
 export function MoveProjectBackPanel({ projectId }: { projectId: string }) {
@@ -39,7 +40,7 @@ export function MoveProjectBackPanel({ projectId }: { projectId: string }) {
   if (!isActiveStage || !moveBackOptions.length) return null
 
   return (
-    <CollapsibleSection id="section-move-project-back" title="Move Project Back" className="danger-zone" icon={<IconRestart />}>
+    <CollapsibleSection id="section-move-project-back" title="Move Project Back" tone="danger" icon={<IconRestart />}>
       <InfoBox icon={<IconAlertTriangle />} tone="warning">
         <p>
           Move an in-progress project back to an earlier stage. Screening decisions, duplicate
@@ -49,15 +50,15 @@ export function MoveProjectBackPanel({ projectId }: { projectId: string }) {
           (criteria, forms, members), are left untouched.
         </p>
       </InfoBox>
-      {moveBack.error ? <p className="error" role="alert">{moveBack.error.message}</p> : null}
+      {moveBack.error ? <p className="text-danger" role="alert">{moveBack.error.message}</p> : null}
       <label>
         Move back to
-        <select
+        <Select
           value={moveBackTarget}
           onChange={(event) => setMoveBackTarget(event.target.value)}
         >
           {moveBackOptions.map((stage) => <option key={stage} value={stage}>{humanizeStage(stage)}</option>)}
-        </select>
+        </Select>
       </label>
       <ConfirmButton
         label="Move Project Back"

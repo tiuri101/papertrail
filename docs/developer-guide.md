@@ -22,7 +22,7 @@ cp .env.development.example .env.development
 ./scripts/dev.sh create-admin
 ```
 
-Run the API, worker, and frontend in separate terminals on macOS or Linux.
+Run the API, normal worker, LLM worker, and frontend in separate terminals on macOS or Linux. The LLM worker can remain idle when LLM support is disabled.
 
 ## Development URLs
 
@@ -67,11 +67,11 @@ See [local development](local-development.md#browser-extension-development) for 
 
 ## Branching and releasing
 
-Day-to-day work happens on `dev`. Changes reach `main` only through a pull request from `dev`. Pull requests run the full backend and frontend test suites; that PR run is the only place tests execute, so `main` must require those checks to pass before allowing a merge (branch protection).
+Day-to-day work happens on `dev`. Changes reach `main` only through a pull request from `dev`. Pull requests and manually dispatched (`workflow_dispatch`) CI runs execute the backend, frontend, and Browser Helper verification jobs. Pushes to `main`/release tags do not run those test jobs, so branch protection should require the pull-request checks before merge.
 
-Pushes to `main` (i.e. a merged pull request) skip the test suites and instead release automatically. CI derives the next `YEAR.MONTH.PATCH` version (e.g. `2026.07.01`, then `2026.07.02` for the next release the same month) from the highest existing tag for the current year and month, builds and pushes `tiuri101/papertrail-backend` and `tiuri101/papertrail-frontend` images tagged with that version, tags the merge commit, and creates the GitHub release with generated notes. There is no manual release step.
+Pushes to `main` (i.e. a merged pull request) skip the test jobs and release automatically. CI derives the next `YEAR.MONTH.PATCH` version (e.g. `2026.07.01`, then `2026.07.02` for the next release the same month) from the highest existing tag for the current year/month, builds and pushes `linux/amd64` `tiuri101/papertrail-backend` and `tiuri101/papertrail-frontend` images, builds the Browser Helper, packages it as `papertrail-browser-extension-<version>.zip`, and creates the GitHub release with generated notes plus that ZIP. There is no manual release step for a normal merge to `main`.
 
-An out-of-band release can still be cut by pushing an annotated tag matching `YEAR.MONTH.PATCH` directly (e.g. for a hotfix); CI treats a tag push the same way and releases that exact version.
+An out-of-band release can still be cut by pushing a tag matching `YEAR.MONTH.PATCH` directly (e.g. for a hotfix); CI treats the tag value as the exact release version, builds/pushes the images, packages the Browser Helper, and creates the release.
 
 ## Design rules
 
@@ -84,3 +84,10 @@ An out-of-band release can still be cut by pushing an annotated tag matching `YE
 - Do not start important background work from FastAPI request threads; enqueue it for the persistent worker.
 - Keep frontend server state in TanStack Query and validate authoritative rules again in FastAPI.
 - Keep publisher-specific logic (PDF discovery, redirect handling, publisher HTTP quirks) inside `browser-extension/`, not the backend; the backend should only ever understand a publication, a retrieval job, a browser agent, and a PDF result. FastAPI still validates every uploaded PDF independently -- the extension's own checks are only an early rejection, never the authority.
+
+## Related documentation
+
+- [Configuration reference](configuration.md)
+- [Browser Helper](browser-helper.md)
+- [API overview](api.md)
+- [Architecture](architecture.md)

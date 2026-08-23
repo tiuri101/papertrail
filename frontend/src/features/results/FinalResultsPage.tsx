@@ -3,7 +3,13 @@ import { Link, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
 import { CountPill } from '../../components/CountPill'
+import { Input } from '../../components/Input'
+import { toolbarClass } from '../../components/layoutStyles'
+import { Page } from '../../components/Page'
+import { Select } from '../../components/Select'
+import { SortableColumnHeader } from '../../components/SortableColumnHeader'
 import { StageEyebrow } from '../projects/StageEyebrow'
 
 interface FieldMeta {
@@ -231,22 +237,22 @@ export function FinalResultsPage() {
   }
 
   return (
-    <main className="page">
+    <Page>
       <StageEyebrow stage="completed" />
       <h1>Final Results</h1>
-      <p className="muted">
+      <p className="text-text-muted">
         Every publication included in the review, with its data extraction
         {query.data?.qualityEnabled ? ' and quality assessment' : ''} results. This data can also
         be downloaded from the <Link to={`/projects/${projectId}/reporting`}>Reporting and Exports</Link> page.
       </p>
-      {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
+      {query.error ? <p className="text-danger" role="alert">{query.error.message}</p> : null}
       {query.isLoading ? <p>Loading…</p> : null}
       {query.data ? (
         <>
-          <div className="toolbar">
-            <label>
+          <div className="flex flex-wrap items-end gap-3">
+            <label className="grid gap-1 text-sm font-semibold text-text-secondary">
               Search
-              <input
+              <Input
                 type="search"
                 value={search}
                 onChange={(event) => {
@@ -256,9 +262,9 @@ export function FinalResultsPage() {
                 placeholder="Filter by title, author, DOI, or any answer…"
               />
             </label>
-            <label>
+            <label className="grid gap-1 text-sm font-semibold text-text-secondary">
               Rows per page
-              <select
+              <Select
                 value={pageSize}
                 onChange={(event) => {
                   setPageSize(Number(event.target.value))
@@ -268,7 +274,7 @@ export function FinalResultsPage() {
                 {PAGE_SIZE_OPTIONS.map((size) => (
                   <option key={size} value={size}>{size}</option>
                 ))}
-              </select>
+              </Select>
             </label>
           </div>
           <CountPill count={sortedItems.length}>
@@ -278,24 +284,19 @@ export function FinalResultsPage() {
           {sortedItems.length === 0 ? (
             <p>No publications match your search.</p>
           ) : (
-            <div style={{ overflowX: 'auto' }}>
+            <div className="overflow-x-auto">
               <table>
                 <thead>
                   <tr>
-                    {columns.map((column) => {
-                      const isSorted = sortKey === column.key
-                      return (
-                        <th key={column.key} scope="col" aria-sort={isSorted ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}>
-                          <button
-                            type="button"
-                            className="link-button"
-                            onClick={() => toggleSort(column.key)}
-                          >
-                            {column.label}{isSorted ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
-                          </button>
-                        </th>
-                      )
-                    })}
+                    {columns.map((column) => (
+                      <SortableColumnHeader
+                        key={column.key}
+                        label={column.label}
+                        active={sortKey === column.key}
+                        direction={sortDirection}
+                        onSort={() => toggleSort(column.key)}
+                      />
+                    ))}
                   </tr>
                 </thead>
                 <tbody>
@@ -311,18 +312,18 @@ export function FinalResultsPage() {
             </div>
           )}
           {pageCount > 1 ? (
-            <div className="toolbar">
-              <button type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={currentPage <= 1}>
+            <div className={toolbarClass}>
+              <Button type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={currentPage <= 1}>
                 Previous
-              </button>
+              </Button>
               <span>Page {currentPage} of {pageCount}</span>
-              <button type="button" onClick={() => setPage((current) => Math.min(pageCount, current + 1))} disabled={currentPage >= pageCount}>
+              <Button type="button" onClick={() => setPage((current) => Math.min(pageCount, current + 1))} disabled={currentPage >= pageCount}>
                 Next
-              </button>
+              </Button>
             </div>
           ) : null}
         </>
       ) : null}
-    </main>
+    </Page>
   )
 }

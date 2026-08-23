@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
-
 from sqlalchemy import delete, select, update
 from sqlalchemy.orm import Session
 
 from app.audit.models import AuditEvent
 from app.audit.service import record_audit
 from app.conflicts.models import FinalDecision
+from app.core.time import utcnow
 from app.deduplication.models import DuplicateCandidate, PublicationMerge
 from app.extraction.models import (
     ExtractionResponse,
@@ -31,24 +30,8 @@ from app.quality.models import (
     QualityWorkItem,
 )
 from app.reporting.models import ExportArtifact
-from app.screening.models import ScreeningDecision, ScreeningOutcome, ScreeningWorkItem
-
-
-def utcnow() -> datetime:
-    return datetime.now(UTC)
-
-
-def included_publication_ids(db: Session, project_id: str) -> set[str]:
-    return set(
-        db.scalars(
-            select(FinalDecision.publication_id).where(
-                FinalDecision.project_id == project_id,
-                FinalDecision.stage == ScreeningStage.FULL_TEXT,
-                FinalDecision.outcome == ScreeningOutcome.INCLUDE,
-                FinalDecision.is_valid.is_(True),
-            )
-        )
-    )
+from app.screening.cohorts import full_text_included_ids
+from app.screening.models import ScreeningDecision, ScreeningWorkItem
 
 
 def evaluate_project_completion(db: Session, project: Project) -> bool:
@@ -63,7 +46,7 @@ def evaluate_project_completion(db: Session, project: Project) -> bool:
     if not full_text_work_completed(db, project):
         return False
 
-    included_ids = included_publication_ids(db, project.id)
+    included_ids = set(full_text_included_ids(db, project.id))
     extraction_items = list(
         db.scalars(
             select(ExtractionWorkItem).where(
@@ -383,7 +366,7 @@ def project_integrity_issues(db: Session, project: Project) -> list[dict[str, st
     # workflow drift. Only validate downstream coverage once the project has
     # actually reached a stage where those items must exist.
     if project.stage in {ProjectStage.EXTRACTION, ProjectStage.COMPLETED}:
-        included_ids = included_publication_ids(db, project.id)
+        included_ids = set(full_text_included_ids(db, project.id))
         extraction_ids = set(
             db.scalars(
                 select(ExtractionWorkItem.publication_id).where(
@@ -480,17 +463,15 @@ def reconcile_workflow_integrity(
     (and so already queued a FullTextRetrieval row and a full-text
     ScreeningWorkItem) got revised away from INCLUDE. New decisions retract
     that work automatically (see
-    conflicts.service._retract_full_text_work_for_excluded_publication), but
-    older drift -- from before that fix, or from any other path that leaves a
+    conflicts.service.retract_full_text_work_for_publication), but older
+    drift -- from before that fix, or from any other path that leaves a
     stray row behind -- needs a one-time sweep. Also retries the full-text ->
     extraction transition and backfills any extraction/quality work items
     still missing for currently-included publications once that's unblocked.
     """
-    from app.fulltext.service import (
-        title_abstract_included_ids,
-        transition_if_full_text_complete,
-    )
-    from app.screening.models import WorkItemStatus
+    from app.conflicts.service import retract_full_text_work_for_publication
+    from app.fulltext.service import transition_if_full_text_complete
+    from app.screening.cohorts import title_abstract_included_ids
 
     currently_included = set(title_abstract_included_ids(db, project.id))
     stray_publication_ids = (
@@ -514,44 +495,11 @@ def reconcile_workflow_integrity(
     removed_work_items = 0
     removed_retrievals = 0
     for publication_id in stray_publication_ids:
-        unsubmitted_item_ids = list(
-            db.scalars(
-                select(ScreeningWorkItem.id).where(
-                    ScreeningWorkItem.publication_id == publication_id,
-                    ScreeningWorkItem.stage == ScreeningStage.FULL_TEXT,
-                    ScreeningWorkItem.status != WorkItemStatus.SUBMITTED,
-                )
-            )
+        item_count, retrieval_count = retract_full_text_work_for_publication(
+            db, publication_id
         )
-        if unsubmitted_item_ids:
-            db.execute(
-                delete(ScreeningWorkItem).where(
-                    ScreeningWorkItem.id.in_(unsubmitted_item_ids)
-                )
-            )
-            removed_work_items += len(unsubmitted_item_ids)
-        remaining = db.scalar(
-            select(ScreeningWorkItem.id).where(
-                ScreeningWorkItem.publication_id == publication_id,
-                ScreeningWorkItem.stage == ScreeningStage.FULL_TEXT,
-            )
-        )
-        if remaining is None:
-            had_retrieval = (
-                db.scalar(
-                    select(FullTextRetrieval.id).where(
-                        FullTextRetrieval.publication_id == publication_id
-                    )
-                )
-                is not None
-            )
-            db.execute(
-                delete(FullTextRetrieval).where(
-                    FullTextRetrieval.publication_id == publication_id
-                )
-            )
-            if had_retrieval:
-                removed_retrievals += 1
+        removed_work_items += item_count
+        removed_retrievals += retrieval_count
     db.flush()
 
     transitioned = False

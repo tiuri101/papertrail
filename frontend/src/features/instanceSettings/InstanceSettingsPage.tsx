@@ -1,11 +1,16 @@
+import { toolbarClass } from '../../components/layoutStyles'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { Badge } from '../../components/Badge'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { Button } from '../../components/Button'
 import { InfoBox } from '../../components/InfoBox'
+import { Input } from '../../components/Input'
+import { Page } from '../../components/Page'
 import { SectionNavigationLayout } from '../../components/SectionNavigationLayout'
+import { Textarea } from '../../components/Textarea'
 import {
   IconAlertTriangle,
   IconCheckCircle,
@@ -267,10 +272,10 @@ export function InstanceSettingsPage() {
 
   return (
     <SectionNavigationLayout items={instanceSettingsSections}>
-      <main className="page">
-        <p className="eyebrow">Installation administration</p>
+      <Page>
+        <p className="mb-1 block text-xs font-extrabold uppercase tracking-[0.08em] text-primary">Installation administration</p>
         <h1>Global Settings</h1>
-        <p className="muted">
+        <p className="text-text-muted">
           Settings shared across every project on this Papertrail installation.
         </p>
   
@@ -283,15 +288,15 @@ export function InstanceSettingsPage() {
           </InfoBox>
           {connection.data ? (
             <form
-              className="llm-installation-settings"
+              className="my-5 rounded-md border border-[color-mix(in_srgb,var(--color-primary)_30%,var(--color-border))] bg-primary-container p-5"
               onSubmit={(event) => { event.preventDefault(); saveConnection.mutate() }}
             >
-              <div className="llm-installation-settings__heading">
+              <div className="flex flex-col items-stretch justify-between gap-4 min-[681px]:flex-row min-[681px]:items-start [&_h3]:m-0 [&_p]:mt-1">
                 <div>
                   <h3>Connection configuration</h3>
                 </div>
-                <label className="toggle-label">
-                  <input
+                <label className="flex items-center gap-2">
+                  <Input
                     type="checkbox"
                     checked={enabled}
                     onChange={(event) => setEnabled(event.target.checked)}
@@ -299,10 +304,10 @@ export function InstanceSettingsPage() {
                   LLM enabled
                 </label>
               </div>
-              <div className="llm-installation-settings__grid">
+              <div className="my-5 grid grid-cols-1 gap-4 min-[681px]:grid-cols-2 min-[1051px]:grid-cols-[2fr_1fr_1fr]">
                 <label>
                   Endpoint
-                  <input
+                  <Input
                     type="url"
                     value={endpoint}
                     onChange={(event) => setEndpoint(event.target.value)}
@@ -312,7 +317,7 @@ export function InstanceSettingsPage() {
                 </label>
                 <label>
                   Model
-                  <input
+                  <Input
                     value={model}
                     onChange={(event) => setModel(event.target.value)}
                     placeholder="gemma3:12b"
@@ -321,7 +326,7 @@ export function InstanceSettingsPage() {
                 </label>
                 <label>
                   Context length
-                  <input
+                  <Input
                     type="number"
                     min="4096"
                     step="1024"
@@ -332,7 +337,7 @@ export function InstanceSettingsPage() {
                 </label>
                 <label>
                   API key
-                  <input
+                  <Input
                     type="password"
                     value={apiKey}
                     onChange={(event) => setApiKey(event.target.value)}
@@ -342,7 +347,7 @@ export function InstanceSettingsPage() {
                 </label>
                 <label>
                   Request timeout (seconds)
-                  <input
+                  <Input
                     type="number"
                     min="1"
                     value={requestTimeoutSeconds}
@@ -352,7 +357,7 @@ export function InstanceSettingsPage() {
                 </label>
                 <label>
                   Max concurrent jobs
-                  <input
+                  <Input
                     type="number"
                     min="1"
                     value={maxConcurrentJobs}
@@ -362,7 +367,7 @@ export function InstanceSettingsPage() {
                 </label>
                 <label>
                   Max evidence items
-                  <input
+                  <Input
                     type="number"
                     min="1"
                     max="10"
@@ -373,7 +378,7 @@ export function InstanceSettingsPage() {
                 </label>
                 <label>
                   Max evidence quote length (characters)
-                  <input
+                  <Input
                     type="number"
                     min="50"
                     max="2000"
@@ -383,7 +388,7 @@ export function InstanceSettingsPage() {
                   />
                 </label>
               </div>
-              <div className="toolbar">
+              <div className={toolbarClass}>
                 <Button type="submit" loading={saveConnection.isPending}>
                   <IconCheckCircle />
                   {saveConnection.isPending ? 'Saving…' : 'Save Connection Settings'}
@@ -400,11 +405,11 @@ export function InstanceSettingsPage() {
             </form>
           ) : null}
           {testResult ? (
-            <p className={testResult.ok ? 'success' : 'error'} role={testResult.ok ? 'status' : 'alert'}>
+            <p className={testResult.ok ? 'text-success' : 'text-danger'} role={testResult.ok ? 'status' : 'alert'}>
               {testResult.message}
             </p>
           ) : null}
-          {saveConnection.error ? <p className="error" role="alert">{saveConnection.error.message}</p> : null}
+          {saveConnection.error ? <p className="text-danger" role="alert">{saveConnection.error.message}</p> : null}
         </CollapsibleSection>
   
         <CollapsibleSection id="section-instance-llm-prompts" title="AI Prompts" icon={<IconLightbulb />}>
@@ -415,16 +420,16 @@ export function InstanceSettingsPage() {
               settings.
             </p>
           </InfoBox>
-          {prompts.error ? <p className="error" role="alert">{prompts.error.message}</p> : null}
+          {prompts.error ? <p className="text-danger" role="alert">{prompts.error.message}</p> : null}
           {prompts.data?.flows.map((flow) => (
-            <div className="prompt-flow" key={flow.key}>
+            <div data-prompt-flow={flow.key} className="border-t border-border pt-4 first:border-t-0 first:pt-0 [&>*+*]:mt-4" key={flow.key}>
               <h3>
                 {flow.label}
-                {flow.isOverridden ? <span className="status-badge">Customized</span> : null}
+                {flow.isOverridden ? <Badge variant="plain">Customized</Badge> : null}
               </h3>
               <label>
                 Base prompt
-                <textarea
+                <Textarea
                   value={promptDraft[flow.key] ?? ''}
                   onChange={(event) => setPromptDraft((current) => ({
                     ...current, [flow.key]: event.target.value,
@@ -432,7 +437,7 @@ export function InstanceSettingsPage() {
                   rows={8}
                 />
               </label>
-              <div className="toolbar">
+              <div className={toolbarClass}>
                 <Button
                   type="button"
                   variant="secondary"
@@ -444,13 +449,13 @@ export function InstanceSettingsPage() {
               </div>
             </div>
           ))}
-          <div className="toolbar">
+          <div className={toolbarClass}>
             <Button type="button" onClick={savePromptsIfChanged} loading={savePrompts.isPending} disabled={!prompts.data}>
               <IconCheckCircle />
               {savePrompts.isPending ? 'Saving…' : 'Save Prompts'}
             </Button>
           </div>
-          {savePrompts.error ? <p className="error" role="alert">{savePrompts.error.message}</p> : null}
+          {savePrompts.error ? <p className="text-danger" role="alert">{savePrompts.error.message}</p> : null}
         </CollapsibleSection>
   
         <CollapsibleSection id="section-instance-email" title="Email (SMTP)" icon={<IconMail />}>
@@ -462,15 +467,15 @@ export function InstanceSettingsPage() {
           </InfoBox>
           {instance.data ? (
             <form
-              className="llm-installation-settings"
+              className="my-5 rounded-md border border-[color-mix(in_srgb,var(--color-primary)_30%,var(--color-border))] bg-primary-container p-5"
               onSubmit={(event) => { event.preventDefault(); saveInstanceSettings.mutate() }}
             >
-              <div className="llm-installation-settings__heading">
+              <div className="flex flex-col items-stretch justify-between gap-4 min-[681px]:flex-row min-[681px]:items-start [&_h3]:m-0 [&_p]:mt-1">
                 <div>
                   <h3>SMTP configuration</h3>
                 </div>
-                <label className="toggle-label">
-                  <input
+                <label className="flex items-center gap-2">
+                  <Input
                     type="checkbox"
                     checked={emailEnabled}
                     onChange={(event) => setEmailEnabled(event.target.checked)}
@@ -478,10 +483,10 @@ export function InstanceSettingsPage() {
                   Email enabled
                 </label>
               </div>
-              <div className="llm-installation-settings__grid">
+              <div className="my-5 grid grid-cols-1 gap-4 min-[681px]:grid-cols-2 min-[1051px]:grid-cols-[2fr_1fr_1fr]">
                 <label>
                   Public base URL
-                  <input
+                  <Input
                     type="url"
                     value={publicBaseUrl}
                     onChange={(event) => setPublicBaseUrl(event.target.value)}
@@ -491,7 +496,7 @@ export function InstanceSettingsPage() {
                 </label>
                 <label>
                   SMTP host
-                  <input
+                  <Input
                     value={smtpHost}
                     onChange={(event) => setSmtpHost(event.target.value)}
                     placeholder="smtp.example.org"
@@ -499,7 +504,7 @@ export function InstanceSettingsPage() {
                 </label>
                 <label>
                   SMTP port
-                  <input
+                  <Input
                     type="number"
                     min="1"
                     max="65535"
@@ -510,14 +515,14 @@ export function InstanceSettingsPage() {
                 </label>
                 <label>
                   SMTP username
-                  <input
+                  <Input
                     value={smtpUsername}
                     onChange={(event) => setSmtpUsername(event.target.value)}
                   />
                 </label>
                 <label>
                   SMTP password
-                  <input
+                  <Input
                     type="password"
                     value={smtpPassword}
                     onChange={(event) => setSmtpPassword(event.target.value)}
@@ -527,7 +532,7 @@ export function InstanceSettingsPage() {
                 </label>
                 <label>
                   From address
-                  <input
+                  <Input
                     value={smtpFromAddress}
                     onChange={(event) => setSmtpFromAddress(event.target.value)}
                     placeholder="Papertrail <noreply@example.org>"
@@ -535,7 +540,7 @@ export function InstanceSettingsPage() {
                 </label>
                 <label>
                   SMTP timeout (seconds)
-                  <input
+                  <Input
                     type="number"
                     min="1"
                     value={smtpTimeoutSeconds}
@@ -543,16 +548,16 @@ export function InstanceSettingsPage() {
                     required
                   />
                 </label>
-                <label className="toggle-label">
-                  <input
+                <label className="flex items-center gap-2">
+                  <Input
                     type="checkbox"
                     checked={smtpStarttls}
                     onChange={(event) => setSmtpStarttls(event.target.checked)}
                   />
                   Use STARTTLS
                 </label>
-                <label className="toggle-label">
-                  <input
+                <label className="flex items-center gap-2">
+                  <Input
                     type="checkbox"
                     checked={smtpUseSsl}
                     onChange={(event) => setSmtpUseSsl(event.target.checked)}
@@ -560,7 +565,7 @@ export function InstanceSettingsPage() {
                   Use implicit SSL
                 </label>
               </div>
-              <div className="toolbar">
+              <div className={toolbarClass}>
                 <Button type="submit" loading={saveInstanceSettings.isPending}>
                   <IconCheckCircle />
                   {saveInstanceSettings.isPending ? 'Saving…' : 'Save Email Settings'}
@@ -577,12 +582,12 @@ export function InstanceSettingsPage() {
             </form>
           ) : null}
           {testEmailResult ? (
-            <p className={testEmailResult.ok ? 'success' : 'error'} role={testEmailResult.ok ? 'status' : 'alert'}>
+            <p className={testEmailResult.ok ? 'text-success' : 'text-danger'} role={testEmailResult.ok ? 'status' : 'alert'}>
               {testEmailResult.message}
             </p>
           ) : null}
           {saveInstanceSettings.error ? (
-            <p className="error" role="alert">{saveInstanceSettings.error.message}</p>
+            <p className="text-danger" role="alert">{saveInstanceSettings.error.message}</p>
           ) : null}
         </CollapsibleSection>
   
@@ -592,13 +597,13 @@ export function InstanceSettingsPage() {
           </InfoBox>
           {instance.data ? (
             <form
-              className="llm-installation-settings"
+              className="my-5 rounded-md border border-[color-mix(in_srgb,var(--color-primary)_30%,var(--color-border))] bg-primary-container p-5"
               onSubmit={(event) => { event.preventDefault(); saveInstanceSettings.mutate() }}
             >
-              <div className="llm-installation-settings__grid">
+              <div className="my-5 grid grid-cols-1 gap-4 min-[681px]:grid-cols-2 min-[1051px]:grid-cols-[2fr_1fr_1fr]">
                 <label>
                   Password reset link lifetime (minutes)
-                  <input
+                  <Input
                     type="number"
                     min="1"
                     value={passwordResetTtlMinutes}
@@ -608,7 +613,7 @@ export function InstanceSettingsPage() {
                 </label>
                 <label>
                   Password reset max attempts
-                  <input
+                  <Input
                     type="number"
                     min="1"
                     value={passwordResetMaxAttempts}
@@ -617,7 +622,7 @@ export function InstanceSettingsPage() {
                   />
                 </label>
               </div>
-              <div className="toolbar">
+              <div className={toolbarClass}>
                 <Button type="submit" loading={saveInstanceSettings.isPending}>
                   <IconCheckCircle />
                   {saveInstanceSettings.isPending ? 'Saving…' : 'Save Account Security Settings'}
@@ -636,13 +641,13 @@ export function InstanceSettingsPage() {
           </InfoBox>
           {instance.data ? (
             <form
-              className="llm-installation-settings"
+              className="my-5 rounded-md border border-[color-mix(in_srgb,var(--color-primary)_30%,var(--color-border))] bg-primary-container p-5"
               onSubmit={(event) => { event.preventDefault(); saveInstanceSettings.mutate() }}
             >
-              <div className="llm-installation-settings__grid">
+              <div className="my-5 grid grid-cols-1 gap-4 min-[681px]:grid-cols-2 min-[1051px]:grid-cols-[2fr_1fr_1fr]">
                 <label>
                   Max PDF size (MB)
-                  <input
+                  <Input
                     type="number"
                     min="1"
                     value={maxPdfSizeMb}
@@ -652,7 +657,7 @@ export function InstanceSettingsPage() {
                 </label>
                 <label>
                   Browser retrieval lease (seconds)
-                  <input
+                  <Input
                     type="number"
                     min="1"
                     value={browserRetrievalLeaseSeconds}
@@ -661,7 +666,7 @@ export function InstanceSettingsPage() {
                   />
                 </label>
               </div>
-              <div className="toolbar">
+              <div className={toolbarClass}>
                 <Button type="submit" loading={saveInstanceSettings.isPending}>
                   <IconCheckCircle />
                   {saveInstanceSettings.isPending ? 'Saving…' : 'Save PDF Settings'}
@@ -680,13 +685,13 @@ export function InstanceSettingsPage() {
           </InfoBox>
           {instance.data ? (
             <form
-              className="llm-installation-settings"
+              className="my-5 rounded-md border border-[color-mix(in_srgb,var(--color-primary)_30%,var(--color-border))] bg-primary-container p-5"
               onSubmit={(event) => { event.preventDefault(); saveInstanceSettings.mutate() }}
             >
-              <div className="llm-installation-settings__grid">
+              <div className="my-5 grid grid-cols-1 gap-4 min-[681px]:grid-cols-2 min-[1051px]:grid-cols-[2fr_1fr_1fr]">
                 <label>
                   Worker threads
-                  <input
+                  <Input
                     type="number"
                     min="1"
                     value={workerThreads}
@@ -696,7 +701,7 @@ export function InstanceSettingsPage() {
                 </label>
                 <label>
                   Poll interval (seconds)
-                  <input
+                  <Input
                     type="number"
                     min="0.1"
                     step="0.1"
@@ -707,7 +712,7 @@ export function InstanceSettingsPage() {
                 </label>
                 <label>
                   Job lease (seconds)
-                  <input
+                  <Input
                     type="number"
                     min="1"
                     value={jobLeaseSeconds}
@@ -716,7 +721,7 @@ export function InstanceSettingsPage() {
                   />
                 </label>
               </div>
-              <div className="toolbar">
+              <div className={toolbarClass}>
                 <Button type="submit" loading={saveInstanceSettings.isPending}>
                   <IconCheckCircle />
                   {saveInstanceSettings.isPending ? 'Saving…' : 'Save Background Job Settings'}
@@ -725,7 +730,7 @@ export function InstanceSettingsPage() {
             </form>
           ) : null}
         </CollapsibleSection>
-      </main>
+      </Page>
     </SectionNavigationLayout>
   )
 }

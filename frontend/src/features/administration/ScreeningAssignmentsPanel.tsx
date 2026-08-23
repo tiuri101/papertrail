@@ -2,11 +2,13 @@ import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tansta
 import { useEffect, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { CountPill } from '../../components/CountPill'
 import { InfoBox } from '../../components/InfoBox'
 import { IconSwap } from '../../components/icons'
 import type { User } from '../auth/types'
+import type { ProjectMembers as ProjectMembersOf } from './types'
 
 type RoleKey = 'canTitleAbstractScreen' | 'canFullTextScreen'
 
@@ -17,10 +19,7 @@ interface Membership {
   canFullTextScreen: boolean
 }
 
-interface ProjectMembers {
-  id: string
-  memberships: Membership[]
-}
+type ProjectMembers = ProjectMembersOf<Membership>
 
 interface AssignmentItem {
   id: string
@@ -140,8 +139,9 @@ function ReassignRow({
                   <option key={reviewer.id} value={reviewer.id}>{reviewer.displayName}</option>
                 ))}
             </select>
-            <button
+            <Button
               type="button"
+              variant="secondary"
               disabled={!selectedReviewer || pending}
               onClick={() => {
                 onReassign(selectedReviewer)
@@ -150,7 +150,7 @@ function ReassignRow({
             >
               <IconSwap />
               Reassign
-            </button>
+            </Button>
           </div>
         )}
       </td>
@@ -421,13 +421,13 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
             </tbody>
           </table>
           <div className="toolbar">
-            <button type="button" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>
+            <Button type="button" variant="secondary" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>
               Previous
-            </button>
+            </Button>
             <span className="muted">Page {page} of {totalPages} ({total} total)</span>
-            <button type="button" disabled={page >= totalPages} onClick={() => setPage((current) => current + 1)}>
+            <Button type="button" variant="secondary" disabled={page >= totalPages} onClick={() => setPage((current) => current + 1)}>
               Next
-            </button>
+            </Button>
           </div>
         </>
       ) : null}

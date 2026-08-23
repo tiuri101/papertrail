@@ -3,9 +3,13 @@ import type { CSSProperties } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
+import { Card, cardPageSiblingSpacingStyles } from '../../components/Card'
+import { cn } from '../../lib/cn'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { IconInfo, IconRestart } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
+import { Page } from '../../components/Page'
 import { SectionNavigationLayout } from '../../components/SectionNavigationLayout'
 import { ProjectDashboard } from '../administration/ProjectDashboard'
 import { DuplicateDetectionAction } from '../duplicates/DuplicateDetectionAction'
@@ -294,20 +298,20 @@ export function ProjectPage() {
       + (pdfMatchSummary.unmatched ?? 0)
       + (pdfMatchSummary.conflict_existing_pdf ?? 0)
     : 0
-  if (project.isLoading) return <main className="page"><p>Loading…</p></main>
-  if (!project.data) return <main className="page"><p className="error" role="alert">Project could not be loaded.</p></main>
+  if (project.isLoading) return <Page><p>Loading…</p></Page>
+  if (!project.data) return <Page><p className="text-danger" role="alert">Project could not be loaded.</p></Page>
 
   const currentIndex = STAGE_INDEX[project.data.stage] ?? 0
 
   return (
     <SectionNavigationLayout items={projectMainSections}>
-      <main className="page">
-        <p className="eyebrow">
+      <Page>
+        <p className="mb-1 block text-xs font-bold uppercase tracking-[0.08em] text-primary">
           Project workspace · {STAGES[currentIndex]?.label ?? project.data.stage}
         </p>
         <h1>{project.data.name}</h1>
         {integrity.data?.issues.length ? (
-          <section className="error alert" role="alert" aria-labelledby="workflow-integrity-heading">
+          <section className={cn(cardPageSiblingSpacingStyles, 'rounded-md border border-[rgba(255,127,130,0.28)] bg-danger-container p-4 text-danger')} data-ui="card" role="alert" aria-labelledby="workflow-integrity-heading">
             <h2 id="workflow-integrity-heading">Workflow integrity issue</h2>
             <ul>
               {integrity.data.issues.map((issue) => (
@@ -327,16 +331,16 @@ export function ProjectPage() {
                   variant="secondary"
                   icon={<IconRestart />}
                 />
-                {repair.error ? <p className="error" role="alert">{repair.error.message}</p> : null}
+                {repair.error ? <p className="text-danger" role="alert">{repair.error.message}</p> : null}
                 {repair.isSuccess ? (
-                  <p className="success" role="status">{repairSummaryText(repair.data)}</p>
+                  <p className="text-success" role="status">{repairSummaryText(repair.data)}</p>
                 ) : null}
               </>
             ) : null}
           </section>
         ) : null}
         {metadataConflicts.data?.length ? (
-          <section className="alert" role="status" aria-labelledby="metadata-conflict-heading">
+          <section className={cn(cardPageSiblingSpacingStyles, 'rounded-md border border-[rgba(255,127,130,0.28)] bg-danger-container p-4')} data-ui="card" role="status" aria-labelledby="metadata-conflict-heading">
             <h2 id="metadata-conflict-heading">Metadata conflicts need review</h2>
             <p>
               {metadataConflicts.data.length} open metadata conflict{metadataConflicts.data.length === 1 ? '' : 's'} found.{' '}
@@ -345,7 +349,7 @@ export function ProjectPage() {
           </section>
         ) : null}
         {pdfMatchesNeedingReview ? (
-          <section className="alert" role="status" aria-labelledby="pdf-match-heading">
+          <section className={cn(cardPageSiblingSpacingStyles, 'rounded-md border border-[rgba(255,127,130,0.28)] bg-danger-container p-4')} data-ui="card" role="status" aria-labelledby="pdf-match-heading">
             <h2 id="pdf-match-heading">PDF matches need review</h2>
             <p>
               {pdfMatchesNeedingReview} imported PDF{pdfMatchesNeedingReview === 1 ? '' : 's'} still
@@ -356,7 +360,7 @@ export function ProjectPage() {
         ) : null}
         <StageProgress stage={project.data.stage} />
         <ProjectChecklistPanel projectId={projectId} canManage={project.data.canManage} />
-      <section id="section-project-actions" className="card">
+      <Card as="section" id="section-project-actions">
         <h2>Actions</h2>
         <InfoBox icon={<IconInfo />}>
           <p>
@@ -365,7 +369,7 @@ export function ProjectPage() {
           </p>
         </InfoBox>
         <nav aria-label="Project workflow">
-          <ol className="workflow-nav">
+          <ol className="m-0 grid list-none gap-5 p-0">
             {projectSectionGroups.map((group, index) => {
             const upcoming = group.stage !== null && STAGE_INDEX[group.stage] > currentIndex
             const visibleLinks = group.links.filter(
@@ -379,31 +383,32 @@ export function ProjectPage() {
             const summaryText = jobSummaryText(jobSummary.data ?? [], group.jobStages)
             return (
               <li
-                className={upcoming ? 'nav-group nav-group--upcoming' : 'nav-group'}
+                className="grid grid-cols-[56px_minmax(0,1fr)] items-center gap-4"
+                data-upcoming={upcoming || undefined}
                 key={group.heading}
                 style={groupColorStyle(group)}
               >
-                <span className="workflow-nav__number" aria-hidden="true">{index}</span>
-                <div className="workflow-nav__body">
-                  <h3>
+                <span className={`inline-flex size-14 items-center justify-center rounded-lg bg-[color-mix(in_srgb,var(--group-color)_18%,transparent)] text-2xl leading-none font-bold text-(--group-color)${upcoming ? ' opacity-45' : ''}`} data-workflow-index={index} aria-hidden="true">{index}</span>
+                <div className="min-w-0 border-l-[3px] border-(--group-color) py-1 pl-4">
+                  <h3 className={`mb-3 text-base font-bold text-(--group-color)${upcoming ? ' opacity-45' : ''}`}>
                     {group.heading}
                     {summaryText ? (
-                      <span className="job-stage-summary">{'\u00a0·\u00a0'}{summaryText}</span>
+                      <span className="text-[0.78rem] font-medium text-text-secondary">{'\u00a0·\u00a0'}{summaryText}</span>
                     ) : null}
                   </h3>
-                  <div className="toolbar">
+                  <div className="flex flex-wrap items-center gap-3">
                     {visibleLinks.map(({ path, label, alwaysAvailable }) => (
                       upcoming && !alwaysAvailable ? (
                         <span
                           key={path}
-                          className="nav-link-disabled"
+                          className="inline-flex min-h-[38px] cursor-not-allowed items-center rounded-sm border border-border bg-surface-raised px-[13px] py-2 text-[0.88rem] font-semibold text-text-secondary opacity-[.48]"
                           aria-disabled="true"
                           title="Not available yet — this stage hasn't started."
                         >
                           {label}
                         </span>
                       ) : (
-                        <Link key={path} to={`/projects/${projectId}/${path}`}>{label}</Link>
+                        <Button as={Link} key={path} variant="secondary" size="sm" to={`/projects/${projectId}/${path}`}>{label}</Button>
                       )
                     ))}
                     {group.stage === 'duplicate_review'
@@ -418,9 +423,9 @@ export function ProjectPage() {
             })}
           </ol>
         </nav>
-      </section>
+      </Card>
         <ProjectDashboard projectId={projectId} />
-      </main>
+      </Page>
     </SectionNavigationLayout>
   )
 }

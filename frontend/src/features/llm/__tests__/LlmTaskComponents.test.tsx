@@ -46,12 +46,10 @@ describe('ScreeningLlmPanel', () => {
 
     expect(await screen.findByText(/LLM suggestion:/)).toBeInTheDocument()
     expect(screen.getByText(/exclude · medium confidence/)).toBeInTheDocument()
-    expect(screen.getByRole('complementary', { name: /differs from your decision/ })).toHaveClass(
-      'llm-task-panel--mismatch',
-    )
+    expect(screen.getByRole('complementary', { name: /differs from your decision/ })).toHaveAttribute('data-comparison', 'mismatch')
     expect(screen.queryByText(/suggestion differ/)).not.toBeInTheDocument()
     expect(screen.getByText(/Population is in scope/)).toBeInTheDocument()
-    expect(screen.getByText('IC1')).toHaveClass('criterion-badge--inclusion')
+    expect(screen.getByText('IC1')).toHaveAttribute('data-criterion-kind', 'inclusion')
   })
 
   it('marks a matching title/abstract decision and scrolls the revealed result into view', async () => {
@@ -73,7 +71,7 @@ describe('ScreeningLlmPanel', () => {
     )
 
     const panel = await screen.findByRole('complementary', { name: /matches your decision/ })
-    expect(panel).toHaveClass('llm-task-panel--match')
+    expect(panel).toHaveAttribute('data-comparison', 'match')
     await waitFor(() => {
       expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' })
     })
@@ -104,7 +102,7 @@ describe('ScreeningLlmPanel', () => {
     )
 
     expect(await screen.findByText(/result is stale/)).toBeInTheDocument()
-    expect(screen.getByText('IC1')).toHaveClass('criterion-badge--inclusion')
+    expect(screen.getByText('IC1')).toHaveAttribute('data-criterion-kind', 'inclusion')
     expect(screen.getByText(/Verified evidence/)).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Open PDF at page 4' })).toHaveAttribute(
       'href',
@@ -160,21 +158,19 @@ describe('ScreeningLlmPanel', () => {
     )
 
     const matchRow = (await screen.findByText(/Reviewer agrees it is met/)).closest('details') as HTMLElement
-    expect(matchRow).toHaveClass('llm-criterion--match')
-    expect(within(matchRow).getByText('IC1')).toHaveClass('criterion-badge--inclusion')
+    expect(matchRow).toHaveAttribute('data-comparison', 'match')
+    expect(within(matchRow).getByText('IC1')).toHaveAttribute('data-criterion-kind', 'inclusion')
 
     const mismatchRow = screen.getByText(/Reviewer disagrees/).closest('details') as HTMLElement
-    expect(mismatchRow).toHaveClass('llm-criterion--mismatch')
+    expect(mismatchRow).toHaveAttribute('data-comparison', 'mismatch')
     expect(within(mismatchRow).getByText(/Differs from your answer/)).toBeInTheDocument()
     expect(within(mismatchRow).getByText('IC2')).toBeInTheDocument()
 
     const unclearRow = screen.getByText(/LLM is unclear/).closest('details') as HTMLElement
-    expect(unclearRow).not.toHaveClass('llm-criterion--match')
-    expect(unclearRow).not.toHaveClass('llm-criterion--mismatch')
+    expect(unclearRow).not.toHaveAttribute('data-comparison')
 
     const unansweredRow = screen.getByText(/Reviewer has not answered yet/).closest('details') as HTMLElement
-    expect(unansweredRow).not.toHaveClass('llm-criterion--match')
-    expect(unansweredRow).not.toHaveClass('llm-criterion--mismatch')
+    expect(unansweredRow).not.toHaveAttribute('data-comparison')
   })
 
   it('offers an Apply suggestion button only for mismatched criteria when setCriteriaAnswers is provided', async () => {

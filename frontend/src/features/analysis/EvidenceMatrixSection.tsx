@@ -1,6 +1,11 @@
+import { toolbarClass } from '../../components/layoutStyles'
 import { useMemo, useState } from 'react'
 
+import { Button } from '../../components/Button'
+import { Card } from '../../components/Card'
 import { CountPill } from '../../components/CountPill'
+import { Input } from '../../components/Input'
+import { Select } from '../../components/Select'
 import { LlmEvidence } from '../llm/LlmTaskComponents'
 import {
   useEvidenceCellDetail,
@@ -89,10 +94,10 @@ function ColumnFilterControl({
   }
 
   return (
-    <div className="evidence-matrix__filter">
+    <div className="mt-1.5 flex flex-col gap-1 font-normal normal-case tracking-normal [&_input]:text-[0.8rem] [&_select]:text-[0.8rem]">
       <label>
-        <span className="visually-hidden">Filter {column.label}</span>
-        <select
+        <span className="sr-only">Filter {column.label}</span>
+        <Select
           value={mode}
           onChange={(event) => setMode(event.target.value as FilterMode)}
           aria-label={`Filter ${column.label}`}
@@ -101,10 +106,10 @@ function ColumnFilterControl({
           <option value="value">Filter by value…</option>
           <option value="missing">Only missing</option>
           <option value="pending_reconciliation">Only pending reconciliation</option>
-        </select>
+        </Select>
       </label>
       {mode === 'value' && predicate?.type === 'categorical' ? (
-        <select
+        <Select
           multiple
           aria-label={`${column.label} values`}
           value={predicate.values}
@@ -116,16 +121,16 @@ function ColumnFilterControl({
           {options.map((option) => (
             <option key={option} value={option}>{option}</option>
           ))}
-        </select>
+        </Select>
       ) : null}
       {mode === 'value' && predicate?.type === 'multi_select' ? (
-        <fieldset className="evidence-matrix__filter-checkboxes">
-          <legend className="visually-hidden">{column.label} values</legend>
+        <fieldset className="flex max-h-32 flex-col gap-0.5 overflow-y-auto border-0 p-0">
+          <legend className="sr-only">{column.label} values</legend>
           {options.map((option) => {
             const checked = predicate.anyOf.includes(option)
             return (
               <label key={option}>
-                <input
+                <Input
                   type="checkbox"
                   checked={checked}
                   onChange={(event) => {
@@ -142,8 +147,8 @@ function ColumnFilterControl({
         </fieldset>
       ) : null}
       {mode === 'value' && predicate?.type === 'numeric' ? (
-        <span className="evidence-matrix__filter-range">
-          <input
+        <span className="flex gap-1 [&_input]:w-20">
+          <Input
             type="number"
             aria-label={`${column.label} minimum`}
             placeholder="Min"
@@ -153,7 +158,7 @@ function ColumnFilterControl({
               min: event.target.value === '' ? undefined : Number(event.target.value),
             })}
           />
-          <input
+          <Input
             type="number"
             aria-label={`${column.label} maximum`}
             placeholder="Max"
@@ -166,7 +171,7 @@ function ColumnFilterControl({
         </span>
       ) : null}
       {mode === 'value' && predicate?.type === 'text' ? (
-        <input
+        <Input
           type="text"
           aria-label={`${column.label} contains`}
           placeholder="Contains…"
@@ -202,19 +207,19 @@ function CellDetailPanel({
   const detail = query.data
 
   return (
-    <aside className="evidence-matrix__detail nested-card" aria-label="Field evidence detail">
-      <div className="toolbar">
+    <aside className="mt-4 rounded-md border border-border p-4 [&>*+*]:mt-3 [&>h3]:mt-0 [&>.toolbar:first-child]:mt-0 [&>.toolbar:last-child]:mb-0" aria-label="Field evidence detail">
+      <div className={toolbarClass}>
         <h3>{selection.publicationTitle}</h3>
-        <button type="button" className="button-secondary" onClick={onClose}>Close</button>
+        <Button type="button" variant="secondary" onClick={onClose}>Close</Button>
       </div>
       {query.isLoading ? <p>Loading…</p> : null}
-      {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
+      {query.error ? <p className="text-danger" role="alert">{query.error.message}</p> : null}
       {detail ? (
         <>
-          <p className="muted">
+          <p className="text-text-muted">
             {detail.label} · {detail.sourceType === 'quality' ? 'Quality assessment' : 'Extraction'}
           </p>
-          <dl className="evidence-matrix__detail-meta">
+          <dl className="m-0 grid grid-cols-[repeat(auto-fit,minmax(140px,1fr))] gap-3 [&>div]:min-w-0 [&>div]:rounded-sm [&>div]:border [&>div]:border-border [&>div]:bg-surface-hover/50 [&>div]:px-4 [&>div]:py-3 [&_dt]:m-0 [&_dt]:text-[0.72rem] [&_dt]:font-bold [&_dt]:uppercase [&_dt]:tracking-[0.05em] [&_dt]:text-text-muted [&_dd]:mb-0 [&_dd]:mt-1 [&_dd]:overflow-wrap-anywhere [&_dd]:text-[0.92rem] [&_dd]:text-text">
             <div>
               <dt>Value</dt>
               <dd>{formatCellValue(detail.value, detail.fieldType)}</dd>
@@ -242,7 +247,7 @@ function CellDetailPanel({
                 publicationId={selection.publicationId}
               />
             ) : (
-              <p className="muted">No traceable source quotation for this value.</p>
+              <p className="text-text-muted">No traceable source quotation for this value.</p>
             )
           ) : null}
         </>
@@ -292,18 +297,18 @@ export function EvidenceMatrixSection({ projectId }: { projectId: string }) {
   }
 
   return (
-    <section id="section-analysis-evidence-matrix" className="card">
+    <Card as="section" id="section-analysis-evidence-matrix">
       <h2>Evidence Matrix</h2>
-      <p className="muted">
+      <p className="text-text-muted">
         Every included publication against every extraction and quality field, with the
         authoritative value and, where traceable, the source quotation behind it. A value
         marked <span aria-hidden="true">✦</span> has a traceable source quotation — click it to view the evidence.
       </p>
-      {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
-      <div className="toolbar">
+      {query.error ? <p className="text-danger" role="alert">{query.error.message}</p> : null}
+      <div className={toolbarClass}>
         <label>
           Search
-          <input
+          <Input
             type="search"
             value={search}
             onChange={(event) => {
@@ -315,7 +320,7 @@ export function EvidenceMatrixSection({ projectId }: { projectId: string }) {
         </label>
         <label>
           Rows per page
-          <select
+          <Select
             value={pageSize}
             onChange={(event) => {
               setPageSize(Number(event.target.value))
@@ -325,16 +330,16 @@ export function EvidenceMatrixSection({ projectId }: { projectId: string }) {
             {PAGE_SIZE_OPTIONS.map((size) => (
               <option key={size} value={size}>{size}</option>
             ))}
-          </select>
+          </Select>
         </label>
       </div>
       {data ? (
-        <details className="evidence-matrix__columns">
+        <details className="mb-3">
           <summary>Show/hide columns ({visibleColumns.length} of {data.columns.length} shown)</summary>
-          <div className="evidence-matrix__column-toggle-list">
+          <div className="mt-3 flex flex-wrap gap-3">
             {data.columns.map((column) => (
               <label key={column.key}>
-                <input
+                <Input
                   type="checkbox"
                   checked={!hiddenColumns.has(column.key)}
                   onChange={() => toggleColumn(column.key)}
@@ -350,11 +355,11 @@ export function EvidenceMatrixSection({ projectId }: { projectId: string }) {
       ) : null}
       {data && data.items.length === 0 ? <p>No publications match your search and filters.</p> : null}
       {data && data.items.length > 0 ? (
-        <div className="evidence-matrix__scroll">
-          <table className="evidence-matrix__table">
+        <div className="max-h-[70vh] overflow-auto rounded-md border border-border">
+          <table className="w-auto min-w-full [&_td]:whitespace-nowrap [&_th]:whitespace-nowrap [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-[2] [&_thead_th]:bg-bg-elevated">
             <thead>
               <tr>
-                <th scope="col" className="evidence-matrix__sticky-col">Publication</th>
+                <th scope="col" className="sticky left-0 z-[3]! min-w-56 max-w-[22rem] overflow-wrap-anywhere bg-bg-elevated whitespace-normal!">Publication</th>
                 {visibleColumns.map((column) => (
                   <th scope="col" key={column.key}>
                     {column.label}
@@ -370,10 +375,10 @@ export function EvidenceMatrixSection({ projectId }: { projectId: string }) {
             <tbody>
               {data.items.map((item: EvidenceMatrixItem) => (
                 <tr key={item.publication.id}>
-                  <th scope="row" className="evidence-matrix__sticky-col">
+                  <th scope="row" className="sticky left-0 z-[1] min-w-56 max-w-[22rem] overflow-wrap-anywhere bg-bg-elevated whitespace-normal!">
                     {item.publication.title}
                     {item.publication.authors ? (
-                      <span className="muted"> · {item.publication.authors}</span>
+                      <span className="text-text-muted"> · {item.publication.authors}</span>
                     ) : null}
                   </th>
                   {visibleColumns.map((column) => {
@@ -383,12 +388,12 @@ export function EvidenceMatrixSection({ projectId }: { projectId: string }) {
                     return (
                       <td
                         key={column.key}
-                        className={`evidence-matrix__cell evidence-matrix__cell--${state}`}
+                        className={state === 'pending_reconciliation' ? 'bg-warning-container' : state === 'missing' ? 'text-text-muted' : undefined}
                       >
                         {clickable ? (
-                          <button
+                          <Button
                             type="button"
-                            className="link-button"
+                            variant="text"
                             onClick={() => setSelection({
                               publicationId: item.publication.id,
                               publicationTitle: item.publication.title,
@@ -402,7 +407,7 @@ export function EvidenceMatrixSection({ projectId }: { projectId: string }) {
                             {cell?.hasEvidence ? (
                               <span aria-hidden="true" title="Has a traceable source quotation"> ✦</span>
                             ) : null}
-                          </button>
+                          </Button>
                         ) : (
                           '—'
                         )}
@@ -416,19 +421,19 @@ export function EvidenceMatrixSection({ projectId }: { projectId: string }) {
         </div>
       ) : null}
       {data && pageCount > 1 ? (
-        <div className="toolbar">
-          <button type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page <= 1}>
+        <div className={toolbarClass}>
+          <Button type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page <= 1}>
             Previous
-          </button>
+          </Button>
           <span>Page {page} of {pageCount}</span>
-          <button type="button" onClick={() => setPage((current) => Math.min(pageCount, current + 1))} disabled={page >= pageCount}>
+          <Button type="button" onClick={() => setPage((current) => Math.min(pageCount, current + 1))} disabled={page >= pageCount}>
             Next
-          </button>
+          </Button>
         </div>
       ) : null}
       {selection ? (
         <CellDetailPanel projectId={projectId} selection={selection} onClose={() => setSelection(null)} />
       ) : null}
-    </section>
+    </Card>
   )
 }

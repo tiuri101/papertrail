@@ -1,8 +1,8 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 
 import { apiRequest } from '../../api/client'
-import { type BackgroundJob, findJob, hasActiveJob, isJobActive } from '../jobs/jobStatus'
+import { isJobActive } from '../jobs/jobStatus'
+import { usePendingJob } from '../jobs/usePendingJob'
 import type { StageNarrative } from './types'
 
 export function StageNarrativePanel({
@@ -17,21 +17,9 @@ export function StageNarrativePanel({
   isStale: boolean
 }) {
   const queryClient = useQueryClient()
-  const [pendingJobId, setPendingJobId] = useState<string | null>(null)
-  const jobs = useQuery({
-    queryKey: ['jobs', projectId],
-    queryFn: () => apiRequest<BackgroundJob[]>(`/api/v1/projects/${projectId}/jobs`),
-    enabled: Boolean(projectId) && Boolean(pendingJobId),
-    refetchInterval: (query) => (hasActiveJob(query.state.data) ? 2000 : false),
+  const { setPendingJobId, pendingJob } = usePendingJob(projectId, {
+    onComplete: () => queryClient.invalidateQueries({ queryKey: ['analysis', projectId, stage] }),
   })
-  const pendingJob = pendingJobId ? findJob(jobs.data, pendingJobId) : undefined
-
-  useEffect(() => {
-    if (pendingJob && !isJobActive(pendingJob.status)) {
-      queryClient.invalidateQueries({ queryKey: ['analysis', projectId, stage] })
-      setPendingJobId(null)
-    }
-  }, [pendingJob, projectId, stage, queryClient])
 
   const regenerate = useMutation({
     mutationFn: () => apiRequest<{ jobId: string }>(

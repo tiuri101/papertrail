@@ -48,7 +48,7 @@ describe('ProjectPage', () => {
     expect(document.title).toBe('Immersive analytics review · Papertrail')
     expect(screen.getByRole('link', { name: 'Title/Abstract Screening' })).toHaveAttribute('href', '/projects/p1/screening/title_abstract')
     expect(screen.queryByRole('heading', { name: 'Reporting' })).not.toBeInTheDocument()
-    const completedGroup = screen.getByRole('heading', { name: 'Completed' }).closest('.nav-group') as HTMLElement
+    const completedGroup = screen.getByRole('heading', { name: 'Completed' }).closest('li') as HTMLElement
     expect(within(completedGroup).getByRole('link', { name: 'Charts & Analysis' }))
       .toHaveAttribute('href', '/projects/p1/analysis')
     expect(within(completedGroup).getByText('Final Results')).toHaveAttribute('aria-disabled', 'true')
@@ -71,13 +71,13 @@ describe('ProjectPage', () => {
     const currentGroupHeading = screen
       .getAllByText('Title/Abstract Screening')
       .find((el) => el.tagName === 'H3')
-    const currentGroup = currentGroupHeading?.closest('.nav-group')
-    expect(currentGroup).not.toHaveClass('nav-group--upcoming')
-    const pastGroup = screen.getByRole('heading', { name: 'Duplicate Review' }).closest('.nav-group')
-    expect(pastGroup).not.toHaveClass('nav-group--upcoming')
+    const currentGroup = currentGroupHeading?.closest('li')
+    expect(currentGroup).not.toHaveAttribute('data-upcoming')
+    const pastGroup = screen.getByRole('heading', { name: 'Duplicate Review' }).closest('li')
+    expect(pastGroup).not.toHaveAttribute('data-upcoming')
     const upcomingGroupHeading = screen.getAllByText('Extraction & Quality').find((el) => el.tagName === 'H3')
-    const upcomingGroup = upcomingGroupHeading?.closest('.nav-group')
-    expect(upcomingGroup).toHaveClass('nav-group--upcoming')
+    const upcomingGroup = upcomingGroupHeading?.closest('li')
+    expect(upcomingGroup).toHaveAttribute('data-upcoming', 'true')
     const workflow = screen.getByRole('navigation', { name: 'Project workflow' })
     const actionStages = within(workflow).getAllByRole('listitem')
     expect(actionStages).toHaveLength(7)
@@ -95,16 +95,16 @@ describe('ProjectPage', () => {
     expect(actionStages[0]).toHaveTextContent('Publications')
     expect(actionStages[0]).toHaveTextContent('Jobs')
     expect(actionStages[0]).not.toHaveTextContent('Searches and Imports')
-    expect(actionStages[0]).not.toHaveClass('nav-group--upcoming')
-    expect(within(actionStages[0]).getByText('0')).toHaveClass('workflow-nav__number')
+    expect(actionStages[0]).not.toHaveAttribute('data-upcoming')
+    expect(within(actionStages[0]).getByText('0')).toHaveAttribute('data-workflow-index', '0')
     expect(actionStages[1]).toHaveTextContent('Draft')
     expect(actionStages[1]).toHaveTextContent('Searches and Imports')
     expect(actionStages[1]).not.toHaveTextContent('Publications')
     expect(actionStages[1]).not.toHaveTextContent('Project Administration')
-    expect(within(actionStages[1]).getByText('1')).toHaveClass('workflow-nav__number')
+    expect(within(actionStages[1]).getByText('1')).toHaveAttribute('data-workflow-index', '1')
     expect(screen.queryByText('Add a Publication')).not.toBeInTheDocument()
 
-    expect(screen.getByRole('heading', { name: 'Actions' }).closest('.card')).toContainElement(
+    expect(screen.getByRole('heading', { name: 'Actions' }).closest('section')).toContainElement(
       workflow,
     )
     expect(screen.queryByRole('link', { name: 'Data Extraction' })).not.toBeInTheDocument()
@@ -322,7 +322,7 @@ describe('ProjectPage', () => {
     })
     renderWithProviders(<ProjectPage />, { route: '/projects/p1', path: '/projects/:projectId' })
 
-    const group = (await screen.findByRole('heading', { name: 'Duplicate Review' })).closest('.nav-group') as HTMLElement
+    const group = (await screen.findByRole('heading', { name: 'Duplicate Review' })).closest('li') as HTMLElement
     expect(within(group).getByRole('button', { name: 'Re-run Duplicate Detection' })).toBeInTheDocument()
   })
 

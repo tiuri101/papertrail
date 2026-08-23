@@ -1,5 +1,9 @@
 import { useEffect, useId, useRef, useState } from 'react'
 
+import { cn } from '../lib/cn'
+import { Button, IconButton } from './Button'
+import { Input } from './Input'
+
 interface DateFieldProps {
   id?: string
   label: string
@@ -112,11 +116,11 @@ export function DateField({ id, label, value, onChange, required, disabled }: Da
   const cells = buildCalendarDays(view.year, view.month)
 
   return (
-    <div className="date-field" ref={containerRef}>
+    <div className="relative w-[min(14rem,100%)]" ref={containerRef}>
       <label htmlFor={fieldId}>
         {label}
-        <div className="date-field__control">
-          <input
+        <div className="relative">
+          <Input
             id={fieldId}
             type="text"
             inputMode="none"
@@ -125,6 +129,7 @@ export function DateField({ id, label, value, onChange, required, disabled }: Da
             disabled={disabled}
             value={value}
             placeholder="yyyy-mm-dd"
+            className="cursor-pointer pr-11 disabled:cursor-not-allowed"
             onClick={() => !disabled && setOpen((isOpen) => !isOpen)}
             onKeyDown={(event) => {
               if (disabled) return
@@ -134,26 +139,26 @@ export function DateField({ id, label, value, onChange, required, disabled }: Da
               }
             }}
           />
-          <svg className="date-field__icon" viewBox="0 0 24 24" aria-hidden="true">
+          <svg className="pointer-events-none absolute top-1/2 right-3 size-5 -translate-y-1/2 fill-text-secondary" viewBox="0 0 24 24" aria-hidden="true">
             <path d="M7 2v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2V2h-2v2H9V2H7Zm12 8v10H5V10h14ZM5 6h14v2H5V6Z" />
           </svg>
         </div>
       </label>
       {open ? (
-        <div className="date-field__popover" role="dialog" aria-label={`${label} calendar`}>
-          <div className="date-field__header">
-            <button type="button" className="icon-button" aria-label="Previous month" onClick={goToPreviousMonth}>
+        <div className="absolute top-[calc(100%+0.5rem)] left-0 z-50 w-[min(300px,88vw)] rounded-md border border-border bg-surface-raised p-4 shadow-lg" role="dialog" aria-label={`${label} calendar`}>
+          <div className="mb-3 flex items-center justify-between">
+            <IconButton type="button" variant="ghost" size="sm" className="rounded-full" aria-label="Previous month" onClick={goToPreviousMonth}>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4 6 12l9 8 1.4-1.4L8.8 12l7.6-6.6Z" /></svg>
-            </button>
-            <span className="date-field__month">{MONTH_LABELS[view.month]} {view.year}</span>
-            <button type="button" className="icon-button" aria-label="Next month" onClick={goToNextMonth}>
+            </IconButton>
+            <span className="font-semibold text-text">{MONTH_LABELS[view.month]} {view.year}</span>
+            <IconButton type="button" variant="ghost" size="sm" className="rounded-full" aria-label="Next month" onClick={goToNextMonth}>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4 8 5.4 15.6 12 8 18.6 9 20l9-8Z" /></svg>
-            </button>
+            </IconButton>
           </div>
-          <div className="date-field__weekdays">
+          <div className="mb-1 grid grid-cols-7 text-center text-xs font-bold tracking-[0.04em] text-text-muted uppercase">
             {WEEKDAY_LABELS.map((weekday) => <span key={weekday}>{weekday}</span>)}
           </div>
-          <div className="date-field__days">
+          <div className="grid grid-cols-7" role="grid">
             {cells.map((cell) => {
               const iso = toIso(cell.year, cell.month, cell.day)
               const isSelected = iso === value
@@ -162,12 +167,13 @@ export function DateField({ id, label, value, onChange, required, disabled }: Da
                 <button
                   type="button"
                   key={iso}
-                  className={[
-                    'date-field__day',
-                    cell.inMonth ? '' : 'date-field__day--outside',
-                    isSelected ? 'date-field__day--selected' : '',
-                    isToday && !isSelected ? 'date-field__day--today' : '',
-                  ].filter(Boolean).join(' ')}
+                  className={cn(
+                    'min-h-9 w-full cursor-pointer rounded-full border border-transparent bg-none p-0 font-medium text-text transition-colors hover:bg-surface-hover focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-primary',
+                    !cell.inMonth && 'text-text-muted',
+                    isToday && !isSelected && 'border-primary',
+                    isSelected && 'bg-primary text-primary-contrast hover:bg-primary',
+                  )}
+                  data-in-month={cell.inMonth || undefined}
                   onClick={() => {
                     onChange(iso)
                     setOpen(false)
@@ -178,13 +184,14 @@ export function DateField({ id, label, value, onChange, required, disabled }: Da
               )
             })}
           </div>
-          <div className="date-field__footer">
-            <button type="button" className="date-field__link" onClick={() => { onChange(''); setOpen(false) }}>
+          <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
+            <Button type="button" variant="text" size="sm" onClick={() => { onChange(''); setOpen(false) }}>
               Clear
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
-              className="date-field__link"
+              variant="text"
+              size="sm"
               onClick={() => {
                 onChange(todayIso)
                 setView({ year: today.getFullYear(), month: today.getMonth() })
@@ -192,7 +199,7 @@ export function DateField({ id, label, value, onChange, required, disabled }: Da
               }}
             >
               Today
-            </button>
+            </Button>
           </div>
         </div>
       ) : null}

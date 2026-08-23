@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import type { KeyboardEvent } from 'react'
 
+import { Button } from '../../components/Button'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { IconKeyboard } from '../../components/icons'
+import { toolbarClass } from '../../components/layoutStyles'
 import {
   DEFAULT_SCREENING_HOTKEYS,
   formatHotkey,
@@ -12,6 +14,7 @@ import {
   type ScreeningHotkeyAction,
   type ScreeningHotkeys,
 } from '../../lib/screeningHotkeys'
+import { HotkeyButton } from './HotkeyButton'
 
 const ACTION_LABELS: Record<ScreeningHotkeyAction, string> = {
   include: 'Include',
@@ -65,50 +68,51 @@ export function ScreeningHotkeysSection() {
     setCapturing(null)
   }
 
-  const conflicts = duplicateKeys(hotkeys)
+   const conflicts = duplicateKeys(hotkeys)
 
-  return (
-    <CollapsibleSection id="section-account-hotkeys" title="Screening Hotkeys" icon={<IconKeyboard />}>
-      <p className="muted">
-        Assign a keyboard shortcut for each screening decision, plus one to submit or confirm it, so
-        you can quickly move through papers. Click a field and press the key you
-        want to use. Press Backspace to clear it.
-      </p>
-      <div className="hotkey-list">
-        {SCREENING_HOTKEY_ACTIONS.map((action) => {
-          const key = hotkeys[action]
-          const hasConflict = key ? conflicts.has(key.toLowerCase()) : false
-          const displayKey = key ? formatHotkey(key) : 'Not set'
-          return (
-            <div key={action} className="hotkey-row">
-              <span className="hotkey-row__label" id={`hotkey-label-${action}`}>{ACTION_LABELS[action]}</span>
-              <button
-                type="button"
-                aria-labelledby={`hotkey-label-${action} hotkey-value-${action}`}
-                className={`hotkey-capture${capturing === action ? ' hotkey-capture--active' : ''}${hasConflict ? ' hotkey-capture--conflict' : ''}`}
-                onClick={() => startCapture(action)}
-                onKeyDown={capturing === action ? handleCaptureKeyDown(action) : undefined}
-                onBlur={() => setCapturing((current) => (current === action ? null : current))}
-              >
-                <span id={`hotkey-value-${action}`}>
-                  {capturing === action ? 'Press a key…' : key ? <kbd>{displayKey}</kbd> : displayKey}
-                </span>
-              </button>
-            </div>
-          )
-        })}
-      </div>
+   return (
+     <CollapsibleSection id="section-account-hotkeys" title="Screening Hotkeys" icon={<IconKeyboard />}>
+       <p className="text-text-muted">
+         Assign a keyboard shortcut for each screening decision, plus one to submit or confirm it, so
+         you can quickly move through papers. Click a field and press the key you
+         want to use. Press Backspace to clear it.
+       </p>
+       <div className="flex justify-start">
+         <div className="grid gap-2">
+           {SCREENING_HOTKEY_ACTIONS.map((action) => {
+             const key = hotkeys[action]
+             const hasConflict = key ? conflicts.has(key.toLowerCase()) : false
+             const displayKey = key ? formatHotkey(key) : null
+             return (
+               <div key={action} className="flex items-center gap-3">
+                 <span className="w-40 shrink-0 text-sm font-medium text-text-secondary">
+                   {ACTION_LABELS[action]}
+                 </span>
+                 <HotkeyButton
+                   label={ACTION_LABELS[action]}
+                   currentKey={displayKey}
+                   isCapturing={capturing === action}
+                   hasConflict={hasConflict}
+                   onStartCapture={() => startCapture(action)}
+                   onKeyDown={capturing === action ? handleCaptureKeyDown(action) : undefined}
+                   onBlur={() => setCapturing((current) => (current === action ? null : current))}
+                 />
+               </div>
+             )
+           })}
+         </div>
+       </div>
       {conflicts.size > 0 ? (
-        <p className="error" role="alert">
+        <p className="text-danger" role="alert">
           Two actions share the same key. Only one will trigger when you press it.
         </p>
       ) : null}
-      <div className="toolbar">
-        <button type="button" className="button-secondary" onClick={() => update({ ...DEFAULT_SCREENING_HOTKEYS })}>
+      <div className={toolbarClass}>
+        <Button type="button" variant="secondary" onClick={() => update({ ...DEFAULT_SCREENING_HOTKEYS })}>
           Reset to defaults
-        </button>
+        </Button>
       </div>
-      <p className="muted" aria-live="polite">{saved ? 'Saved.' : ' '}</p>
+      <p className="text-text-muted" aria-live="polite">{saved ? 'Saved.' : ' '}</p>
     </CollapsibleSection>
   )
 }

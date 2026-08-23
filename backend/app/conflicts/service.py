@@ -198,9 +198,9 @@ def _queue_retrieval_on_inclusion(
         )
 
 
-def _retract_full_text_work_for_excluded_publication(
+def retract_full_text_work_for_publication(
     db: Session, publication_id: str
-) -> None:
+) -> tuple[int, int]:
     """Mirror of _initialize_downstream_work_for_late_inclusion for the
     opposite direction: a title/abstract decision that used to be INCLUDE
     (and so already got a FullTextRetrieval row and a full-text
@@ -213,6 +213,11 @@ def _retract_full_text_work_for_excluded_publication(
     submitted a full-text decision keeps that history. full_text_work_completed
     itself stops counting this publication once it's no longer
     title/abstract-included, regardless of whether anything gets removed here.
+
+    Also used by project-lifecycle integrity repair to sweep older drift (from
+    before this retraction existed, or from any other path that leaves a stray
+    row behind). Returns (removed_work_items, removed_retrievals) so callers
+    that report repair statistics can keep their counters accurate.
     """
     unsubmitted_item_ids = list(
         db.scalars(
@@ -223,27 +228,41 @@ def _retract_full_text_work_for_excluded_publication(
             )
         )
     )
+    removed_work_items = 0
     if unsubmitted_item_ids:
         db.execute(
             delete(ScreeningWorkItem).where(
                 ScreeningWorkItem.id.in_(unsubmitted_item_ids)
             )
         )
+        removed_work_items = len(unsubmitted_item_ids)
     remaining = db.scalar(
         select(ScreeningWorkItem.id).where(
             ScreeningWorkItem.publication_id == publication_id,
             ScreeningWorkItem.stage == ScreeningStage.FULL_TEXT,
         )
     )
+    removed_retrievals = 0
     if remaining is None:
         from app.fulltext.models import FullTextRetrieval
 
+        had_retrieval = (
+            db.scalar(
+                select(FullTextRetrieval.id).where(
+                    FullTextRetrieval.publication_id == publication_id
+                )
+            )
+            is not None
+        )
         db.execute(
             delete(FullTextRetrieval).where(
                 FullTextRetrieval.publication_id == publication_id
             )
         )
+        if had_retrieval:
+            removed_retrievals = 1
     db.flush()
+    return removed_work_items, removed_retrievals
 
 
 def record_final_decision(
@@ -297,7 +316,7 @@ def record_final_decision(
         # A no-op unless this publication previously had a valid INCLUDE
         # decision that already queued full-text work -- e.g. a revised
         # decision, not this being the first-ever verdict.
-        _retract_full_text_work_for_excluded_publication(db, publication_id)
+        retract_full_text_work_for_publication(db, publication_id)
     elif (
         stage == ScreeningStage.FULL_TEXT and final.outcome == ScreeningOutcome.INCLUDE
     ):

@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.conflicts.models import FinalDecision
 from app.projects.models import ScreeningStage
 from app.publications.models import Publication
+from app.screening.cohorts import outcome_filter, outcome_filter_any_stage
 from app.screening.models import ScreeningOutcome
 
 
@@ -59,17 +60,16 @@ def publications_for_scope(
         query = query.where(Publication.id.in_(publication_ids))
     elif scope == "included":
         ids = select(FinalDecision.publication_id).where(
-            FinalDecision.project_id == project_id,
-            FinalDecision.stage == ScreeningStage.FULL_TEXT,
-            FinalDecision.outcome == ScreeningOutcome.INCLUDE,
-            FinalDecision.is_valid.is_(True),
+            outcome_filter(
+                project_id, ScreeningStage.FULL_TEXT, ScreeningOutcome.INCLUDE
+            )
         )
         query = query.where(Publication.id.in_(ids))
     elif scope == "excluded":
+        # Not stage-scoped like outcome_filter -- "excluded" here means any
+        # valid exclusion, at either screening stage.
         ids = select(FinalDecision.publication_id).where(
-            FinalDecision.project_id == project_id,
-            FinalDecision.outcome == ScreeningOutcome.EXCLUDE,
-            FinalDecision.is_valid.is_(True),
+            outcome_filter_any_stage(project_id, ScreeningOutcome.EXCLUDE)
         )
         query = query.where(Publication.id.in_(ids))
     elif scope == "duplicates":

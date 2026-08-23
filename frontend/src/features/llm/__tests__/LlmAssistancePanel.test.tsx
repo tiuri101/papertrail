@@ -36,7 +36,7 @@ describe('LlmAssistancePanel', () => {
     expect(screen.queryByLabelText('Context length')).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Save Installation Settings' })).not.toBeInTheDocument()
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-    expect(screen.getByText('Stages')).toHaveClass('subsection-heading')
+    expect(screen.getByText('Stages').tagName).toBe('LEGEND')
     const schemaSection = screen.getByRole('heading', { name: 'LLM Extraction Schema' }).closest('section')
     expect(schemaSection).toContainElement(
       screen.getByRole('button', { name: 'Create LLM schema from extraction form' }),
@@ -59,7 +59,7 @@ describe('LlmAssistancePanel', () => {
     const rerunActions = screen.getByRole('button', {
       name: 'Re-Run LLM Title/Abstract Screening',
     }).parentElement
-    expect(rerunActions).toHaveClass('llm-rerun-actions')
+    expect(rerunActions).toHaveAttribute('data-llm-rerun-actions', 'true')
     expect(rerunActions?.children).toHaveLength(4)
     expect(rerunActions?.children[0]).toHaveStyle({ '--stage-color': '#1baf7a' })
     expect(rerunActions?.children[1]).toHaveStyle({ '--stage-color': '#eda100' })
@@ -81,7 +81,6 @@ describe('LlmAssistancePanel', () => {
 
     const banner = await screen.findByRole('alert')
     expect(banner).toHaveTextContent(/LLM support is currently disabled for this Papertrail installation/)
-    expect(banner).toHaveClass('info-box--danger')
   })
 
   it('re-runs an enabled capability with its task type', async () => {

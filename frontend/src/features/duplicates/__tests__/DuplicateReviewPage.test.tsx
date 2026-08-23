@@ -121,15 +121,15 @@ describe('DuplicateReviewPage', () => {
     expect(doiLinks[0]).toHaveAttribute('href', 'https://doi.org/10.1000/same')
     expect(doiLinks[0]).toHaveAttribute('target', '_blank')
     expect(screen.getByText('98% match')).toBeInTheDocument()
-    const summary = screen.getByText('98% match').closest('.duplicate-review-card')!
+    const summary = screen.getByText('98% match').closest('li')!
     expect(summary).toHaveTextContent('Exact DOI')
     expect(summary).toHaveTextContent('Similar title & authors')
     expect(summary).toHaveTextContent('Shared ISSN')
     expect(summary).toHaveTextContent('unresolved')
-    const candidateList = screen.getByText('A Study of Urban VR').closest('ul')
-    expect(candidateList).toHaveClass('duplicate-review-list')
-    expect(screen.getByText('A Study of Urban VR').closest('.duplicate-publications')).toBe(
-      screen.getByText('A study of urban VR').closest('.duplicate-publications'),
+    const candidateList = screen.getByRole('list', { name: 'Duplicate candidates' })
+    expect(candidateList).toContainElement(summary)
+    expect(screen.getByText('A Study of Urban VR').closest('li')).toBe(
+      screen.getByText('A study of urban VR').closest('li'),
     )
 
     fireEvent.click(screen.getByRole('button', { name: 'Not a Duplicate' }))

@@ -75,7 +75,6 @@ describe('HelpPage', () => {
     const dangerToggle = screen.getByRole('button', { name: 'Reset is a fresh start, delete is permanent removal' })
     expect(ownerTimeline.compareDocumentPosition(dangerGuide) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
     expect(dangerToggle).toHaveTextContent('Before using the Danger Zone')
-    expect(dangerToggle.querySelector('.collapsible-section__icon')).toBeInTheDocument()
     expect(dangerToggle).toHaveAttribute('aria-expanded', 'false')
 
     fireEvent.click(dangerToggle)
@@ -92,8 +91,8 @@ describe('HelpPage', () => {
     goToTab('AI & Automation')
 
     const timeline = screen.getByRole('list', { name: 'LLM assistance by review stage' })
-    expect(timeline).toHaveClass('help-stage-timeline--centered')
-    expect(timeline.querySelectorAll('.help-stage-timeline__item')).toHaveLength(6)
+    expect(timeline).toHaveAttribute('data-marker-alignment', 'center')
+    expect(timeline.children).toHaveLength(6)
     expect(timeline).toHaveTextContent('Duplicate review is entirely human-led')
     expect(timeline).toHaveTextContent('suggest values for configured extraction fields')
     const backgroundNote = screen.getByRole('complementary', { name: 'LLM background processing' })
@@ -101,9 +100,8 @@ describe('HelpPage', () => {
     expect(backgroundNote).toHaveTextContent('suggestions can take some time to appear')
     expect(backgroundNote).toHaveTextContent('continue screening or extracting before the LLM result is ready')
     const configurationToggle = screen.getByRole('button', { name: 'Configuring LLM assistance and custom prompts' })
-    const configurationCard = configurationToggle.closest('.help-llm-configuration')
+    const configurationCard = configurationToggle.closest('section')
     expect(configurationToggle).toHaveTextContent('For project owners and administrators')
-    expect(configurationToggle.querySelector('.collapsible-section__icon')).toBeInTheDocument()
     expect(configurationToggle).toHaveAttribute('aria-expanded', 'false')
 
     fireEvent.click(configurationToggle)
@@ -153,7 +151,7 @@ describe('HelpPage', () => {
     goToTab('Good to Know')
 
     const guidance = screen.getByRole('list', { name: 'Helpful things to know' })
-    expect(guidance.querySelectorAll('.help-good-to-know__card')).toHaveLength(12)
+    expect(guidance.children).toHaveLength(12)
     expect(screen.getByRole('heading', { name: 'Small things that keep a review moving' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Upload with permission' })).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'You stay in control' })).toBeInTheDocument()
@@ -175,7 +173,7 @@ describe('HelpPage', () => {
     renderWithProviders(<HelpPage />)
 
     const timeline = screen.getByRole('list', { name: 'Review stages' })
-    const items = Array.from(timeline.querySelectorAll('.help-stage-timeline__item'))
+    const items = Array.from(timeline.children)
     expect(items).toHaveLength(6)
     expect(items[0]).toHaveTextContent('1')
     expect(items[0]).toHaveTextContent('Draft')
@@ -189,13 +187,13 @@ describe('HelpPage', () => {
 
     for (const label of ['Reviewer responsibilities by stage', 'Project owner responsibilities by stage']) {
       const timeline = screen.getByRole('list', { name: label })
-      const items = Array.from(timeline.querySelectorAll('.help-stage-timeline__item'))
+      const items = Array.from(timeline.children)
 
-      expect(timeline).toHaveClass('help-stage-timeline--responsibilities')
+      expect(timeline).toHaveAttribute('data-timeline', 'responsibilities')
       expect(items).toHaveLength(6)
-      expect(items[0].querySelector('.help-stage-timeline__number')).toHaveTextContent('1')
+      expect(items[0].firstElementChild).toHaveTextContent('1')
       expect(items[0]).toHaveStyle({ '--stage-color': '#2a78d6' })
-      expect(items[5].querySelector('.help-stage-timeline__number')).toHaveTextContent('6')
+      expect(items[5].firstElementChild).toHaveTextContent('6')
       expect(items[5]).toHaveStyle({ '--stage-color': '#008300' })
     }
   })
