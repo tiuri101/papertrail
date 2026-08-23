@@ -1950,9 +1950,16 @@ def test_validation_waits_for_dual_extraction_consensus_then_targets_it(db) -> N
     )
     from app.projects.models import ProjectMembership as PM
 
-    admin, reviewer, project, publication, document, _schema, sample, method = (
-        setup_llm_project(db)
-    )
+    (
+        admin,
+        reviewer,
+        project,
+        publication,
+        document,
+        _schema,
+        sample,
+        method,
+    ) = setup_llm_project(db)
     settings = project_settings(db, project.id)
     assert settings is not None
     settings.extraction_validation_enabled = True

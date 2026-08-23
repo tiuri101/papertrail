@@ -60,7 +60,9 @@ def publications_for_scope(
         query = query.where(Publication.id.in_(publication_ids))
     elif scope == "included":
         ids = select(FinalDecision.publication_id).where(
-            outcome_filter(project_id, ScreeningStage.FULL_TEXT, ScreeningOutcome.INCLUDE)
+            outcome_filter(
+                project_id, ScreeningStage.FULL_TEXT, ScreeningOutcome.INCLUDE
+            )
         )
         query = query.where(Publication.id.in_(ids))
     elif scope == "excluded":

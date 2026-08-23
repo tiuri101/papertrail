@@ -473,9 +473,7 @@ def test_job_registry_is_the_single_source_for_handlers_pools_and_labels() -> No
         assert HANDLERS[job_type] is definition.handler
         assert JOB_LABELS[job_type] == definition.label
         assert JOB_STAGES[job_type] == definition.stage
-        assert (definition.worker_pool == WorkerPool.LLM) == (
-            job_type in LLM_JOB_TYPES
-        )
+        assert (definition.worker_pool == WorkerPool.LLM) == (job_type in LLM_JOB_TYPES)
 
 
 def test_stage_analysis_job_is_classified_as_llm_pool() -> None:

@@ -814,7 +814,9 @@ def _screening_payload(
         "state": (
             "ready"
             if run.status == ProcessingStatus.COMPLETED
-            else "queued" if run.status == ProcessingStatus.PENDING else run.status
+            else "queued"
+            if run.status == ProcessingStatus.PENDING
+            else run.status
         ),
         "runId": run.id,
         "documentId": run.document_id,
@@ -1031,7 +1033,9 @@ def _validation_payload(db: Session, item: ExtractionWorkItem) -> dict[str, Any]
         "state": (
             "ready"
             if run.status == ProcessingStatus.COMPLETED
-            else "queued" if run.status == ProcessingStatus.PENDING else run.status
+            else "queued"
+            if run.status == ProcessingStatus.PENDING
+            else run.status
         ),
         "runId": run.id,
         "responseId": own_response.id,

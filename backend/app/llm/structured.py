@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
-from typing import Any
+from typing import Any, TypeVar
 
 from app.api.errors import DomainError
 from app.llm.ollama import OllamaClientProtocol, OllamaResponse
+
+ValidatedResult = TypeVar("ValidatedResult")
 
 
 def add_metrics(total: dict[str, int], response: OllamaResponse) -> None:
@@ -14,7 +16,7 @@ def add_metrics(total: dict[str, int], response: OllamaResponse) -> None:
             total[key] = total.get(key, 0) + value
 
 
-def validated_chat[ValidatedResult](
+def validated_chat(
     client: OllamaClientProtocol,
     messages: list[dict[str, str]],
     schema: dict[str, Any],

@@ -251,9 +251,15 @@ def test_dataset_reports_answered_values_for_a_completed_publication(db):
 
 
 def test_dataset_reports_missing_for_a_publication_not_yet_extracted(db):
-    project, _reviewer, fields, quality_field, _complete, pending_pub, *_ = (
-        setup_matrix_project(db)
-    )
+    (
+        project,
+        _reviewer,
+        fields,
+        quality_field,
+        _complete,
+        pending_pub,
+        *_,
+    ) = setup_matrix_project(db)
     dataset = build_evidence_dataset(db, project.id)
     facts = dataset.facts_for(pending_pub.id)
     design_fact = facts[f"extraction:{fields['design'].stable_key}"]
@@ -495,9 +501,16 @@ def test_unanswered_fact_never_matches_a_value_based_filter():
 
 
 def test_cell_detail_returns_value_and_evidence(db):
-    project, _reviewer, fields, *_, complete_pub, _pending, _excluded, response = (
-        setup_matrix_project(db)
-    )
+    (
+        project,
+        _reviewer,
+        fields,
+        *_,
+        complete_pub,
+        _pending,
+        _excluded,
+        response,
+    ) = setup_matrix_project(db)
     evidence = [
         {"page": 5, "quote": "quote text", "section": "Results", "verified": True}
     ]

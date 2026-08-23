@@ -625,14 +625,10 @@ def test_project_owner_users_returns_only_owners(db) -> None:
         db, "Evidence Review", None, ReviewType.SYSTEMATIC_REVIEW, owner
     )
     db.add(
-        ProjectMembership(
-            project_id=project.id, user_id=second_owner.id, is_owner=True
-        )
+        ProjectMembership(project_id=project.id, user_id=second_owner.id, is_owner=True)
     )
     db.add(
-        ProjectMembership(
-            project_id=project.id, user_id=reviewer.id, can_extract=True
-        )
+        ProjectMembership(project_id=project.id, user_id=reviewer.id, can_extract=True)
     )
     db.flush()
 

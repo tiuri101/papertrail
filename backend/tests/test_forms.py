@@ -323,7 +323,11 @@ def test_marking_a_field_required_reopens_completed_quality_responses(db) -> Non
     from app.projects.models import ProjectMembership, ProjectStage, ScreeningStage
     from app.publications.models import Publication
     from app.quality.models import QualityConfig, QualityStatus, QualityWorkItem
-    from app.quality.service import claim_next_quality, initialize_quality, submit_quality
+    from app.quality.service import (
+        claim_next_quality,
+        initialize_quality,
+        submit_quality,
+    )
 
     reviewer = create_user(db, "r-quality", "R Quality", "password-1")
     project = Project(

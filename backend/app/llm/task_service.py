@@ -799,7 +799,12 @@ def backfill_extraction_validation(
 
 
 def queue_project_title_abstract_reanalysis(
-    db: Session, project_id: str, *, created_by_id: str | None, priority: int, bulk_id: str
+    db: Session,
+    project_id: str,
+    *,
+    created_by_id: str | None,
+    priority: int,
+    bulk_id: str,
 ) -> int:
     """Force-queue title/abstract screening for every active publication in
     the project, for a manager-triggered bulk re-analysis (as opposed to
@@ -829,7 +834,12 @@ def queue_project_title_abstract_reanalysis(
 
 
 def queue_project_full_text_reanalysis(
-    db: Session, project_id: str, *, created_by_id: str | None, priority: int, bulk_id: str
+    db: Session,
+    project_id: str,
+    *,
+    created_by_id: str | None,
+    priority: int,
+    bulk_id: str,
 ) -> int:
     """Force-queue full-text screening assistance for the project's
     currently title/abstract-included, not-yet-full-text-excluded cohort."""
@@ -851,7 +861,12 @@ def queue_project_full_text_reanalysis(
 
 
 def queue_project_data_extraction_reanalysis(
-    db: Session, project_id: str, *, created_by_id: str | None, priority: int, bulk_id: str
+    db: Session,
+    project_id: str,
+    *,
+    created_by_id: str | None,
+    priority: int,
+    bulk_id: str,
 ) -> int:
     """Force-queue data extraction for the project's full-text-included
     cohort: text preparation, and (once completed text is available) the

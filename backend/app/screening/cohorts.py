@@ -107,7 +107,9 @@ def decided_final_decisions(
     )
 
 
-def decided_ids_for_stage(db: Session, project_id: str, stage: ScreeningStage) -> list[str]:
+def decided_ids_for_stage(
+    db: Session, project_id: str, stage: ScreeningStage
+) -> list[str]:
     """Publications with any valid FinalDecision at `stage`, regardless of
     outcome -- "has this stage been decided", not "was it decided INCLUDE"."""
     return list(
