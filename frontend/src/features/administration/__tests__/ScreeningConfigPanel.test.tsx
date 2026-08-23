@@ -41,12 +41,12 @@ describe('ScreeningConfigPanel', () => {
     renderWithProviders(<ScreeningConfigPanel projectId="project-1" />)
 
     const titleAbstractLegend = await screen.findByText('Title/Abstract Screening')
-    expect(titleAbstractLegend).toHaveClass('subsection-heading')
+    expect(titleAbstractLegend.tagName).toBe('LEGEND')
     const titleAbstractForm = titleAbstractLegend.closest('form') as HTMLElement
     expect(within(titleAbstractForm).getByLabelText('Reviewers required per publication')).toHaveValue(1)
 
     const fullTextLegend = screen.getByText('Full-Text Screening')
-    expect(fullTextLegend).toHaveClass('subsection-heading')
+    expect(fullTextLegend.tagName).toBe('LEGEND')
     const fullTextForm = fullTextLegend.closest('form') as HTMLElement
     expect(within(fullTextForm).getByLabelText('Reviewers required per publication')).toHaveValue(2)
 

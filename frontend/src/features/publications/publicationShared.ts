@@ -1,3 +1,5 @@
+import type { BadgeVariant } from '../../components/Badge'
+
 export interface ScreeningStatus {
   titleAbstract: string | null
   fullText: string | null
@@ -54,7 +56,7 @@ export function fullTextRetrievalFailureLabel(retrievalStatus: string | null | u
 
 export interface StagePill {
   label: string
-  className: string
+  variant: BadgeVariant
 }
 
 // A single at-a-glance status, collapsing the two screening stages plus
@@ -64,25 +66,25 @@ export function primaryStage(publication: Publication): StagePill {
   const titleAbstract = publication.screeningStatus?.titleAbstract
   const fullText = publication.screeningStatus?.fullText
 
-  if (titleAbstract === 'exclude') return { label: 'Excluded', className: 'status-badge--danger' }
-  if (titleAbstract === 'uncertain') return { label: 'Uncertain', className: 'status-badge--warning' }
-  if (titleAbstract === 'duplicate') return { label: 'Duplicate', className: 'status-badge--neutral' }
-  if (!titleAbstract) return { label: 'New', className: 'status-badge--pending' }
+  if (titleAbstract === 'exclude') return { label: 'Excluded', variant: 'danger' }
+  if (titleAbstract === 'uncertain') return { label: 'Uncertain', variant: 'warning' }
+  if (titleAbstract === 'duplicate') return { label: 'Duplicate', variant: 'neutral' }
+  if (!titleAbstract) return { label: 'New', variant: 'neutral' }
 
-  if (fullText === 'exclude') return { label: 'Excluded', className: 'status-badge--danger' }
-  if (fullText === 'uncertain') return { label: 'Uncertain', className: 'status-badge--warning' }
-  if (fullText === 'duplicate') return { label: 'Duplicate', className: 'status-badge--neutral' }
+  if (fullText === 'exclude') return { label: 'Excluded', variant: 'danger' }
+  if (fullText === 'uncertain') return { label: 'Uncertain', variant: 'warning' }
+  if (fullText === 'duplicate') return { label: 'Duplicate', variant: 'neutral' }
   if (fullText === 'include') {
     if (publication.extractionStatus && publication.extractionStatus !== 'completed') {
-      return { label: 'Extraction', className: 'status-badge--warning' }
+      return { label: 'Extraction', variant: 'warning' }
     }
-    return { label: 'Included', className: 'status-badge--success' }
+    return { label: 'Included', variant: 'success' }
   }
 
   const failureLabel = fullTextRetrievalFailureLabel(publication.fullText?.retrievalStatus)
-  if (failureLabel) return { label: failureLabel, className: 'status-badge--danger' }
-  if (publication.fullText?.available) return { label: 'Full-Text', className: 'status-badge--warning' }
-  return { label: 'Screened', className: 'status-badge--neutral' }
+  if (failureLabel) return { label: failureLabel, variant: 'danger' }
+  if (publication.fullText?.available) return { label: 'Full-Text', variant: 'warning' }
+  return { label: 'Screened', variant: 'neutral' }
 }
 
 // The screening stage a reviewer would act on next, or null once both

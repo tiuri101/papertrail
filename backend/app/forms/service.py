@@ -9,6 +9,37 @@ from app.api.errors import ConflictError, DomainError, NotFoundError
 from app.forms.models import FieldType, FormField, FormKind, FormVersion, ReviewForm
 
 
+def active_fields(db: Session, form: ReviewForm) -> list[FormField]:
+    """The non-archived fields of a form's active version, in display order.
+    Canonical query for "what fields does a reviewer actually see" -- used by
+    extraction, quality, and LLM schema management alike."""
+    return list(
+        db.scalars(
+            select(FormField)
+            .where(
+                FormField.form_version_id == form.active_version_id,
+                FormField.is_archived.is_(False),
+            )
+            .order_by(FormField.position)
+        )
+    )
+
+
+def project_form_by_kind(
+    db: Session, project_id: str, kind: FormKind
+) -> ReviewForm | None:
+    """The project's form of a given kind, if one has been created.
+
+    Canonical lookup for "does this project have a form of kind X" -- extraction,
+    quality, and LLM schema management all need this same query.
+    """
+    return db.scalar(
+        select(ReviewForm).where(
+            ReviewForm.project_id == project_id, ReviewForm.kind == kind
+        )
+    )
+
+
 def create_form(
     db: Session,
     name: str,
@@ -131,20 +162,8 @@ def add_field(
     )
     db.add(field)
     db.flush()
-    if required and form.project_id is not None:
-        if form.kind == FormKind.EXTRACTION:
-            from app.extraction.service import reopen_for_required_field
-
-            reopen_for_required_field(db, form.project_id)
-        elif form.kind == FormKind.QUALITY:
-            try:
-                from app.quality.service import (
-                    reopen_for_required_field as reopen_quality,
-                )
-
-                reopen_quality(db, form.project_id)
-            except ImportError:
-                pass
+    if required:
+        _reopen_reviews_for_required_field(db, form)
     return field
 
 
@@ -176,6 +195,33 @@ def archive_field(db: Session, form: ReviewForm, stable_key: str) -> FormField:
     field.is_archived = True
     db.flush()
     return field
+
+
+def _reopen_reviews_for_required_field(db: Session, form: ReviewForm) -> None:
+    """When a field becomes required on a project's active extraction or
+    quality form, a previously-completed reviewer response for that project
+    may now be missing an answer for it -- reopen affected work so reviewers
+    can fill in the gap. A no-op for a global template (no project) or a form
+    of neither kind.
+
+    The imports below are local, not module-level, because both
+    ``extraction.service`` and ``quality.service`` import from this module
+    (``active_fields``, ``project_form_by_kind``) -- a module-level import
+    here would be a real circular import. Deferring to call time, after every
+    module has finished loading, avoids that without needing to swallow an
+    ImportError: a real failure here (e.g. a moved/renamed function) should
+    surface, not silently make quality-review reopening a no-op.
+    """
+    if form.project_id is None:
+        return
+    if form.kind == FormKind.EXTRACTION:
+        from app.extraction.service import reopen_for_required_field
+
+        reopen_for_required_field(db, form.project_id)
+    elif form.kind == FormKind.QUALITY:
+        from app.quality.service import reopen_for_required_field
+
+        reopen_for_required_field(db, form.project_id)
 
 
 def _has_recorded_responses(db: Session, form: ReviewForm) -> bool:
@@ -240,20 +286,8 @@ def update_field(
     if position is not None:
         _set_field_position(db, version, stable_key, position)
     db.flush()
-    if field.required and form.project_id is not None:
-        if form.kind == FormKind.EXTRACTION:
-            from app.extraction.service import reopen_for_required_field
-
-            reopen_for_required_field(db, form.project_id)
-        elif form.kind == FormKind.QUALITY:
-            try:
-                from app.quality.service import (
-                    reopen_for_required_field as reopen_quality,
-                )
-
-                reopen_quality(db, form.project_id)
-            except ImportError:
-                pass
+    if field.required:
+        _reopen_reviews_for_required_field(db, form)
     return field
 
 
@@ -313,20 +347,8 @@ def replace_field(
     db.flush()
     if position is not None:
         _set_field_position(db, version, new_field.stable_key, position)
-    if required and form.project_id is not None:
-        if form.kind == FormKind.EXTRACTION:
-            from app.extraction.service import reopen_for_required_field
-
-            reopen_for_required_field(db, form.project_id)
-        elif form.kind == FormKind.QUALITY:
-            try:
-                from app.quality.service import (
-                    reopen_for_required_field as reopen_quality,
-                )
-
-                reopen_quality(db, form.project_id)
-            except ImportError:
-                pass
+    if required:
+        _reopen_reviews_for_required_field(db, form)
     return new_field
 
 

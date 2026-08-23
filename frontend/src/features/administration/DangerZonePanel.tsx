@@ -6,6 +6,7 @@ import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { IconAlertTriangle, IconRestart, IconTrash } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
+import { toolbarClass } from '../../components/layoutStyles'
 
 export function DangerZonePanel({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient()
@@ -31,7 +32,7 @@ export function DangerZonePanel({ projectId }: { projectId: string }) {
 
   return (
     <>
-      <CollapsibleSection id="section-reset-project" title="Reset Project" className="danger-zone" icon={<IconRestart />}>
+      <CollapsibleSection id="section-reset-project" title="Reset Project" tone="danger" icon={<IconRestart />}>
         <InfoBox icon={<IconAlertTriangle />} tone="warning">
           <p>
             Wipes every imported publication and all screening, duplicate-review, full-text,
@@ -40,9 +41,9 @@ export function DangerZonePanel({ projectId }: { projectId: string }) {
             cannot be undone.
           </p>
         </InfoBox>
-        {reset.error ? <p className="error" role="alert">{reset.error.message}</p> : null}
+        {reset.error ? <p className="text-danger" role="alert">{reset.error.message}</p> : null}
         {reset.isSuccess ? <p>Project has been reset to draft.</p> : null}
-        <div className="toolbar">
+        <div className={toolbarClass}>
           <ConfirmButton
             label="Reset Project"
             confirmLabel="Reset Project"
@@ -54,15 +55,15 @@ export function DangerZonePanel({ projectId }: { projectId: string }) {
           />
         </div>
       </CollapsibleSection>
-      <CollapsibleSection id="section-delete-project" title="Delete Project" className="danger-zone" icon={<IconTrash />}>
+      <CollapsibleSection id="section-delete-project" title="Delete Project" tone="danger" icon={<IconTrash />}>
         <InfoBox icon={<IconAlertTriangle />} tone="warning">
           <p>
             Permanently removes the entire project, including its configuration, publications,
             stored PDFs, import files, and generated exports. This cannot be undone.
           </p>
         </InfoBox>
-        {deleteProject.error ? <p className="error" role="alert">{deleteProject.error.message}</p> : null}
-        <div className="toolbar">
+        {deleteProject.error ? <p className="text-danger" role="alert">{deleteProject.error.message}</p> : null}
+        <div className={toolbarClass}>
           <ConfirmButton
             label="Delete Project"
             confirmLabel="Permanently Delete"

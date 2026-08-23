@@ -13,6 +13,7 @@ from app.accounts.service import hash_token
 from app.api.errors import ConflictError, DomainError, ForbiddenError, NotFoundError
 from app.audit.service import record_audit
 from app.core.config import get_settings
+from app.core.time import utcnow
 from app.fulltext.documents import active_document, attach_staged_pdf
 from app.fulltext.models import DocumentSource, FullTextRetrieval, PublicationDocument
 from app.fulltext.models import RetrievalStatus as HumanRetrievalStatus
@@ -60,10 +61,6 @@ _ALLOWED_AGENT_TRANSITIONS: dict[RetrievalJobStatus, set[RetrievalJobStatus]] = 
         RetrievalJobStatus.FAILED,
     },
 }
-
-
-def utcnow() -> datetime:
-    return datetime.now(UTC)
 
 
 def _aware(value: datetime) -> datetime:

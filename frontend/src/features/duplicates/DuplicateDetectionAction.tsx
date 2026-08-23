@@ -2,6 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
+import { cn } from '../../lib/cn'
 import { type BackgroundJob, findJob, isJobActive } from '../jobs/jobStatus'
 
 interface DetectionJob {
@@ -59,23 +61,23 @@ export function DuplicateDetectionAction({
   })
 
   return (
-    <div className={`duplicate-detection-action${compact ? ' duplicate-detection-action--compact' : ''}`}>
-      <button
+    <div className={cn('flex flex-wrap items-center gap-3 [&_.text-danger]:m-0 [&_.text-success]:m-0', !compact && 'mb-5')}>
+      <Button
         type="button"
-        className="button-secondary"
+        variant="secondary"
         onClick={() => detection.mutate()}
-        disabled={detection.isPending}
+        loading={detection.isPending}
       >
         {detection.isPending ? 'Queueing…' : 'Re-run Duplicate Detection'}
-      </button>
+      </Button>
       {detection.isSuccess ? (
-        <span className="success" role="status">
+        <span className="text-success" role="status">
           {detectionJob?.status === 'completed'
             ? 'Duplicate detection finished. Results refreshed.'
             : 'Duplicate detection queued.'}
         </span>
       ) : null}
-      {detection.error ? <span className="error" role="alert">{detection.error.message}</span> : null}
+      {detection.error ? <span className="text-danger" role="alert">{detection.error.message}</span> : null}
     </div>
   )
 }

@@ -42,13 +42,13 @@ describe('PromptSettingsPanel', () => {
     expect(await screen.findByText('Data extraction')).toBeInTheDocument()
     expect(screen.getByText('Title/abstract screening')).toBeInTheDocument()
 
-    const extractionField = screen.getByText('Data extraction').closest('.prompt-flow')
+    const extractionField = screen.getByText('Data extraction').closest('[data-prompt-flow]')
     expect(extractionField).not.toBeNull()
     expect(within(extractionField as HTMLElement).getByText(
       'You extract structured information from an academic paper.',
     )).toBeInTheDocument()
 
-    const titleAbstractField = screen.getByText('Title/abstract screening').closest('.prompt-flow')
+    const titleAbstractField = screen.getByText('Title/abstract screening').closest('[data-prompt-flow]')
     expect(within(titleAbstractField as HTMLElement).getByDisplayValue(
       'Only robotics venues count.',
     )).toBeInTheDocument()
@@ -72,7 +72,7 @@ describe('PromptSettingsPanel', () => {
     })
     renderWithProviders(<PromptSettingsPanel projectId="p1" />)
 
-    const extractionField = (await screen.findByText('Data extraction')).closest('.prompt-flow') as HTMLElement
+    const extractionField = (await screen.findByText('Data extraction')).closest('[data-prompt-flow]') as HTMLElement
     const textarea = within(extractionField).getByLabelText('Custom instructions')
     fireEvent.change(textarea, { target: { value: "Treat 'RQ' as research question." } })
     fireEvent.blur(textarea)

@@ -1,51 +1,127 @@
 # Architecture
 
-Papertrail is an API-first modular monolith. A React/TypeScript single-page application communicates with a FastAPI backend. PostgreSQL is the authoritative store for bibliographic records, PDF metadata and version links, workflow state, sessions, audit events, queue reservations, background jobs, durable email notifications, LLM schemas, page text, immutable LLM runs, suggestions, and reviewer provenance. PDF binaries are held in a dedicated persistent filesystem volume. An optional dedicated worker communicates over HTTP with an independently operated Ollama server.
+Papertrail is an API-first modular monolith. A React/TypeScript single-page application communicates with a FastAPI backend. PostgreSQL is the authoritative store for bibliographic records, workflow state, sessions, audit events, queue reservations, background jobs, notification state, form versions, LLM configuration/results, extracted page text, and PDF metadata/version links. PDF binaries live in a dedicated persistent filesystem volume. The optional Chrome Browser Helper executes publisher retrieval work on the reviewer's computer. Optional SMTP and Ollama integrations are external services.
 
 ```text
-Browser (React/TypeScript)
-          |
-  external reverse proxy (out of scope)
-       /     \
-  FastAPI   static frontend
-      |
- PostgreSQL <---- threaded worker
-      |              |
- PDF metadata    imports, PDF matching,
-      |          duplicate scoring, exports
- PDF volume
+React SPA -------------------------------+
+                                         | session cookie + CSRF
+Chrome Browser Helper -------------------| bearer agent token
+                                         v
+                                  +-------------+
+                                  |   FastAPI   |
+                                  +------+------+ 
+                                         |
+                          +--------------+--------------+
+                          |                             |
+                    +-----v-----+                 +-----v------+
+                    | PostgreSQL |                 | PDF volume |
+                    +-----+-----+                 +------------+
+                          |
+              +-----------+-----------+
+              |                       |
+       +------v-------+        +------v-------+
+       | normal worker |        |  LLM worker  |
+       +------+-------+        +------+-------+
+              |                       |
+            SMTP                    Ollama
+              |
+       notification mail
+
+The production frontend is a separate static container. An external reverse proxy
+normally exposes the frontend and `/api` under the public HTTPS hostname.
 ```
 
 ## Backend modules
 
-The backend is divided by domain: accounts, projects, imports, publications, deduplication, screening, conflicts, full text, pdf_acquisition, forms, extraction, quality, reporting, audit, integrations, and jobs. FastAPI routes perform validation and authorization, then call domain services. Cross-module workflow changes use explicit service functions and database transactions.
+`backend/app/` is organized by domain rather than by technical layer alone. Current major domains include:
+
+- `accounts` — local users, sessions, login/reset throttling, self-service account settings;
+- `projects` — project model, membership/eligibility, criteria/RQs, screening configuration, lifecycle/integrity operations;
+- `imports` — search documentation, bibliographic imports, bulk PDF matching;
+- `publications` — normalized records, metadata editing/enrichment, exports for individual records;
+- `deduplication` — duplicate scoring, merge/reversal;
+- `screening` and `conflicts` — reviewer work, revisions, final decisions, conflict resolution;
+- `fulltext` — human retrieval status and protected PDF document/version management;
+- `pdf_acquisition` — Browser Helper pairing, batches, externally executed PDF retrieval jobs;
+- `forms` — extraction/quality form templates, versions, and fields;
+- `review_work` — shared extraction/quality allocation and progress mechanics;
+- `extraction` and `quality` — reviewer responses and authoritative results;
+- `analysis` — stage narratives, reviewer agreement, research-question analysis endpoints/jobs;
+- `reporting` — PRISMA, final results, Evidence Matrix, exports;
+- `llm` — installation/project settings, prompts, task orchestration, evidence validation, immutable runs;
+- `notifications` — durable email notification records/templates/delivery;
+- `instance_settings` — administrator-managed database overrides for selected installation settings;
+- `jobs` — durable server-side job queue, leasing, diagnostics, retries;
+- `audit` — project audit trail, dashboard/progress read models;
+- `integrations` — external metadata clients.
+
+Most API-facing domains broadly separate request validation/authorization, business/service logic, persistence models, and schemas. Some domains deliberately have additional specialized modules where the responsibility is large enough to warrant it. Cross-domain workflow changes should go through explicit service functions and database transactions rather than ad-hoc direct writes.
+
+## Authentication and authorization
+
+The web application uses opaque PostgreSQL-backed sessions in an HTTP-only cookie. Login/session responses provide a CSRF token, and mutating session-authenticated API requests require `X-CSRF-Token`.
+
+Authorization is checked server-side. The installation administrator can manage all projects and local user accounts. Each project creator becomes its owner with project-scoped management rights. Membership additionally carries reviewer eligibility for title/abstract screening, full-text screening, extraction, quality assessment, and adjudication.
+
+The Browser Helper uses a separate opaque bearer token that is valid only for `/api/v1/browser-agent/...` endpoints. A one-time, short-lived pairing secret minted from the normal session flow is exchanged for that agent token; only its hash is stored server-side.
 
 ## Browser-assisted PDF retrieval
 
-`pdf_acquisition` is a dedicated domain, separate from `fulltext`, for PDFs retrieved by an optional paired Chrome extension (`browser-extension/`, a standalone Manifest V3 package) rather than uploaded directly. The extension authenticates with its own opaque bearer token (`BrowserAgent`, hashed server-side, minted once through a single-use, time-limited `BrowserAgentPairing` secret) -- entirely separate from the session-cookie/CSRF mechanism the web UI uses, and unable to authenticate any other API. A `PdfRetrievalBatch` groups the `PdfRetrievalJob` rows created for one project's "retrieve missing PDFs" action; jobs are leased to a claiming agent with a short expiring lease (`SELECT ... FOR UPDATE SKIP LOCKED`), mirroring the existing full-text reviewer queue pattern, and are not `BackgroundJob`s because they are executed externally by the browser, not by a server-side worker.
+`pdf_acquisition` is intentionally separate from `fulltext`. `fulltext` owns the authoritative human retrieval state and the protected PDF/document-version pipeline; `pdf_acquisition` owns work executed externally by a paired Chrome extension.
 
-The extension resolves a publisher landing page from the publication's DOI/publisher URL, discovers a PDF link using pluggable per-publisher resolvers, validates the response looks like a real PDF, and uploads it to the same `stage_pdf_upload`/`attach_staged_pdf` pipeline manual uploads use, tagged with `DocumentSource.BROWSER_RETRIEVAL`. FastAPI re-validates every upload independently; the extension's own validation is only an early rejection. A successful upload is the only thing that automatically advances the authoritative `FullTextRetrieval` status to `AVAILABLE` -- an automated retrieval failure (needs authentication, not found, access denied, invalid response, or a network failure) never marks a human retrieval outcome, since it does not prove a human reviewer cannot obtain the paper by other means. The extension never sends Papertrail a publisher cookie, institutional credential, or `Cookie`/`Authorization` header captured from a publisher site.
+A `PdfRetrievalBatch` groups `PdfRetrievalJob` rows created for a manual **Retrieve missing PDFs** operation. In addition, when a title/abstract final decision becomes **Include**, Papertrail can immediately auto-queue that publication for browser retrieval when it is still missing a PDF and the workflow has an eligible paired helper. This avoids waiting for a later batch action.
+
+Retrieval jobs are not `BackgroundJob` rows because they are executed by the browser rather than a server worker. They use short expiring leases and `SELECT ... FOR UPDATE SKIP LOCKED` when claimed. The extension gets only the publication information necessary for retrieval and cannot choose an arbitrary upload target; the server derives the publication from the claimed job.
+
+The extension discovers/fetches a likely publisher PDF through Chrome and performs an early validity check. FastAPI independently revalidates the upload and attaches it through the same PDF pipeline used by manual uploads, tagged with `DocumentSource.BROWSER_RETRIEVAL`. Only a successful PDF attachment automatically changes authoritative retrieval state to available. Authentication failures, not-found responses, access denial, invalid content, or network errors do not mark a human retrieval outcome.
+
+See [Browser Helper](browser-helper.md) for installation and operation.
 
 ## Background work
 
-A dedicated worker process polls a durable PostgreSQL job table and dispatches claimed jobs through `ThreadPoolExecutor`. Claims use leases and short row-locking transactions. Threads create independent SQLAlchemy sessions. Imports, enrichment, duplicate detection, and export generation are idempotent or safely retryable.
+Server-side background work is stored in PostgreSQL as durable `BackgroundJob` rows. Worker claims use short row-locking transactions and leases; a heartbeat renews active leases. Worker threads use independent SQLAlchemy sessions. Interrupted jobs whose leases expire become claimable again, and failed jobs retain diagnostics/retry state.
 
-Optional SMTP delivery uses the same queue. Domain actions create a deduplicated `email_notifications` record and enqueue a lightweight `send_email` job in the same transaction. The recipient address is snapshotted for deterministic delivery, while SMTP credentials remain backend-only.
+The normal worker handles jobs such as imports, metadata enrichment, duplicate detection, export generation, PDF text extraction, and email delivery. Optional SMTP notifications are represented by durable, deduplicated notification records and queued delivery jobs so mail-server failure does not roll back the originating domain action.
+
+LLM assistance uses the same durable queue and a separate `llm-worker` process with its own concurrency limit. The LLM-only worker claims every job type that calls Ollama (screening/extraction/validation inference and research-question synthesis), while non-LLM work remains available to the normal worker.
+
+Project managers can inspect a project's job list, stage summary, failed-job diagnostics, and restart eligible failed jobs through the project Jobs UI/API.
 
 ## Reviewer queues
 
-Screening, extraction, and quality work items use deterministic ranks derived from the global seed, project, publication, and stage. A short transaction atomically claims an item; the one-hour user reservation is stored as data rather than as a long-running database lock.
+Screening, extraction, and quality work use durable work-item rows rather than long-held database locks. Claim/pre-assignment behavior depends on the configured allocation mode. Screening can additionally use independent allocation where every eligible reviewer sees every publication.
+
+Queue order uses deterministic ranks derived from project/reviewer/workflow inputs. Claim operations are atomic. Reviewer reservations are stored as data with an expiry rather than as long-running DB transactions.
 
 ## Data preservation
 
-Imported source rows are immutable and linked to normalized publications. Each PDF version has a stable document ID and generated storage key; one partial unique index permits at most one active PDF per publication. Replacement and logical removal preserve prior metadata and files. Duplicate merges transfer every document to the canonical publication and retain conflicting files as history. Individual reviewer decisions and revisions remain separate from PDF availability and final project decisions. Dynamic forms use immutable versions and stable field identifiers.
+Imported source rows remain linked to normalized publications for provenance. Duplicate merges choose a canonical publication while preserving merge history and supporting reversal.
 
-Extraction supports one or two independent reviewers per publication (`ExtractionWorkItem.slot_number`). The authoritative outcome is always a separate `FinalExtraction` row -- never a raw per-slot response -- written by a single code path (`extraction/final.py`) whether the source was a single reviewer, automatic slot agreement, adjudicator reconciliation, or a manager override; each `FinalExtraction` records its resolution method, per-field provenance (which response/suggestion a value came from), and the contributing response IDs. Superseded finals are flipped `is_valid=false` and kept as history, mirroring `FinalDecision`'s pattern in `conflicts/`, with a partial unique index enforcing at most one current final per publication.
+Each PDF version has a stable document ID and storage key. One active document can exist per publication; replacement and logical removal preserve earlier metadata/files as history. Duplicate merges transfer documents to the canonical publication and retain conflicting files as historical versions rather than silently deleting them.
 
-LLM assistance keeps HTTP transport, page-aware PDF extraction, schema/version management, task-specific versioned prompts, structured validation, evidence verification, orchestration, and reviewer integration separate. A shared immutable run lifecycle covers title/abstract screening, full-text screening, data extraction, and extraction validation; a second, simpler immutable run model (`ResearchQuestionAnalysisRun`) covers LLM-generated research-question synthesis, always targeting the authoritative `FinalExtraction`/quality result rather than any individual reviewer response. Deterministic fingerprints expose stale results when metadata, criteria, PDFs, text, forms, human responses, prompts, or the configured model change. LLM fields map to stable extraction-field keys, while all suggestions remain separate from authoritative decisions and extraction responses. Normal workers claim text jobs; the LLM-only worker claims every job type that calls Ollama (screening/extraction/validation inference and research-question synthesis) with its own concurrency limit through the same leased PostgreSQL queue.
+Reviewer screening decisions and revisions remain separate from authoritative `FinalDecision` rows. Extraction similarly keeps individual slot responses separate from the authoritative `FinalExtraction`. One- or two-extractor projects therefore retain the original reviewer submissions even when automatic agreement, reconciliation, or manager override establishes the current final result.
 
-`reporting/evidence_dataset.py` is the one canonical read-side projection of "the current, traceable value of field X for publication Y," covering both extraction and quality data. It resolves through the same `FinalExtraction`/quality lookups reporting and analysis already use, and is the shared foundation for the Evidence Matrix and research-question synthesis -- neither re-implements final-result resolution independently.
+Dynamic extraction/quality forms use versions and stable field identifiers so later form edits can preserve and reinterpret existing data explicitly rather than silently changing its meaning.
+
+## LLM and evidence traceability
+
+LLM assistance separates HTTP transport, page-aware PDF text extraction, task-specific prompts, schema/version management, structured validation, evidence verification, orchestration, and reviewer integration. Suggestions are immutable/advisory and remain separate from authoritative human screening and extraction data.
+
+`reporting/evidence_dataset.py` is the canonical read-side projection used by the Evidence Matrix and research-question synthesis to resolve the current authoritative extraction/quality value and any traceable suggestion evidence. Research-question synthesis operates on authoritative structured results rather than raw individual reviewer responses.
 
 ## Deployment
 
-Docker Compose runs PostgreSQL, a one-shot migration container, FastAPI, the threaded worker, and the built React frontend, pulling the backend and frontend images published as `tiuri101/papertrail-backend` and `tiuri101/papertrail-frontend`. The frontend and API each publish their own configurable host port (`PAPERTRAIL_FRONTEND_PORT`, `PAPERTRAIL_API_PORT`); routing them under a single public hostname is handled by an external reverse proxy outside this project's scope. Original imports and generated exports share a persistent application-file volume; PDFs use a separate `papertrail_pdf_data` volume mounted only by FastAPI and the worker. PDF content is never exposed as static storage.
+The production `docker-compose.yml` defines:
+
+- `postgres` — PostgreSQL 18;
+- `migrate` — one-shot Alembic migration plus idempotent administrator bootstrap;
+- `api` — FastAPI/Uvicorn;
+- `worker` — normal server-side background worker;
+- `llm-worker` — dedicated Ollama-oriented worker process;
+- `frontend` — built React assets served by Nginx.
+
+Backend and frontend images are pulled as `tiuri101/papertrail-backend:${PAPERTRAIL_IMAGE_TAG}` and `tiuri101/papertrail-frontend:${PAPERTRAIL_IMAGE_TAG}`. Current CI publishes `linux/amd64` images.
+
+`papertrail_files` stores imports/exports, `papertrail_pdf_data` stores PDFs, and `papertrail_postgres_data` stores PostgreSQL. The API and frontend ports bind to loopback by default; an external reverse proxy is expected for public HTTPS deployments. PDF content is never exposed as a static public directory.
+
+See [Configuration](configuration.md), [Installation](installation.md), and [Security Operations](operations/security.md).

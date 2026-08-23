@@ -3,13 +3,9 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import Field, field_validator
 
-
-class ApiModel(BaseModel):
-    model_config = ConfigDict(
-        from_attributes=True, populate_by_name=True, use_enum_values=True
-    )
+from app.api.schemas import EnumApiModel as ApiModel
 
 
 class LlmSettingsUpdate(ApiModel):

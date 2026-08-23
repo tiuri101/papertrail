@@ -1,3 +1,4 @@
+import { Card } from '../../components/Card'
 import { CompletionBar } from './CompletionBar'
 import { FieldBarChart } from './FieldBarChart'
 import { StageNarrativePanel } from './StageNarrativePanel'
@@ -11,7 +12,7 @@ function formatRange(bin: HistogramBin): string {
 
 function NumericSummary({ stats }: { stats: NumericStats }) {
   return (
-    <p className="muted">
+    <p className="text-text-muted">
       min {stats.min} &middot; max {stats.max} &middot; mean {stats.mean} &middot; median{' '}
       {stats.median}
     </p>
@@ -22,7 +23,7 @@ function FieldBreakdown({ field }: { field: FieldStats }) {
   return (
     <>
       <h3>{field.label}</h3>
-      <p className="muted">{field.source === 'quality' ? 'Quality assessment' : 'Extraction'}</p>
+      <p className="text-text-muted">{field.source === 'quality' ? 'Quality assessment' : 'Extraction'}</p>
       <CompletionBar answered={field.answeredCount} total={field.totalCount} />
       {field.optionCounts ? (
         <FieldBarChart
@@ -51,12 +52,12 @@ export function ExtractionQualitySection({ projectId }: { projectId: string }) {
   const stats = query.data?.stats
 
   return (
-    <section id="section-analysis-extraction-quality" className="card">
+    <Card as="section" id="section-analysis-extraction-quality">
       <h2>Extraction &amp; Quality</h2>
-      {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
+      {query.error ? <p className="text-danger" role="alert">{query.error.message}</p> : null}
       {stats ? (
         <>
-          <p className="muted">{stats.totalPublications} included publications.</p>
+          <p className="text-text-muted">{stats.totalPublications} included publications.</p>
           {stats.qualityTotalScore ? (
             <>
               <h3>Overall quality score</h3>
@@ -81,6 +82,6 @@ export function ExtractionQualitySection({ projectId }: { projectId: string }) {
           isStale={query.data.isStale}
         />
       ) : null}
-    </section>
+    </Card>
   )
 }

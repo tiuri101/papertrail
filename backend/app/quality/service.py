@@ -1,21 +1,22 @@
 from __future__ import annotations
 
 import hashlib
-from datetime import UTC, datetime, timedelta
+from datetime import timedelta
 from typing import Any
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.accounts.models import User
 from app.api.errors import DomainError, ForbiddenError, NotFoundError
-from app.conflicts.models import FinalDecision
+from app.core.time import utcnow
 from app.extraction.service import validate_answers
 from app.forms.models import FieldType, FormField, FormKind, ReviewForm
+from app.forms.service import active_fields as forms_active_fields
+from app.forms.service import project_form_by_kind
 from app.projects.models import (
     Project,
     ProjectMembership,
-    ScreeningStage,
     TaskAllocationMode,
 )
 from app.projects.service import reviewer_weights, weighted_round_robin_sequence
@@ -25,11 +26,13 @@ from app.quality.models import (
     QualityStatus,
     QualityWorkItem,
 )
-from app.screening.models import ScreeningOutcome
-
-
-def utcnow() -> datetime:
-    return datetime.now(UTC)
+from app.review_work.allocation import reassign_orphaned_items, rebalance_pending_items
+from app.review_work.progress import (
+    completed_items_with_response,
+    remaining_claimable_items,
+    reviewer_progress,
+)
+from app.screening.cohorts import full_text_included_ids
 
 
 def quality_config(db: Session, project_id: str) -> QualityConfig | None:
@@ -39,11 +42,7 @@ def quality_config(db: Session, project_id: str) -> QualityConfig | None:
 
 
 def quality_form(db: Session, project_id: str) -> ReviewForm | None:
-    return db.scalar(
-        select(ReviewForm).where(
-            ReviewForm.project_id == project_id, ReviewForm.kind == FormKind.QUALITY
-        )
-    )
+    return project_form_by_kind(db, project_id, FormKind.QUALITY)
 
 
 def eligible_assessors(db: Session, project_id: str) -> list[str]:
@@ -70,16 +69,7 @@ def eligible_assessors(db: Session, project_id: str) -> list[str]:
 
 
 def included_publication_ids(db: Session, project_id: str) -> list[str]:
-    return list(
-        db.scalars(
-            select(FinalDecision.publication_id).where(
-                FinalDecision.project_id == project_id,
-                FinalDecision.stage == ScreeningStage.FULL_TEXT,
-                FinalDecision.outcome == ScreeningOutcome.INCLUDE,
-                FinalDecision.is_valid.is_(True),
-            )
-        )
-    )
+    return full_text_included_ids(db, project_id)
 
 
 def initialize_quality(db: Session, project: Project) -> int:
@@ -148,26 +138,15 @@ def reassign_work_items_from_ineligible_reviewers(db: Session, project_id: str) 
     claim_mode = (
         config is not None and config.allocation_mode == TaskAllocationMode.CLAIM
     )
-    orphaned = list(
-        db.scalars(
-            select(QualityWorkItem)
-            .where(
-                QualityWorkItem.project_id == project_id,
-                QualityWorkItem.status != QualityStatus.COMPLETED,
-                QualityWorkItem.assigned_reviewer_id.is_not(None),
-                QualityWorkItem.assigned_reviewer_id.not_in(eligible),
-            )
-            .order_by(QualityWorkItem.random_rank)
-        )
+    return reassign_orphaned_items(
+        db,
+        QualityWorkItem,
+        project_id=project_id,
+        eligible=eligible,
+        claim_mode=claim_mode,
+        completed_status=QualityStatus.COMPLETED,
+        available_status=QualityStatus.AVAILABLE,
     )
-    for index, item in enumerate(orphaned):
-        item.assigned_reviewer_id = (
-            None if claim_mode else eligible[index % len(eligible)]
-        )
-        item.status = QualityStatus.AVAILABLE
-        item.reserved_until = None
-    db.flush()
-    return len(orphaned)
 
 
 def rebalance_pending_work_items(db: Session, project_id: str) -> int:
@@ -185,30 +164,14 @@ def rebalance_pending_work_items(db: Session, project_id: str) -> int:
     if not eligible:
         return 0
     weights = reviewer_weights(db, project_id, eligible)
-    items = list(
-        db.scalars(
-            select(QualityWorkItem)
-            .where(QualityWorkItem.project_id == project_id)
-            .order_by(QualityWorkItem.random_rank)
-        )
+    return rebalance_pending_items(
+        db,
+        QualityWorkItem,
+        project_id=project_id,
+        eligible=eligible,
+        weights=weights,
+        available_status=QualityStatus.AVAILABLE,
     )
-    load = {reviewer_id: 0 for reviewer_id in eligible}
-    pending: list[QualityWorkItem] = []
-    for item in items:
-        if item.status == QualityStatus.AVAILABLE:
-            pending.append(item)
-        elif item.assigned_reviewer_id in load:
-            load[item.assigned_reviewer_id] += 1
-
-    reassigned = 0
-    for item in pending:
-        chosen = min(eligible, key=lambda r: (load[r] / weights.get(r, 1.0), r))
-        if item.assigned_reviewer_id != chosen:
-            item.assigned_reviewer_id = chosen
-            reassigned += 1
-        load[chosen] += 1
-    db.flush()
-    return reassigned
 
 
 def remaining_claimable_assessments(
@@ -216,20 +179,12 @@ def remaining_claimable_assessments(
 ) -> int:
     """How many quality-assessment work items this reviewer could still claim
     or complete in claim mode: their own incomplete items plus unclaimed ones."""
-    return (
-        db.scalar(
-            select(func.count())
-            .select_from(QualityWorkItem)
-            .where(
-                QualityWorkItem.project_id == project_id,
-                QualityWorkItem.status != QualityStatus.COMPLETED,
-                or_(
-                    QualityWorkItem.assigned_reviewer_id == reviewer_id,
-                    QualityWorkItem.assigned_reviewer_id.is_(None),
-                ),
-            )
-        )
-        or 0
+    return remaining_claimable_items(
+        db,
+        QualityWorkItem,
+        project_id=project_id,
+        reviewer_id=reviewer_id,
+        completed_status=QualityStatus.COMPLETED,
     )
 
 
@@ -240,29 +195,6 @@ def my_progress(
     and how many of those they've already completed. In claim mode, work items
     start unassigned, so also report how many are still available to this
     reviewer."""
-    assigned = (
-        db.scalar(
-            select(func.count())
-            .select_from(QualityWorkItem)
-            .where(
-                QualityWorkItem.project_id == project_id,
-                QualityWorkItem.assigned_reviewer_id == reviewer_id,
-            )
-        )
-        or 0
-    )
-    completed = (
-        db.scalar(
-            select(func.count())
-            .select_from(QualityWorkItem)
-            .where(
-                QualityWorkItem.project_id == project_id,
-                QualityWorkItem.assigned_reviewer_id == reviewer_id,
-                QualityWorkItem.status == QualityStatus.COMPLETED,
-            )
-        )
-        or 0
-    )
     config = quality_config(db, project_id)
     claim_mode = (
         config is not None and config.allocation_mode == TaskAllocationMode.CLAIM
@@ -272,12 +204,15 @@ def my_progress(
         if claim_mode
         else 0
     )
-    return {
-        "assigned": assigned,
-        "completed": completed,
-        "remaining": remaining,
-        "claim_mode": claim_mode,
-    }
+    return reviewer_progress(
+        db,
+        QualityWorkItem,
+        project_id=project_id,
+        reviewer_id=reviewer_id,
+        completed_status=QualityStatus.COMPLETED,
+        claim_mode=claim_mode,
+        remaining=remaining,
+    )
 
 
 def claim_next_quality(
@@ -334,16 +269,7 @@ def save_draft(item: QualityWorkItem, reviewer_id: str, draft: dict[str, Any]) -
 
 
 def active_fields(db: Session, form: ReviewForm) -> list[FormField]:
-    return list(
-        db.scalars(
-            select(FormField)
-            .where(
-                FormField.form_version_id == form.active_version_id,
-                FormField.is_archived.is_(False),
-            )
-            .order_by(FormField.position)
-        )
-    )
+    return forms_active_fields(db, form)
 
 
 def score_response(
@@ -430,28 +356,14 @@ def list_completed_for_reviewer(
 ) -> list[tuple[QualityWorkItem, QualityResponse]]:
     """The reviewer's own completed quality assessments, paired with their
     current response, so they can be revisited and corrected after submission."""
-    items = list(
-        db.scalars(
-            select(QualityWorkItem)
-            .where(
-                QualityWorkItem.project_id == project_id,
-                QualityWorkItem.assigned_reviewer_id == reviewer_id,
-                QualityWorkItem.status == QualityStatus.COMPLETED,
-            )
-            .order_by(QualityWorkItem.completed_at.desc())
-        )
+    return completed_items_with_response(
+        db,
+        QualityWorkItem,
+        QualityResponse,
+        project_id=project_id,
+        reviewer_id=reviewer_id,
+        completed_status=QualityStatus.COMPLETED,
     )
-    pairs: list[tuple[QualityWorkItem, QualityResponse]] = []
-    for item in items:
-        response = db.scalar(
-            select(QualityResponse).where(
-                QualityResponse.work_item_id == item.id,
-                QualityResponse.is_current.is_(True),
-            )
-        )
-        if response is not None:
-            pairs.append((item, response))
-    return pairs
 
 
 def reopen_for_required_field(db: Session, project_id: str) -> int:

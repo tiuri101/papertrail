@@ -2,9 +2,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { IconCheckCircle, IconFolder } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
+import { Input } from '../../components/Input'
+import { Textarea } from '../../components/Textarea'
 
 interface ProjectDetails {
   id: string
@@ -51,7 +54,7 @@ export function ProjectDetailsPanel({ projectId }: { projectId: string }) {
           here take effect immediately for every member.
         </p>
       </InfoBox>
-      {project.error ? <p className="error" role="alert">{project.error.message}</p> : null}
+      {project.error ? <p className="text-danger" role="alert">{project.error.message}</p> : null}
       <form
         onSubmit={(event) => {
           event.preventDefault()
@@ -60,7 +63,7 @@ export function ProjectDetailsPanel({ projectId }: { projectId: string }) {
       >
         <label>
           Name
-          <input
+          <Input
             type="text"
             value={name}
             onChange={(event) => setName(event.target.value)}
@@ -70,18 +73,17 @@ export function ProjectDetailsPanel({ projectId }: { projectId: string }) {
         </label>
         <label>
           Description
-          <textarea
+          <Textarea
             value={description}
             onChange={(event) => setDescription(event.target.value)}
             rows={3}
           />
         </label>
-        {save.error ? <p className="error" role="alert">{save.error.message}</p> : null}
-        <button type="submit" disabled={save.isPending}>
-          <IconCheckCircle />
+        {save.error ? <p className="text-danger" role="alert">{save.error.message}</p> : null}
+        <Button type="submit" disabled={save.isPending} startIcon={<IconCheckCircle />}>
           {save.isPending ? 'Saving…' : 'Save Project Details'}
-        </button>
-        {save.isSuccess ? <p className="muted" aria-live="polite">Saved.</p> : null}
+        </Button>
+        {save.isSuccess ? <p className="text-text-muted" aria-live="polite">Saved.</p> : null}
       </form>
     </CollapsibleSection>
   )

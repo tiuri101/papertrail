@@ -4,7 +4,7 @@ import json
 import logging
 from collections.abc import Callable
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, TypeVar
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
@@ -63,6 +63,12 @@ from app.publications.models import Publication
 
 logger = logging.getLogger(__name__)
 
+TaskResult = TypeVar(
+    "TaskResult",
+    ScreeningTaskResult,
+    ExtractionValidationResult,
+)
+
 
 def _pages(db: Session, extraction_id: str) -> list[DocumentPageText]:
     return list(
@@ -74,7 +80,7 @@ def _pages(db: Session, extraction_id: str) -> list[DocumentPageText]:
     )
 
 
-def _consolidate[TaskResult: (ScreeningTaskResult, ExtractionValidationResult)](
+def _consolidate(
     *,
     client: OllamaClientProtocol,
     candidates: list[dict[str, Any]],

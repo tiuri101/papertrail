@@ -3,9 +3,11 @@ import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { IconCheckCircle } from '../../components/icons'
-import { ThemeToggle } from '../../components/ThemeToggle'
+import { Input } from '../../components/Input'
+import { AuthAlert, AuthCard, authFieldClassName, authFormClassName, AuthHeading, AuthPage } from './AuthLayout'
 import { setCsrfToken } from './session'
 import { sessionQueryOptions } from './sessionQuery'
 import type { LoginResponse, User } from './types'
@@ -44,22 +46,21 @@ export function ChangePasswordPage() {
   const passwordUnchanged = currentPassword.length > 0 && newPassword === currentPassword
 
   return (
-    <main className="login-page">
-      <div className="login-theme-control">
-        <ThemeToggle />
-      </div>
-      <section className="login-card" aria-labelledby="change-password-title">
-        <div className="login-heading">
-          <p className="eyebrow">Welcome{session?.user.displayName ? `, ${session.user.displayName}` : ''}</p>
-          <h1 id="change-password-title">Set a New Password</h1>
-          <p className="muted">
+    <AuthPage>
+      <AuthCard aria-labelledby="change-password-title">
+        <AuthHeading
+          eyebrow={<>Welcome{session?.user.displayName ? `, ${session.user.displayName}` : ''}</>}
+          title="Set a New Password"
+          titleId="change-password-title"
+        >
+          <p>
             Your account was just created. Choose a new password to continue.
           </p>
-        </div>
-        <form onSubmit={(event) => { event.preventDefault(); updatePassword.mutate() }}>
-          <label>
+        </AuthHeading>
+        <form className={authFormClassName} onSubmit={(event) => { event.preventDefault(); updatePassword.mutate() }}>
+          <label className={authFieldClassName}>
             Current password
-            <input
+            <Input
               type="password"
               value={currentPassword}
               onChange={(event) => setCurrentPassword(event.target.value)}
@@ -67,9 +68,9 @@ export function ChangePasswordPage() {
               required
             />
           </label>
-          <label>
+          <label className={authFieldClassName}>
             New password
-            <input
+            <Input
               type="password"
               value={newPassword}
               onChange={(event) => setNewPassword(event.target.value)}
@@ -78,9 +79,9 @@ export function ChangePasswordPage() {
               required
             />
           </label>
-          <label>
+          <label className={authFieldClassName}>
             Confirm new password
-            <input
+            <Input
               type="password"
               value={confirmPassword}
               onChange={(event) => setConfirmPassword(event.target.value)}
@@ -90,17 +91,17 @@ export function ChangePasswordPage() {
             />
           </label>
           {passwordUnchanged ? (
-            <p className="error alert" role="alert">
+            <AuthAlert role="alert">
               New password must be different from your current password.
-            </p>
+            </AuthAlert>
           ) : null}
-          {passwordsMismatch ? <p className="error alert" role="alert">New passwords do not match.</p> : null}
-          {updatePassword.error ? <p className="error alert" role="alert">{updatePassword.error.message}</p> : null}
-          <button
+          {passwordsMismatch ? <AuthAlert role="alert">New passwords do not match.</AuthAlert> : null}
+          {updatePassword.error ? <AuthAlert role="alert">{updatePassword.error.message}</AuthAlert> : null}
+          <Button
             type="submit"
+            loading={updatePassword.isPending}
             disabled={
-              updatePassword.isPending
-              || !currentPassword
+              !currentPassword
               || newPassword.length < 8
               || passwordUnchanged
               || passwordsMismatch
@@ -108,17 +109,17 @@ export function ChangePasswordPage() {
           >
             <IconCheckCircle />
             {updatePassword.isPending ? 'Updating…' : 'Set Password'}
-          </button>
+          </Button>
         </form>
-        <button
+        <Button
           type="button"
-          className="button-secondary"
+          variant="secondary"
           onClick={() => logout.mutate()}
           disabled={logout.isPending}
         >
           Sign Out
-        </button>
-      </section>
+        </Button>
+      </AuthCard>
       {showWelcomeDialog ? (
         <ConfirmDialog
           title="New to Papertrail?"
@@ -129,6 +130,6 @@ export function ChangePasswordPage() {
           onCancel={() => navigate('/')}
         />
       ) : null}
-    </main>
+    </AuthPage>
   )
 }

@@ -49,15 +49,15 @@ describe('ProjectsPage', () => {
 
     renderWithProviders(<ProjectsPage />)
 
-    expect(await screen.findByRole('list', { name: 'Projects' })).toHaveClass('card-list')
+    expect(await screen.findByRole('list', { name: 'Projects' })).toBeVisible()
     const projectLink = await screen.findByRole('link', { name: 'Existing review' })
     expect(projectLink).toHaveAttribute('href', '/projects/p1')
     const projectCard = projectLink.closest('li') as HTMLLIElement
-    expect(within(projectCard).getByText('Draft')).toHaveClass('stage-badge')
-    expect(within(projectCard).getByText('Systematic review')).toHaveClass('pill')
-    expect(within(projectCard).getByText('Owner')).toHaveClass('pill')
+    expect(within(projectCard).getByText('Draft')).toHaveAttribute('data-project-stage', 'draft')
+    expect(within(projectCard).getByText('Systematic review')).toBeVisible()
+    expect(within(projectCard).getByText('Owner')).toBeVisible()
     expect(within(projectCard).queryByText('Owner: Ada Lovelace')).not.toBeInTheDocument()
-    expect(within(projectCard).getByText('3 open tasks')).toHaveClass('pill--warning')
+    expect(within(projectCard).getByText('3 open tasks')).toBeVisible()
 
     expect(within(projectCard).getByRole('link', { name: 'Open Project' })).toHaveAttribute('href', '/projects/p1')
     expect(within(projectCard).getByRole('link', { name: 'Manage Existing review' })).toHaveAttribute(

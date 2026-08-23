@@ -6,6 +6,8 @@ import { formatHotkey, loadScreeningHotkeys, type ScreeningHotkeyAction } from '
 import { criterionNumbers, sortedByKind } from './criteriaNumbering'
 import type { CriterionAnswer, ScreeningCriterion } from './useScreeningQueue'
 import {InfoBox} from "../../components/InfoBox";
+import { Textarea } from '../../components/Textarea'
+import { CriterionBadge } from '../../components/CriterionBadge'
 
 function capitalize(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1)
@@ -86,7 +88,7 @@ export function CriteriaAnswerFields({
   return (
     <>
       <h3>Criteria</h3>
-      <table className="criteria-table">
+      <table className="w-full [&_td]:text-center [&_td]:align-middle [&_th]:align-middle [&_th:not(:first-child)]:text-center">
         <thead>
           <tr>
             <th scope="col">Criterion</th>
@@ -95,16 +97,28 @@ export function CriteriaAnswerFields({
           </tr>
         </thead>
         <tbody>
-          {sorted.map((criterion, row) => (
+          {sorted.map((criterion, row) => {
+            // An inclusion criterion being fulfilled is a good sign (keep it green); an exclusion
+            // criterion being fulfilled means the exclusion applies, which argues against inclusion
+            // (so that's the "bad" red one instead) — the two checkbox columns swap color meaning
+            // depending on the criterion's kind, even though "Fulfilled"/"Not fulfilled" stay in the
+            // same columns either way.
+            const fulfilledColorClasses = criterion.kind === 'exclusion'
+              ? 'aria-checked:border-danger aria-checked:bg-danger-container aria-checked:text-danger'
+              : 'aria-checked:border-success aria-checked:bg-success-container aria-checked:text-success'
+            const notFulfilledColorClasses = criterion.kind === 'exclusion'
+              ? 'aria-checked:border-success aria-checked:bg-success-container aria-checked:text-success'
+              : 'aria-checked:border-danger aria-checked:bg-danger-container aria-checked:text-danger'
+            return (
             <tr key={criterion.id}>
               <th scope="row">
-                <span className={`criterion-badge criterion-badge--${criterion.kind}`}>{numbers[criterion.id]}</span> {criterion.text}
+                <CriterionBadge kind={criterion.kind} className="mr-2">{numbers[criterion.id]}</CriterionBadge> {criterion.text}
               </th>
               <td>
                 <button
                   type="button"
                   role="checkbox"
-                  className="criterion-toggle criterion-toggle--fulfilled"
+                  className={`inline-flex size-8 min-h-8 items-center justify-center rounded-md border border-border bg-none bg-bg-elevated p-0 text-text-muted shadow-none transition-colors hover:border-border-strong hover:bg-surface-hover [&_svg]:size-4 [&_svg]:fill-current ${fulfilledColorClasses}`}
                   aria-checked={answers[criterion.id] === true}
                   aria-label={`${capitalize(criterion.kind)}: ${criterion.text} — Fulfilled`}
                   tabIndex={focusedCell.row === row && focusedCell.column === 0 ? 0 : -1}
@@ -126,7 +140,7 @@ export function CriteriaAnswerFields({
                 <button
                   type="button"
                   role="checkbox"
-                  className="criterion-toggle criterion-toggle--not-fulfilled"
+                  className={`inline-flex size-8 min-h-8 items-center justify-center rounded-md border border-border bg-none bg-bg-elevated p-0 text-text-muted shadow-none transition-colors hover:border-border-strong hover:bg-surface-hover [&_svg]:size-4 [&_svg]:fill-current ${notFulfilledColorClasses}`}
                   aria-checked={answers[criterion.id] === false}
                   aria-label={`${capitalize(criterion.kind)}: ${criterion.text} — Not fulfilled`}
                   tabIndex={focusedCell.row === row && focusedCell.column === 1 ? 0 : -1}
@@ -145,7 +159,8 @@ export function CriteriaAnswerFields({
                 </button>
               </td>
             </tr>
-          ))}
+            )
+          })}
         </tbody>
       </table>
       <InfoBox icon={<IconCheckCircle />} className="hotkey-hint">
@@ -154,23 +169,44 @@ export function CriteriaAnswerFields({
           personalized hotkeys to include/exclude the paper and submit.
         </p>
       </InfoBox>
-      <div className="decision-field">
-        <span className="decision-field__label">Decision</span>
-        <div className="decision-group" role="radiogroup" aria-label="Decision">
+      <div className="@container grid gap-2">
+        <span className="text-sm font-semibold text-text-secondary">Decision</span>
+        {/*
+          A container query (keyed to this row's own available width) rather than a viewport
+          media query: the identical decision grid is embedded both in the full-width live
+          screening queue and in narrower contexts (e.g. revising a past decision inline in a
+          list item on My Decisions), and a viewport breakpoint made the buttons collapse to a
+          cramped 2-column layout in the narrower context even on a wide screen, since the
+          viewport itself was plenty wide — only the local container wasn't.
+        */}
+        <div className="grid grid-cols-2 gap-2 @[520px]:grid-cols-4" role="radiogroup" aria-label="Decision">
           {DECISION_OPTIONS.map(({ value, label, hotkeyAction }) => {
             const hotkey = formatHotkey(hotkeys[hotkeyAction])
+            const selected = outcome === value
+            const selectedClasses = {
+              include: 'border-success bg-success-container text-success',
+              exclude: 'border-danger bg-danger-container text-danger',
+              uncertain: 'border-warning bg-warning-container text-warning',
+              duplicate: 'border-border-strong bg-surface-hover text-text',
+            }[value]
+            const hoverClasses = {
+              include: 'hover:border-success/50 hover:bg-success-container hover:text-success',
+              exclude: 'hover:border-danger/50 hover:bg-danger-container hover:text-danger',
+              uncertain: 'hover:border-warning/50 hover:bg-warning-container hover:text-warning',
+              duplicate: 'hover:border-border-strong hover:bg-surface-hover hover:text-text',
+            }[value]
             return (
               <button
                 key={value}
                 type="button"
                 role="radio"
                 aria-checked={outcome === value}
-                className={`decision-button decision-button--${value}${outcome === value ? ' decision-button--selected' : ''}`}
+                className={`relative inline-flex min-h-10 items-center justify-center gap-2 rounded-md border bg-none px-3 py-2 text-sm font-semibold transition-colors [&_svg]:size-4 [&_svg]:fill-current ${selected ? selectedClasses : `border-border bg-surface-raised text-text-secondary ${hoverClasses}`}`}
                 onClick={() => setOutcome(value)}
               >
                 {value === 'include' ? <IconCheckCircle /> : value === 'exclude' ? <IconXCircle /> : null}
                 {label}
-                {hotkey ? <kbd className="decision-button__hotkey" aria-hidden="true">{hotkey}</kbd> : null}
+                {hotkey ? <kbd className={`absolute right-1.5 top-1/2 -translate-y-1/2 rounded px-1 py-0.5 text-[0.65rem] ${selected ? 'bg-white/15 text-current' : 'bg-surface-active text-text-muted'}`} aria-hidden="true">{hotkey}</kbd> : null}
               </button>
             )
           })}
@@ -178,7 +214,7 @@ export function CriteriaAnswerFields({
       </div>
       <label>
         Notes
-        <textarea
+        <Textarea
           value={notes}
           onChange={(event) => setNotes(event.target.value)}
         />

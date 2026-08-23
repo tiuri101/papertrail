@@ -1,16 +1,25 @@
+import { toolbarClass } from '../../components/layoutStyles'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState, type MouseEvent } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
+import { Page } from '../../components/Page'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { CountPill } from '../../components/CountPill'
 import { DoiPill } from '../../components/DoiPill'
 import { HighlightedText } from '../../components/HighlightedText'
 import { IconAlertTriangle } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
+import { Input } from '../../components/Input'
 import { OutcomeBadge } from '../../components/OutcomeBadge'
+import { PublicationListSortHeader } from '../../components/PublicationListSortHeader'
+import { Select } from '../../components/Select'
+import { reviewWorkActionsClass, reviewWorkCardClass, reviewWorkDoiClass, reviewWorkEditorClass, reviewWorkGridClass, reviewWorkListClass, reviewWorkMetadataClass, reviewWorkStatusClass, reviewWorkSubmittedClass, reviewWorkSubmittedTimeClass, reviewWorkTitleClass, reviewWorkTitleLinkClass, reviewWorkTitleTextClass, reviewWorkVenueClass } from '../../components/reviewWorkStyles'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
+import { formatSubmittedAtParts } from '../../lib/format'
+import { type SortDirection, sortByValue } from '../../lib/sort'
 import { ScreeningLlmPanel } from '../llm/LlmTaskComponents'
 import { StageEyebrow } from '../projects/StageEyebrow'
 import { CriteriaAnswerFields } from './CriteriaAnswerFields'
@@ -154,10 +163,10 @@ function DecisionEditForm({
         setCriteriaAnswers={setAnswers}
       />
       {!criteriaComplete ? (
-        <p className="muted">Answer every criterion before saving.</p>
+        <p className="text-text-muted">Answer every criterion before saving.</p>
       ) : null}
-      {save.error ? <p className="error" role="alert">{save.error.message}</p> : null}
-      <div className="toolbar">
+      {save.error ? <p className="text-danger" role="alert">{save.error.message}</p> : null}
+      <div className={toolbarClass}>
         {stageCompleted ? (
           <ConfirmButton
             label="Save Changes"
@@ -167,13 +176,13 @@ function DecisionEditForm({
             disabled={save.isPending || !criteriaComplete}
           />
         ) : (
-          <button type="button" onClick={() => save.mutate()} disabled={save.isPending || !criteriaComplete}>
+          <Button type="button" onClick={() => save.mutate()} disabled={save.isPending || !criteriaComplete}>
             Save Changes
-          </button>
+          </Button>
         )}
-        <button type="button" className="button-secondary" onClick={onDone} disabled={save.isPending}>
+        <Button type="button" variant="secondary" onClick={onDone} disabled={save.isPending}>
           Cancel
-        </button>
+        </Button>
       </div>
     </>
   )
@@ -202,7 +211,6 @@ const decisionFilterOptions = [
 ]
 
 type DecisionSortKey = 'title' | 'authors' | 'venue' | 'decision' | 'doi' | 'submitted'
-type SortDirection = 'asc' | 'desc'
 
 function itemStatus(item: MyDecisionItem): string {
   return item.decision?.outcome ?? item.retrievalStatus ?? ''
@@ -237,21 +245,12 @@ function sortDecisionItems(
   key: DecisionSortKey,
   direction: SortDirection,
 ): MyDecisionItem[] {
-  return [...items].sort((left, right) => {
-    const leftValue = decisionSortValue(left, key)
-    const rightValue = decisionSortValue(right, key)
-    const comparison = typeof leftValue === 'number' && typeof rightValue === 'number'
-      ? leftValue - rightValue
-      : String(leftValue).localeCompare(String(rightValue), undefined, { sensitivity: 'base' })
-    if (comparison !== 0) return direction === 'asc' ? comparison : -comparison
-    return left.publication.title.localeCompare(right.publication.title)
-  })
-}
-
-function formatSubmittedAt(value: string | null): string {
-  if (!value) return '—'
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString()
+  return sortByValue(
+    items,
+    direction,
+    (item) => decisionSortValue(item, key),
+    (left, right) => left.publication.title.localeCompare(right.publication.title),
+  )
 }
 
 function DecisionRow({
@@ -276,50 +275,52 @@ function DecisionRow({
   const publication = item.publication
   const decision = item.decision
   const detailHref = `/projects/${projectId}/publications/${publication.id}`
+  const submitted = formatSubmittedAtParts(item.submittedAt)
 
   const openPublication = (event: MouseEvent<HTMLLIElement>) => {
-    if ((event.target as HTMLElement).closest('a, button, input, select, textarea, label, .decision-card__editor')) return
+    if ((event.target as HTMLElement).closest('a, button, input, select, textarea, label, [data-decision-editor]')) return
     navigate(detailHref)
   }
 
   return (
-    <li className="card publication-card decision-card decision-card--clickable" onClick={openPublication}>
-      <div className="publication-card__summary my-decisions-row-grid">
-        <div className="my-decisions-row-grid__title">
-          <Link className="publication-card__title-button" to={detailHref}>
-            <h2 className="decision-card__title">
+    <li className={reviewWorkCardClass} onClick={openPublication}>
+      <div className={reviewWorkGridClass}>
+        <div className={reviewWorkTitleClass}>
+          <Link className={reviewWorkTitleLinkClass} to={detailHref}>
+            <h2 className={reviewWorkTitleTextClass}>
               <HighlightedText text={publication.title} keywords={highlightKeywords} />
             </h2>
           </Link>
-          <div className="my-decisions-row-grid__authors">
+          <div className={reviewWorkMetadataClass}>
             {publication.authors ?? 'Unknown authors'}
           </div>
         </div>
-        <span className="my-decisions-row-grid__venue" title={publication.venue ?? undefined}>
+        <span className={reviewWorkVenueClass} title={publication.venue ?? undefined}>
           {publication.venue ?? '—'}
         </span>
-        <span className="my-decisions-row-grid__decision">
+        <span className={reviewWorkStatusClass}>
           <OutcomeBadge
             outcome={decision?.outcome ?? 'exclude'}
             label={decision && decision.version > 1 ? `${itemStatusLabel(item)} · v${decision.version}` : itemStatusLabel(item)}
           />
         </span>
-        <span className="my-decisions-row-grid__doi">
-          {publication.doi ? <DoiPill doi={publication.doi} /> : <span className="muted">—</span>}
+        <span className={reviewWorkDoiClass}>
+          {publication.doi ? <DoiPill doi={publication.doi} /> : <span className="text-text-muted">—</span>}
         </span>
-        <time className="my-decisions-row-grid__submitted" dateTime={item.submittedAt ?? undefined}>
-          {formatSubmittedAt(item.submittedAt)}
+        <time className={reviewWorkSubmittedClass} dateTime={item.submittedAt ?? undefined}>
+          <span>{submitted.date}</span>
+          {submitted.time ? <span className={reviewWorkSubmittedTimeClass}>{submitted.time}</span> : null}
         </time>
-        <span className="my-decisions-row-grid__actions">
+        <span className={reviewWorkActionsClass}>
           {!editing && decision ? (
-            <button type="button" className="button-secondary button-sm" onClick={() => setEditing(true)}>
+            <Button type="button" variant="secondary" size="sm" onClick={() => setEditing(true)}>
               Edit Decision
-            </button>
+            </Button>
           ) : null}
         </span>
       </div>
       {editing && decision ? (
-        <div className="decision-card__editor">
+        <div className={reviewWorkEditorClass} data-decision-editor>
           <DecisionEditForm
             projectId={projectId}
             stage={stage}
@@ -369,13 +370,21 @@ export function MyDecisionsPage() {
     return sortDecisionItems(items, sortKey, sortDirection)
   }, [query.data?.items, search, sortDirection, sortKey, statusFilter])
 
+  const toggleSort = (key: DecisionSortKey) => {
+    if (key === sortKey) setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+    else {
+      setSortKey(key)
+      setSortDirection(key === 'submitted' ? 'desc' : 'asc')
+    }
+  }
+
   return (
-    <main className="page">
+    <Page>
       <StageEyebrow
         stage={stage === 'full_text' ? 'full_text_screening' : 'title_abstract_screening'}
       />
       <h1>My {stageTitles[stage] ?? stage} Decisions</h1>
-      <p className="muted">
+      <p className="text-text-muted">
         Decisions you have already submitted for this stage. Open one to review or revise it.
       </p>
       <p>
@@ -383,7 +392,7 @@ export function MyDecisionsPage() {
           ← Back to screening queue
         </Link>
       </p>
-      {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
+      {query.error ? <p className="text-danger" role="alert">{query.error.message}</p> : null}
       {query.isLoading ? <p>Loading…</p> : null}
       {query.data ? (
         <>
@@ -398,7 +407,7 @@ export function MyDecisionsPage() {
             </InfoBox>
           ) : null}
           {workflowImpact ? (
-            <section className="error alert" role="alert" aria-labelledby="revision-impact-heading">
+            <section className="text-danger rounded-md border border-danger/30 bg-danger-container p-4" role="alert" aria-labelledby="revision-impact-heading">
               <h2 id="revision-impact-heading">Decision revised without changing the project stage</h2>
               <p>
                 The project remains in{' '}
@@ -427,27 +436,27 @@ export function MyDecisionsPage() {
                   ? `of ${query.data.items.length} decisions match your filters`
                   : `decision${query.data.items.length === 1 ? '' : 's'}`}
               </CountPill>
-              <div className="toolbar">
-                <label className="paper-search-field">
+              <div className="flex flex-wrap items-end gap-3">
+                <label className="grid min-w-[min(20rem,100%)] flex-1 gap-1 text-sm font-semibold text-text-secondary">
                   Search papers
-                  <input
+                  <Input
                     type="search"
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                     placeholder="Title, author, DOI, note…"
                   />
                 </label>
-                <label>
+                <label className="grid gap-1 text-sm font-semibold text-text-secondary">
                   Decision
-                  <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+                  <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
                     {decisionFilterOptions
                       .filter((option) => !option.fullTextOnly || stage === 'full_text')
                       .map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                  </select>
+                  </Select>
                 </label>
-                <label>
+                <label className="grid gap-1 text-sm font-semibold text-text-secondary hidden max-[520px]:grid">
                   Sort by
-                  <select
+                  <Select
                     value={`${sortKey}:${sortDirection}`}
                     onChange={(event) => {
                       const [key, direction] = event.target.value.split(':') as [DecisionSortKey, SortDirection]
@@ -465,17 +474,29 @@ export function MyDecisionsPage() {
                     <option value="venue:desc">Venue Z–A</option>
                     <option value="decision:asc">Decision A–Z</option>
                     <option value="decision:desc">Decision Z–A</option>
-                  </select>
+                  </Select>
                 </label>
               </div>
             </>
           ) : null}
           {query.data.items.length === 0 ? (
-            <p className="muted">You have not submitted any decisions for this stage yet.</p>
+            <p className="text-text-muted">You have not submitted any decisions for this stage yet.</p>
           ) : filteredItems.length === 0 ? (
-            <p className="muted">No decisions match your filters.</p>
+            <p className="text-text-muted">No decisions match your filters.</p>
           ) : (
-            <ul className="card-list stacked publication-list my-decisions-list">
+            <>
+              <div className={`${reviewWorkGridClass} mt-6 mb-2 px-4 text-[0.72rem] font-bold tracking-[0.04em] text-text-muted uppercase max-[520px]:hidden`}>
+                <span className="flex items-center gap-0.5">
+                  <PublicationListSortHeader label="Title" sortKey="title" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />{' / '}
+                  <PublicationListSortHeader label="Authors" sortKey="authors" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+                </span>
+                <PublicationListSortHeader label="Venue" sortKey="venue" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+                <PublicationListSortHeader label="Decision" sortKey="decision" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+                <PublicationListSortHeader label="DOI" sortKey="doi" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+                <PublicationListSortHeader label="Submitted" sortKey="submitted" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+                <span className={reviewWorkActionsClass}>Actions</span>
+              </div>
+              <ul className={reviewWorkListClass} aria-label="Submitted decisions">
                 {filteredItems.map((item) => (
                   <DecisionRow
                     key={item.workItemId}
@@ -488,10 +509,11 @@ export function MyDecisionsPage() {
                     onWorkflowImpact={setWorkflowImpact}
                   />
                 ))}
-            </ul>
+              </ul>
+            </>
           )}
         </>
       ) : null}
-    </main>
+    </Page>
   )
 }

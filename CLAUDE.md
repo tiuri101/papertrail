@@ -52,7 +52,7 @@ Only PostgreSQL runs in Docker; FastAPI, the worker, and Vite run on the host. `
 
 ### Backend module layout
 
-`backend/app/` is divided by domain: `accounts`, `projects`, `imports`, `publications`, `deduplication`, `screening`, `conflicts`, `fulltext`, `pdf_acquisition`, `forms`, `extraction`, `quality`, `reporting`, `audit`, `integrations`, `llm`, `jobs`. Each domain follows `routes.py` (validation/authz only) → `service.py` (business rules) → `models.py`. Cross-module workflow changes go through explicit service functions and DB transactions, not direct cross-domain model access.
+`backend/app/` is divided by domain: `accounts`, `projects`, `imports`, `publications`, `deduplication`, `screening`, `conflicts`, `fulltext`, `pdf_acquisition`, `forms`, `review_work`, `extraction`, `quality`, `analysis`, `reporting`, `audit`, `notifications`, `instance_settings`, `integrations`, `llm`, and `jobs`. Most API-facing domains separate route validation/authorization from service/business logic and persistence models, but larger domains use additional specialized modules where appropriate. Cross-module workflow changes go through explicit service functions and DB transactions rather than ad-hoc direct writes.
 
 ### Background work
 
@@ -63,7 +63,7 @@ A dedicated worker process (`app.jobs.worker`) polls a durable PostgreSQL job ta
 A domain deliberately separate from `fulltext`, for PDFs retrieved by the optional paired `browser-extension/` rather than uploaded directly:
 
 - The extension authenticates with its own opaque bearer token (`BrowserAgent`, hashed server-side, minted once via a single-use time-limited `BrowserAgentPairing` secret) — entirely separate from the session-cookie/CSRF mechanism the web UI uses, and unable to authenticate any other API.
-- A `PdfRetrievalBatch` groups the `PdfRetrievalJob` rows for one "retrieve missing PDFs" action. Jobs are leased to a claiming agent with a short expiring lease (same `SKIP LOCKED` pattern as the reviewer queues below) but are *not* `BackgroundJob`s — they execute externally, in the browser, not on a server-side worker.
+- A `PdfRetrievalBatch` groups the `PdfRetrievalJob` rows for one manual "retrieve missing PDFs" action. A title/abstract final INCLUDE can also auto-queue an individual missing publication for an eligible paired helper. Jobs are leased to a claiming agent with a short expiring lease (same `SKIP LOCKED` pattern as the reviewer queues below) but are *not* `BackgroundJob`s — they execute externally, in the browser, not on a server-side worker.
 - Publisher-specific logic (PDF discovery, redirect handling, per-publisher HTTP quirks) belongs in `browser-extension/` only, never in the backend. The backend only ever understands a publication, a retrieval job, a browser agent, and a PDF result.
 - The extension uploads through the same `stage_pdf_upload`/`attach_staged_pdf` pipeline manual uploads use, tagged `DocumentSource.BROWSER_RETRIEVAL`. FastAPI re-validates every upload independently — the extension's own PDF/response validation is only an early rejection, never authoritative.
 - Only a successful upload advances `FullTextRetrieval` to `AVAILABLE`. An automated retrieval failure (auth wall, not found, access denied, bad response, network error) must never mark a human retrieval outcome — it doesn't prove a human reviewer can't get the paper another way.
@@ -101,4 +101,4 @@ PostgreSQL is authoritative for everything except PDF binaries: bibliographic re
 
 ## Branching and releases
 
-Work happens on `dev`; `main` is reached only via PR from `dev`. PRs run the full backend + frontend test suites (the only place tests run in CI) and `main` requires those checks. A merge to `main` skips tests and releases automatically: CI derives the next `YEAR.MONTH.PATCH` tag, builds/pushes `tiuri101/papertrail-backend` and `tiuri101/papertrail-frontend` images, tags the commit, and creates the GitHub release — there is no manual release step.
+Work happens on `dev`; `main` is reached only via PR from `dev`. Pull requests and `workflow_dispatch` runs execute backend, frontend, and Browser Helper verification jobs; push/release workflows skip those test jobs. A merge to `main` derives the next `YEAR.MONTH.PATCH` release, builds/pushes the `linux/amd64` backend/frontend images, packages the Browser Helper as `papertrail-browser-extension-<version>.zip`, and creates the GitHub release with that ZIP.

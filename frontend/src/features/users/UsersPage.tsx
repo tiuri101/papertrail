@@ -2,9 +2,14 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
+import { Page } from '../../components/Page'
+import { Card } from '../../components/Card'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { CountPill } from '../../components/CountPill'
 import { IconPlus, IconRestart, IconTrash } from '../../components/icons'
+import { Input } from '../../components/Input'
+import { toolbarClass } from '../../components/layoutStyles'
 import type { LoginResponse, User } from '../auth/types'
 
 export function UsersPage() {
@@ -42,17 +47,17 @@ export function UsersPage() {
   })
 
   return (
-    <main className="page">
-      <p className="eyebrow">Installation administration</p>
+    <Page>
+      <p className="mb-1 text-xs font-bold uppercase tracking-[0.08em] text-primary">Installation administration</p>
       <h1>Users</h1>
-      <p className="muted">Manage reviewer accounts for this Papertrail installation.</p>
+      <p className="text-text">Manage reviewer accounts for this Papertrail installation.</p>
       {showCreateForm ? (
-        <section className="card">
+        <Card as="section">
           <h2>Create Reviewer</h2>
           <form onSubmit={(event) => { event.preventDefault(); create.mutate() }}>
             <label>
               Username
-              <input
+              <Input
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
                 required
@@ -60,7 +65,7 @@ export function UsersPage() {
             </label>
             <label>
               Display name
-              <input
+              <Input
                 value={displayName}
                 onChange={(event) => setDisplayName(event.target.value)}
                 required
@@ -68,7 +73,7 @@ export function UsersPage() {
             </label>
             <label>
               Email address
-              <input
+              <Input
                 type="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
@@ -78,7 +83,7 @@ export function UsersPage() {
             </label>
             <label>
               Temporary password
-              <input
+              <Input
                 type="password"
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
@@ -86,21 +91,21 @@ export function UsersPage() {
                 required
               />
             </label>
-            <div className="toolbar">
-              <button type="submit" disabled={create.isPending}><IconPlus />Create Reviewer</button>
-              <button type="button" className="button-secondary" onClick={() => setShowCreateForm(false)}>Cancel</button>
+            <div className={toolbarClass}>
+              <Button type="submit" loading={create.isPending}><IconPlus />Create Reviewer</Button>
+              <Button type="button" variant="secondary" onClick={() => setShowCreateForm(false)}>Cancel</Button>
             </div>
           </form>
-        </section>
+        </Card>
       ) : (
-        <div className="toolbar">
-          <button type="button" onClick={() => setShowCreateForm(true)}><IconPlus />Add Reviewer</button>
+        <div className={toolbarClass}>
+          <Button type="button" onClick={() => setShowCreateForm(true)}><IconPlus />Add Reviewer</Button>
         </div>
       )}
-      {create.error ? <p className="error" role="alert">{create.error.message}</p> : null}
-      {setActive.error ? <p className="error" role="alert">{setActive.error.message}</p> : null}
+      {create.error ? <p className="text-danger" role="alert">{create.error.message}</p> : null}
+      {setActive.error ? <p className="text-danger" role="alert">{setActive.error.message}</p> : null}
       {users.isLoading ? <p>Loading…</p> : null}
-      {users.error ? <p className="error" role="alert">{users.error.message}</p> : null}
+      {users.error ? <p className="text-danger" role="alert">{users.error.message}</p> : null}
       {users.data ? (
         <CountPill count={users.data.length}>user{users.data.length === 1 ? '' : 's'}</CountPill>
       ) : null}
@@ -133,14 +138,14 @@ export function UsersPage() {
                       icon={<IconTrash />}
                     />
                   ) : (
-                    <button
+                    <Button
                       type="button"
                       onClick={() => setActive.mutate({ id: user.id, isActive: true })}
-                      disabled={setActive.isPending}
+                      loading={setActive.isPending}
                     >
                       <IconRestart />
                       Reactivate
-                    </button>
+                    </Button>
                   )}
                 </td>
               </tr>
@@ -148,6 +153,6 @@ export function UsersPage() {
           </tbody>
         </table>
       ) : null}
-    </main>
+    </Page>
   )
 }

@@ -1,12 +1,21 @@
+import { tableCompactClass, tableScrollClass } from '../../components/layoutStyles'
 import { Fragment, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Badge, type BadgeVariant } from '../../components/Badge'
+import { Button, IconButton } from '../../components/Button'
 import { CountPill } from '../../components/CountPill'
+import { FormField } from '../../components/FormField'
 import { IconRestart } from '../../components/icons'
+import { Input } from '../../components/Input'
+import { Page } from '../../components/Page'
+import { Select } from '../../components/Select'
+import { SortableColumnHeader } from '../../components/SortableColumnHeader'
 import { InfoTooltip } from '../../components/Tooltip'
 import { useCanManageProject } from '../../hooks/useCanManageProject'
+import { cn } from '../../lib/cn'
 import { AdministrationEyebrow } from '../projects/StageEyebrow'
 import { BackgroundJob, hasActiveJob } from './jobStatus'
 
@@ -36,7 +45,7 @@ const COLUMN_HELP: Partial<Record<SortKey, string>> = {
   status: 'Queued: waiting for a worker to pick it up. Running: in progress. Completed: finished successfully. Failed: hit an error — use Restart to try again. Cancelled: stopped before it finished.',
 }
 
-const STATUS_BADGE_VARIANT: Record<string, string> = {
+const STATUS_BADGE_VARIANT: Record<string, BadgeVariant> = {
   completed: 'success',
   running: 'primary',
   queued: 'warning',
@@ -51,6 +60,14 @@ const STATUS_SUMMARY_ITEMS = [
   { status: 'failed', label: 'Failed' },
   { status: 'cancelled', label: 'Cancelled' },
 ] as const
+
+const STATUS_CARD_STYLES: Record<string, string> = {
+  running: 'border-primary/35 bg-primary-container aria-pressed:ring-primary/50 [&_strong]:text-primary',
+  queued: 'border-warning/35 bg-warning-container aria-pressed:ring-warning/50 [&_strong]:text-warning',
+  completed: 'border-success/35 bg-success-container aria-pressed:ring-success/50 [&_strong]:text-success',
+  failed: 'border-danger/35 bg-danger-container aria-pressed:ring-danger/50 [&_strong]:text-danger',
+  cancelled: 'border-border bg-bg-elevated aria-pressed:ring-border-strong/60 [&_strong]:text-text',
+}
 
 function sortValue(job: BackgroundJob, key: SortKey): string | number | null {
   if (key === 'progress') {
@@ -120,24 +137,24 @@ function JobFailureDetails({ job }: { job: BackgroundJob }) {
   const downloadText = [...reportContext, '', 'Traceback:', diagnosticText].join('\n')
 
   return (
-    <div className="job-failure">
-      <span className="error" role="alert">{job.errorMessage}</span>
-      <button
+    <div className="grid gap-2">
+      <span className="text-danger" role="alert">{job.errorMessage}</span>
+      <Button
         type="button"
-        className="link-button"
+        variant="text"
         aria-expanded={visible}
         onClick={() => setVisible((current) => !current)}
       >
         {visible ? 'Hide error details' : 'View error details'}
-      </button>
+      </Button>
       {visible ? (
-        <div className="job-error-report">
+        <div className="rounded-md border border-danger/30 bg-danger-container p-4">
           {report.isLoading ? <p>Loading diagnostic report…</p> : null}
-          {report.error ? <p className="error" role="alert">{report.error.message}</p> : null}
+          {report.error ? <p className="text-danger" role="alert">{report.error.message}</p> : null}
           {report.data ? (
             <>
               <strong>Failure context</strong>
-              <dl className="job-error-context">
+              <dl className="grid grid-cols-[max-content_minmax(0,1fr)] gap-x-4 gap-y-1 [&_dd]:m-0 [&_dd]:overflow-wrap-anywhere [&_dt]:font-semibold [&_dt]:text-text-muted">
                 <dt>Job</dt>
                 <dd>{report.data.jobLabel} <code>{report.data.jobType}</code></dd>
                 <dt>Job ID</dt><dd><code>{report.data.jobId}</code></dd>
@@ -155,7 +172,7 @@ function JobFailureDetails({ job }: { job: BackgroundJob }) {
                 <dt>Error type</dt><dd>{report.data.errorType ?? 'Unknown'}</dd>
               </dl>
               <strong>Traceback</strong>
-              <pre>{diagnosticText}</pre>
+              <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-sm bg-bg-elevated p-3 text-xs">{diagnosticText}</pre>
               <a
                 download={`job-${job.id}-error.txt`}
                 href={`data:text/plain;charset=utf-8,${encodeURIComponent(downloadText)}`}
@@ -270,16 +287,16 @@ export function JobsPage() {
   })
 
   return (
-    <main className="page">
+    <Page>
       <AdministrationEyebrow />
       <h1>Jobs</h1>
-      <p className="muted">
+      <p className="text-text-muted">
         Background tasks for this project, such as imports, duplicate detection, and LLM-assisted
         extraction.
       </p>
-      {jobs.error ? <p className="error" role="alert">{jobs.error.message}</p> : null}
-      {restartOne.error ? <p className="error" role="alert">{restartOne.error.message}</p> : null}
-      {restartMany.error ? <p className="error" role="alert">{restartMany.error.message}</p> : null}
+      {jobs.error ? <p className="text-danger" role="alert">{jobs.error.message}</p> : null}
+      {restartOne.error ? <p className="text-danger" role="alert">{restartOne.error.message}</p> : null}
+      {restartMany.error ? <p className="text-danger" role="alert">{restartMany.error.message}</p> : null}
       {jobs.isLoading ? <p>Loading…</p> : null}
       {jobs.data ? (
         <CountPill count={sortedJobs.length}>
@@ -288,14 +305,17 @@ export function JobsPage() {
             : `job${jobs.data.length === 1 ? '' : 's'}`}
         </CountPill>
       ) : null}
-      {jobs.data && jobs.data.length === 0 ? <p className="muted">No background jobs have run for this project yet.</p> : null}
+      {jobs.data && jobs.data.length === 0 ? <p className="text-text-muted">No background jobs have run for this project yet.</p> : null}
       {jobs.data && jobs.data.length > 0 ? (
-        <section className="jobs-summary" aria-label="Job status summary">
+        <section className="grid grid-cols-2 gap-3 min-[681px]:grid-cols-5" aria-label="Job status summary">
           {jobStatusCounts.map(({ status, label, count }) => (
             <button
               type="button"
               key={status}
-              className={`jobs-summary__item jobs-summary__item--${status}${statusFilter === status ? ' jobs-summary__item--active' : ''}`}
+              className={cn(
+                'grid min-h-20 cursor-pointer gap-1 rounded-md border bg-none p-3 text-left shadow-none transition-[filter,background-color] hover:brightness-110 aria-pressed:ring-2 [&_strong]:text-xl [&_span]:text-xs [&_span]:font-semibold [&_span]:text-text-muted',
+                STATUS_CARD_STYLES[status] ?? STATUS_CARD_STYLES.cancelled,
+              )}
               aria-label={`${count} ${status} job${count === 1 ? '' : 's'}`}
               aria-pressed={statusFilter === status}
               onClick={() => setStatusFilter(status)}
@@ -307,55 +327,53 @@ export function JobsPage() {
         </section>
       ) : null}
       {jobs.data && jobs.data.length > 0 ? (
-        <div className="toolbar jobs-toolbar">
-          <label>
-            Status
-            <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+        <div className="flex flex-wrap items-end gap-3">
+          <FormField label="Status">
+            <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
               {STATUS_FILTER_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
               ))}
-            </select>
-          </label>
-          <label>
-            Job type
-            <select value={jobTypeFilter} onChange={(event) => setJobTypeFilter(event.target.value)}>
+            </Select>
+          </FormField>
+          <FormField label="Job type">
+            <Select value={jobTypeFilter} onChange={(event) => setJobTypeFilter(event.target.value)}>
               <option value="">All</option>
               {jobTypeOptions.map((jobType) => (
                 <option key={jobType} value={jobType}>{jobType}</option>
               ))}
-            </select>
-          </label>
+            </Select>
+          </FormField>
           {canManage ? (
             <>
-              <button
+              <Button
                 type="button"
                 disabled={selectedIds.size === 0 || restartMany.isPending}
                 onClick={() => restartMany.mutate(Array.from(selectedIds))}
               >
                 <IconRestart />
                 Restart Selected ({selectedIds.size})
-              </button>
-              <button
+              </Button>
+              <Button
                 type="button"
-                className="button-secondary"
+                variant="secondary"
                 disabled={failedJobIds.length === 0 || restartMany.isPending}
                 onClick={() => restartMany.mutate(failedJobIds)}
               >
                 Restart All Failed ({failedJobIds.length})
-              </button>
+              </Button>
             </>
           ) : null}
         </div>
       ) : null}
       {sortedJobs.length ? (
-        <div className="table-scroll">
-          <table className="table-compact jobs-table">
-            <caption className="visually-hidden">Background jobs</caption>
+        <div className={tableScrollClass}>
+          <table className={`${tableCompactClass} jobs-table`}>
+            <caption className="sr-only">Background jobs</caption>
             <thead>
               <tr>
                 {canManage ? (
-                  <th scope="col" className="jobs-table__select">
-                    <input
+                  <th scope="col" className="w-10">
+                    <Input
                       type="checkbox"
                       checked={allFailedSelected}
                       onChange={toggleAllFailed}
@@ -364,26 +382,19 @@ export function JobsPage() {
                     />
                   </th>
                 ) : null}
-                {COLUMNS.map((column) => {
-                  const active = sortKey === column.key
-                  return (
-                    <th
-                      key={column.key}
-                      scope="col"
-                      aria-sort={active ? (sortDirection === 'asc' ? 'ascending' : 'descending') : 'none'}
-                    >
-                      <span className="jobs-table__heading">
-                        <button type="button" className="link-button" onClick={() => toggleSort(column.key)}>
-                          {column.label}{active ? (sortDirection === 'asc' ? ' ▲' : ' ▼') : ''}
-                        </button>
-                        {COLUMN_HELP[column.key] ? (
-                          <InfoTooltip text={COLUMN_HELP[column.key]!} label={`About ${column.label}`} placement="bottom" />
-                        ) : null}
-                      </span>
-                    </th>
-                  )
-                })}
-                {canManage ? <th scope="col"><span className="visually-hidden">Actions</span></th> : null}
+                {COLUMNS.map((column) => (
+                  <SortableColumnHeader
+                    key={column.key}
+                    label={column.label}
+                    active={sortKey === column.key}
+                    direction={sortDirection}
+                    onSort={() => toggleSort(column.key)}
+                    accessory={COLUMN_HELP[column.key] ? (
+                      <InfoTooltip text={COLUMN_HELP[column.key]!} label={`About ${column.label}`} placement="bottom" />
+                    ) : null}
+                  />
+                ))}
+                {canManage ? <th scope="col"><span className="sr-only">Actions</span></th> : null}
               </tr>
             </thead>
             <tbody>
@@ -393,7 +404,7 @@ export function JobsPage() {
                   <tr key={job.id}>
                     {canManage ? (
                       <td>
-                        <input
+                        <Input
                           type="checkbox"
                           checked={selectedIds.has(job.id)}
                           onChange={() => toggleSelected(job.id)}
@@ -403,20 +414,20 @@ export function JobsPage() {
                         />
                       </td>
                     ) : null}
-                    <th scope="row" className="jobs-table__jobtype">{job.jobType}</th>
+                    <th scope="row" className="min-w-40">{job.jobType}</th>
                     <td>
-                      <span className={`status-badge jobs-status status-badge--${STATUS_BADGE_VARIANT[job.status] ?? 'neutral'}`}>
+                      <Badge variant={STATUS_BADGE_VARIANT[job.status] ?? 'neutral'} className="capitalize">
                         {job.status}
-                      </span>
+                      </Badge>
                     </td>
                     <td>
                       {job.progressTotal ? (
-                        <span className="jobs-progress">
-                          <span className="jobs-progress__label">{job.progressCurrent} / {job.progressTotal}</span>
+                        <span className="grid min-w-28 gap-1.5">
+                          <span className="text-xs font-semibold text-text-secondary">{job.progressCurrent} / {job.progressTotal}</span>
                           {job.status === 'running' ? (
-                            <span className="jobs-progress__bar">
+                            <span className="h-1.5 overflow-hidden rounded-full bg-surface-active">
                               <span
-                                className="jobs-progress__fill"
+                                className="block h-full rounded-full bg-primary transition-[width] duration-200"
                                 style={{ width: `${Math.min(100, (job.progressCurrent / job.progressTotal) * 100)}%` }}
                               />
                             </span>
@@ -434,16 +445,17 @@ export function JobsPage() {
                     {canManage ? (
                       <td>
                         {failed ? (
-                          <button
-                            type="button"
-                            className="icon-button icon-button--round"
+                          <IconButton
+                            variant="secondary"
+                            size="sm"
+                            className="rounded-full"
                             disabled={restartOne.isPending}
                             onClick={() => restartOne.mutate(job.id)}
                             aria-label="Restart"
                             title="Restart job"
                           >
                             <IconRestart />
-                          </button>
+                          </IconButton>
                         ) : null}
                       </td>
                     ) : null}
@@ -455,8 +467,8 @@ export function JobsPage() {
         </div>
       ) : null}
       {jobs.data && jobs.data.length > 0 && sortedJobs.length === 0 ? (
-        <p className="muted">No jobs match your filters.</p>
+        <p className="text-text-muted">No jobs match your filters.</p>
       ) : null}
-    </main>
+    </Page>
   )
 }

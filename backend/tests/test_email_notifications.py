@@ -22,7 +22,7 @@ from app.jobs.worker import execute_next_job
 from app.llm.models import LlmExtractionRun, LlmTaskType, ProcessingStatus
 from app.notifications.mailer import send_smtp_email
 from app.notifications.models import EmailDeliveryStatus, EmailNotification
-from app.notifications.service import queue_llm_stage_completion_emails
+from app.notifications.service import queue_llm_bulk_completion_emails
 from app.notifications.templates import render_email
 from app.projects.lifecycle import evaluate_project_completion
 from app.projects.models import (
@@ -615,6 +615,29 @@ def test_email_job_retries_and_records_terminal_failure(
     assert job.status == JobStatus.FAILED
 
 
+def test_project_owner_users_returns_only_owners(db) -> None:
+    from app.notifications.service import _project_owner_users
+
+    owner = create_user(db, "owner", "Project Owner", "secret-password")
+    second_owner = create_user(db, "co-owner", "Co Owner", "secret-password")
+    reviewer = create_user(db, "reviewer", "Reviewer", "secret-password")
+    project = create_project(
+        db, "Evidence Review", None, ReviewType.SYSTEMATIC_REVIEW, owner
+    )
+    db.add(
+        ProjectMembership(project_id=project.id, user_id=second_owner.id, is_owner=True)
+    )
+    db.add(
+        ProjectMembership(project_id=project.id, user_id=reviewer.id, can_extract=True)
+    )
+    db.flush()
+
+    owners = _project_owner_users(db, project.id)
+
+    assert {user.id for user in owners} == {owner.id, second_owner.id}
+    assert reviewer.id not in {user.id for user in owners}
+
+
 def test_owner_notified_once_when_entire_llm_bulk_finishes(db, monkeypatch) -> None:
     monkeypatch.setattr(
         "app.notifications.service.effective_instance_settings", email_settings
@@ -653,7 +676,6 @@ def test_owner_notified_once_when_entire_llm_bulk_finishes(db, monkeypatch) -> N
         status=ProcessingStatus.PENDING,
         queued_at=datetime.now(UTC),
     )
-    assert queue_llm_stage_completion_emails(db, completed) == []
     completed.bulk_id = "bulk-1"
     pending.bulk_id = "bulk-1"
     preparation = BackgroundJob(
@@ -665,14 +687,14 @@ def test_owner_notified_once_when_entire_llm_bulk_finishes(db, monkeypatch) -> N
     db.add_all([completed, pending, preparation])
     db.flush()
 
-    assert queue_llm_stage_completion_emails(db, completed) == []
+    assert queue_llm_bulk_completion_emails(db, project.id, "bulk-1") == []
     pending.status = ProcessingStatus.COMPLETED
     pending.completed_at = datetime.now(UTC)
-    assert queue_llm_stage_completion_emails(db, pending) == []
+    assert queue_llm_bulk_completion_emails(db, project.id, "bulk-1") == []
     preparation.status = JobStatus.COMPLETED
     preparation.completed_at = datetime.now(UTC)
-    first = queue_llm_stage_completion_emails(db, pending)
-    second = queue_llm_stage_completion_emails(db, pending)
+    first = queue_llm_bulk_completion_emails(db, project.id, "bulk-1")
+    second = queue_llm_bulk_completion_emails(db, project.id, "bulk-1")
 
     assert len(first) == 1
     assert second == first

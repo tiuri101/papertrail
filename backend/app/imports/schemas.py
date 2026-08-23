@@ -1,13 +1,9 @@
 from datetime import date, datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
 
-
-class ApiModel(BaseModel):
-    model_config = ConfigDict(
-        populate_by_name=True, from_attributes=True, use_enum_values=True
-    )
+from app.api.schemas import EnumApiModel as ApiModel
 
 
 class SearchSourceCreate(ApiModel):

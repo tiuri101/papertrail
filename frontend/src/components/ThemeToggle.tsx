@@ -1,6 +1,7 @@
 import { useState } from 'react'
 
 import { persistTheme, type Theme } from '../app/theme'
+import { IconButton } from './Button'
 
 function themeFromDocument(): Theme {
   return document.documentElement.dataset.theme === 'light' ? 'light' : 'dark'
@@ -12,9 +13,8 @@ export function ThemeToggle() {
   const label = `Switch to ${nextTheme} mode`
 
   return (
-    <button
-      type="button"
-      className="icon-button theme-toggle"
+    <IconButton
+      variant="secondary"
       aria-label={label}
       title={label}
       onClick={() => {
@@ -31,6 +31,6 @@ export function ThemeToggle() {
           <path d="M20.7 15.1a8.5 8.5 0 0 1-11.8-11.8A9.5 9.5 0 1 0 20.7 15.1ZM4.5 12a7.5 7.5 0 0 1 3-6 10.5 10.5 0 0 0 10.5 10.5A7.5 7.5 0 0 1 4.5 12Z" />
         </svg>
       )}
-    </button>
+    </IconButton>
   )
 }

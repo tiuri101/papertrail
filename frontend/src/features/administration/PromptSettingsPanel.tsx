@@ -5,6 +5,7 @@ import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { InfoBox } from '../../components/InfoBox'
 import { IconLightbulb } from '../../components/icons'
+import { Textarea } from '../../components/Textarea'
 
 interface PromptFlow {
   key: string
@@ -75,17 +76,17 @@ export function PromptSettingsPanel({ projectId }: { projectId: string }) {
           terminology, or emphasis to append to the base prompts.
         </p>
       </InfoBox>
-      {settings.error ? <p className="error" role="alert">{settings.error.message}</p> : null}
+      {settings.error ? <p className="text-danger" role="alert">{settings.error.message}</p> : null}
       {settings.data?.flows.map((flow) => (
-        <div className="prompt-flow" key={flow.key}>
+        <div data-prompt-flow={flow.key} className="border-t border-border pt-4 first:border-t-0 first:pt-0 [&>*+*]:mt-4" key={flow.key}>
           <h3>{flow.label}</h3>
           <details>
             <summary>Base prompt</summary>
-            <pre className="prompt-flow__base">{flow.basePrompt}</pre>
+            <pre className="mt-2 max-h-64 whitespace-pre-wrap">{flow.basePrompt}</pre>
           </details>
-          <label>
+          <label className="grid gap-2 text-sm font-semibold text-text-secondary">
             Custom instructions
-            <textarea
+            <Textarea
               value={draft[flow.key] ?? ''}
               onChange={(event) => setDraft((current) => ({
                 ...current, [flow.key]: event.target.value,
@@ -97,8 +98,8 @@ export function PromptSettingsPanel({ projectId }: { projectId: string }) {
           </label>
         </div>
       ))}
-      {save.error ? <p className="error" role="alert">{save.error.message}</p> : null}
-      <p className="muted" aria-live="polite">
+      {save.error ? <p className="text-danger" role="alert">{save.error.message}</p> : null}
+      <p className="text-text" aria-live="polite">
         {save.isPending ? 'Saving…' : save.isSuccess ? 'Saved.' : ' '}
       </p>
     </CollapsibleSection>

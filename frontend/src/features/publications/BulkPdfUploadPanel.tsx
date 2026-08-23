@@ -2,15 +2,13 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { IconUpload } from '../../components/icons'
+import { toolbarClass } from '../../components/layoutStyles'
 import { FileDropZone } from '../imports/FileDropZone'
-import { PdfMatchReview, type PdfSummary } from '../imports/PdfMatchReview'
-
-interface UploadResult {
-  importBatchId: string
-  summary: PdfSummary
-}
+import { PdfMatchReview } from '../imports/PdfMatchReview'
+import type { UploadResult } from '../imports/types'
 
 export function BulkPdfUploadPanel({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient()
@@ -48,12 +46,12 @@ export function BulkPdfUploadPanel({ projectId }: { projectId: string }) {
       title="Bulk Attach PDFs"
       defaultExpanded={false}
     >
-      <p className="muted">
+      <p className="text-text">
         Upload PDFs to match against every publication in this project by DOI, title, and
         author — no need to select papers first. Anything ambiguous or conflicting will be
         held for you to resolve below.
       </p>
-      {upload.error ? <p className="error" role="alert">{upload.error.message}</p> : null}
+      {upload.error ? <p className="text-danger" role="alert">{upload.error.message}</p> : null}
       <FileDropZone
         id="bulk-pdf-upload"
         label="PDF files"
@@ -74,16 +72,16 @@ export function BulkPdfUploadPanel({ projectId }: { projectId: string }) {
         onChange={setPdfArchives}
         disabled={upload.isPending}
       />
-      <div className="toolbar">
-        <button
+      <div className={toolbarClass}>
+        <Button
           type="button"
-          className="button-sm"
+          size="sm"
           disabled={(!pdfFiles.length && !pdfArchives.length) || upload.isPending}
           onClick={() => upload.mutate()}
         >
           <IconUpload />
           {upload.isPending ? 'Uploading…' : 'Upload PDFs'}
-        </button>
+        </Button>
       </div>
       {upload.data ? (
         <p>

@@ -1,8 +1,22 @@
+from datetime import timedelta
+
+import pytest
 from sqlalchemy import select
 
-from app.accounts.service import create_user
+from app.accounts.models import LoginThrottle
+from app.accounts.service import (
+    clear_login_failures,
+    create_user,
+    ensure_login_allowed,
+    ensure_password_reset_allowed,
+    login_identity_hash,
+    record_login_failure,
+    record_password_reset_attempt,
+)
+from app.api.errors import RateLimitError
 from app.audit.models import AuditEvent
 from app.core.config import Settings, get_settings
+from app.core.time import utcnow
 from app.notifications.models import EmailNotification
 
 
@@ -420,3 +434,137 @@ def test_forgot_password_is_rate_limited_per_email_and_client(client, db) -> Non
         assert blocked.json()["error"]["code"] == "rate_limited"
     finally:
         settings.password_reset_max_attempts = original_attempts
+
+
+def _throttle_row(db, identity: str) -> LoginThrottle | None:
+    return db.scalar(
+        select(LoginThrottle).where(LoginThrottle.identity_hash == identity)
+    )
+
+
+def test_login_throttle_mechanics_full_lifecycle(db) -> None:
+    """Exercise the shared throttle helper via the login call sites: first
+    failure, reaching the limit, window expiration resetting the count, a
+    blocked identity being rejected, block expiration allowing retry, and a
+    successful login clearing the throttle."""
+    create_user(db, "reviewer", "Reviewer", "correct-password")
+    db.commit()
+    settings = get_settings()
+    original_attempts = settings.login_max_attempts
+    original_window = settings.login_window_seconds
+    original_block = settings.login_block_seconds
+    settings.login_max_attempts = 3
+    settings.login_window_seconds = 900
+    settings.login_block_seconds = 900
+    username, client_address = "reviewer", "203.0.113.5"
+    identity = login_identity_hash(username, client_address)
+    try:
+        # No throttle row yet -- allowed.
+        ensure_login_allowed(db, username, client_address)
+
+        # First failure: recorded, still allowed.
+        record_login_failure(db, username, client_address)
+        db.commit()
+        throttle = _throttle_row(db, identity)
+        assert throttle is not None
+        assert throttle.attempts == 1
+        assert throttle.blocked_until is None
+        ensure_login_allowed(db, username, client_address)
+
+        # Reach the configured limit -> blocked.
+        record_login_failure(db, username, client_address)
+        record_login_failure(db, username, client_address)
+        db.commit()
+        db.refresh(throttle)
+        assert throttle.attempts == 3
+        assert throttle.blocked_until is not None
+        with pytest.raises(RateLimitError):
+            ensure_login_allowed(db, username, client_address)
+
+        # Block expiration allows retry again.
+        throttle.blocked_until = utcnow() - timedelta(seconds=1)
+        db.commit()
+        ensure_login_allowed(db, username, client_address)
+
+        # Window expiration resets the attempt count on the next failure.
+        throttle.window_started_at = utcnow() - timedelta(
+            seconds=settings.login_window_seconds + 1
+        )
+        throttle.blocked_until = None
+        db.commit()
+        record_login_failure(db, username, client_address)
+        db.commit()
+        db.refresh(throttle)
+        assert throttle.attempts == 1
+        assert throttle.blocked_until is None
+        ensure_login_allowed(db, username, client_address)
+
+        # A successful login clears the throttle entirely.
+        clear_login_failures(db, username, client_address)
+        db.commit()
+        assert _throttle_row(db, identity) is None
+        ensure_login_allowed(db, username, client_address)
+    finally:
+        settings.login_max_attempts = original_attempts
+        settings.login_window_seconds = original_window
+        settings.login_block_seconds = original_block
+
+
+def test_password_reset_throttle_mechanics_full_lifecycle(db) -> None:
+    """Exercise the same shared throttle helper via the password-reset call
+    sites, confirming identical mechanics (first attempt, limit, window
+    expiration, blocked state, block expiration) under the password-reset
+    policy knobs (password_reset_max_attempts, not login_max_attempts)."""
+    settings = get_settings()
+    original_attempts = settings.password_reset_max_attempts
+    original_window = settings.login_window_seconds
+    original_block = settings.login_block_seconds
+    settings.password_reset_max_attempts = 3
+    settings.login_window_seconds = 900
+    settings.login_block_seconds = 900
+    email, client_address = "reviewer@example.org", "203.0.113.6"
+    identity = login_identity_hash(f"pwreset:{email}", client_address)
+    try:
+        # No throttle row yet -- allowed.
+        ensure_password_reset_allowed(db, email, client_address)
+
+        # First attempt: recorded, still allowed.
+        record_password_reset_attempt(db, email, client_address)
+        db.commit()
+        throttle = _throttle_row(db, identity)
+        assert throttle is not None
+        assert throttle.attempts == 1
+        assert throttle.blocked_until is None
+        ensure_password_reset_allowed(db, email, client_address)
+
+        # Reach the configured limit -> blocked.
+        record_password_reset_attempt(db, email, client_address)
+        record_password_reset_attempt(db, email, client_address)
+        db.commit()
+        db.refresh(throttle)
+        assert throttle.attempts == 3
+        assert throttle.blocked_until is not None
+        with pytest.raises(RateLimitError):
+            ensure_password_reset_allowed(db, email, client_address)
+
+        # Block expiration allows retry again.
+        throttle.blocked_until = utcnow() - timedelta(seconds=1)
+        db.commit()
+        ensure_password_reset_allowed(db, email, client_address)
+
+        # Window expiration resets the attempt count on the next attempt.
+        throttle.window_started_at = utcnow() - timedelta(
+            seconds=settings.login_window_seconds + 1
+        )
+        throttle.blocked_until = None
+        db.commit()
+        record_password_reset_attempt(db, email, client_address)
+        db.commit()
+        db.refresh(throttle)
+        assert throttle.attempts == 1
+        assert throttle.blocked_until is None
+        ensure_password_reset_allowed(db, email, client_address)
+    finally:
+        settings.password_reset_max_attempts = original_attempts
+        settings.login_window_seconds = original_window
+        settings.login_block_seconds = original_block

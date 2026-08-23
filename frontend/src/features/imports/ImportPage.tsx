@@ -3,15 +3,22 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Badge } from '../../components/Badge'
+import { Button } from '../../components/Button'
+import { Card } from '../../components/Card'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { CountPill } from '../../components/CountPill'
 import { DateField } from '../../components/DateField'
 import { IconClock, IconPerson, IconTrash, IconUpload } from '../../components/icons'
+import { Input } from '../../components/Input'
+import { Page } from '../../components/Page'
 import { useRegisterSectionItems } from '../../components/sectionNavigation'
+import { Textarea } from '../../components/Textarea'
 import { InfoTooltip } from '../../components/Tooltip'
 import { getCsrfToken } from '../auth/session'
-import { BackgroundJob, findJob, hasActiveJob, isJobActive } from '../jobs/jobStatus'
+import { isJobActive } from '../jobs/jobStatus'
+import { usePendingJob } from '../jobs/usePendingJob'
 import { StageEyebrow } from '../projects/StageEyebrow'
 import { AttachPdfsPanel } from './AttachPdfsPanel'
 import { FileDropZone } from './FileDropZone'
@@ -89,7 +96,6 @@ export function ImportPage() {
   const [query, setQuery] = useState('')
   const [searchDate, setSearchDate] = useState('')
   const [filters, setFilters] = useState('')
-  const [pendingJobId, setPendingJobId] = useState<string | null>(null)
   const [attachBatchId, setAttachBatchId] = useState<string | null>(null)
   const [hadSearchHistoryOnLoad, setHadSearchHistoryOnLoad] = useState<boolean | null>(null)
   const [deleteCandidate, setDeleteCandidate] = useState<
@@ -102,14 +108,6 @@ export function ImportPage() {
     queryFn: () => apiRequest<SearchSource[]>(`/api/v1/projects/${projectId}/searches`),
     enabled: Boolean(projectId),
   })
-
-  const jobs = useQuery({
-    queryKey: ['jobs', projectId],
-    queryFn: () => apiRequest<BackgroundJob[]>(`/api/v1/projects/${projectId}/jobs`),
-    enabled: Boolean(projectId) && Boolean(pendingJobId),
-    refetchInterval: (query) => (hasActiveJob(query.state.data) ? 2000 : false),
-  })
-  const pendingJob = pendingJobId ? findJob(jobs.data, pendingJobId) : undefined
 
   const pdfMatchesQueryKey = ['pdf-matches', projectId, 'project-wide']
   const projectPdfMatches = useQuery({
@@ -126,20 +124,20 @@ export function ImportPage() {
     ) > 0,
   )
 
+  const { setPendingJobId, pendingJob } = usePendingJob(projectId, {
+    clearOnComplete: false,
+    onComplete: () => {
+      queryClient.invalidateQueries({ queryKey: ['publications', projectId] })
+      queryClient.invalidateQueries({ queryKey: pdfMatchesQueryKey })
+      queryClient.invalidateQueries({ queryKey: ['searches', projectId] })
+    },
+  })
+
   useEffect(() => {
     if (!searches.isLoading && hadSearchHistoryOnLoad === null) {
       setHadSearchHistoryOnLoad(Boolean(searches.data?.length))
     }
   }, [hadSearchHistoryOnLoad, searches.data, searches.isLoading])
-
-  useEffect(() => {
-    if (pendingJob && !isJobActive(pendingJob.status)) {
-      queryClient.invalidateQueries({ queryKey: ['publications', projectId] })
-      queryClient.invalidateQueries({ queryKey: pdfMatchesQueryKey })
-      queryClient.invalidateQueries({ queryKey: ['searches', projectId] })
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [pendingJob, projectId, queryClient])
 
   useEffect(() => {
     if (
@@ -226,40 +224,40 @@ export function ImportPage() {
   })
 
   return (
-    <main className="page">
+    <Page>
       <StageEyebrow stage="draft" />
       <h1>Searches and Imports</h1>
-      <p className="muted">
+      <p className="text-text">
         Import publication records from a database export, or review the searches already
         documented for this project.
       </p>
 
       {hadSearchHistoryOnLoad === null ? (
-        <section id="section-import-records" className="card">
+        <Card as="section" id="section-import-records">
           <h2>Import a Database Export</h2>
-          <p className="muted">Loading documented searches…</p>
-        </section>
+          <p className="text-text">Loading documented searches…</p>
+        </Card>
       ) : (
         <CollapsibleSection
           id="section-import-records"
           title="Import a Database Export"
           defaultExpanded={!hadSearchHistoryOnLoad}
         >
-        <p className="muted">Record the database and search string used alongside the file, so it can be traced back for this import and reported in your PRISMA flow.</p>
-        {submit.error ? <p className="error" role="alert">{submit.error.message}</p> : null}
+        <p className="text-text">Record the database and search string used alongside the file, so it can be traced back for this import and reported in your PRISMA flow.</p>
+        {submit.error ? <p className="text-danger" role="alert">{submit.error.message}</p> : null}
         <form onSubmit={(event) => { event.preventDefault(); submit.mutate() }}>
           <label>
             Database
-            <input value={sourceName} onChange={(event) => setSourceName(event.target.value)} required />
+            <Input value={sourceName} onChange={(event) => setSourceName(event.target.value)} required />
           </label>
           <label>
             Search string
-            <textarea value={query} onChange={(event) => setQuery(event.target.value)} rows={2} required />
+            <Textarea value={query} onChange={(event) => setQuery(event.target.value)} rows={2} required />
           </label>
           <DateField label="Search date" value={searchDate} onChange={setSearchDate} required />
           <label>
             Filters applied (optional)
-            <input value={filters} onChange={(event) => setFilters(event.target.value)} />
+            <Input value={filters} onChange={(event) => setFilters(event.target.value)} />
           </label>
           <FileDropZone
             id="bibliographic-export"
@@ -287,10 +285,10 @@ export function ImportPage() {
             files={pdfArchives}
             onChange={setPdfArchives}
           />
-          <button type="submit" disabled={!file || submit.isPending}>
+          <Button type="submit" disabled={!file || submit.isPending}>
             <IconUpload />
             Upload
-          </button>
+          </Button>
           {submit.isPending ? (
             <p role="status">
               Uploading metadata
@@ -312,28 +310,28 @@ export function ImportPage() {
                   + (pdfSummary.unmatched ?? 0)
                   + (pdfSummary.conflict_existing_pdf ?? 0)
                 return (
-                  <div className="import-summary">
+                  <div className="grid gap-3 rounded-md border border-border bg-bg-elevated p-4">
                     <h3>
                       PDF import
                       <InfoTooltip text="Matched: automatically linked to a publication by title, DOI, or filename. Need review: the match was uncertain, no match was found, or it conflicts with a PDF already attached — check these manually. Duplicate: this file was already imported. Invalid: the file couldn't be read as a PDF." />
                     </h3>
                     <p>{pdfSummary.total} files processed · {pdfSummary.matched ?? 0} matched · {needsReview} need review · {pdfSummary.duplicate ?? 0} duplicate · {pdfSummary.invalid ?? 0} invalid</p>
                     {needsReview ? (
-                      <button
+                      <Button
                         type="button"
                         onClick={() => document
                           .getElementById('section-pdf-review')
                           ?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
                       >
                         Review PDF matches
-                      </button>
+                      </Button>
                     ) : null}
                   </div>
                 )
               })()}
             </>
           ) : (
-            <p className="error" role="alert">
+            <p className="text-danger" role="alert">
               Import {pendingJob.status}
               {pendingJob.errorMessage ? `: ${pendingJob.errorMessage}` : ''}
             </p>
@@ -342,9 +340,10 @@ export function ImportPage() {
         </CollapsibleSection>
       )}
 
-      <section
+      <Card
+        as="section"
+        className="mt-6"
         id="section-search-history"
-        className="card"
         aria-labelledby="search-history-title"
       >
         <h2 id="search-history-title">Previously Documented Searches</h2>
@@ -353,11 +352,11 @@ export function ImportPage() {
             documented search{searches.data.length === 1 ? '' : 'es'}
           </CountPill>
         ) : (
-          <p className="muted">No searches have been documented for this project yet.</p>
+          <p className="text-text">No searches have been documented for this project yet.</p>
         )}
 
         {searches.data?.length ? (
-          <ol className="search-history__list">
+          <ol className="m-0 grid list-none gap-4 p-0">
               {searches.data.map((search) => {
                 const batches = search.importBatches ?? []
                 const importedRecords = batches.reduce(
@@ -371,36 +370,36 @@ export function ImportPage() {
                 const paperCount = importedRecords || search.exportedResultCount || 0
 
                 return (
-                  <li className="search-history__card" key={search.id}>
-                    <header className="search-history__card-header">
-                      <div className="search-history__database">
-                        <span className="search-history__database-icon" aria-hidden="true">
+                  <li className="overflow-hidden rounded-md border border-border bg-surface-raised shadow-sm" key={search.id}>
+                    <header className="flex items-center justify-between gap-4 p-4 min-[561px]:p-5 max-[560px]:flex-wrap max-[560px]:items-start">
+                      <div className="flex min-w-0 items-center gap-3 max-[560px]:basis-full">
+                        <span className="inline-flex size-11 shrink-0 items-center justify-center rounded-md bg-primary-container text-[1.1rem] font-bold text-primary" aria-hidden="true">
                           {search.sourceName.slice(0, 1).toUpperCase()}
                         </span>
                         <div>
-                          <span className="eyebrow">Database</span>
-                          <h4>{search.sourceName}</h4>
+                          <span className="mb-1 block text-xs font-bold uppercase tracking-[0.08em] text-primary">Database</span>
+                          <h4 className="m-0 text-[1.08rem] font-semibold">{search.sourceName}</h4>
                         </div>
                       </div>
-                      <div className="search-history__paper-count" aria-label={`${paperCount} papers`}>
-                        <strong>{paperCount}</strong>
-                        <span>{paperCount === 1 ? 'paper' : 'papers'}</span>
+                      <div className="grid min-w-[82px] shrink-0 rounded-md border border-[color-mix(in_srgb,var(--color-primary)_24%,var(--color-border))] bg-primary-container px-4 py-2 text-center text-primary" aria-label={`${paperCount} papers`}>
+                        <strong className="text-[1.35rem] leading-[1.1]">{paperCount}</strong>
+                        <span className="text-xs font-bold uppercase">{paperCount === 1 ? 'paper' : 'papers'}</span>
                       </div>
-                      <button
+                      <Button
                         type="button"
-                        className="button-danger"
+                        variant="destructive"
                         onClick={() => previewDeleteSearch.mutate(search)}
                         disabled={previewDeleteSearch.isPending && previewDeleteSearch.variables?.id === search.id}
                       >
                         <IconTrash />
                         Delete search
-                      </button>
+                      </Button>
                     </header>
                     {previewDeleteSearch.error && previewDeleteSearch.variables?.id === search.id ? (
-                      <p className="error" role="alert">{previewDeleteSearch.error.message}</p>
+                      <p className="text-danger" role="alert">{previewDeleteSearch.error.message}</p>
                     ) : null}
 
-                    <dl className="search-history__metadata">
+                    <dl className="m-0 grid grid-cols-1 border-y border-border bg-[color-mix(in_srgb,var(--color-surface-hover)_50%,transparent)] min-[561px]:grid-cols-2 min-[821px]:grid-cols-4 [&>div]:min-w-0 [&>div]:border-t [&>div]:border-border [&>div]:px-4 [&>div]:py-3 [&>div:first-child]:border-t-0 min-[561px]:[&>div:nth-child(-n+2)]:border-t-0 min-[561px]:[&>div:nth-child(even)]:border-l min-[821px]:[&>div]:border-l min-[821px]:[&>div]:border-t-0 min-[821px]:[&>div:first-child]:border-l-0 [&_dd]:mt-1 [&_dd]:wrap-anywhere [&_dd]:text-[0.86rem] [&_dd]:text-text-secondary [&_dt]:flex [&_dt]:items-center [&_dt]:gap-1 [&_dt]:text-xs [&_dt]:font-bold [&_dt]:uppercase [&_dt]:tracking-[0.05em] [&_dt]:text-text-muted [&_dt_svg]:size-3.5 [&_dt_svg]:fill-current">
                       <div>
                         <dt><IconClock />Search date</dt>
                         <dd><time dateTime={search.searchDate}>{formatSearchDate(search.searchDate)}</time></dd>
@@ -427,70 +426,74 @@ export function ImportPage() {
                       ) : null}
                     </dl>
 
-                    <div className="search-history__strategy">
-                      <div>
-                        <span>Search string</span>
-                        <p>{search.query}</p>
+                    <div className="grid grid-cols-1 gap-3 p-4 min-[561px]:p-5 min-[821px]:grid-cols-[minmax(0,2fr)_minmax(220px,1fr)]">
+                      <div className="min-w-0 rounded-sm border border-border bg-bg-elevated px-4 py-3">
+                        <span className="mb-1 block text-xs font-bold uppercase tracking-[0.05em] text-primary">Search string</span>
+                        <p className="whitespace-pre-wrap text-sm text-text-secondary">{search.query}</p>
                       </div>
-                      <div>
-                        <span>Filters applied</span>
-                        <p>{search.filters?.trim() || 'No filters documented'}</p>
+                      <div className="min-w-0 rounded-sm border border-border bg-bg-elevated px-4 py-3">
+                        <span className="mb-1 block text-xs font-bold uppercase tracking-[0.05em] text-primary">Filters applied</span>
+                        <p className="whitespace-pre-wrap text-sm text-text-secondary">{search.filters?.trim() || 'No filters documented'}</p>
                       </div>
                     </div>
 
                     {batches.length ? (
-                      <div className="search-history__imports">
-                        <h5>Import files</h5>
-                        <ul>
+                      <div className="mx-4 mb-4 border-t border-border pt-4 min-[561px]:mx-5 min-[561px]:mb-5">
+                        <h5 className="mb-3 text-[0.82rem] font-semibold uppercase tracking-[0.04em] text-text">Import files</h5>
+                        <ul className="m-0 grid list-none gap-2 p-0">
                           {batches.map((batch) => (
-                            <li key={batch.id}>
-                              <div className="search-history__import-details">
-                                <strong>{batch.originalFilename}</strong>
-                                <span className="muted">
+                            <li className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-sm border border-border bg-surface p-3 min-[561px]:grid-cols-[minmax(0,1fr)_auto_auto]" key={batch.id}>
+                              <div className="grid min-w-0">
+                                <strong className="truncate text-sm">{batch.originalFilename}</strong>
+                                <span className="text-[0.8rem] text-text">
                                   {batch.recordCount} records · {batch.attachedPaperCount ?? 0} paper{batch.attachedPaperCount === 1 ? '' : 's'} with PDF
                                   {batch.completedAt
                                     ? ` · completed ${formatDocumentedAt(batch.completedAt)}`
                                     : ''}
                                 </span>
                               </div>
-                              <span className={`search-history__status search-history__status--${batch.status}`}>
+                              <Badge variant={batch.status === 'completed' ? 'success' : batch.status === 'failed' ? 'danger' : 'warning'}>
                                 {formatImportStatus(batch.status)}
-                              </span>
+                              </Badge>
                               {batch.status === 'completed' ? (
-                                <button
+                                <Button
                                   type="button"
-                                  className="button-secondary"
+                                  variant="secondary"
+                                  size="sm"
+                                  className="max-[560px]:col-span-full max-[560px]:w-full"
                                   onClick={() => setAttachBatchId(
                                     attachBatchId === batch.id ? null : batch.id,
                                   )}
                                 >
                                   {attachBatchId === batch.id ? 'Cancel' : 'Attach PDFs'}
-                                </button>
+                                </Button>
                               ) : null}
                             </li>
                           ))}
                         </ul>
                       </div>
                     ) : (
-                      <p className="search-history__no-imports">No import file is associated with this search yet.</p>
+                      <p className="mx-4 mb-4 rounded-sm border border-dashed border-border px-4 py-3 text-[0.86rem] text-text-muted min-[561px]:mx-5 min-[561px]:mb-5">No import file is associated with this search yet.</p>
                     )}
 
                     {attachBatchId
                     && batches.some((batch) => batch.id === attachBatchId) ? (
-                      <AttachPdfsPanel
-                        projectId={projectId}
-                        importBatchId={attachBatchId}
-                        onClose={() => setAttachBatchId(null)}
-                      />
+                      <div className="mx-4 mb-4 min-[561px]:mx-5 min-[561px]:mb-5">
+                        <AttachPdfsPanel
+                          projectId={projectId}
+                          importBatchId={attachBatchId}
+                          onClose={() => setAttachBatchId(null)}
+                        />
+                      </div>
                       ) : null}
                   </li>
                 )
               })}
           </ol>
         ) : (
-          <p className="search-history__empty">Your documented search strategies and import summaries will appear here.</p>
+          <p className="py-4 text-center text-text-secondary">Your documented search strategies and import summaries will appear here.</p>
         )}
-      </section>
+      </Card>
       {projectNeedsPdfReview ? (
         <PdfMatchReview projectId={projectId} />
       ) : null}
@@ -515,7 +518,7 @@ export function ImportPage() {
                 <>This will permanently delete the search. No papers came in exclusively through it.</>
               )}
               {deleteCandidate.preview.screenedPublicationCount > 0 ? (
-                <span className="error" role="alert" style={{ display: 'block', marginTop: '0.75rem' }}>
+                <span className="mt-3 block text-danger" role="alert">
                   {deleteCandidate.preview.screenedPublicationCount === 1
                     ? 'One of these papers has'
                     : `${deleteCandidate.preview.screenedPublicationCount} of these papers have`}{' '}
@@ -524,7 +527,7 @@ export function ImportPage() {
                 </span>
               ) : null}
               {confirmDeleteSearch.error ? (
-                <span className="error" role="alert" style={{ display: 'block', marginTop: '0.75rem' }}>
+                <span className="mt-3 block text-danger" role="alert">
                   {confirmDeleteSearch.error.message}
                 </span>
               ) : null}
@@ -532,6 +535,6 @@ export function ImportPage() {
           )}
         />
       ) : null}
-    </main>
+    </Page>
   )
 }

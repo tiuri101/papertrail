@@ -125,13 +125,6 @@ def is_any_project_manager(db: Session, user: User) -> bool:
     )
 
 
-def require_project_manager(db: Session, project_id: str, user: User) -> Project:
-    project = get_project(db, project_id)
-    if not is_project_manager(db, project_id, user):
-        raise ForbiddenError("Project owner or administrator access required")
-    return project
-
-
 def require_manager_for(db: Session, user: User, project_id: str | None) -> None:
     """Authorize a manager-only action on an entity that may or may not belong
     to a project (e.g. a form that could be a global template)."""

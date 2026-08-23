@@ -20,8 +20,8 @@ describe('QualitySettingsPanel', () => {
     renderWithProviders(<QualitySettingsPanel projectId="p1" />)
 
     const enabledCheckbox = await screen.findByLabelText('Enable quality assessment')
-    expect(enabledCheckbox.closest('.quality-settings-fields')).toBeInTheDocument()
-    expect(screen.getByLabelText('Mode').closest('.quality-settings-selects')).toBeInTheDocument()
+    expect(enabledCheckbox.closest('[data-quality-settings]')).toBeInTheDocument()
+    expect(screen.getByLabelText('Mode').closest('[data-quality-settings-selects]')).toBeInTheDocument()
 
     fireEvent.click(enabledCheckbox)
     fireEvent.change(screen.getByLabelText('Mode'), { target: { value: 'numeric' } })

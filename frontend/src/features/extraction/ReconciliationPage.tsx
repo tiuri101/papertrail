@@ -3,10 +3,16 @@ import { useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Page } from '../../components/Page'
+import { Button } from '../../components/Button'
+import { Card } from '../../components/Card'
 import { CountPill } from '../../components/CountPill'
 import { DoiPill } from '../../components/DoiPill'
+import { Input } from '../../components/Input'
+import { toolbarClass } from '../../components/layoutStyles'
 import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
 import { PublisherLinkPill } from '../../components/PublisherLinkPill'
+import { Textarea } from '../../components/Textarea'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { useCanReconcileExtractionState } from '../../hooks/useCanManageProject'
 import { fullTextDocumentEndpoint, useFullTextDocument } from '../fulltext/useFullTextDocument'
@@ -70,40 +76,40 @@ export function ReconciliationPage() {
   })
 
   if (canReconcileLoading) {
-    return <main className="page"><p>Loading…</p></main>
+    return <Page><p>Loading…</p></Page>
   }
   if (!canReconcile) {
     return (
-      <main className="page">
+      <Page>
         <StageEyebrow stage="extraction_quality" />
         <h1>Extraction Conflicts</h1>
-        <p className="error" role="alert">
+        <p className="text-danger" role="alert">
           Only project managers or adjudicators can reconcile extraction disagreements.
         </p>
-      </main>
+      </Page>
     )
   }
 
   const list = queue.data ?? []
 
   return (
-    <main className="page">
+    <Page>
       <StageEyebrow stage="extraction_quality" />
       <h1>Extraction Conflicts</h1>
-      <p className="muted">
+      <p className="text-text-muted">
         Publications where two independent extractors disagreed on at least one field. Resolve
         each disagreeing field to produce the authoritative extraction result.
       </p>
-      {queue.error ? <p className="error" role="alert">{queue.error.message}</p> : null}
+      {queue.error ? <p className="text-danger" role="alert">{queue.error.message}</p> : null}
       <CountPill count={list.length}>
         publication{list.length === 1 ? '' : 's'} awaiting reconciliation
       </CountPill>
-      <ul className="card-list stacked">
+      <ul className="m-0 grid list-none gap-5 p-0" aria-label="Publications awaiting reconciliation">
         {list.map((item) => (
-          <li className="card" key={item.publication.id}>
+          <Card as="li" key={item.publication.id}>
             <h2>{item.publication.title}</h2>
-            <p className="muted">{item.publication.authors ?? 'Unknown authors'}</p>
-            <div className="toolbar">
+            <p className="text-text-muted">{item.publication.authors ?? 'Unknown authors'}</p>
+            <div className="flex flex-wrap items-center gap-3">
               <DoiPill doi={item.publication.doi} />
               {isSafeHttpUrl(item.publication.publisherUrl) ? (
                 <PublisherLinkPill url={item.publication.publisherUrl} />
@@ -120,16 +126,16 @@ export function ReconciliationPage() {
                 onCancel={() => setExpandedPublicationId(null)}
               />
             ) : (
-              <div className="toolbar">
-                <button type="button" onClick={() => setExpandedPublicationId(item.publication.id)}>
+              <div className={toolbarClass}>
+                <Button type="button" onClick={() => setExpandedPublicationId(item.publication.id)}>
                   Reconcile
-                </button>
+                </Button>
               </div>
             )}
-          </li>
+          </Card>
         ))}
       </ul>
-    </main>
+    </Page>
   )
 }
 
@@ -163,7 +169,7 @@ function ReconciliationForm({ projectId, publicationId, onDone, onCancel }: {
 
   if (detail.isLoading) return <p>Loading comparison…</p>
   if (detail.error || !detail.data) {
-    return <p className="error" role="alert">{detail.error?.message ?? 'Could not load the comparison.'}</p>
+    return <p className="text-danger" role="alert">{detail.error?.message ?? 'Could not load the comparison.'}</p>
   }
 
   const fieldsByKey = new Map(detail.data.fields.map((field) => [field.stableKey, field]))
@@ -171,8 +177,8 @@ function ReconciliationForm({ projectId, publicationId, onDone, onCancel }: {
   const missingChoice = disagreeing.some((comparison) => !choices[comparison.stableKey])
 
   return (
-    <div className="reconciliation-form">
-      <div className="toolbar">
+    <div className="border-t border-border pt-5">
+      <div className="flex flex-wrap items-center gap-3">
         {fullTextDocument.data ? (
           <PdfAvailabilityPill
             available={fullTextDocument.data.available}
@@ -196,7 +202,7 @@ function ReconciliationForm({ projectId, publicationId, onDone, onCancel }: {
             const label = field?.label ?? comparison.stableKey
             if (comparison.agree) {
               return (
-                <tr key={comparison.stableKey} className="reconciliation-row--agree">
+                <tr key={comparison.stableKey} className="bg-success-container/40">
                   <th scope="row">{label}</th>
                   <td colSpan={2}>{formatValue(comparison.valueA, comparison.fieldType)}</td>
                   <td>Agreed</td>
@@ -205,38 +211,38 @@ function ReconciliationForm({ projectId, publicationId, onDone, onCancel }: {
             }
             const current = choices[comparison.stableKey]
             return (
-              <tr key={comparison.stableKey} className="reconciliation-row--disagree">
+              <tr key={comparison.stableKey} className="bg-warning-container/40">
                 <th scope="row">{label}</th>
                 <td>{formatValue(comparison.valueA, comparison.fieldType)}</td>
                 <td>{formatValue(comparison.valueB, comparison.fieldType)}</td>
                 <td>
-                  <div className="toolbar">
-                    <button
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
                       type="button"
-                      className={current?.choice === 'response_a' ? undefined : 'button-secondary'}
+                      variant={current?.choice === 'response_a' ? 'primary' : 'secondary'}
                       onClick={() => setChoices((prev) => ({ ...prev, [comparison.stableKey]: { choice: 'response_a' } }))}
                     >
                       Use A
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
-                      className={current?.choice === 'response_b' ? undefined : 'button-secondary'}
+                      variant={current?.choice === 'response_b' ? 'primary' : 'secondary'}
                       onClick={() => setChoices((prev) => ({ ...prev, [comparison.stableKey]: { choice: 'response_b' } }))}
                     >
                       Use B
-                    </button>
-                    <button
+                    </Button>
+                    <Button
                       type="button"
-                      className={current?.choice === 'manual' ? undefined : 'button-secondary'}
+                      variant={current?.choice === 'manual' ? 'primary' : 'secondary'}
                       onClick={() => setChoices((prev) => ({ ...prev, [comparison.stableKey]: { choice: 'manual', value: prev[comparison.stableKey]?.value ?? '' } }))}
                     >
                       Manual
-                    </button>
+                    </Button>
                   </div>
                   {current?.choice === 'manual' ? (
                     <label>
                       Manual value
-                      <input
+                      <Input
                         value={typeof current.value === 'string' ? current.value : String(current.value ?? '')}
                         onChange={(event) => setChoices((prev) => ({
                           ...prev,
@@ -253,20 +259,20 @@ function ReconciliationForm({ projectId, publicationId, onDone, onCancel }: {
       </table>
       <label>
         Reconciliation note
-        <textarea value={note} onChange={(event) => setNote(event.target.value)} required />
+        <Textarea value={note} onChange={(event) => setNote(event.target.value)} required />
       </label>
-      {submit.error ? <p className="error" role="alert">{submit.error.message}</p> : null}
-      <div className="toolbar">
-        <button
+      {submit.error ? <p className="text-danger" role="alert">{submit.error.message}</p> : null}
+      <div className={toolbarClass}>
+        <Button
           type="button"
           onClick={() => submit.mutate()}
           disabled={submit.isPending || missingChoice || !note.trim()}
         >
           Submit Reconciliation
-        </button>
-        <button type="button" className="button-secondary" onClick={onCancel} disabled={submit.isPending}>
+        </Button>
+        <Button type="button" variant="secondary" onClick={onCancel} disabled={submit.isPending}>
           Cancel
-        </button>
+        </Button>
       </div>
     </div>
   )

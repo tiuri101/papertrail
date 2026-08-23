@@ -29,14 +29,16 @@ class OllamaResponse:
 
 
 class OllamaClientProtocol(Protocol):
-    def test_connection(self) -> dict[str, object]: ...
+    def test_connection(self) -> dict[str, object]:
+        ...
 
     def chat(
         self,
         *,
         messages: list[dict[str, str]],
         output_schema: dict[str, Any],
-    ) -> OllamaResponse: ...
+    ) -> OllamaResponse:
+        ...
 
 
 class OllamaClient:

@@ -1,13 +1,18 @@
+import { tableCompactClass, toolbarClass } from '../../components/layoutStyles'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { CountPill } from '../../components/CountPill'
 import { IconCheckCircle, IconPlus, IconTrash, IconUsers } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
+import { Input } from '../../components/Input'
+import { Select } from '../../components/Select'
 import type { User } from '../auth/types'
+import type { ProjectMembers as ProjectMembersOf } from './types'
 
 type RoleKey =
   | 'canTitleAbstractScreen'
@@ -22,10 +27,7 @@ interface Membership extends Record<RoleKey, boolean> {
   workloadWeight: number
 }
 
-interface ProjectMembers {
-  id: string
-  memberships: Membership[]
-}
+type ProjectMembers = ProjectMembersOf<Membership>
 
 const ROLE_FIELDS: Array<[RoleKey, string]> = [
   ['canTitleAbstractScreen', 'Title/abstract screening'],
@@ -91,10 +93,10 @@ function MemberRow({
             }}
           >
             <fieldset>
-              <legend className="subsection-heading">Stages</legend>
+              <legend className="mb-3 text-base font-semibold leading-[1.2] text-text">Stages</legend>
               {ROLE_FIELDS.map(([field, fieldLabel]) => (
                 <label key={field}>
-                  <input
+                  <Input
                     type="checkbox"
                     checked={draft[field]}
                     onChange={(event) => setDraft({ ...draft, [field]: event.target.checked })}
@@ -105,21 +107,22 @@ function MemberRow({
             </fieldset>
             <label>
               Workload weight
-              <input
+              <Input
                 type="number"
                 min={0.1}
                 max={100}
                 step={0.1}
+                className="max-w-20"
                 value={weight}
                 onChange={(event) => setWeight(event.target.value)}
                 required
               />
             </label>
-            <div className="toolbar">
-              <button type="submit" disabled={pending}><IconCheckCircle />Save</button>
-              <button
+            <div className={toolbarClass}>
+              <Button type="submit" disabled={pending}><IconCheckCircle />Save</Button>
+              <Button
                 type="button"
-                className="button-secondary"
+                variant="secondary"
                 onClick={() => {
                   setDraft(rolesOf(membership))
                   setWeight(String(membership.workloadWeight))
@@ -127,7 +130,7 @@ function MemberRow({
                 }}
               >
                 Cancel
-              </button>
+              </Button>
             </div>
           </form>
         </td>
@@ -144,11 +147,11 @@ function MemberRow({
       <td>{label}</td>
       <td>
         {activeRoles.length > 0 ? activeRoles.join(', ') : 'No roles assigned'}
-        <span className="muted">. Weight: {membership.workloadWeight}.</span>
+        <span className="text-text-muted">. Weight: {membership.workloadWeight}.</span>
       </td>
       <td>
-        <div className="toolbar">
-          <button type="button" onClick={() => setEditing(true)} disabled={pending}>Edit</button>
+        <div className={toolbarClass}>
+          <Button type="button" onClick={() => setEditing(true)} disabled={pending}>Edit</Button>
           <ConfirmButton
             label="Remove"
             warning="Remove this reviewer from the project? This cannot be undone."
@@ -226,7 +229,7 @@ export function MembersPanel({
 
   if (project.isLoading) return <p>Loading project members…</p>
   if (project.isError || !project.data) {
-    return <p className="error" role="alert">Project members could not be loaded.</p>
+    return <p className="text-danger" role="alert">Project members could not be loaded.</p>
   }
 
   const usersById = new Map((users.data ?? []).map((user) => [user.id, user]))
@@ -248,12 +251,12 @@ export function MembersPanel({
           many publications as one with weight 1.
         </p>
       </InfoBox>
-      {users.error ? <p className="error" role="alert">{users.error.message}</p> : null}
-      {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
+      {users.error ? <p className="text-danger" role="alert">{users.error.message}</p> : null}
+      {mutationError ? <p className="text-danger" role="alert">{mutationError.message}</p> : null}
       <CountPill count={project.data.memberships.length}>
         project member{project.data.memberships.length === 1 ? '' : 's'}
       </CountPill>
-      <table className="table-compact">
+      <table className={tableCompactClass}>
         <thead>
           <tr>
             <th scope="col">Reviewer</th>
@@ -291,7 +294,7 @@ export function MembersPanel({
       <form onSubmit={(event) => { event.preventDefault(); addMember.mutate() }}>
         <label>
           Reviewer
-          <select
+          <Select
             value={selectedUserId}
             onChange={(event) => setSelectedUserId(event.target.value)}
             required
@@ -300,15 +303,15 @@ export function MembersPanel({
             {availableUsers.map((user) => (
               <option key={user.id} value={user.id}>{user.displayName} ({user.username})</option>
             ))}
-          </select>
+          </Select>
         </label>
         {selectedUserId ? (
           <>
             <fieldset>
-              <legend className="subsection-heading">Stages</legend>
+              <legend className="mb-3 text-base font-semibold leading-[1.2] text-text">Stages</legend>
               {ROLE_FIELDS.map(([field, label]) => (
                 <label key={field}>
-                  <input
+                  <Input
                     type="checkbox"
                     checked={roles[field]}
                     onChange={(event) => setRoles({ ...roles, [field]: event.target.checked })}
@@ -319,11 +322,12 @@ export function MembersPanel({
             </fieldset>
             <label>
               Workload weight
-              <input
+              <Input
                 type="number"
                 min={0.1}
                 max={100}
                 step={0.1}
+                className="max-w-20"
                 value={newWeight}
                 onChange={(event) => setNewWeight(event.target.value)}
                 required
@@ -331,10 +335,10 @@ export function MembersPanel({
             </label>
           </>
         ) : null}
-        <button type="submit" disabled={addMember.isPending || selectedUserId === ''}>
+        <Button type="submit" disabled={addMember.isPending || selectedUserId === ''}>
           <IconPlus />
           Add Member
-        </button>
+        </Button>
       </form>
     </CollapsibleSection>
   )

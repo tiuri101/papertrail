@@ -2,8 +2,11 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
+import { Page } from '../../components/Page'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { IconCheckCircle, IconPerson, IconSettings } from '../../components/icons'
+import { Input } from '../../components/Input'
 import { SectionNavigationLayout } from '../../components/SectionNavigationLayout'
 import { ScreeningHotkeysSection } from '../screening/ScreeningHotkeysSection'
 import { BrowserHelpersSection } from './BrowserHelpersSection'
@@ -63,15 +66,15 @@ export function AccountSettingsPage() {
 
   return (
     <SectionNavigationLayout items={accountSections}>
-      <main className="page">
-        <p className="eyebrow">Personal settings</p>
+      <Page>
+        <p className="mb-1 text-xs font-bold uppercase tracking-[0.08em] text-primary">Personal settings</p>
         <h1>Account Settings</h1>
-        <p className="muted">Manage your profile, password, and personal preferences.</p>
+        <p className="text-text">Manage your profile, password, and personal preferences.</p>
         <CollapsibleSection id="section-account-profile" title="Profile" icon={<IconPerson />}>
-          <p className="muted">Changes save automatically when you leave a field.</p>
+          <p className="text-text">Changes save automatically when you leave a field.</p>
           <label>
             Display name
-            <input
+            <Input
               value={displayName}
               onChange={(event) => setDisplayName(event.target.value)}
               onBlur={saveProfileIfChanged}
@@ -80,7 +83,7 @@ export function AccountSettingsPage() {
           </label>
           <label>
             Email address
-            <input
+            <Input
               type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
@@ -88,8 +91,8 @@ export function AccountSettingsPage() {
               placeholder="you@example.org"
             />
           </label>
-          {updateProfile.error ? <p className="error" role="alert">{updateProfile.error.message}</p> : null}
-          <p className="muted" aria-live="polite">
+          {updateProfile.error ? <p className="text-danger" role="alert">{updateProfile.error.message}</p> : null}
+          <p className="text-text" aria-live="polite">
             {updateProfile.isPending ? 'Saving…' : updateProfile.isSuccess ? 'Saved.' : ' '}
           </p>
         </CollapsibleSection>
@@ -97,7 +100,7 @@ export function AccountSettingsPage() {
           <form onSubmit={(event) => { event.preventDefault(); updatePassword.mutate() }}>
             <label>
               Current password
-              <input
+              <Input
                 type="password"
                 value={currentPassword}
                 onChange={(event) => setCurrentPassword(event.target.value)}
@@ -107,7 +110,7 @@ export function AccountSettingsPage() {
             </label>
             <label>
               New password
-              <input
+              <Input
                 type="password"
                 value={newPassword}
                 onChange={(event) => setNewPassword(event.target.value)}
@@ -118,7 +121,7 @@ export function AccountSettingsPage() {
             </label>
             <label>
               Confirm new password
-              <input
+              <Input
                 type="password"
                 value={confirmPassword}
                 onChange={(event) => setConfirmPassword(event.target.value)}
@@ -128,18 +131,18 @@ export function AccountSettingsPage() {
               />
             </label>
             {passwordUnchanged ? (
-              <p className="error" role="alert">
+              <p className="text-danger" role="alert">
                 New password must be different from your current password.
               </p>
             ) : null}
-            {passwordsMismatch ? <p className="error" role="alert">New passwords do not match.</p> : null}
-            {updatePassword.error ? <p className="error" role="alert">{updatePassword.error.message}</p> : null}
+            {passwordsMismatch ? <p className="text-danger" role="alert">New passwords do not match.</p> : null}
+            {updatePassword.error ? <p className="text-danger" role="alert">{updatePassword.error.message}</p> : null}
             {updatePassword.isSuccess ? <p>Password updated.</p> : null}
-            <button
+            <Button
               type="submit"
+              loading={updatePassword.isPending}
               disabled={
-                updatePassword.isPending
-                || !currentPassword
+                !currentPassword
                 || newPassword.length < 8
                 || passwordUnchanged
                 || passwordsMismatch
@@ -147,12 +150,12 @@ export function AccountSettingsPage() {
             >
               <IconCheckCircle />
               Change Password
-            </button>
+            </Button>
           </form>
         </CollapsibleSection>
         <ScreeningHotkeysSection />
         <BrowserHelpersSection />
-      </main>
+      </Page>
     </SectionNavigationLayout>
   )
 }

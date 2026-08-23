@@ -160,5 +160,7 @@ class MetadataConflict(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     current_value: Mapped[str | None] = mapped_column(Text)
     proposed_value: Mapped[str | None] = mapped_column(Text)
     source_name: Mapped[str] = mapped_column(String(100), nullable=False)
-    status: Mapped[str] = mapped_column(String(30), default="open", nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(30), default=ConflictStatus.OPEN, nullable=False
+    )
     publication: Mapped[Publication] = relationship(back_populates="conflicts")

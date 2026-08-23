@@ -56,7 +56,6 @@ describe('ProjectSetupWizard', () => {
     const nextButton = screen.getByRole('button', { name: 'Next' })
     const controls = backButton.parentElement!
     const finishLater = screen.getByRole('link', { name: 'Finish later' })
-    expect(controls).toHaveClass('wizard-nav__controls')
     expect(controls).toContainElement(nextButton)
     expect(controls.nextElementSibling).toBe(finishLater)
   })
@@ -136,7 +135,6 @@ describe('ProjectSetupWizard', () => {
 
     const finishButton = screen.getByRole('button', { name: 'Finish Setup' })
     const finishControls = finishButton.parentElement!
-    expect(finishControls).toHaveClass('wizard-nav__controls')
     expect(finishControls).toContainElement(screen.getByRole('button', { name: 'Back' }))
     expect(finishControls.nextElementSibling).toBe(screen.getByRole('link', { name: 'Finish later' }))
     fireEvent.click(finishButton)

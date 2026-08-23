@@ -1,15 +1,12 @@
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
 
+from app.api.schemas import ApiModel
 from app.forms.schemas import FieldResponse
 from app.projects.models import TaskAllocationMode
 from app.screening.schemas import PublicationItem
-
-
-class ApiModel(BaseModel):
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
 class ExtractionConfigUpdate(ApiModel):

@@ -1,14 +1,11 @@
 import re
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import Field, field_validator
 
+from app.api.schemas import ApiModel
 from app.fulltext.schemas import FullTextDocumentResponse
 
 _URL_SCHEME = re.compile(r"^\s*([a-zA-Z][a-zA-Z0-9+.\-]*):")
-
-
-class ApiModel(BaseModel):
-    model_config = ConfigDict(populate_by_name=True, from_attributes=True)
 
 
 class ScreeningStatusResponse(ApiModel):

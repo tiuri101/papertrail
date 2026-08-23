@@ -5,15 +5,9 @@ import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { InfoBox } from '../../components/InfoBox'
 import { IconCheckCircle } from '../../components/icons'
+import type { QualityConfig } from '../quality/types'
 
-type TaskAllocationMode = 'pre_assigned' | 'claim'
-
-interface QualityConfig {
-  enabled: boolean
-  mode: string
-  aggregation: string
-  allocationMode: TaskAllocationMode
-}
+type TaskAllocationMode = QualityConfig['allocationMode']
 
 const TASK_ALLOCATION_MODE_LABELS: Record<TaskAllocationMode, string> = {
   claim: 'Claim (reviewers pick up publications themselves)',
@@ -64,7 +58,7 @@ export function QualitySettingsPanel({ projectId }: { projectId: string }) {
       </InfoBox>
       {config.error ? <p className="error" role="alert">{config.error.message}</p> : null}
       {config.isLoading ? <p>Loadingâ€¦</p> : (
-        <div className="quality-settings-fields">
+        <div className="quality-settings-fields" data-quality-settings>
           <label>
             <input
               type="checkbox"
@@ -73,7 +67,7 @@ export function QualitySettingsPanel({ projectId }: { projectId: string }) {
             />
             Enable quality assessment
           </label>
-          <div className="quality-settings-selects">
+          <div className="quality-settings-selects" data-quality-settings-selects>
             <label>
               Mode
               <select

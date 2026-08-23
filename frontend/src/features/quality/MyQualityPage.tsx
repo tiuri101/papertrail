@@ -1,12 +1,22 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMemo, useState, type MouseEvent } from 'react'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { useMemo, useState } from 'react'
+import { Link, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { CountPill } from '../../components/CountPill'
-import { DoiPill } from '../../components/DoiPill'
-import { HighlightedText } from '../../components/HighlightedText'
+import { Input } from '../../components/Input'
+import { toolbarClass } from '../../components/layoutStyles'
+import { Page } from '../../components/Page'
+import { PublicationListSortHeader } from '../../components/PublicationListSortHeader'
+import {
+  reviewWorkActionsClass,
+  reviewWorkGridClass,
+  reviewWorkListClass,
+} from '../../components/reviewWorkStyles'
+import { Select } from '../../components/Select'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
+import { type SortDirection, sortByValue } from '../../lib/sort'
+import { ReviewWorkRow } from '../reviews/ReviewWorkRow'
 import { StageEyebrow } from '../projects/StageEyebrow'
 import { QualityWorkspace } from './QualityWorkspace'
 
@@ -31,7 +41,6 @@ interface CompletedQualityAssessment {
 }
 
 type QualitySortKey = 'title' | 'authors' | 'venue' | 'score' | 'doi' | 'submitted'
-type SortDirection = 'asc' | 'desc'
 
 function sortValue(entry: CompletedQualityAssessment, key: QualitySortKey): string | number {
   switch (key) {
@@ -45,21 +54,12 @@ function sortValue(entry: CompletedQualityAssessment, key: QualitySortKey): stri
 }
 
 function sortItems(items: CompletedQualityAssessment[], key: QualitySortKey, direction: SortDirection) {
-  return [...items].sort((left, right) => {
-    const leftValue = sortValue(left, key)
-    const rightValue = sortValue(right, key)
-    const comparison = typeof leftValue === 'number' && typeof rightValue === 'number'
-      ? leftValue - rightValue
-      : String(leftValue).localeCompare(String(rightValue), undefined, { sensitivity: 'base' })
-    if (comparison !== 0) return direction === 'asc' ? comparison : -comparison
-    return left.publication.title.localeCompare(right.publication.title)
-  })
-}
-
-function formatSubmittedAt(value: string | null) {
-  if (!value) return '—'
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? '—' : date.toLocaleString()
+  return sortByValue(
+    items,
+    direction,
+    (item) => sortValue(item, key),
+    (left, right) => left.publication.title.localeCompare(right.publication.title),
+  )
 }
 
 function QualityRow({ projectId, entry, highlightKeywords }: {
@@ -67,63 +67,39 @@ function QualityRow({ projectId, entry, highlightKeywords }: {
   entry: CompletedQualityAssessment
   highlightKeywords: string[]
 }) {
-  const navigate = useNavigate()
-  const [editing, setEditing] = useState(false)
   const queryClient = useQueryClient()
   const publication = entry.publication
   const detailHref = `/projects/${projectId}/publications/${publication.id}`
 
-  const openPublication = (event: MouseEvent<HTMLLIElement>) => {
-    if ((event.target as HTMLElement).closest('a, button, input, select, textarea, label, .review-work-card__editor')) return
-    navigate(detailHref)
-  }
-
   return (
-    <li className="card publication-card review-work-card--clickable" onClick={openPublication}>
-      <div className="publication-card__summary review-work-row-grid">
-        <div className="review-work-row-grid__title">
-          <Link className="publication-card__title-button" to={detailHref}>
-            <h2 className="decision-card__title">
-              <HighlightedText text={publication.title} keywords={highlightKeywords} />
-            </h2>
-          </Link>
-          <div className="review-work-row-grid__authors">{publication.authors ?? 'Unknown authors'}</div>
-        </div>
-        <span className="review-work-row-grid__venue" title={publication.venue ?? undefined}>
-          {publication.venue ?? '—'}{publication.publicationYear ? ` (${publication.publicationYear})` : ''}
+    <ReviewWorkRow
+      detailHref={detailHref}
+      title={publication.title}
+      authors={publication.authors}
+      venue={publication.venue}
+      publicationYear={publication.publicationYear}
+      doi={publication.doi}
+      submittedAt={entry.completedAt}
+      statusContent={(
+        <span className="status-pill">
+          {entry.totalScore === null ? `Version ${entry.version}` : `Total score ${entry.totalScore} · v${entry.version}`}
         </span>
-        <span className="review-work-row-grid__status">
-          <span className="status-pill">
-            {entry.totalScore === null ? `Version ${entry.version}` : `Total score ${entry.totalScore} · v${entry.version}`}
-          </span>
-        </span>
-        <span className="review-work-row-grid__doi">
-          {publication.doi ? <DoiPill doi={publication.doi} /> : <span className="muted">—</span>}
-        </span>
-        <time className="review-work-row-grid__submitted" dateTime={entry.completedAt ?? undefined}>
-          {formatSubmittedAt(entry.completedAt)}
-        </time>
-        <span className="review-work-row-grid__actions">
-          {!editing ? (
-            <button type="button" className="button-secondary button-sm" onClick={() => setEditing(true)}>Edit Quality Assessment</button>
-          ) : null}
-        </span>
-      </div>
-      {editing ? (
-        <div className="review-work-card__editor">
-          <QualityWorkspace
-            projectId={projectId}
-            itemId={entry.id}
-            variant="inline"
-            onCancel={() => setEditing(false)}
-            onSubmitted={() => {
-              setEditing(false)
-              queryClient.invalidateQueries({ queryKey: ['my-quality-assessments', projectId] })
-            }}
-          />
-        </div>
-      ) : null}
-    </li>
+      )}
+      editLabel="Edit Quality Assessment"
+      highlightKeywords={highlightKeywords}
+      renderEditor={({ onDone }) => (
+        <QualityWorkspace
+          projectId={projectId}
+          itemId={entry.id}
+          variant="inline"
+          onCancel={onDone}
+          onSubmitted={() => {
+            onDone()
+            queryClient.invalidateQueries({ queryKey: ['my-quality-assessments', projectId] })
+          }}
+        />
+      )}
+    />
   )
 }
 
@@ -150,13 +126,21 @@ export function MyQualityPage() {
     return sortItems(items, sortKey, sortDirection)
   }, [query.data, search, sortDirection, sortKey])
 
+  const toggleSort = (key: QualitySortKey) => {
+    if (key === sortKey) setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
+    else {
+      setSortKey(key)
+      setSortDirection(key === 'submitted' ? 'desc' : 'asc')
+    }
+  }
+
   return (
-    <main className="page">
+    <Page>
       <StageEyebrow stage="extraction_quality" />
       <h1>My Submitted Quality Assessments</h1>
-      <p className="muted">Publications you have already assessed. Select a publication to view its details, or edit your assessment.</p>
+      <p className="text-text-muted">Publications you have already assessed. Select a publication to view its details, or edit your assessment.</p>
       <p><Link to={`/projects/${projectId}/quality`}>← Back to quality assessment queue</Link></p>
-      {query.error ? <p className="error" role="alert">{query.error.message}</p> : null}
+      {query.error ? <p className="text-danger" role="alert">{query.error.message}</p> : null}
       {query.isLoading ? <p>Loading…</p> : null}
       {query.data ? (
         <>
@@ -165,14 +149,14 @@ export function MyQualityPage() {
               <CountPill count={search ? filteredItems.length : query.data.length}>
                 {search ? `of ${query.data.length} assessments match your filters` : `assessment${query.data.length === 1 ? '' : 's'}`}
               </CountPill>
-              <div className="toolbar">
-                <label className="paper-search-field">
+              <div className={toolbarClass}>
+                <label className="grid min-w-[min(20rem,100%)] flex-1 gap-1 text-sm font-semibold text-text-secondary">
                   Search papers
-                  <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Title, author, DOI…" />
+                  <Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Title, author, DOI…" />
                 </label>
-                <label>
+                <label className="grid gap-1 text-sm font-semibold text-text-secondary hidden max-[520px]:grid">
                   Sort by
-                  <select value={`${sortKey}:${sortDirection}`} onChange={(event) => {
+                  <Select value={`${sortKey}:${sortDirection}`} onChange={(event) => {
                     const [key, direction] = event.target.value.split(':') as [QualitySortKey, SortDirection]
                     setSortKey(key)
                     setSortDirection(direction)
@@ -187,22 +171,35 @@ export function MyQualityPage() {
                     <option value="venue:desc">Venue Z–A</option>
                     <option value="score:desc">Highest score</option>
                     <option value="score:asc">Lowest score</option>
-                  </select>
+                  </Select>
                 </label>
               </div>
             </>
           ) : null}
           {query.data.length === 0 ? (
-            <p className="muted">You have not submitted any quality assessments yet.</p>
+            <p className="text-text-muted">You have not submitted any quality assessments yet.</p>
           ) : filteredItems.length === 0 ? (
-            <p className="muted">No assessments match your filters.</p>
+            <p className="text-text-muted">No assessments match your filters.</p>
           ) : (
-            <ul className="card-list stacked publication-list">
+            <>
+              <div className={`${reviewWorkGridClass} mt-6 mb-2 px-4 text-[0.72rem] font-bold tracking-[0.04em] text-text-muted uppercase max-[520px]:hidden`}>
+                <span className="flex items-center gap-0.5">
+                  <PublicationListSortHeader label="Title" sortKey="title" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />{' / '}
+                  <PublicationListSortHeader label="Authors" sortKey="authors" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+                </span>
+                <PublicationListSortHeader label="Venue" sortKey="venue" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+                <PublicationListSortHeader label="Score" sortKey="score" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+                <PublicationListSortHeader label="DOI" sortKey="doi" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+                <PublicationListSortHeader label="Submitted" sortKey="submitted" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
+                <span className={reviewWorkActionsClass}>Actions</span>
+              </div>
+              <ul className={reviewWorkListClass} aria-label="Submitted quality assessments">
                 {filteredItems.map((entry) => <QualityRow key={entry.id} projectId={projectId} entry={entry} highlightKeywords={highlightKeywords} />)}
-            </ul>
+              </ul>
+            </>
           )}
         </>
       ) : null}
-    </main>
+    </Page>
   )
 }

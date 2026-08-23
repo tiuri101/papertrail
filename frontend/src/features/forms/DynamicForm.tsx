@@ -17,7 +17,7 @@ export function DynamicForm({ fields, value, onChange, renderAssistance }: Dynam
   return (
     <>
       {fields.map((field) => (
-        <div className="dynamic-field" key={field.stableKey}>
+        <div className="my-3" key={field.stableKey}>
           <DynamicField
             field={field}
             value={value[field.stableKey]}
@@ -53,7 +53,7 @@ function DynamicField({ field, value, onChange }: {
       return (
         <label>
           {labelText}
-          <input
+          <Input
             value={typeof value === 'string' ? value : ''}
             onChange={(event) => onChange(event.target.value)}
             required={field.required}
@@ -64,7 +64,7 @@ function DynamicField({ field, value, onChange }: {
       return (
         <label>
           {labelText}
-          <textarea
+          <Textarea
             value={typeof value === 'string' ? value : ''}
             onChange={(event) => onChange(event.target.value)}
             required={field.required}
@@ -75,7 +75,7 @@ function DynamicField({ field, value, onChange }: {
       return (
         <label>
           {labelText}
-          <input
+          <Input
             type="number"
             value={value === null || value === undefined ? '' : String(value)}
             onChange={(event) => onChange(event.target.value === '' ? null : Number(event.target.value))}
@@ -86,7 +86,7 @@ function DynamicField({ field, value, onChange }: {
     case 'checkbox':
       return (
         <label>
-          <input
+          <Input
             type="checkbox"
             checked={Boolean(value)}
             onChange={(event) => onChange(event.target.checked)}
@@ -98,7 +98,7 @@ function DynamicField({ field, value, onChange }: {
       return (
         <label>
           {labelText}
-          <select
+          <Select
             value={typeof value === 'string' ? value : ''}
             onChange={(event) => onChange(event.target.value || null)}
             required={field.required}
@@ -107,7 +107,7 @@ function DynamicField({ field, value, onChange }: {
             {field.options.map((option) => (
               <option key={option} value={option}>{option}</option>
             ))}
-          </select>
+          </Select>
         </label>
       )
     case 'multiple_select': {
@@ -117,7 +117,7 @@ function DynamicField({ field, value, onChange }: {
           <legend>{labelText}</legend>
           {field.options.map((option) => (
             <label key={option}>
-              <input
+              <Input
                 type="checkbox"
                 checked={selected.includes(option)}
                 onChange={(event) => {
@@ -146,7 +146,7 @@ function DynamicField({ field, value, onChange }: {
       return (
         <label>
           {labelText}
-          <input
+          <Input
             type="url"
             value={typeof value === 'string' ? value : ''}
             onChange={(event) => onChange(event.target.value)}
@@ -158,7 +158,7 @@ function DynamicField({ field, value, onChange }: {
       return (
         <label>
           {labelText}
-          <select
+          <Select
             value={value === null || value === undefined ? '' : String(value)}
             onChange={(event) => onChange(event.target.value === '' ? null : Number(event.target.value))}
             required={field.required}
@@ -167,7 +167,7 @@ function DynamicField({ field, value, onChange }: {
             {ratingScale(field.options).map((rating) => (
               <option key={rating} value={rating}>{rating}</option>
             ))}
-          </select>
+          </Select>
         </label>
       )
     default:
@@ -176,3 +176,6 @@ function DynamicField({ field, value, onChange }: {
 }
 import type { ReactNode } from 'react'
 import { DateField } from '../../components/DateField'
+import { Input } from '../../components/Input'
+import { Select } from '../../components/Select'
+import { Textarea } from '../../components/Textarea'

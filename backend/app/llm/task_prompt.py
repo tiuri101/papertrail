@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from app.llm.prompt import research_questions_context as _research_questions_context
 from app.llm.prompt_customization import compose_system_prompt
 from app.projects.models import Criterion, ResearchQuestion
 from app.publications.models import Publication
@@ -63,14 +64,6 @@ def _criterion_definitions(criteria: list[Criterion]) -> str:
             {"criterionId": item.id, "kind": item.kind.value, "text": item.text}
             for item in criteria
         ],
-        ensure_ascii=False,
-        indent=2,
-    )
-
-
-def _research_questions_context(questions: list[ResearchQuestion]) -> str:
-    return json.dumps(
-        [{"id": item.id, "text": item.text} for item in questions],
         ensure_ascii=False,
         indent=2,
     )

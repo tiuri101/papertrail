@@ -35,7 +35,7 @@ describe('FileDropZone', () => {
     render(<ControlledDropZone multiple />)
 
     const file = new File(['content'], 'dropped.pdf', { type: 'application/pdf' })
-    const dropzone = screen.getByText(/drag and drop/).closest('.dropzone') as HTMLElement
+    const dropzone = screen.getByText(/drag and drop/).closest('[data-dropzone]') as HTMLElement
 
     fireEvent.drop(dropzone, { dataTransfer: { files: [file] } })
 

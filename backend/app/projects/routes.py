@@ -13,8 +13,9 @@ from app.api.errors import ConflictError, DomainError, NotFoundError
 from app.audit.service import record_audit
 from app.db.session import get_db
 from app.imports.schemas import JobResponse, JobRestartRequest, JobStageSummary
-from app.jobs.diagnostics import JOB_STAGES, STAGE_ORDER
+from app.jobs.diagnostics import STAGE_ORDER
 from app.jobs.models import BackgroundJob, JobStatus
+from app.jobs.registry import JOB_STAGES
 from app.jobs.service import restart_job
 from app.notifications.service import queue_membership_email
 from app.projects.dependencies import (

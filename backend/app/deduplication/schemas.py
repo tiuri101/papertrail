@@ -1,8 +1,6 @@
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import Field
 
-
-class ApiModel(BaseModel):
-    model_config = ConfigDict(from_attributes=True, populate_by_name=True)
+from app.api.schemas import ApiModel
 
 
 class CandidatePublication(ApiModel):

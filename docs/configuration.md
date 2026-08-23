@@ -1,0 +1,137 @@
+# Configuration Reference
+
+Papertrail has two configuration layers:
+
+1. **Environment configuration** loaded by `backend/app/core/config.py` from `PAPERTRAIL_*` variables (and from `.env`/`.env.development` for host-based runs).
+2. **Administrator overrides** stored in PostgreSQL and edited from **Global Settings**. These override selected environment defaults for API/runtime code that calls the effective-settings services.
+
+The Docker Compose deployment also has Compose-only variables for PostgreSQL, image selection, host port binding, trusted proxies, and initial administrator creation.
+
+## Precedence and persistence
+
+Environment values are the baseline. When a corresponding Global Settings value has been saved, the stored database value is returned by `effective_instance_settings()` or `effective_llm_settings()` and therefore takes precedence for callers using those services.
+
+Stored Global Settings are part of the PostgreSQL backup. Secrets saved there (SMTP password and Ollama API key) are stored in the database and are never echoed back to the browser; submitting a blank secret keeps the existing value.
+
+There are two current implementation exceptions worth knowing:
+
+- The **normal worker's thread count and poll interval** are read from environment settings when the worker process starts. The values saved as `workerThreads` and `jobPollIntervalSeconds` in Global Settings are not currently used by the worker's startup loop. Configure `PAPERTRAIL_WORKER_THREADS` and `PAPERTRAIL_JOB_POLL_INTERVAL_SECONDS` and restart the worker when these values must change.
+- The **LLM worker's concurrency** is read from `PAPERTRAIL_LLM_MAX_CONCURRENT_JOBS` when that process starts. The installation-level `maxConcurrentJobs` value is persisted and returned by the LLM settings API, but does not currently change the worker thread pool. Configure the environment variable and restart `llm-worker` for the effective concurrency limit.
+- The **forgot-password request gate** currently checks process-level `PAPERTRAIL_EMAIL_ENABLED` before it queues a reset email. Other notification paths use the effective database-overridden email settings. If self-service password recovery is required, set `PAPERTRAIL_EMAIL_ENABLED=true` together with valid SMTP host/from values in the API environment and restart the API. Global Settings can still override the effective SMTP/public-URL values used by queued mail, but enabling email only in Global Settings is not sufficient for the forgot-password route in the current implementation.
+
+Job lease duration is different: the worker reads the effective instance setting when it claims a job, so a saved `jobLeaseSeconds` change applies to newly claimed jobs without a process restart.
+
+## Compose-only deployment variables
+
+These values are consumed by `docker-compose.yml` or the administrator bootstrap command rather than by the Pydantic `Settings` model.
+
+| Variable | Default | Purpose |
+| --- | --- | --- |
+| `PAPERTRAIL_IMAGE_TAG` | none; required | Backend/frontend image tag to deploy. |
+| `POSTGRES_DB` | `papertrail` | PostgreSQL database name. |
+| `POSTGRES_USER` | `papertrail` | PostgreSQL user. |
+| `POSTGRES_PASSWORD` | `change-me` | PostgreSQL password; replace for production. |
+| `PAPERTRAIL_ADMIN_USERNAME` | `admin` | Initial administrator username used by the migration container. |
+| `PAPERTRAIL_ADMIN_DISPLAY_NAME` | `Papertrail Administrator` | Initial administrator display name. |
+| `PAPERTRAIL_ADMIN_PASSWORD` | none; required | Initial administrator password. Existing administrator accounts are not reset by subsequent migration runs. |
+| `PAPERTRAIL_API_BIND` | `127.0.0.1` | Host/interface to which container port 8000 is published. |
+| `PAPERTRAIL_API_PORT` | `8000` | Published API port. |
+| `PAPERTRAIL_FRONTEND_BIND` | `127.0.0.1` | Host/interface to which container port 80 is published. |
+| `PAPERTRAIL_FRONTEND_PORT` | `80` | Published frontend port. |
+| `PAPERTRAIL_TRUSTED_PROXY_IPS` | `127.0.0.1` | Value passed to Uvicorn `--forwarded-allow-ips`. Only list reverse proxies that are allowed to supply forwarded client addresses. |
+
+## Core application settings
+
+All settings below use the `PAPERTRAIL_` prefix. Defaults are those in `backend/app/core/config.py` unless Compose supplies a different default.
+
+| Variable | Default | Global Settings override | Notes |
+| --- | --- | --- | --- |
+| `PAPERTRAIL_ENV` | `development` | no | Compose defaults this to `production`. Tests use `test`. |
+| `PAPERTRAIL_APP_NAME` | `Papertrail` | no | FastAPI application title. |
+| `PAPERTRAIL_APP_VERSION` | `dev` | no | Normally injected into built images. |
+| `PAPERTRAIL_API_PREFIX` | `/api/v1` | no | Versioned API prefix. |
+| `PAPERTRAIL_DATABASE_URL` | local SQLite URL | no | Compose supplies the PostgreSQL URL. |
+| `PAPERTRAIL_CORS_ORIGINS` | `http://localhost:5173` | no | Comma-separated list when provided as an environment string. Compose defaults to `http://localhost`. |
+| `PAPERTRAIL_ALLOWED_HOSTS` | localhost/test hosts | no | Comma-separated trusted Host-header values. Compose defaults to `localhost,127.0.0.1`. |
+| `PAPERTRAIL_SESSION_COOKIE_NAME` | `papertrail_session` | no | HTTP-only session cookie name. |
+| `PAPERTRAIL_SESSION_COOKIE_SECURE` | `false` | no | Set `true` when the public site is HTTPS. |
+| `PAPERTRAIL_SESSION_TTL_HOURS` | `168` | no | Session lifetime. |
+| `PAPERTRAIL_LOGIN_MAX_ATTEMPTS` | `5` | no | Failed login attempts before a temporary block. |
+| `PAPERTRAIL_LOGIN_WINDOW_SECONDS` | `900` | no | Login-throttle counting window. |
+| `PAPERTRAIL_LOGIN_BLOCK_SECONDS` | `900` | no | Temporary login/password-reset block duration. |
+| `PAPERTRAIL_PASSWORD_RESET_TTL_MINUTES` | `60` | yes | Password-reset link lifetime. |
+| `PAPERTRAIL_PASSWORD_RESET_MAX_ATTEMPTS` | `5` | yes | Reset-request throttle threshold. |
+| `PAPERTRAIL_MAX_UPLOAD_BYTES` | `26214400` | no | General upload limit used outside the PDF-specific path. |
+| `PAPERTRAIL_IMPORT_DIR` | `./data/imports` | no | Compose fixes this to `/data/imports`. |
+| `PAPERTRAIL_EXPORT_DIR` | `./data/exports` | no | Compose fixes this to `/data/exports`. |
+| `PAPERTRAIL_PDF_STORAGE_PATH` | `./data/pdfs` | no | Compose fixes this to `/pdf-data`. |
+| `PAPERTRAIL_MAX_PDF_SIZE_MB` | `50` | yes | Per-PDF limit for manual and browser-assisted PDF uploads. |
+| `PAPERTRAIL_MAX_PDF_ARCHIVE_SIZE_MB` | `500` | no | Maximum uploaded PDF archive size. |
+| `PAPERTRAIL_MAX_PDF_BATCH_FILES` | `1000` | no | Maximum number of PDF files accepted in one bulk batch. |
+| `PAPERTRAIL_MAX_PDF_ZIP_EXPANDED_BYTES` | `1073741824` | no | Maximum expanded ZIP size for bulk PDF imports. |
+| `PAPERTRAIL_WORKER_THREADS` | `4` | stored value exists; see exception above | Normal worker thread pool size at process startup. |
+| `PAPERTRAIL_JOB_POLL_INTERVAL_SECONDS` | `1` | stored value exists; see exception above | Normal and LLM worker polling interval at process startup. |
+| `PAPERTRAIL_JOB_LEASE_SECONDS` | `300` | yes | Lease length for newly claimed server-side background jobs. |
+| `PAPERTRAIL_BROWSER_AGENT_PAIRING_TTL_MINUTES` | `10` | no | Lifetime of a one-time Browser Helper pairing secret. |
+| `PAPERTRAIL_BROWSER_RETRIEVAL_LEASE_SECONDS` | `300` | yes | Lease length for a Browser Helper retrieval job. |
+
+The production Compose file only passes a subset of these advanced values into backend containers. Variables not present in the `x-backend-environment` block of `docker-compose.yml` must be explicitly added there (or otherwise injected into the containers) before changing them in `.env` will affect that deployment.
+
+## Email / SMTP
+
+Email is optional. When enabled, `PAPERTRAIL_SMTP_HOST` and `PAPERTRAIL_SMTP_FROM_ADDRESS` are required, and STARTTLS and implicit SSL cannot both be enabled.
+
+| Variable | Default | Global Settings override |
+| --- | --- | --- |
+| `PAPERTRAIL_EMAIL_ENABLED` | `false` | yes |
+| `PAPERTRAIL_PUBLIC_BASE_URL` | `http://localhost:5173` | yes |
+| `PAPERTRAIL_SMTP_HOST` | unset | yes |
+| `PAPERTRAIL_SMTP_PORT` | `587` | yes |
+| `PAPERTRAIL_SMTP_USERNAME` | unset | yes |
+| `PAPERTRAIL_SMTP_PASSWORD` | unset | yes; stored secret |
+| `PAPERTRAIL_SMTP_FROM_ADDRESS` | unset | yes |
+| `PAPERTRAIL_SMTP_STARTTLS` | `true` | yes |
+| `PAPERTRAIL_SMTP_USE_SSL` | `false` | yes |
+| `PAPERTRAIL_SMTP_TIMEOUT_SECONDS` | `30` | yes |
+
+The administrator can send a test message from Global Settings. The recipient is the administrator's own account email address.
+
+## Ollama / LLM settings
+
+Ollama is an external service; Compose does not install or manage it.
+
+| Variable | Default | Global Settings override |
+| --- | --- | --- |
+| `PAPERTRAIL_LLM_ENABLED` | `false` | yes |
+| `PAPERTRAIL_OLLAMA_BASE_URL` | unset | yes |
+| `PAPERTRAIL_OLLAMA_MODEL` | unset | yes |
+| `PAPERTRAIL_OLLAMA_REQUEST_TIMEOUT_SECONDS` | `300` | yes |
+| `PAPERTRAIL_OLLAMA_API_KEY` | unset | yes; stored secret |
+| `PAPERTRAIL_LLM_MAX_CONCURRENT_JOBS` | `1` | stored value exists; see exception above |
+| `PAPERTRAIL_LLM_CONTEXT_LENGTH` | `32768` | yes; minimum 4096 |
+| `PAPERTRAIL_LLM_MAX_EVIDENCE_ITEMS` | `3` | yes; range 1–10 |
+| `PAPERTRAIL_LLM_MAX_EVIDENCE_QUOTE_CHARS` | `500` | yes; range 50–2000 |
+| `PAPERTRAIL_LLM_TITLE_ABSTRACT_BASE_PROMPT` | built-in | yes through AI Prompts |
+| `PAPERTRAIL_LLM_FULL_TEXT_BASE_PROMPT` | built-in | yes through AI Prompts |
+| `PAPERTRAIL_LLM_EXTRACTION_BASE_PROMPT` | built-in | yes through AI Prompts |
+| `PAPERTRAIL_LLM_VALIDATION_BASE_PROMPT` | built-in | yes through AI Prompts |
+
+A blank API key or SMTP password submitted through Global Settings means "keep the existing stored secret". Prompt fields behave differently: blank prompt overrides reset that flow to the built-in prompt.
+
+## Global Settings pages
+
+Installation administrators can open **Global Settings** and edit:
+
+- LLM connection, model, limits, and base-prompt overrides;
+- SMTP delivery and public base URL;
+- password-reset lifetime and reset-request throttling;
+- maximum PDF size and Browser Helper retrieval lease;
+- background-job thread/poll/lease values.
+
+Changes are audit logged. Project-specific LLM capability toggles and project prompt instructions are separate from these installation-wide settings.
+
+## Security-sensitive configuration
+
+Keep `.env`, database backups, and any backup `environment.env` file out of source control. PostgreSQL can contain SMTP/Ollama secrets saved through Global Settings. The backup directory can therefore contain secrets even if no `.env` file was present at backup time.
+
+For reverse-proxy deployments, set secure cookies, restrict allowed hosts/CORS origins, and set `PAPERTRAIL_TRUSTED_PROXY_IPS` to the actual proxy source addresses. Papertrail's login throttling relies on the client address after trusted proxy handling.
