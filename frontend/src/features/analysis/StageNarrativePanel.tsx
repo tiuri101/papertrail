@@ -4,6 +4,7 @@ import { apiRequest } from '../../api/client'
 import { isJobActive } from '../jobs/jobStatus'
 import { usePendingJob } from '../jobs/usePendingJob'
 import type { StageNarrative } from './types'
+import { Button } from '../../components/Button'
 
 export function StageNarrativePanel({
   projectId,
@@ -68,9 +69,9 @@ export function StageNarrativePanel({
         </p>
       ) : null}
       <div className="stage-narrative__footer">
-        <button type="button" className="button-secondary" onClick={() => regenerate.mutate()} disabled={isGenerating}>
+        <Button type="button" variant="secondary" onClick={() => regenerate.mutate()} disabled={isGenerating}>
         {isGenerating ? 'Generating…' : narrative ? 'Regenerate summary' : 'Generate summary'}
-        </button>
+        </Button>
       </div>
     </div>
   )

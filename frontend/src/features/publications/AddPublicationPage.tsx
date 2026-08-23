@@ -12,6 +12,7 @@ import { BibtexPrefillPanel } from './BibtexPrefillPanel'
 import { FileDropZone } from '../imports/FileDropZone'
 import { PublicationFieldInputs } from './publicationFields'
 import { emptyPublicationDraft, PublicationDraft, toPayload } from './publicationFieldsData'
+import { Form } from '../../components/Form'
 
 interface CreatedPublication {
   id: string
@@ -69,7 +70,7 @@ export function AddPublicationForm({ projectId }: { projectId: string }) {
       <BibtexPrefillPanel projectId={projectId} onPrefill={setDraft} />
       <Card as="section">
         <p className="text-text-muted">Add a single record by hand, without importing an export file from a database.</p>
-        <form onSubmit={(event) => { event.preventDefault(); create.mutate() }}>
+        <Form onSubmit={(event) => { event.preventDefault(); create.mutate() }}>
           <PublicationFieldInputs draft={draft} setField={setField} />
           <FileDropZone
             id="add-publication-pdf"
@@ -91,7 +92,7 @@ export function AddPublicationForm({ projectId }: { projectId: string }) {
             <IconPlus />
             {attachPdf.isPending ? 'Attaching PDF…' : 'Add Publication'}
           </Button>
-        </form>
+        </Form>
       </Card>
     </>
   )

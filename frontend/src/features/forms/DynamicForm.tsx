@@ -51,29 +51,29 @@ function DynamicField({ field, value, onChange }: {
   switch (field.fieldType) {
     case 'short_text':
       return (
-        <label>
+        <FieldLabel>
           {labelText}
           <Input
             value={typeof value === 'string' ? value : ''}
             onChange={(event) => onChange(event.target.value)}
             required={field.required}
           />
-        </label>
+        </FieldLabel>
       )
     case 'long_text':
       return (
-        <label>
+        <FieldLabel>
           {labelText}
           <Textarea
             value={typeof value === 'string' ? value : ''}
             onChange={(event) => onChange(event.target.value)}
             required={field.required}
           />
-        </label>
+        </FieldLabel>
       )
     case 'number':
       return (
-        <label>
+        <FieldLabel>
           {labelText}
           <Input
             type="number"
@@ -81,22 +81,22 @@ function DynamicField({ field, value, onChange }: {
             onChange={(event) => onChange(event.target.value === '' ? null : Number(event.target.value))}
             required={field.required}
           />
-        </label>
+        </FieldLabel>
       )
     case 'checkbox':
       return (
-        <label>
+        <FieldLabel inline>
           <Input
             type="checkbox"
             checked={Boolean(value)}
             onChange={(event) => onChange(event.target.checked)}
           />
           {labelText}
-        </label>
+        </FieldLabel>
       )
     case 'single_select':
       return (
-        <label>
+        <FieldLabel>
           {labelText}
           <Select
             value={typeof value === 'string' ? value : ''}
@@ -108,15 +108,15 @@ function DynamicField({ field, value, onChange }: {
               <option key={option} value={option}>{option}</option>
             ))}
           </Select>
-        </label>
+        </FieldLabel>
       )
     case 'multiple_select': {
       const selected = Array.isArray(value) ? value as string[] : []
       return (
-        <fieldset>
-          <legend>{labelText}</legend>
+        <Fieldset>
+          <FieldLegend>{labelText}</FieldLegend>
           {field.options.map((option) => (
-            <label key={option}>
+            <FieldLabel key={option} inline>
               <Input
                 type="checkbox"
                 checked={selected.includes(option)}
@@ -128,9 +128,9 @@ function DynamicField({ field, value, onChange }: {
                 }}
               />
               {option}
-            </label>
+            </FieldLabel>
           ))}
-        </fieldset>
+        </Fieldset>
       )
     }
     case 'date':
@@ -144,7 +144,7 @@ function DynamicField({ field, value, onChange }: {
       )
     case 'url':
       return (
-        <label>
+        <FieldLabel>
           {labelText}
           <Input
             type="url"
@@ -152,11 +152,11 @@ function DynamicField({ field, value, onChange }: {
             onChange={(event) => onChange(event.target.value)}
             required={field.required}
           />
-        </label>
+        </FieldLabel>
       )
     case 'rating':
       return (
-        <label>
+        <FieldLabel>
           {labelText}
           <Select
             value={value === null || value === undefined ? '' : String(value)}
@@ -168,7 +168,7 @@ function DynamicField({ field, value, onChange }: {
               <option key={rating} value={rating}>{rating}</option>
             ))}
           </Select>
-        </label>
+        </FieldLabel>
       )
     default:
       return null
@@ -179,3 +179,6 @@ import { DateField } from '../../components/DateField'
 import { Input } from '../../components/Input'
 import { Select } from '../../components/Select'
 import { Textarea } from '../../components/Textarea'
+import { FieldLabel } from '../../components/FieldLabel'
+import { Fieldset } from '../../components/Fieldset'
+import { FieldLegend } from '../../components/FieldLegend'

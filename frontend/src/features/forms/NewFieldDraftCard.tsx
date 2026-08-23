@@ -1,5 +1,11 @@
 import { Button } from '../../components/Button'
 import { IconCheckCircle } from '../../components/icons'
+import { Input } from '../../components/Input'
+import { Select } from '../../components/Select'
+import { Textarea } from '../../components/Textarea'
+import { FieldLabel } from '../../components/FieldLabel'
+import { Fieldset } from '../../components/Fieldset'
+import { FieldLegend } from '../../components/FieldLegend'
 import {
   fieldTypeLabels,
   fieldTypes,
@@ -84,93 +90,93 @@ export function NewFieldDraftCard({
         className="llm-schema-field__content form-editor-field__draft-form"
         onSubmit={(event) => { event.preventDefault(); onSubmit() }}
       >
-        <label>
+        <FieldLabel>
           Label
-          <input
+          <Input
             value={fieldLabel}
             onChange={(event) => onFieldLabelChange(event.target.value)}
             autoFocus
             required
           />
-        </label>
-        <label>
+        </FieldLabel>
+        <FieldLabel>
           Type
-          <select value={fieldType} onChange={(event) => onFieldTypeChange(event.target.value)}>
+          <Select value={fieldType} onChange={(event) => onFieldTypeChange(event.target.value)}>
             {fieldTypes.map((type) => (
               <option key={type} value={type}>{fieldTypeLabels[type] ?? type}</option>
             ))}
-          </select>
-        </label>
-        <label>
-          <input
+          </Select>
+        </FieldLabel>
+        <FieldLabel inline>
+          <Input
             type="checkbox"
             checked={required}
             onChange={(event) => onRequiredChange(event.target.checked)}
           />
           Required
-        </label>
+        </FieldLabel>
         {showOptions ? (
-          <label>
+          <FieldLabel>
             Options (one per line)
-            <textarea
+            <Textarea
               value={optionsText}
               onChange={(event) => onOptionsTextChange(event.target.value)}
               rows={4}
             />
-          </label>
+          </FieldLabel>
         ) : null}
         {showRatingScale ? (
           <div className="form-editor-field__settings-row">
-            <label>
+            <FieldLabel>
               Scale minimum
-              <input
+              <Input
                 type="number"
                 value={ratingMin}
                 onChange={(event) => onRatingMinChange(event.target.value)}
               />
-            </label>
-            <label>
+            </FieldLabel>
+            <FieldLabel>
               Scale maximum
-              <input
+              <Input
                 type="number"
                 value={ratingMax}
                 onChange={(event) => onRatingMaxChange(event.target.value)}
               />
-            </label>
+            </FieldLabel>
           </div>
         ) : null}
         {isQualityForm && weightedFieldTypes.has(fieldType) ? (
-          <label>
+          <FieldLabel>
             Score weight
-            <input type="number" value={weight} onChange={(event) => onWeightChange(event.target.value)} />
-          </label>
+            <Input type="number" value={weight} onChange={(event) => onWeightChange(event.target.value)} />
+          </FieldLabel>
         ) : null}
         {isQualityForm && fieldType === 'single_select' ? (
-          <fieldset>
-            <legend>Score per option</legend>
+          <Fieldset>
+            <FieldLegend>Score per option</FieldLegend>
             {options.length === 0 ? <p className="muted">Add options above first.</p> : null}
             {options.map((option) => (
-              <label key={option}>
+              <FieldLabel key={option}>
                 {option}
-                <input
+                <Input
                   type="number"
                   value={optionScores[option] ?? ''}
                   onChange={(event) => onOptionScoreChange(option, event.target.value)}
                 />
-              </label>
+              </FieldLabel>
             ))}
-          </fieldset>
+          </Fieldset>
         ) : null}
         {isQualityForm && fieldType === 'checkbox' ? (
           <div className="form-editor-field__settings-row">
-            <label>
+            <FieldLabel>
               Score if checked
-              <input type="number" value={trueScore} onChange={(event) => onTrueScoreChange(event.target.value)} />
-            </label>
-            <label>
+              <Input type="number" value={trueScore} onChange={(event) => onTrueScoreChange(event.target.value)} />
+            </FieldLabel>
+            <FieldLabel>
               Score if unchecked
-              <input type="number" value={falseScore} onChange={(event) => onFalseScoreChange(event.target.value)} />
-            </label>
+              <Input type="number" value={falseScore} onChange={(event) => onFalseScoreChange(event.target.value)} />
+            </FieldLabel>
           </div>
         ) : null}
         <div className="toolbar">
@@ -182,14 +188,14 @@ export function NewFieldDraftCard({
           >
             <IconCheckCircle />Save Field
           </Button>
-          <button
+          <Button
             type="button"
-            className="button-secondary"
+            variant="secondary"
             disabled={saving}
             onClick={onCancel}
           >
             Cancel
-          </button>
+          </Button>
         </div>
       </form>
     </div>

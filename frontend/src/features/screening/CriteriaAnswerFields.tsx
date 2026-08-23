@@ -8,6 +8,7 @@ import type { CriterionAnswer, ScreeningCriterion } from './useScreeningQueue'
 import {InfoBox} from "../../components/InfoBox";
 import { Textarea } from '../../components/Textarea'
 import { CriterionBadge } from '../../components/CriterionBadge'
+import { FieldLabel } from '../../components/FieldLabel'
 
 function capitalize(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1)
@@ -212,13 +213,13 @@ export function CriteriaAnswerFields({
           })}
         </div>
       </div>
-      <label>
+      <FieldLabel>
         Notes
         <Textarea
           value={notes}
           onChange={(event) => setNotes(event.target.value)}
         />
-      </label>
+      </FieldLabel>
     </>
   )
 }

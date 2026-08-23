@@ -2,7 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { apiRequest } from '../../api/client'
-import { Button } from '../../components/Button'
+import { Button, IconButton } from '../../components/Button'
 import { Card } from '../../components/Card'
 import { cn } from '../../lib/cn'
 import { toolbarClass } from '../../components/layoutStyles'
@@ -14,6 +14,9 @@ import { FormFieldsEditor } from './FormFieldsEditor'
 import { NewFieldDraftCard } from './NewFieldDraftCard'
 import type { FormField, ReviewForm } from './types'
 import { useFormFieldEditor } from './useFormFieldEditor'
+import { Input } from '../../components/Input'
+import { Select } from '../../components/Select'
+import { FieldLabel } from '../../components/FieldLabel'
 
 type FormKind = 'extraction' | 'quality'
 
@@ -168,10 +171,10 @@ export function FormKindSection({ projectId, kind, id }: { projectId: string; ki
                 className={cn(toolbarClass, 'my-0!')}
                 onSubmit={(event) => { event.preventDefault(); renameForm.mutate() }}
               >
-                <label>
+                <FieldLabel>
                   Name
-                  <input value={nameDraft} onChange={(event) => setNameDraft(event.target.value)} required />
-                </label>
+                  <Input value={nameDraft} onChange={(event) => setNameDraft(event.target.value)} required />
+                </FieldLabel>
                 <Button type="submit" variant="secondary" size="sm" loading={renameForm.isPending}>Save Name</Button>
                 <Button type="button" variant="secondary" size="sm" onClick={() => setRenaming(false)}>Cancel</Button>
               </form>
@@ -201,7 +204,7 @@ export function FormKindSection({ projectId, kind, id }: { projectId: string; ki
               onSubmit={(event) => { event.preventDefault(); saveAsTemplate.mutate() }}
             >
               <label className="sr-only" htmlFor={`${kind}-save-as-template-name`}>Template name</label>
-              <input
+              <Input
                 id={`${kind}-save-as-template-name`}
                 value={templateName}
                 onChange={(event) => setTemplateName(event.target.value)}
@@ -218,9 +221,9 @@ export function FormKindSection({ projectId, kind, id }: { projectId: string; ki
         <>
           {emptyWarning}
           {templatesForKind.length ? (
-            <label>
+            <FieldLabel>
               Start from a template
-              <select
+              <Select
                 value={templateId}
                 onChange={(event) => {
                   setTemplateId(event.target.value)
@@ -232,8 +235,8 @@ export function FormKindSection({ projectId, kind, id }: { projectId: string; ki
                 {templatesForKind.map((template) => (
                   <option key={template.id} value={template.id}>{template.name}</option>
                 ))}
-              </select>
-            </label>
+              </Select>
+            </FieldLabel>
           ) : null}
           <div className="llm-schema-fields form-editor-fields">
             {addingField ? (
@@ -267,15 +270,17 @@ export function FormKindSection({ projectId, kind, id }: { projectId: string; ki
                 saving={addFirstField.isPending}
               />
             ) : (
-              <button
+              <IconButton
                 type="button"
-                className="icon-button icon-button--round form-editor-fields__add-button"
+                size="sm"
+                variant="secondary"
+                className="!size-[30px] !min-h-[30px] !min-w-[30px] justify-self-start rounded-full"
                 aria-label="Add form field"
                 title="Add form field"
                 onClick={() => { addFirstField.reset(); resetNewField(); setAddingField(true) }}
               >
                 <IconPlus />
-              </button>
+              </IconButton>
             )}
           </div>
         </>

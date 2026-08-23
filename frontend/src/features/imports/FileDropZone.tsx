@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 
 import { formatFileSize } from '../../lib/format'
+import { FieldLabel } from '../../components/FieldLabel'
 
 function fileKey(file: File): string {
   return `${file.name}:${file.size}:${file.lastModified}`
@@ -53,7 +54,7 @@ export function FileDropZone({
 
   return (
     <div className="dropzone-field">
-      <label htmlFor={id}>
+      <FieldLabel htmlFor={id}>
         {label}
         <input
           ref={inputRef}
@@ -68,7 +69,7 @@ export function FileDropZone({
             event.target.value = ''
           }}
         />
-      </label>
+      </FieldLabel>
       <div
         className={`dropzone${dragging ? ' dropzone--active' : ''}`}
         data-dropzone

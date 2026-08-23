@@ -21,6 +21,11 @@ import { fullTextDocumentEndpoint, useFullTextDocument } from './useFullTextDocu
 import type { Retrieval } from './useRetrievalQueue'
 import { useRetrievalQueue } from './useRetrievalQueue'
 import { FullTextDocumentPanel } from './FullTextDocumentPanel'
+import { Select } from '../../components/Select'
+import { Textarea } from '../../components/Textarea'
+import { Button } from '../../components/Button'
+import { Page } from '../../components/Page'
+import { FieldLabel } from '../../components/FieldLabel'
 
 const statusLabels: Record<string, string> = {
   not_yet_sought: 'Not yet sought',
@@ -87,7 +92,7 @@ export function FullTextPage() {
   }, [visibleItemId])
 
   return (
-    <main className="page">
+    <Page>
       <StageEyebrow stage="full_text_screening" />
       <h1>Full-Text</h1>
       {browserRetrieval.missingCount ? (
@@ -161,12 +166,12 @@ export function FullTextPage() {
       ) : (
         <>
           <p className="muted">No full-text work is currently available for you.</p>
-          <button type="button" className="button-secondary" onClick={() => navigate(`/projects/${projectId}`)}>
+          <Button type="button" variant="secondary" onClick={() => navigate(`/projects/${projectId}`)}>
             Back to project
-          </button>
+          </Button>
         </>
       )}
-    </main>
+    </Page>
   )
 }
 
@@ -210,14 +215,16 @@ function RetrievalCard({ projectId, retrieval, saving, onSubmit, onSkip, skippin
         ) : null}
       </div>
       {fullTextDocument.data?.available ? (
-        <a
-          className="button-secondary button-sm"
+        <Button
+          as="a"
+          variant="secondary"
+          size="sm"
           href={`${fullTextDocumentEndpoint(projectId, publication.id)}/content`}
           target="_blank"
           rel="noreferrer"
         >
           Open PDF
-        </a>
+        </Button>
       ) : null}
       <FullTextDocumentPanel
         projectId={projectId}
@@ -225,21 +232,21 @@ function RetrievalCard({ projectId, retrieval, saving, onSubmit, onSkip, skippin
         onAvailable={() => setStatus('available')}
         collapsible
       />
-      <label>
+      <FieldLabel>
         Retrieval status for {publication.title}
-        <select
+        <Select
           value={status}
           onChange={(event) => setStatus(event.target.value)}
         >
           {retrievalStatusOptions.map((statusOption) => (
             <option value={statusOption} key={statusOption}>{formatStatus(statusOption)}</option>
           ))}
-        </select>
-      </label>
-      <label>
+        </Select>
+      </FieldLabel>
+      <FieldLabel>
         Note for {publication.title}
-        <textarea value={note} onChange={(event) => setNote(event.target.value)} />
-      </label>
+        <Textarea value={note} onChange={(event) => setNote(event.target.value)} />
+      </FieldLabel>
       {isAvailable ? (
         <p className="muted">
           Save the available status to open full-text screening and its LLM evidence panel.
@@ -247,22 +254,22 @@ function RetrievalCard({ projectId, retrieval, saving, onSubmit, onSkip, skippin
       ) : null}
       {skipError ? <p className="error" role="alert">{skipError}</p> : null}
       <div className="toolbar">
-        <button
+        <Button
           type="button"
           onClick={handleSubmit}
           disabled={saving || skipping}
         >
           {isAvailable ? 'Save and start screening' : 'Submit'}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
-          className="button-secondary"
+          variant="secondary"
           onClick={onSkip}
           disabled={saving || skipping}
         >
           <IconArrowRight />
           Skip for now
-        </button>
+        </Button>
       </div>
     </article>
   )

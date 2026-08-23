@@ -11,6 +11,8 @@ import { InfoBox } from '../../components/InfoBox'
 import { CriterionBadge } from '../../components/CriterionBadge'
 import { Input } from '../../components/Input'
 import { Select } from '../../components/Select'
+import { FieldLabel } from '../../components/FieldLabel'
+import { Form } from '../../components/Form'
 
 type CriterionKind = 'inclusion' | 'exclusion'
 
@@ -57,7 +59,7 @@ function ResearchQuestionRow({
     return (
       <tr>
         <td colSpan={3}>
-          <form
+          <Form
             onSubmit={(event) => {
               event.preventDefault()
               setEditing(false)
@@ -69,7 +71,7 @@ function ResearchQuestionRow({
               <Button type="submit" disabled={pending}><IconCheckCircle />Save</Button>
               <Button type="button" variant="secondary" onClick={() => { setDraft(question.text); setEditing(false) }}>Cancel</Button>
             </div>
-          </form>
+          </Form>
         </td>
       </tr>
     )
@@ -124,20 +126,20 @@ function CriterionRow({
     return (
       <tr>
         <td colSpan={3}>
-          <form
+          <Form
             onSubmit={(event) => {
               event.preventDefault()
               setEditing(false)
               onSave(draftKind, draftText)
             }}
           >
-            <label>
+            <FieldLabel>
               Kind
               <Select value={draftKind} onChange={(event) => setDraftKind(event.target.value as CriterionKind)}>
                 <option value="inclusion">Inclusion</option>
                 <option value="exclusion">Exclusion</option>
               </Select>
-            </label>
+            </FieldLabel>
             <Input value={draftText} onChange={(event) => setDraftText(event.target.value)} required />
             <div className={`${toolbarClass} flex-nowrap! my-0!`}>
               <Button type="submit" disabled={pending}><IconCheckCircle />Save</Button>
@@ -149,7 +151,7 @@ function CriterionRow({
                 Cancel
               </Button>
             </div>
-          </form>
+          </Form>
         </td>
       </tr>
     )
@@ -301,7 +303,7 @@ export function ResearchQuestionsPanel({
       </h2>
 
       {mutationError ? <p className="text-danger" role="alert">{mutationError.message}</p> : null}
-      <table className="w-full [&_td]:align-top [&_td:first-child]:w-16 [&_td:last-child]:w-px [&_td:last-child]:whitespace-nowrap">
+      <table className="w-full [&_td]:align-middle [&_td:first-child]:w-16 [&_td:last-child]:w-px [&_td:last-child]:whitespace-nowrap">
         <thead>
           <tr>
             <th>#</th>
@@ -356,19 +358,19 @@ export function ResearchQuestionsPanel({
       {!inlineAdd ? (
         <>
           <hr className="mt-5 border-0 border-t border-border" />
-          <form onSubmit={(event) => { event.preventDefault(); addQuestion.mutate() }}>
-            <label>
+          <Form onSubmit={(event) => { event.preventDefault(); addQuestion.mutate() }}>
+            <FieldLabel>
               New research question
               <Input
                 value={newQuestion}
                 onChange={(event) => setNewQuestion(event.target.value)}
                 required
               />
-            </label>
+            </FieldLabel>
             <Button type="submit" disabled={addQuestion.isPending} startIcon={<IconPlus />}>
               Add Research Question
             </Button>
-          </form>
+          </Form>
         </>
       ) : null}
     </Card>
@@ -458,7 +460,7 @@ export function CriteriaPanel({
         </p>
       </InfoBox>
       {mutationError ? <p className="text-danger" role="alert">{mutationError.message}</p> : null}
-      <table className="w-full [&_td]:align-top [&_td:first-child]:w-16 [&_td:last-child]:w-px [&_td:last-child]:whitespace-nowrap">
+      <table className="w-full [&_td]:align-middle [&_td:first-child]:w-16 [&_td:last-child]:w-px [&_td:last-child]:whitespace-nowrap">
         <thead>
           <tr>
             <th>#</th>
@@ -580,8 +582,8 @@ export function CriteriaPanel({
       {!inlineAdd ? (
         <>
           <hr className="mt-5 border-0 border-t border-border" />
-          <form onSubmit={(event) => { event.preventDefault(); addCriterion.mutate() }}>
-            <label>
+          <Form onSubmit={(event) => { event.preventDefault(); addCriterion.mutate() }}>
+            <FieldLabel>
               Kind
               <Select
                 value={newCriterionKind}
@@ -590,19 +592,19 @@ export function CriteriaPanel({
                 <option value="inclusion">Inclusion</option>
                 <option value="exclusion">Exclusion</option>
               </Select>
-            </label>
-            <label>
+            </FieldLabel>
+            <FieldLabel>
               New criterion
               <Input
                 value={newCriterionText}
                 onChange={(event) => setNewCriterionText(event.target.value)}
                 required
               />
-            </label>
+            </FieldLabel>
             <Button type="submit" disabled={addCriterion.isPending} startIcon={<IconPlus />}>
               Add Criterion
             </Button>
-          </form>
+          </Form>
         </>
       ) : null}
     </Card>

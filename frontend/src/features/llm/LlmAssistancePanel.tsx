@@ -10,6 +10,11 @@ import { InfoBox } from '../../components/InfoBox'
 import { IconCheckCircle, IconChart, IconSettings, IconSparkle, IconTrash } from '../../components/icons'
 import { InfoTooltip } from '../../components/Tooltip'
 import { STAGES } from '../projects/StageProgress'
+import { Input } from '../../components/Input'
+import { Select } from '../../components/Select'
+import { Textarea } from '../../components/Textarea'
+import { FieldLabel } from '../../components/FieldLabel'
+import { Fieldset } from '../../components/Fieldset'
 
 const stageColors = Object.fromEntries(STAGES.map((stage) => [stage.value, stage.color]))
 
@@ -264,9 +269,9 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
         </dl>
       ) : null}
       <div className="toolbar">
-        <button type="button" onClick={() => test.mutate()} disabled={test.isPending}>
+        <Button type="button" onClick={() => test.mutate()} disabled={test.isPending}>
           {test.isPending ? 'Testing…' : 'Test Connection'}
-        </button>
+        </Button>
       </div>
       {connection ? (
         <p className={connection.ok ? 'success' : 'error'} role={connection.ok ? 'status' : 'alert'}>
@@ -282,54 +287,54 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
         </p>
       </InfoBox>
       {settings.data ? (
-        <fieldset>
+        <Fieldset>
           <legend className="subsection-heading">Stages</legend>
-          <label>
-            <input
+          <FieldLabel inline>
+            <Input
               type="checkbox"
               checked={settings.data.titleAbstractScreeningEnabled}
               disabled={!settings.data.installationEnabled || toggle.isPending}
               onChange={(event) => toggle.mutate({ titleAbstractScreeningEnabled: event.target.checked })}
             />
             Title/abstract screening suggestions (revealed only after reviewer decision)
-          </label>
-          <label>
-            <input
+          </FieldLabel>
+          <FieldLabel inline>
+            <Input
               type="checkbox"
               checked={settings.data.fullTextScreeningEnabled}
               disabled={!settings.data.installationEnabled || toggle.isPending}
               onChange={(event) => toggle.mutate({ fullTextScreeningEnabled: event.target.checked })}
             />
             Full-text screening assistance
-          </label>
-          <label>
-            <input
+          </FieldLabel>
+          <FieldLabel inline>
+            <Input
               type="checkbox"
               checked={settings.data.enabled}
               disabled={!settings.data.installationEnabled || toggle.isPending}
               onChange={(event) => toggle.mutate({ enabled: event.target.checked })}
             />
             LLM data extraction
-          </label>
-          <label>
-            <input
+          </FieldLabel>
+          <FieldLabel inline>
+            <Input
               type="checkbox"
               checked={settings.data.extractionValidationEnabled}
               disabled={!settings.data.installationEnabled || toggle.isPending}
               onChange={(event) => toggle.mutate({ extractionValidationEnabled: event.target.checked })}
             />
             Validate completed human extractions automatically
-          </label>
-          <label>
-            <input
+          </FieldLabel>
+          <FieldLabel inline>
+            <Input
               type="checkbox"
               checked={settings.data.analysisNarrativeEnabled}
               disabled={!settings.data.installationEnabled || toggle.isPending}
               onChange={(event) => toggle.mutate({ analysisNarrativeEnabled: event.target.checked })}
             />
             AI-generated interpretive analysis (stage-result narrative summaries and research-question synthesis)
-          </label>
-        </fieldset>
+          </FieldLabel>
+        </Fieldset>
       ) : null}
       {capabilitiesError ? <p className="error" role="alert">{capabilitiesError.message}</p> : null}
     </CollapsibleSection>
@@ -342,9 +347,9 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
         </p>
       </InfoBox>
         {!currentSchema ? (
-          <button type="button" onClick={() => initialize.mutate()} disabled={initialize.isPending}>
+          <Button type="button" onClick={() => initialize.mutate()} disabled={initialize.isPending}>
             Create LLM schema from extraction form
-          </button>
+          </Button>
         ) : (
           <>
           <p>Version {currentSchema.versionNumber} · {currentSchema.status}</p>
@@ -418,19 +423,19 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
                 />
               </summary>
               <div className="llm-schema-field__content">
-              <label>Label
-                <input value={field.label} onChange={(event) => edit(index, { label: event.target.value })} />
-              </label>
-              <label>Extraction instruction
-                <textarea value={field.instruction} onChange={(event) => edit(index, { instruction: event.target.value })} />
-              </label>
-              <label>Output type
-                <select value={field.fieldType} onChange={(event) => edit(index, { fieldType: event.target.value })}>
+              <FieldLabel>Label
+                <Input value={field.label} onChange={(event) => edit(index, { label: event.target.value })} />
+              </FieldLabel>
+              <FieldLabel>Extraction instruction
+                <Textarea value={field.instruction} onChange={(event) => edit(index, { instruction: event.target.value })} />
+              </FieldLabel>
+              <FieldLabel>Output type
+                <Select value={field.fieldType} onChange={(event) => edit(index, { fieldType: event.target.value })}>
                   {FIELD_TYPES.map((type) => <option value={type} key={type}>{type.replaceAll('_', ' ')}</option>)}
-                </select>
-              </label>
-              <label>Mapped extraction field
-                <select
+                </Select>
+              </FieldLabel>
+              <FieldLabel>Mapped extraction field
+                <Select
                   value={field.mappedExtractionFieldKey ?? ''}
                   onChange={(event) => {
                     const target = schema.data?.extractionFields.find((item) => item.stableKey === event.target.value)
@@ -445,76 +450,76 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
                   {schema.data?.extractionFields.map((target) => (
                     <option key={target.stableKey} value={target.stableKey}>{target.label}</option>
                   ))}
-                </select>
-              </label>
+                </Select>
+              </FieldLabel>
               {!field.mappedExtractionFieldKey && ['single_select', 'multiple_select', 'rating'].includes(field.fieldType) ? (
-                <label>Allowed values or rating bounds (comma-separated)
-                  <input
+                <FieldLabel>Allowed values or rating bounds (comma-separated)
+                  <Input
                     value={field.options.join(', ')}
                     onChange={(event) => edit(index, {
                       options: event.target.value.split(',').map((value) => value.trim()).filter(Boolean),
                     })}
                   />
-                </label>
+                </FieldLabel>
               ) : null}
               {field.mappingState && !['active', 'helper'].includes(field.mappingState) ? (
                 <p className="error">Mapping is {field.mappingState}; resolve it before publishing.</p>
               ) : null}
-              <div className="llm-schema-field__toggle-setting">
-                <label>
-                  <input
+              <div className="inline-flex w-fit items-center">
+                <FieldLabel inline>
+                  <Input
                     type="checkbox"
                     checked={field.evidenceRequired}
                     onChange={(event) => edit(index, { evidenceRequired: event.target.checked })}
                   />
                   Require evidence
-                </label>
+                </FieldLabel>
                 <InfoTooltip
                   label="About requiring evidence"
                   text="Require the LLM to support a returned value with a quote from the publication. Papertrail verifies the quote against the cited PDF page and flags missing or unverifiable evidence."
                 />
               </div>
-              <div className="llm-schema-field__toggle-setting">
-                <label>
-                  <input
+              <div className="inline-flex w-fit items-center">
+                <FieldLabel inline>
+                  <Input
                     type="checkbox"
                     checked={field.allowInferred}
                     onChange={(event) => edit(index, { allowInferred: event.target.checked })}
                   />
                   Allow inferred values
-                </label>
+                </FieldLabel>
                 <InfoTooltip
                   label="About inferred values"
                   text="Allow the LLM to derive a value from information in the paper when it is not stated directly. Inferred results are rejected when this is turned off."
                 />
               </div>
-              <label><input type="checkbox" checked={field.enabled} onChange={(event) => edit(index, { enabled: event.target.checked })} /> Enabled</label>
-              <button type="button" className="button-danger" onClick={() => setFields((current) => current.filter((_, i) => i !== index))}>
+              <FieldLabel inline><Input type="checkbox" checked={field.enabled} onChange={(event) => edit(index, { enabled: event.target.checked })} /> Enabled</FieldLabel>
+              <Button type="button" className="justify-self-start" variant="destructive" onClick={() => setFields((current) => current.filter((_, i) => i !== index))}>
                 <IconTrash />
                 Remove field
-              </button>
+              </Button>
               </div>
             </details>
             )
           })}
           </div>
           <div className="toolbar">
-            <button type="button" className="button-secondary" onClick={addHelper}>Add helper field</button>
+            <Button type="button" variant="secondary" onClick={addHelper}>Add helper field</Button>
             {!setupMode ? (
-              <button type="button" onClick={() => save.mutate()} disabled={save.isPending}>Save draft</button>
+              <Button type="button" onClick={() => save.mutate()} disabled={save.isPending}>Save draft</Button>
             ) : null}
           </div>
           {!setupMode ? (
             <div className="toolbar">
-              <button
+              <Button
                 type="button"
-                className="button-success"
+                variant="primary"
                 onClick={() => publish.mutate()}
                 disabled={publish.isPending || currentSchema.status !== 'draft'}
               >
                 <IconCheckCircle />
                 Publish version
-              </button>
+              </Button>
             </div>
           ) : null}
           </>
@@ -556,7 +561,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
                   <Button
                     type="button"
                     variant="secondary"
-                    className="llm-stage-button"
+                    className="border-[color-mix(in_srgb,var(--stage-color)_35%,transparent)] bg-[color-mix(in_srgb,var(--stage-color)_14%,transparent)] text-[var(--stage-color)] shadow-none hover:not-disabled:border-[var(--stage-color)] hover:not-disabled:bg-[color-mix(in_srgb,var(--stage-color)_22%,transparent)] hover:not-disabled:text-[var(--stage-color)] hover:not-disabled:shadow-none"
                     style={stageButtonStyle('title_abstract_screening')}
                     onClick={() => reanalyze.mutate('title_abstract_screening')}
                     disabled={reanalyze.isPending || !settings.data?.titleAbstractScreeningEnabled}
@@ -566,7 +571,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
                   <Button
                     type="button"
                     variant="secondary"
-                    className="llm-stage-button"
+                    className="border-[color-mix(in_srgb,var(--stage-color)_35%,transparent)] bg-[color-mix(in_srgb,var(--stage-color)_14%,transparent)] text-[var(--stage-color)] shadow-none hover:not-disabled:border-[var(--stage-color)] hover:not-disabled:bg-[color-mix(in_srgb,var(--stage-color)_22%,transparent)] hover:not-disabled:text-[var(--stage-color)] hover:not-disabled:shadow-none"
                     style={stageButtonStyle('full_text_screening')}
                     onClick={() => reanalyze.mutate('full_text_screening')}
                     disabled={reanalyze.isPending || !settings.data?.fullTextScreeningEnabled}
@@ -576,7 +581,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
                   <Button
                     type="button"
                     variant="secondary"
-                    className="llm-stage-button"
+                    className="border-[color-mix(in_srgb,var(--stage-color)_35%,transparent)] bg-[color-mix(in_srgb,var(--stage-color)_14%,transparent)] text-[var(--stage-color)] shadow-none hover:not-disabled:border-[var(--stage-color)] hover:not-disabled:bg-[color-mix(in_srgb,var(--stage-color)_22%,transparent)] hover:not-disabled:text-[var(--stage-color)] hover:not-disabled:shadow-none"
                     style={stageButtonStyle('extraction_quality')}
                     onClick={() => reanalyze.mutate('data_extraction')}
                     disabled={reanalyze.isPending || !settings.data?.enabled}
@@ -586,7 +591,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
                   <Button
                     type="button"
                     variant="secondary"
-                    className="llm-stage-button"
+                    className="border-[color-mix(in_srgb,var(--stage-color)_35%,transparent)] bg-[color-mix(in_srgb,var(--stage-color)_14%,transparent)] text-[var(--stage-color)] shadow-none hover:not-disabled:border-[var(--stage-color)] hover:not-disabled:bg-[color-mix(in_srgb,var(--stage-color)_22%,transparent)] hover:not-disabled:text-[var(--stage-color)] hover:not-disabled:shadow-none"
                     style={stageButtonStyle('extraction_quality')}
                     onClick={() => reanalyze.mutate('extraction_validation')}
                     disabled={reanalyze.isPending || !settings.data?.extractionValidationEnabled}

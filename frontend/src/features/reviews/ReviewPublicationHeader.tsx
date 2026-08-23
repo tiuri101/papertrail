@@ -7,6 +7,7 @@ import { PublisherLinkPill } from '../../components/PublisherLinkPill'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { fullTextDocumentEndpoint, type FullTextDocumentState } from '../fulltext/useFullTextDocument'
 import type { PublicationSummary } from '../publications/types'
+import { Button } from '../../components/Button'
 
 /**
  * Publication title/authors, PDF/DOI/publisher pills, and the "Open PDF" link shared by the
@@ -51,14 +52,16 @@ export function ReviewPublicationHeader({
         ) : null}
       </div>
       {fullTextDocument.data?.available ? (
-        <a
-          className="button-secondary button-sm"
+        <Button
+          as="a"
+          variant="secondary"
+          size="sm"
           href={`${fullTextDocumentEndpoint(projectId, publicationId)}/content`}
           target="_blank"
           rel="noreferrer"
         >
           Open PDF
-        </a>
+        </Button>
       ) : null}
     </>
   )

@@ -6,6 +6,7 @@ import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { InfoBox } from '../../components/InfoBox'
 import { IconDownload } from '../../components/icons'
 import { Select } from '../../components/Select'
+import { FieldLabel } from '../../components/FieldLabel'
 
 type TaskAllocationMode = 'pre_assigned' | 'claim'
 
@@ -81,7 +82,7 @@ export function ExtractionSettingsPanel({ projectId }: { projectId: string }) {
       {config.error ? <p className="text-danger" role="alert">{config.error.message}</p> : null}
       {config.isLoading ? <p>Loading…</p> : (
         <>
-          <label>
+          <FieldLabel>
             Extractors per publication
             <Select
               value={requiredReviewers}
@@ -91,9 +92,9 @@ export function ExtractionSettingsPanel({ projectId }: { projectId: string }) {
                 <option key={value} value={value}>{REQUIRED_REVIEWERS_LABELS[value].title}</option>
               ))}
             </Select>
-          </label>
+          </FieldLabel>
           <p className="text-text-muted">{REQUIRED_REVIEWERS_LABELS[requiredReviewers]?.description}</p>
-          <label>
+          <FieldLabel>
             Allocation
             <Select
               value={allocationMode}
@@ -103,7 +104,7 @@ export function ExtractionSettingsPanel({ projectId }: { projectId: string }) {
                 <option key={value} value={value}>{TASK_ALLOCATION_MODE_LABELS[value]}</option>
               ))}
             </Select>
-          </label>
+          </FieldLabel>
         </>
       )}
       {save.error ? <p className="text-danger" role="alert">{save.error.message}</p> : null}

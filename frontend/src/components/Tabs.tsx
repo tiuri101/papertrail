@@ -41,12 +41,7 @@ export function TabList({ items, activeId, onSelect, label, idPrefix, className 
             title={item.title}
             onClick={() => onSelect(item.id)}
             className={cn(
-              // Tabs render a plain `<button>`, which a legacy bare `button {...}` rule still
-              // styles as a full shiny "primary button" (gradient, 40px floor, shadow, border)
-              // since nothing here carries the old `.page-tab` exemption class. `bg-none`/
-              // `shadow-none`/`h-auto min-h-0`/`border-0` explicitly cancel that, matching
-              // Button.tsx's own approach.
-              'inline-flex h-auto min-h-10 items-center justify-center gap-2 cursor-pointer rounded-sm border-0bg-none px-5 py-2.5 text-sm font-semibold text-text-secondary disabled:cursor-not-allowed disabled:opacity-[.48] [&_svg]:size-[18px] [&_svg]:shrink-0 [&_svg]:fill-current dark:[&_svg]:text-white dark:[&_svg]:fill-white',
+              'inline-flex h-auto min-h-10 items-center justify-center gap-2 cursor-pointer rounded-sm border-0 px-5 py-2.5 text-sm font-semibold text-text-secondary disabled:cursor-not-allowed disabled:opacity-[.48] [&_svg]:size-[18px] [&_svg]:shrink-0 [&_svg]:fill-current',
               !active && 'shadow-none hover:not-disabled:bg-surface-hover hover:not-disabled:text-text',
               active && (item.danger ? 'bg-surface text-danger shadow-sm' : 'bg-surface text-primary shadow-sm'),
             )}
