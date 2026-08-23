@@ -17,6 +17,7 @@ import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { useCanReconcileExtractionState } from '../../hooks/useCanManageProject'
 import { fullTextDocumentEndpoint, useFullTextDocument } from '../fulltext/useFullTextDocument'
 import { StageEyebrow } from '../projects/StageEyebrow'
+import { FieldLabel } from '../../components/FieldLabel'
 
 interface QueuePublication {
   id: string
@@ -240,7 +241,7 @@ function ReconciliationForm({ projectId, publicationId, onDone, onCancel }: {
                     </Button>
                   </div>
                   {current?.choice === 'manual' ? (
-                    <label>
+                    <FieldLabel>
                       Manual value
                       <Input
                         value={typeof current.value === 'string' ? current.value : String(current.value ?? '')}
@@ -249,7 +250,7 @@ function ReconciliationForm({ projectId, publicationId, onDone, onCancel }: {
                           [comparison.stableKey]: { choice: 'manual', value: event.target.value },
                         }))}
                       />
-                    </label>
+                    </FieldLabel>
                   ) : null}
                 </td>
               </tr>
@@ -257,10 +258,10 @@ function ReconciliationForm({ projectId, publicationId, onDone, onCancel }: {
           })}
         </tbody>
       </table>
-      <label>
+      <FieldLabel>
         Reconciliation note
         <Textarea value={note} onChange={(event) => setNote(event.target.value)} required />
-      </label>
+      </FieldLabel>
       {submit.error ? <p className="text-danger" role="alert">{submit.error.message}</p> : null}
       <div className={toolbarClass}>
         <Button

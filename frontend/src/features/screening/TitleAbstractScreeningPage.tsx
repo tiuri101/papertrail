@@ -7,6 +7,8 @@ import { StageEyebrow } from '../projects/StageEyebrow'
 import { PreviousItemCard } from './PreviousItemCard'
 import { ScreeningItemCard } from './ScreeningItemCard'
 import { useScreeningQueue } from './useScreeningQueue'
+import { Button } from '../../components/Button'
+import { Page } from '../../components/Page'
 
 const STAGE = 'title_abstract'
 
@@ -20,7 +22,7 @@ export function TitleAbstractScreeningPage() {
   const queue = useScreeningQueue(projectId, STAGE)
 
   return (
-    <main className="page">
+    <Page>
       <StageEyebrow stage="title_abstract_screening" />
       <h1>Title and Abstract Screening</h1>
       {queue.progress ? (
@@ -54,9 +56,9 @@ export function TitleAbstractScreeningPage() {
           {!queue.loadingNext && queue.queueEmpty ? (
             <>
               <p>You have completed all of your assigned screening work.</p>
-              <button type="button" className="button-secondary" onClick={() => navigate(`/projects/${projectId}`)}>
+              <Button type="button" variant="secondary" onClick={() => navigate(`/projects/${projectId}`)}>
                 Back to project
-              </button>
+              </Button>
             </>
           ) : null}
           {!queue.loadingNext && queue.nextError ? (
@@ -66,6 +68,6 @@ export function TitleAbstractScreeningPage() {
       ) : (
         <ScreeningItemCard {...queue} highlightKeywords={highlightKeywords} />
       )}
-    </main>
+    </Page>
   )
 }

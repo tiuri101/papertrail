@@ -15,6 +15,12 @@ import { ScreeningConfigPanel } from '../administration/ScreeningConfigPanel'
 import { FormFieldsPanel } from '../forms/FormFieldsPanel'
 import { LlmAssistancePanel, type LlmAssistancePanelHandle } from '../llm/LlmAssistancePanel'
 import { STAGES } from './StageProgress'
+import { Input } from '../../components/Input'
+import { Select } from '../../components/Select'
+import { Textarea } from '../../components/Textarea'
+import { Page } from '../../components/Page'
+import { FieldLabel } from '../../components/FieldLabel'
+import { Form } from '../../components/Form'
 
 interface ProjectDetails {
   id: string
@@ -122,33 +128,33 @@ function ProjectDetailsStep({
         </p>
       </InfoBox>
       {project.isLoading ? <p>Loading…</p> : (
-        <form
+        <Form
           onSubmit={(event) => {
             event.preventDefault()
             if (projectId) update.mutate()
             else create.mutate()
           }}
         >
-          <label>
+          <FieldLabel>
             Project name
-            <input
+            <Input
               value={name}
               onChange={(event) => setName(event.target.value)}
               required
               maxLength={250}
             />
-          </label>
-          <label>
+          </FieldLabel>
+          <FieldLabel>
             Description
-            <textarea
+            <Textarea
               value={description}
               onChange={(event) => setDescription(event.target.value)}
               rows={3}
             />
-          </label>
-          <label>
+          </FieldLabel>
+          <FieldLabel>
             Review type
-            <select
+            <Select
               value={reviewType}
               onChange={(event) => setReviewType(event.target.value)}
               disabled={Boolean(projectId)}
@@ -156,15 +162,15 @@ function ProjectDetailsStep({
               {reviewTypeOptions.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
               ))}
-            </select>
-          </label>
+            </Select>
+          </FieldLabel>
           {projectId ? <p className="muted">Review type can&apos;t be changed after the project is created.</p> : null}
           {error ? <p className="error" role="alert">{error.message}</p> : null}
           <Button type="submit" disabled={pending || name.trim().length === 0}>
             {projectId ? 'Save & Continue' : 'Create Project & Continue'}
             <IconArrowRight />
           </Button>
-        </form>
+        </Form>
       )}
     </section>
   )
@@ -222,7 +228,7 @@ export function ProjectSetupWizard() {
   }
 
   return (
-    <main className="page">
+    <Page>
       <div className="project-wizard">
         <div className="project-wizard__header">
           <p className="eyebrow">Project setup · Step {step + 1} of {WIZARD_STEPS.length}</p>
@@ -343,9 +349,11 @@ export function ProjectSetupWizard() {
                   </Button>
                 )}
               </div>
-              <Link
+              <Button
+                as={Link}
+                variant="text"
                 to={`/projects/${projectId}`}
-                className="link-button wizard-exit"
+                className="wizard-exit"
                 onClick={(event) => {
                   if (!stepDirty) return
                   event.preventDefault()
@@ -353,12 +361,12 @@ export function ProjectSetupWizard() {
                 }}
               >
                 Finish later
-              </Link>
+              </Button>
             </div>
           ) : (
             !projectId ? (
               <div className="toolbar wizard-nav">
-                <Link to="/projects" className="link-button">Cancel</Link>
+                <Button as={Link} variant="text" to="/projects">Cancel</Button>
               </div>
             ) : null
           )}
@@ -379,6 +387,6 @@ export function ProjectSetupWizard() {
           onCancel={() => setPendingAction(null)}
         />
       ) : null}
-    </main>
+    </Page>
   )
 }

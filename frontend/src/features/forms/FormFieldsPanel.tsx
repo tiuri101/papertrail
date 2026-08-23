@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { ConfirmButton } from '../../components/ConfirmButton'
-import { Button } from '../../components/Button'
+import { Button, IconButton } from '../../components/Button'
 import { DragHandle } from '../../components/DragHandle'
 import { IconCheckCircle, IconDownload, IconPlus, IconTrash } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
@@ -22,6 +22,13 @@ import {
 import { NewFieldDraftCard } from './NewFieldDraftCard'
 import type { FormField, ReviewForm } from './types'
 import { useFormFieldEditor } from './useFormFieldEditor'
+import { Input } from '../../components/Input'
+import { Select } from '../../components/Select'
+import { Textarea } from '../../components/Textarea'
+import { FieldLabel } from '../../components/FieldLabel'
+import { Form } from '../../components/Form'
+import { Fieldset } from '../../components/Fieldset'
+import { FieldLegend } from '../../components/FieldLegend'
 
 type FormKind = 'extraction' | 'quality'
 
@@ -309,8 +316,8 @@ export function FormFieldsPanel({
 
       {isQualityForm ? (
         <div className="quality-settings-fields">
-          <label>
-            <input
+          <FieldLabel inline>
+            <Input
               type="checkbox"
               checked={qcEnabled}
               onChange={(event) => updateQualityConfig({
@@ -318,11 +325,11 @@ export function FormFieldsPanel({
               })}
             />
             Enable quality assessment
-          </label>
+          </FieldLabel>
           <div className="quality-settings-selects">
-            <label>
+            <FieldLabel>
               Mode
-              <select
+              <Select
                 value={qcMode}
                 onChange={(event) => updateQualityConfig({
                   enabled: qcEnabled, mode: event.target.value, aggregation: qcAggregation, allocationMode: qcAllocationMode,
@@ -331,11 +338,11 @@ export function FormFieldsPanel({
                 <option value="qualitative">Qualitative only</option>
                 <option value="numeric">Numerical scoring only</option>
                 <option value="both">Both</option>
-              </select>
-            </label>
-            <label>
+              </Select>
+            </FieldLabel>
+            <FieldLabel>
               Aggregation
-              <select
+              <Select
                 value={qcAggregation}
                 onChange={(event) => updateQualityConfig({
                   enabled: qcEnabled, mode: qcMode, aggregation: event.target.value, allocationMode: qcAllocationMode,
@@ -344,11 +351,11 @@ export function FormFieldsPanel({
                 <option value="sum">Simple sum</option>
                 <option value="average">Average</option>
                 <option value="weighted_average">Weighted average</option>
-              </select>
-            </label>
-            <label>
+              </Select>
+            </FieldLabel>
+            <FieldLabel>
               Allocation
-              <select
+              <Select
                 value={qcAllocationMode}
                 onChange={(event) => updateQualityConfig({
                   enabled: qcEnabled, mode: qcMode, aggregation: qcAggregation,
@@ -358,8 +365,8 @@ export function FormFieldsPanel({
                 {(Object.keys(TASK_ALLOCATION_MODE_LABELS) as TaskAllocationMode[]).map((value) => (
                   <option key={value} value={value}>{TASK_ALLOCATION_MODE_LABELS[value]}</option>
                 ))}
-              </select>
-            </label>
+              </Select>
+            </FieldLabel>
           </div>
           {saveQualityConfig.error ? <p className="error" role="alert">{saveQualityConfig.error.message}</p> : null}
           <p className="muted" aria-live="polite">
@@ -368,17 +375,17 @@ export function FormFieldsPanel({
         </div>
       ) : (
         <div className="quality-settings-fields">
-          <label>
+          <FieldLabel>
             Allocation
-            <select
+            <Select
               value={extractionAllocationMode}
               onChange={(event) => updateExtractionAllocationMode(event.target.value as TaskAllocationMode)}
             >
               {(Object.keys(TASK_ALLOCATION_MODE_LABELS) as TaskAllocationMode[]).map((value) => (
                 <option key={value} value={value}>{TASK_ALLOCATION_MODE_LABELS[value]}</option>
               ))}
-            </select>
-          </label>
+            </Select>
+          </FieldLabel>
           {saveExtractionConfig.error ? <p className="error" role="alert">{saveExtractionConfig.error.message}</p> : null}
           <p className="muted" aria-live="polite">
             {saveExtractionConfig.isPending ? 'Saving…' : saveExtractionConfig.isSuccess ? 'Saved.' : ' '}
@@ -387,113 +394,113 @@ export function FormFieldsPanel({
       )}
 
       {!existingForm && !inlineAdd ? (
-        <form onSubmit={(event) => {
+        <Form onSubmit={(event) => {
           event.preventDefault()
           createForm.mutate()
         }}>
-          <label>
+          <FieldLabel>
             Name
-            <input value={name} onChange={(event) => setName(event.target.value)} required />
-          </label>
-          <label>
+            <Input value={name} onChange={(event) => setName(event.target.value)} required />
+          </FieldLabel>
+          <FieldLabel>
             Start from template (optional)
-            <select value={templateId} onChange={(event) => setTemplateId(event.target.value)}>
+            <Select value={templateId} onChange={(event) => setTemplateId(event.target.value)}>
               <option value="">From scratch</option>
               {templatesForKind.map((template) => (
                 <option key={template.id} value={template.id}>{template.name}</option>
               ))}
-            </select>
-          </label>
+            </Select>
+          </FieldLabel>
           {templates.error ? <p className="error" role="alert">{templates.error.message}</p> : null}
           <Button type="submit" variant="primary" loading={createForm.isPending}>
             <IconPlus />
             Create {isQualityForm ? 'Quality' : 'Extraction'} Form
           </Button>
-        </form>
+        </Form>
       ) : (
         <>
           {!inlineAdd ? (
             <>
               <h3>Add Field</h3>
-              <form onSubmit={(event) => { event.preventDefault(); addField.mutate() }}>
-            <label>
+              <Form onSubmit={(event) => { event.preventDefault(); addField.mutate() }}>
+            <FieldLabel>
               Label
-              <input value={fieldLabel} onChange={(event) => setFieldLabel(event.target.value)} required />
-            </label>
-            <label>
+              <Input value={fieldLabel} onChange={(event) => setFieldLabel(event.target.value)} required />
+            </FieldLabel>
+            <FieldLabel>
               Type
-              <select value={fieldType} onChange={(event) => setFieldType(event.target.value)}>
+              <Select value={fieldType} onChange={(event) => setFieldType(event.target.value)}>
                 {fieldTypes.map((type) => (
                   <option key={type} value={type}>{fieldTypeLabels[type] ?? type}</option>
                 ))}
-              </select>
-            </label>
-            <label>
-              <input
+              </Select>
+            </FieldLabel>
+            <FieldLabel inline>
+              <Input
                 type="checkbox"
                 checked={required}
                 onChange={(event) => setRequired(event.target.checked)}
               />
               Required
-            </label>
+            </FieldLabel>
             {showOptions ? (
-              <label>
+              <FieldLabel>
                 Options (one per line)
-                <textarea
+                <Textarea
                   value={optionsText}
                   onChange={(event) => setOptionsText(event.target.value)}
                   rows={4}
                 />
-              </label>
+              </FieldLabel>
             ) : null}
             {showRatingScale ? (
               <>
-                <label>
+                <FieldLabel>
                   Scale minimum
-                  <input type="number" value={ratingMin} onChange={(event) => setRatingMin(event.target.value)} />
-                </label>
-                <label>
+                  <Input type="number" value={ratingMin} onChange={(event) => setRatingMin(event.target.value)} />
+                </FieldLabel>
+                <FieldLabel>
                   Scale maximum
-                  <input type="number" value={ratingMax} onChange={(event) => setRatingMax(event.target.value)} />
-                </label>
+                  <Input type="number" value={ratingMax} onChange={(event) => setRatingMax(event.target.value)} />
+                </FieldLabel>
               </>
             ) : null}
             {isQualityForm && weightedFieldTypes.has(fieldType) ? (
-              <label>
+              <FieldLabel>
                 Score weight
-                <input type="number" value={weight} onChange={(event) => setWeight(event.target.value)} />
-              </label>
+                <Input type="number" value={weight} onChange={(event) => setWeight(event.target.value)} />
+              </FieldLabel>
             ) : null}
             {isQualityForm && fieldType === 'single_select' ? (
-              <fieldset>
-                <legend>Score per option</legend>
+              <Fieldset>
+                <FieldLegend>Score per option</FieldLegend>
                 {options.length === 0 ? <p className="muted">Add options above first.</p> : null}
                 {options.map((option) => (
-                  <label key={option}>
+                  <FieldLabel key={option}>
                     {option}
-                    <input
+                    <Input
                       type="number"
                       value={optionScores[option] ?? ''}
                       onChange={(event) => setOptionScores((current) => ({ ...current, [option]: event.target.value }))}
                     />
-                  </label>
+                  </FieldLabel>
                 ))}
-              </fieldset>
+              </Fieldset>
             ) : null}
             {isQualityForm && fieldType === 'checkbox' ? (
               <>
-                <label>
+                <FieldLabel>
                   Score if checked
-                  <input type="number" value={trueScore} onChange={(event) => setTrueScore(event.target.value)} />
-                </label>
-                <label>
+                  <Input type="number" value={trueScore} onChange={(event) => setTrueScore(event.target.value)} />
+                </FieldLabel>
+                <FieldLabel>
                   Score if unchecked
-                  <input type="number" value={falseScore} onChange={(event) => setFalseScore(event.target.value)} />
-                </label>
+                  <Input type="number" value={falseScore} onChange={(event) => setFalseScore(event.target.value)} />
+                </FieldLabel>
               </>
             ) : null}
                 <Button type="submit" variant="primary" loading={addField.isPending}><IconPlus />Add Field</Button>
-              </form>
+              </Form>
             </>
           ) : null}
 
@@ -693,9 +700,11 @@ export function FormFieldsPanel({
                 />
               ) : null}
               {inlineAdd ? (
-                <button
+                <IconButton
                   type="button"
-                  className="icon-button icon-button--round form-editor-fields__add-button"
+                  size="sm"
+                  variant="secondary"
+                  className="!size-[30px] !min-h-[30px] !min-w-[30px] justify-self-start rounded-full"
                   aria-label="Add form field"
                   title="Add form field"
                   disabled={addingField || addField.isPending || createForm.isPending}
@@ -707,7 +716,7 @@ export function FormFieldsPanel({
                   }}
                 >
                   <IconPlus />
-                </button>
+                </IconButton>
               ) : null}
             </div>
           )}

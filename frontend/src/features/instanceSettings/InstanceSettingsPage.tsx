@@ -11,6 +11,7 @@ import { Input } from '../../components/Input'
 import { Page } from '../../components/Page'
 import { SectionNavigationLayout } from '../../components/SectionNavigationLayout'
 import { Textarea } from '../../components/Textarea'
+import { FieldLabel } from '../../components/FieldLabel'
 import {
   IconAlertTriangle,
   IconCheckCircle,
@@ -288,7 +289,7 @@ export function InstanceSettingsPage() {
           </InfoBox>
           {connection.data ? (
             <form
-              className="my-5 rounded-md border border-[color-mix(in_srgb,var(--color-primary)_30%,var(--color-border))] bg-primary-container p-5"
+              className="my-5 rounded-md border border-[color-mix(in_srgb,var(--color-primary)_30%,var(--color-border))] bg-primary-container p-5 mb-0"
               onSubmit={(event) => { event.preventDefault(); saveConnection.mutate() }}
             >
               <div className="flex flex-col items-stretch justify-between gap-4 min-[681px]:flex-row min-[681px]:items-start [&_h3]:m-0 [&_p]:mt-1">
@@ -305,7 +306,7 @@ export function InstanceSettingsPage() {
                 </label>
               </div>
               <div className="my-5 grid grid-cols-1 gap-4 min-[681px]:grid-cols-2 min-[1051px]:grid-cols-[2fr_1fr_1fr]">
-                <label>
+                <FieldLabel>
                   Endpoint
                   <Input
                     type="url"
@@ -314,8 +315,8 @@ export function InstanceSettingsPage() {
                     placeholder="http://ollama:11434"
                     required
                   />
-                </label>
-                <label>
+                </FieldLabel>
+                <FieldLabel>
                   Model
                   <Input
                     value={model}
@@ -323,8 +324,8 @@ export function InstanceSettingsPage() {
                     placeholder="gemma3:12b"
                     required
                   />
-                </label>
-                <label>
+                </FieldLabel>
+                <FieldLabel>
                   Context length
                   <Input
                     type="number"
@@ -334,8 +335,8 @@ export function InstanceSettingsPage() {
                     onChange={(event) => setContextLength(event.target.value)}
                     required
                   />
-                </label>
-                <label>
+                </FieldLabel>
+                <FieldLabel>
                   API key
                   <Input
                     type="password"
@@ -344,8 +345,8 @@ export function InstanceSettingsPage() {
                     placeholder={apiKeySet ? 'Saved — leave blank to keep it' : 'Optional bearer token'}
                     autoComplete="new-password"
                   />
-                </label>
-                <label>
+                </FieldLabel>
+                <FieldLabel>
                   Request timeout (seconds)
                   <Input
                     type="number"
@@ -354,8 +355,8 @@ export function InstanceSettingsPage() {
                     onChange={(event) => setRequestTimeoutSeconds(event.target.value)}
                     required
                   />
-                </label>
-                <label>
+                </FieldLabel>
+                <FieldLabel>
                   Max concurrent jobs
                   <Input
                     type="number"
@@ -364,8 +365,8 @@ export function InstanceSettingsPage() {
                     onChange={(event) => setMaxConcurrentJobs(event.target.value)}
                     required
                   />
-                </label>
-                <label>
+                </FieldLabel>
+                <FieldLabel>
                   Max evidence items
                   <Input
                     type="number"
@@ -375,8 +376,8 @@ export function InstanceSettingsPage() {
                     onChange={(event) => setMaxEvidenceItems(event.target.value)}
                     required
                   />
-                </label>
-                <label>
+                </FieldLabel>
+                <FieldLabel>
                   Max evidence quote length (characters)
                   <Input
                     type="number"
@@ -386,7 +387,7 @@ export function InstanceSettingsPage() {
                     onChange={(event) => setMaxEvidenceQuoteChars(event.target.value)}
                     required
                   />
-                </label>
+                </FieldLabel>
               </div>
               <div className={toolbarClass}>
                 <Button type="submit" loading={saveConnection.isPending}>
@@ -427,7 +428,7 @@ export function InstanceSettingsPage() {
                 {flow.label}
                 {flow.isOverridden ? <Badge variant="plain">Customized</Badge> : null}
               </h3>
-              <label>
+              <FieldLabel>
                 Base prompt
                 <Textarea
                   value={promptDraft[flow.key] ?? ''}
@@ -436,7 +437,7 @@ export function InstanceSettingsPage() {
                   }))}
                   rows={8}
                 />
-              </label>
+              </FieldLabel>
               <div className={toolbarClass}>
                 <Button
                   type="button"
@@ -449,7 +450,7 @@ export function InstanceSettingsPage() {
               </div>
             </div>
           ))}
-          <div className={toolbarClass}>
+          <div className={toolbarClass + ' mb-0'}>
             <Button type="button" onClick={savePromptsIfChanged} loading={savePrompts.isPending} disabled={!prompts.data}>
               <IconCheckCircle />
               {savePrompts.isPending ? 'Saving…' : 'Save Prompts'}
@@ -467,7 +468,7 @@ export function InstanceSettingsPage() {
           </InfoBox>
           {instance.data ? (
             <form
-              className="my-5 rounded-md border border-[color-mix(in_srgb,var(--color-primary)_30%,var(--color-border))] bg-primary-container p-5"
+              className="my-5 rounded-md border border-[color-mix(in_srgb,var(--color-primary)_30%,var(--color-border))] bg-primary-container p-5 mb-0"
               onSubmit={(event) => { event.preventDefault(); saveInstanceSettings.mutate() }}
             >
               <div className="flex flex-col items-stretch justify-between gap-4 min-[681px]:flex-row min-[681px]:items-start [&_h3]:m-0 [&_p]:mt-1">
@@ -484,7 +485,7 @@ export function InstanceSettingsPage() {
                 </label>
               </div>
               <div className="my-5 grid grid-cols-1 gap-4 min-[681px]:grid-cols-2 min-[1051px]:grid-cols-[2fr_1fr_1fr]">
-                <label>
+                <FieldLabel>
                   Public base URL
                   <Input
                     type="url"
@@ -493,16 +494,16 @@ export function InstanceSettingsPage() {
                     placeholder="https://papertrail.example.org"
                     required
                   />
-                </label>
-                <label>
+                </FieldLabel>
+                <FieldLabel>
                   SMTP host
                   <Input
                     value={smtpHost}
                     onChange={(event) => setSmtpHost(event.target.value)}
                     placeholder="smtp.example.org"
                   />
-                </label>
-                <label>
+                </FieldLabel>
+                <FieldLabel>
                   SMTP port
                   <Input
                     type="number"
@@ -512,15 +513,15 @@ export function InstanceSettingsPage() {
                     onChange={(event) => setSmtpPort(event.target.value)}
                     required
                   />
-                </label>
-                <label>
+                </FieldLabel>
+                <FieldLabel>
                   SMTP username
                   <Input
                     value={smtpUsername}
                     onChange={(event) => setSmtpUsername(event.target.value)}
                   />
-                </label>
-                <label>
+                </FieldLabel>
+                <FieldLabel>
                   SMTP password
                   <Input
                     type="password"
@@ -529,16 +530,16 @@ export function InstanceSettingsPage() {
                     placeholder={smtpPasswordSet ? 'Saved — leave blank to keep it' : ''}
                     autoComplete="new-password"
                   />
-                </label>
-                <label>
+                </FieldLabel>
+                <FieldLabel>
                   From address
                   <Input
                     value={smtpFromAddress}
                     onChange={(event) => setSmtpFromAddress(event.target.value)}
                     placeholder="Papertrail <noreply@example.org>"
                   />
-                </label>
-                <label>
+                </FieldLabel>
+                <FieldLabel>
                   SMTP timeout (seconds)
                   <Input
                     type="number"
@@ -547,7 +548,7 @@ export function InstanceSettingsPage() {
                     onChange={(event) => setSmtpTimeoutSeconds(event.target.value)}
                     required
                   />
-                </label>
+                </FieldLabel>
                 <label className="flex items-center gap-2">
                   <Input
                     type="checkbox"
@@ -597,11 +598,11 @@ export function InstanceSettingsPage() {
           </InfoBox>
           {instance.data ? (
             <form
-              className="my-5 rounded-md border border-[color-mix(in_srgb,var(--color-primary)_30%,var(--color-border))] bg-primary-container p-5"
+              className="my-5 rounded-md border border-[color-mix(in_srgb,var(--color-primary)_30%,var(--color-border))] bg-primary-container p-5 mb-0"
               onSubmit={(event) => { event.preventDefault(); saveInstanceSettings.mutate() }}
             >
               <div className="my-5 grid grid-cols-1 gap-4 min-[681px]:grid-cols-2 min-[1051px]:grid-cols-[2fr_1fr_1fr]">
-                <label>
+                <FieldLabel>
                   Password reset link lifetime (minutes)
                   <Input
                     type="number"
@@ -610,8 +611,8 @@ export function InstanceSettingsPage() {
                     onChange={(event) => setPasswordResetTtlMinutes(event.target.value)}
                     required
                   />
-                </label>
-                <label>
+                </FieldLabel>
+                <FieldLabel>
                   Password reset max attempts
                   <Input
                     type="number"
@@ -620,7 +621,7 @@ export function InstanceSettingsPage() {
                     onChange={(event) => setPasswordResetMaxAttempts(event.target.value)}
                     required
                   />
-                </label>
+                </FieldLabel>
               </div>
               <div className={toolbarClass}>
                 <Button type="submit" loading={saveInstanceSettings.isPending}>
@@ -641,11 +642,11 @@ export function InstanceSettingsPage() {
           </InfoBox>
           {instance.data ? (
             <form
-              className="my-5 rounded-md border border-[color-mix(in_srgb,var(--color-primary)_30%,var(--color-border))] bg-primary-container p-5"
+              className="my-5 rounded-md border border-[color-mix(in_srgb,var(--color-primary)_30%,var(--color-border))] bg-primary-container p-5 mb-0"
               onSubmit={(event) => { event.preventDefault(); saveInstanceSettings.mutate() }}
             >
               <div className="my-5 grid grid-cols-1 gap-4 min-[681px]:grid-cols-2 min-[1051px]:grid-cols-[2fr_1fr_1fr]">
-                <label>
+                <FieldLabel>
                   Max PDF size (MB)
                   <Input
                     type="number"
@@ -654,8 +655,8 @@ export function InstanceSettingsPage() {
                     onChange={(event) => setMaxPdfSizeMb(event.target.value)}
                     required
                   />
-                </label>
-                <label>
+                </FieldLabel>
+                <FieldLabel>
                   Browser retrieval lease (seconds)
                   <Input
                     type="number"
@@ -664,7 +665,7 @@ export function InstanceSettingsPage() {
                     onChange={(event) => setBrowserRetrievalLeaseSeconds(event.target.value)}
                     required
                   />
-                </label>
+                </FieldLabel>
               </div>
               <div className={toolbarClass}>
                 <Button type="submit" loading={saveInstanceSettings.isPending}>
@@ -685,11 +686,11 @@ export function InstanceSettingsPage() {
           </InfoBox>
           {instance.data ? (
             <form
-              className="my-5 rounded-md border border-[color-mix(in_srgb,var(--color-primary)_30%,var(--color-border))] bg-primary-container p-5"
+              className="my-5 rounded-md border border-[color-mix(in_srgb,var(--color-primary)_30%,var(--color-border))] bg-primary-container p-5 mb-0"
               onSubmit={(event) => { event.preventDefault(); saveInstanceSettings.mutate() }}
             >
               <div className="my-5 grid grid-cols-1 gap-4 min-[681px]:grid-cols-2 min-[1051px]:grid-cols-[2fr_1fr_1fr]">
-                <label>
+                <FieldLabel>
                   Worker threads
                   <Input
                     type="number"
@@ -698,8 +699,8 @@ export function InstanceSettingsPage() {
                     onChange={(event) => setWorkerThreads(event.target.value)}
                     required
                   />
-                </label>
-                <label>
+                </FieldLabel>
+                <FieldLabel>
                   Poll interval (seconds)
                   <Input
                     type="number"
@@ -709,8 +710,8 @@ export function InstanceSettingsPage() {
                     onChange={(event) => setJobPollIntervalSeconds(event.target.value)}
                     required
                   />
-                </label>
-                <label>
+                </FieldLabel>
+                <FieldLabel>
                   Job lease (seconds)
                   <Input
                     type="number"
@@ -719,7 +720,7 @@ export function InstanceSettingsPage() {
                     onChange={(event) => setJobLeaseSeconds(event.target.value)}
                     required
                   />
-                </label>
+                </FieldLabel>
               </div>
               <div className={toolbarClass}>
                 <Button type="submit" loading={saveInstanceSettings.isPending}>

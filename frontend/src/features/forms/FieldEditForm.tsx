@@ -9,6 +9,13 @@ import {
   weightedFieldTypes,
 } from './fieldTypes'
 import type { FormField } from './types'
+import { Input } from '../../components/Input'
+import { Select } from '../../components/Select'
+import { Textarea } from '../../components/Textarea'
+import { Button } from '../../components/Button'
+import { FieldLabel } from '../../components/FieldLabel'
+import { Fieldset } from '../../components/Fieldset'
+import { FieldLegend } from '../../components/FieldLegend'
 
 // The "editing an existing field" form content shown inside a field's
 // expanded <details> panel. Shared between FormBuilderPage and
@@ -76,17 +83,17 @@ export function FieldEditForm({
 
   return (
     <>
-      <label>
+      <FieldLabel>
         Label
-        <input
+        <Input
           aria-label={`Edit label for ${field.label}`}
           value={editingLabel}
           onChange={(event) => onEditingLabelChange(event.target.value)}
         />
-      </label>
-      <label>
+      </FieldLabel>
+      <FieldLabel>
         Type
-        <select
+        <Select
           aria-label={`Edit type for ${field.label}`}
           value={editingType}
           onChange={(event) => onEditingTypeChange(event.target.value)}
@@ -94,116 +101,116 @@ export function FieldEditForm({
           {fieldTypes.map((type) => (
             <option key={type} value={type}>{fieldTypeLabels[type] ?? type}</option>
           ))}
-        </select>
-      </label>
-      <label>
-        <input
+        </Select>
+      </FieldLabel>
+      <FieldLabel inline>
+        <Input
           type="checkbox"
           aria-label={`Edit required for ${field.label}`}
           checked={editingRequired}
           onChange={(event) => onEditingRequiredChange(event.target.checked)}
         />
         Required
-      </label>
+      </FieldLabel>
       {selectFieldTypes.has(editingType) ? (
-        <label>
+        <FieldLabel>
           Options (one per line)
-          <textarea
+          <Textarea
             aria-label={`Edit options for ${field.label}`}
             value={editingOptionsText}
             onChange={(event) => onEditingOptionsTextChange(event.target.value)}
             rows={4}
           />
-        </label>
+        </FieldLabel>
       ) : null}
       {editingType === 'rating' ? (
         <div className="form-editor-field__settings-row">
-          <label>
+          <FieldLabel>
             Scale minimum
-            <input
+            <Input
               type="number"
               aria-label={`Edit scale minimum for ${field.label}`}
               value={editingRatingMin}
               onChange={(event) => onEditingRatingMinChange(event.target.value)}
             />
-          </label>
-          <label>
+          </FieldLabel>
+          <FieldLabel>
             Scale maximum
-            <input
+            <Input
               type="number"
               aria-label={`Edit scale maximum for ${field.label}`}
               value={editingRatingMax}
               onChange={(event) => onEditingRatingMaxChange(event.target.value)}
             />
-          </label>
+          </FieldLabel>
         </div>
       ) : null}
       {isQualityForm && weightedFieldTypes.has(editingType) ? (
-        <label>
+        <FieldLabel>
           Score weight
-          <input
+          <Input
             type="number"
             aria-label={`Edit score weight for ${field.label}`}
             value={editingWeight}
             onChange={(event) => onEditingWeightChange(event.target.value)}
           />
-        </label>
+        </FieldLabel>
       ) : null}
       {isQualityForm && editingType === 'single_select' ? (
-        <fieldset>
-          <legend>Score per option</legend>
+        <Fieldset>
+          <FieldLegend>Score per option</FieldLegend>
           {editingOptions.length === 0 ? <p className="muted">Add options above first.</p> : null}
           {editingOptions.map((option) => (
-            <label key={option}>
+            <FieldLabel key={option}>
               {option}
-              <input
+              <Input
                 type="number"
                 aria-label={`Edit score for ${option}`}
                 value={editingOptionScores[option] ?? ''}
                 onChange={(event) => onEditingOptionScoreChange(option, event.target.value)}
               />
-            </label>
+            </FieldLabel>
           ))}
-        </fieldset>
+        </Fieldset>
       ) : null}
       {isQualityForm && editingType === 'checkbox' ? (
         <div className="form-editor-field__settings-row">
-          <label>
+          <FieldLabel>
             Score if checked
-            <input
+            <Input
               type="number"
               aria-label={`Edit checked score for ${field.label}`}
               value={editingTrueScore}
               onChange={(event) => onEditingTrueScoreChange(event.target.value)}
             />
-          </label>
-          <label>
+          </FieldLabel>
+          <FieldLabel>
             Score if unchecked
-            <input
+            <Input
               type="number"
               aria-label={`Edit unchecked score for ${field.label}`}
               value={editingFalseScore}
               onChange={(event) => onEditingFalseScoreChange(event.target.value)}
             />
-          </label>
+          </FieldLabel>
         </div>
       ) : null}
       <div className="toolbar">
-        <button
+        <Button
           type="button"
           disabled={saving}
           onClick={onSave}
         >
           <IconCheckCircle />
           Save
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
-          className="button-secondary"
+          variant="secondary"
           onClick={onCancel}
         >
           Cancel
-        </button>
+        </Button>
       </div>
       {trailingAction}
     </>

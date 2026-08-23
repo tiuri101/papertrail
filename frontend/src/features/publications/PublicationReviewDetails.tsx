@@ -12,6 +12,7 @@ import { OutcomeBadge } from '../../components/OutcomeBadge'
 import { Select } from '../../components/Select'
 import { Textarea } from '../../components/Textarea'
 import { DynamicForm, type DynamicFormField } from '../forms/DynamicForm'
+import { FieldLabel } from '../../components/FieldLabel'
 
 interface FinalDecision {
   outcome: string
@@ -478,7 +479,7 @@ export function PublicationReviewDetails({
                     ))}
                   </tbody>
                 </table>
-                <label>
+                <FieldLabel>
                   Decision
                   <Select
                     value={responseOverride.outcome}
@@ -491,8 +492,8 @@ export function PublicationReviewDetails({
                       <option key={outcome} value={outcome}>{outcomeLabel(outcome)}</option>
                     ))}
                   </Select>
-                </label>
-                <label>
+                </FieldLabel>
+                <FieldLabel>
                   Notes
                   <Textarea
                     value={responseOverride.notes}
@@ -501,8 +502,8 @@ export function PublicationReviewDetails({
                       notes: event.target.value,
                     })}
                   />
-                </label>
-                <label>
+                </FieldLabel>
+                <FieldLabel>
                   Reason for override
                   <Textarea
                     value={responseOverride.reason}
@@ -512,7 +513,7 @@ export function PublicationReviewDetails({
                     })}
                     required
                   />
-                </label>
+                </FieldLabel>
                 <div className={toolbarClass}>
                   <Button
                     type="submit"
@@ -552,7 +553,7 @@ export function PublicationReviewDetails({
                     answers: { ...current.answers, [key]: value },
                   } : current))}
                 />
-                <label>
+                <FieldLabel>
                   Reason for override
                   <Textarea
                     value={extractionOverride.reason}
@@ -562,7 +563,7 @@ export function PublicationReviewDetails({
                     } : current))}
                     required
                   />
-                </label>
+                </FieldLabel>
                 <div className={toolbarClass}>
                   <Button
                     type="submit"

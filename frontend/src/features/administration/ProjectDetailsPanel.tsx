@@ -8,6 +8,8 @@ import { IconCheckCircle, IconFolder } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
 import { Input } from '../../components/Input'
 import { Textarea } from '../../components/Textarea'
+import { FieldLabel } from '../../components/FieldLabel'
+import { Form } from '../../components/Form'
 
 interface ProjectDetails {
   id: string
@@ -55,13 +57,13 @@ export function ProjectDetailsPanel({ projectId }: { projectId: string }) {
         </p>
       </InfoBox>
       {project.error ? <p className="text-danger" role="alert">{project.error.message}</p> : null}
-      <form
+      <Form
         onSubmit={(event) => {
           event.preventDefault()
           save.mutate({ name, description })
         }}
       >
-        <label>
+        <FieldLabel>
           Name
           <Input
             type="text"
@@ -70,21 +72,21 @@ export function ProjectDetailsPanel({ projectId }: { projectId: string }) {
             required
             maxLength={250}
           />
-        </label>
-        <label>
+        </FieldLabel>
+        <FieldLabel>
           Description
           <Textarea
             value={description}
             onChange={(event) => setDescription(event.target.value)}
             rows={3}
           />
-        </label>
+        </FieldLabel>
         {save.error ? <p className="text-danger" role="alert">{save.error.message}</p> : null}
         <Button type="submit" disabled={save.isPending} startIcon={<IconCheckCircle />}>
           {save.isPending ? 'Saving…' : 'Save Project Details'}
         </Button>
         {save.isSuccess ? <p className="text-text-muted" aria-live="polite">Saved.</p> : null}
-      </form>
+      </Form>
     </CollapsibleSection>
   )
 }

@@ -17,6 +17,7 @@ import {
 import { NewFieldDraftCard } from './NewFieldDraftCard'
 import type { FormField } from './types'
 import { useFormFieldEditor } from './useFormFieldEditor'
+import { IconButton } from '../../components/Button'
 
 /**
  * Fields list + inline add/edit/reorder/preview for one already-existing form (a project's
@@ -355,16 +356,18 @@ export function FormFieldsEditor({
             />
           ) : null}
           {!readOnly ? (
-            <button
+            <IconButton
               type="button"
-              className="icon-button icon-button--round form-editor-fields__add-button"
+              size="sm"
+              variant="secondary"
+              className="!size-[30px] !min-h-[30px] !min-w-[30px] justify-self-start rounded-full"
               aria-label="Add form field"
               title="Add form field"
               disabled={addingField || addField.isPending}
               onClick={() => { addField.reset(); resetNewField(); setAddingField(true) }}
             >
               <IconPlus />
-            </button>
+            </IconButton>
           ) : null}
         </div>
       )}
