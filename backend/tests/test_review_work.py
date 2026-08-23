@@ -5,6 +5,7 @@ the real services; these tests pin the shared implementation itself."""
 
 from __future__ import annotations
 
+from app.accounts.models import User
 from app.extraction.models import ExtractionStatus, ExtractionWorkItem
 from app.projects.models import Project, ReviewType
 from app.publications.models import Publication
@@ -34,8 +35,24 @@ def _make_publication(db, project: Project, title: str = "A study") -> Publicati
     return publication
 
 
+def _make_user(db, user_id: str, *, is_admin: bool = False) -> User:
+    user = User(
+        id=user_id,
+        username=user_id,
+        display_name=user_id,
+        email=f"{user_id}@example.com",
+        password_hash="hash",
+        is_admin=is_admin,
+    )
+    db.add(user)
+    db.flush()
+    return user
+
+
 def test_reassign_orphaned_items_releases_to_open_pool_in_claim_mode(db) -> None:
     project = _make_project(db)
+    _make_user(db, "departed-reviewer")
+    _make_user(db, "current-reviewer")
     publication = _make_publication(db, project)
     item = ExtractionWorkItem(
         project_id=project.id,
@@ -66,6 +83,9 @@ def test_reassign_orphaned_items_releases_to_open_pool_in_claim_mode(db) -> None
 
 def test_reassign_orphaned_items_round_robins_in_pre_assigned_mode(db) -> None:
     project = _make_project(db)
+    _make_user(db, "departed-reviewer")
+    _make_user(db, "reviewer-a")
+    _make_user(db, "reviewer-b")
     items = []
     for index in range(3):
         publication = _make_publication(db, project, title=f"Study {index}")
@@ -101,6 +121,8 @@ def test_reassign_orphaned_items_round_robins_in_pre_assigned_mode(db) -> None:
 
 def test_reassign_orphaned_items_never_touches_completed_items(db) -> None:
     project = _make_project(db)
+    _make_user(db, "departed-reviewer")
+    _make_user(db, "current-reviewer")
     publication = _make_publication(db, project)
     item = ExtractionWorkItem(
         project_id=project.id,
@@ -130,6 +152,8 @@ def test_reassign_orphaned_items_never_touches_completed_items(db) -> None:
 
 def test_rebalance_pending_items_spreads_load_by_weight(db) -> None:
     project = _make_project(db)
+    _make_user(db, "reviewer-a")
+    _make_user(db, "reviewer-b")
     pending_items = []
     for index in range(4):
         publication = _make_publication(db, project, title=f"Pending {index}")
@@ -163,6 +187,8 @@ def test_rebalance_pending_items_spreads_load_by_weight(db) -> None:
 
 def test_remaining_claimable_items_counts_own_and_unclaimed(db) -> None:
     project = _make_project(db)
+    _make_user(db, "me")
+    _make_user(db, "someone-else")
     own_pub = _make_publication(db, project, title="Own")
     unclaimed_pub = _make_publication(db, project, title="Unclaimed")
     other_pub = _make_publication(db, project, title="Someone else's")
@@ -209,6 +235,7 @@ def test_remaining_claimable_items_counts_own_and_unclaimed(db) -> None:
 
 def test_reviewer_progress_reports_zero_remaining_outside_claim_mode(db) -> None:
     project = _make_project(db)
+    _make_user(db, "me")
     publication = _make_publication(db, project)
     db.add(
         ExtractionWorkItem(
@@ -244,6 +271,7 @@ def test_completed_items_with_response_pairs_current_response_only(db) -> None:
     from app.extraction.models import ExtractionResponse
 
     project = _make_project(db)
+    _make_user(db, "me")
     publication = _make_publication(db, project)
     item = ExtractionWorkItem(
         project_id=project.id,
