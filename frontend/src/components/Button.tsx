@@ -40,7 +40,7 @@ export function Button<T extends ElementType = 'button'>({
 }: ButtonProps<T>) {
   const Component: ElementType = as ?? 'button'
   const classes = [
-    'pt-button',
+    'pt-button [&_svg]:fill-current',
     `pt-button--${variant}`,
     `pt-button--${size}`,
     iconOnly ? 'pt-button--icon-only' : '',

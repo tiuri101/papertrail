@@ -292,8 +292,8 @@ export function FormFieldsPanel({
   return (
     <section className="card">
       <h2>
-        <span className="collapsible-section__title">
-          <span className="collapsible-section__icon" aria-hidden="true">
+        <span className="collapsible-section__title inline-flex items-center gap-2">
+          <span className="collapsible-section__icon inline-flex shrink-0 text-primary [&_svg]:size-5 [&_svg]:fill-current" aria-hidden="true">
             {isQualityForm ? <IconCheckCircle /> : <IconDownload />}
           </span>
           {title}
