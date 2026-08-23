@@ -307,13 +307,13 @@ export function JobsPage() {
       ) : null}
       {jobs.data && jobs.data.length === 0 ? <p className="text-text-muted">No background jobs have run for this project yet.</p> : null}
       {jobs.data && jobs.data.length > 0 ? (
-        <section className="grid grid-cols-2 gap-3 min-[681px]:grid-cols-5" aria-label="Job status summary">
+        <section className="mb-6 flex flex-wrap  gap-3" aria-label="Job status summary">
           {jobStatusCounts.map(({ status, label, count }) => (
             <button
               type="button"
               key={status}
               className={cn(
-                'grid min-h-20 cursor-pointer gap-1 rounded-md border bg-none p-3 text-left shadow-none transition-[filter,background-color] hover:brightness-110 aria-pressed:ring-2 [&_strong]:text-xl [&_span]:text-xs [&_span]:font-semibold [&_span]:text-text-muted',
+                'grid min-h-20 w-44 cursor-pointer gap-1 rounded-md border bg-none p-3 text-center shadow-none transition-[filter,background-color] hover:brightness-110 aria-pressed:ring-2 [&_strong]:text-xl [&_span]:text-xs [&_span]:font-semibold [&_span]:text-text-muted',
                 STATUS_CARD_STYLES[status] ?? STATUS_CARD_STYLES.cancelled,
               )}
               aria-label={`${count} ${status} job${count === 1 ? '' : 's'}`}
@@ -327,7 +327,7 @@ export function JobsPage() {
         </section>
       ) : null}
       {jobs.data && jobs.data.length > 0 ? (
-        <div className="flex flex-wrap items-end gap-3">
+        <div className="mb-4 flex flex-wrap items-end gap-3">
           <FormField label="Status">
             <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
               {STATUS_FILTER_OPTIONS.map((option) => (

@@ -266,7 +266,7 @@ function PublicationRow({
         <span className="flex items-center justify-end gap-1 max-[900px]:[grid-area:actions] max-[600px]:self-start">
           <IconButton
             as={Link}
-            variant="secondary"
+            variant="primary"
             to={detailHref}
             aria-label={`View ${publication.title}`}
             title="View details"
