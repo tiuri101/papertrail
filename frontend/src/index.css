@@ -734,11 +734,6 @@ a.button-secondary {
   margin: var(--space-5) 0;
 }
 
-@media (max-width: 1020px) {
-}
-
-@media (max-width: 680px) {
-}
 
 .bulk-selection-panel__controls {
   align-items: flex-end;

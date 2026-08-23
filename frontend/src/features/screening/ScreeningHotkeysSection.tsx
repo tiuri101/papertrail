@@ -87,7 +87,7 @@ export function ScreeningHotkeysSection() {
               <button
                 type="button"
                 aria-labelledby={`hotkey-label-${action} hotkey-value-${action}`}
-                className={`min-h-9 min-w-24 rounded-md border bg-surface-raised px-3 py-1.5 text-center text-sm font-semibold shadow-none transition-colors hover:border-border-strong hover:bg-surface-hover ${hasConflict ? 'border-danger text-danger' : capturing === action ? 'border-text-secondary text-text' : 'border-border text-text-secondary'}`}
+                className={`relative inline-flex min-h-9 min-w-24 items-center justify-center gap-2 rounded-md border text-sm font-semibold transition-colors ${hasConflict ? 'border-danger bg-danger-container text-danger' : capturing === action ? 'border-text-secondary bg-surface-raised text-text' : 'border-border bg-surface-raised text-text-secondary hover:border-border-strong hover:bg-surface-hover'}`}
                 onClick={() => startCapture(action)}
                 onKeyDown={capturing === action ? handleCaptureKeyDown(action) : undefined}
                 onBlur={() => setCapturing((current) => (current === action ? null : current))}
