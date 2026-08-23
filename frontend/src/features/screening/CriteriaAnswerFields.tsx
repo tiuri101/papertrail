@@ -163,13 +163,13 @@ export function CriteriaAnswerFields({
           })}
         </tbody>
       </table>
-      <InfoBox icon={<IconCheckCircle />} className="hotkey-hint">
+      <InfoBox icon={<IconCheckCircle />} className="hotkey-hint mb-4">
         <p>
           Click on a checkbox, then use the arrow keys to move between criteria and Left/Right keys to answer them. Use your
           personalized hotkeys to include/exclude the paper and submit.
         </p>
       </InfoBox>
-      <div className="@container grid gap-2">
+      <div className="@container grid gap-2 mb-4">
         <span className="text-sm font-semibold text-text-secondary">Decision</span>
         {/*
           A container query (keyed to this row's own available width) rather than a viewport
@@ -201,7 +201,7 @@ export function CriteriaAnswerFields({
                 type="button"
                 role="radio"
                 aria-checked={outcome === value}
-                className={`relative inline-flex min-h-10 items-center justify-center gap-2 rounded-md border bg-none px-3 py-2 text-sm font-semibold transition-colors [&_svg]:size-4 [&_svg]:fill-current ${selected ? selectedClasses : `border-border bg-surface-raised text-text-secondary ${hoverClasses}`}`}
+                className={`relative inline-flex min-h-10 w-45 items-center justify-center gap-2 rounded-md border bg-none px-3 py-2 text-sm font-semibold transition-colors [&_svg]:size-4 [&_svg]:fill-current ${selected ? selectedClasses : `border-border bg-surface-raised text-text-secondary ${hoverClasses}`}`}
                 onClick={() => setOutcome(value)}
               >
                 {value === 'include' ? <IconCheckCircle /> : value === 'exclude' ? <IconXCircle /> : null}

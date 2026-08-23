@@ -8,7 +8,6 @@ import { cn } from '../../lib/cn'
 import { toolbarClass } from '../../components/layoutStyles'
 import { IconCheckCircle, IconDownload, IconPlus } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
-import { InfoTooltip } from '../../components/Tooltip'
 import type { QualityConfig } from '../quality/types'
 import { parseOptions, selectFieldTypes } from './fieldTypes'
 import { FormFieldsEditor } from './FormFieldsEditor'
@@ -27,7 +26,7 @@ const KIND_DEFAULT_NAMES: Record<FormKind, string> = {
   quality: 'Quality assessment form',
 }
 const KIND_TOOLTIPS: Record<FormKind, string> = {
-  extraction: "The fields defined here are what reviewers fill in during data extraction — they're also the schema the optional LLM assistant uses when it suggests extracted values.",
+  extraction: "The fields defined here are what reviewers fill in during data extraction. They're also the schema the optional LLM assistant uses when it suggests extracted values.",
   quality: 'The fields defined here are what reviewers fill in during quality assessment.',
 }
 
@@ -154,8 +153,12 @@ export function FormKindSection({ projectId, kind, id }: { projectId: string; ki
       <h2 className="inline-flex items-center gap-2 [&_svg]:size-5 [&_svg]:fill-current">
         {isQualityForm ? <IconCheckCircle /> : <IconDownload />}
         {KIND_TITLES[kind]}
-        <InfoTooltip text={KIND_TOOLTIPS[kind]} label={`About the ${KIND_TITLES[kind].toLowerCase()}`} />
       </h2>
+      <InfoBox icon={isQualityForm ? <IconCheckCircle /> : <IconDownload />}>
+        <p>
+          {KIND_TOOLTIPS[kind]}
+        </p>
+      </InfoBox>
       {mutationError ? <p className="text-danger" role="alert">{mutationError.message}</p> : null}
       {existingForm ? (
         <>
