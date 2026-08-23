@@ -59,7 +59,9 @@ def calculate_prisma_counts(
         )
         or 0
     )
-    title_finals = decided_final_decisions(db, project_id, ScreeningStage.TITLE_ABSTRACT)
+    title_finals = decided_final_decisions(
+        db, project_id, ScreeningStage.TITLE_ABSTRACT
+    )
     full_finals = decided_final_decisions(db, project_id, ScreeningStage.FULL_TEXT)
     retrievals = list(
         db.scalars(

@@ -14,6 +14,7 @@ import {
   type ScreeningHotkeyAction,
   type ScreeningHotkeys,
 } from '../../lib/screeningHotkeys'
+import { HotkeyButton } from './HotkeyButton'
 
 const ACTION_LABELS: Record<ScreeningHotkeyAction, string> = {
   include: 'Include',
@@ -67,39 +68,40 @@ export function ScreeningHotkeysSection() {
     setCapturing(null)
   }
 
-  const conflicts = duplicateKeys(hotkeys)
+   const conflicts = duplicateKeys(hotkeys)
 
-  return (
-    <CollapsibleSection id="section-account-hotkeys" title="Screening Hotkeys" icon={<IconKeyboard />}>
-      <p className="text-text-muted">
-        Assign a keyboard shortcut for each screening decision, plus one to submit or confirm it, so
-        you can quickly move through papers. Click a field and press the key you
-        want to use. Press Backspace to clear it.
-      </p>
-      <div className="grid gap-2">
-        {SCREENING_HOTKEY_ACTIONS.map((action) => {
-          const key = hotkeys[action]
-          const hasConflict = key ? conflicts.has(key.toLowerCase()) : false
-          const displayKey = key ? formatHotkey(key) : 'Not set'
-          return (
-            <div key={action} className="flex items-center gap-3 border-b border-border py-2 last:border-b-0">
-              <span className="w-32 shrink-0 text-sm font-medium text-text-secondary" id={`hotkey-label-${action}`}>{ACTION_LABELS[action]}</span>
-              <button
-                type="button"
-                aria-labelledby={`hotkey-label-${action} hotkey-value-${action}`}
-                className={`relative inline-flex min-h-9 min-w-24 items-center justify-center gap-2 rounded-md border text-sm font-semibold transition-colors ${hasConflict ? 'border-danger bg-danger-container text-danger' : capturing === action ? 'border-text-secondary bg-surface-raised text-text' : 'border-border bg-surface-raised text-text-secondary hover:border-border-strong hover:bg-surface-hover'}`}
-                onClick={() => startCapture(action)}
-                onKeyDown={capturing === action ? handleCaptureKeyDown(action) : undefined}
-                onBlur={() => setCapturing((current) => (current === action ? null : current))}
-              >
-                <span id={`hotkey-value-${action}`}>
-                  {capturing === action ? 'Press a key…' : key ? <kbd>{displayKey}</kbd> : displayKey}
-                </span>
-              </button>
-            </div>
-          )
-        })}
-      </div>
+   return (
+     <CollapsibleSection id="section-account-hotkeys" title="Screening Hotkeys" icon={<IconKeyboard />}>
+       <p className="text-text-muted">
+         Assign a keyboard shortcut for each screening decision, plus one to submit or confirm it, so
+         you can quickly move through papers. Click a field and press the key you
+         want to use. Press Backspace to clear it.
+       </p>
+       <div className="flex justify-start">
+         <div className="grid gap-2">
+           {SCREENING_HOTKEY_ACTIONS.map((action) => {
+             const key = hotkeys[action]
+             const hasConflict = key ? conflicts.has(key.toLowerCase()) : false
+             const displayKey = key ? formatHotkey(key) : null
+             return (
+               <div key={action} className="flex items-center gap-3">
+                 <span className="w-40 shrink-0 text-sm font-medium text-text-secondary">
+                   {ACTION_LABELS[action]}
+                 </span>
+                 <HotkeyButton
+                   label={ACTION_LABELS[action]}
+                   currentKey={displayKey}
+                   isCapturing={capturing === action}
+                   hasConflict={hasConflict}
+                   onStartCapture={() => startCapture(action)}
+                   onKeyDown={capturing === action ? handleCaptureKeyDown(action) : undefined}
+                   onBlur={() => setCapturing((current) => (current === action ? null : current))}
+                 />
+               </div>
+             )
+           })}
+         </div>
+       </div>
       {conflicts.size > 0 ? (
         <p className="text-danger" role="alert">
           Two actions share the same key. Only one will trigger when you press it.

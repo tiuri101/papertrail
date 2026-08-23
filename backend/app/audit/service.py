@@ -91,9 +91,7 @@ def project_dashboard(db: Session, project_id: str) -> dict[str, int | str]:
         db.scalar(
             select(func.count())
             .select_from(FinalDecision)
-            .where(
-                outcome_filter_any_stage(project_id, ScreeningOutcome.UNCERTAIN)
-            )
+            .where(outcome_filter_any_stage(project_id, ScreeningOutcome.UNCERTAIN))
         )
         or 0
     )

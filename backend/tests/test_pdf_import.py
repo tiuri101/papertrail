@@ -122,9 +122,7 @@ def add_item(db, batch, data, filename="paper.pdf"):
 
 
 def test_sync_and_async_pdf_staging_agree_on_valid_and_invalid_input() -> None:
-    valid_bytes = pdf_bytes(
-        "Shared paper", doi="10.1000/shared", author="Doe, Jane"
-    )
+    valid_bytes = pdf_bytes("Shared paper", doi="10.1000/shared", author="Doe, Jane")
 
     sync_result = stage_pdf_stream(
         BytesIO(valid_bytes), "paper.pdf", import_batch_id="parity-sync"
