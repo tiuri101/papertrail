@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from app.accounts.models import User
 from app.extraction.models import ExtractionStatus, ExtractionWorkItem
+from app.forms.models import FormKind, FormVersion, ReviewForm
 from app.projects.models import Project, ReviewType
 from app.publications.models import Publication
 from app.review_work.allocation import reassign_orphaned_items, rebalance_pending_items
@@ -47,6 +48,19 @@ def _make_user(db, user_id: str, *, is_admin: bool = False) -> User:
     db.add(user)
     db.flush()
     return user
+
+
+def _make_form_version(db, project: Project) -> FormVersion:
+    form = ReviewForm(
+        project_id=project.id,
+        name="Extraction form",
+        kind=FormKind.EXTRACTION,
+        is_template=False,
+    )
+    version = FormVersion(form=form, version_number=1, change_summary=None, is_published=True)
+    db.add(version)
+    db.flush()
+    return version
 
 
 def test_reassign_orphaned_items_releases_to_open_pool_in_claim_mode(db) -> None:
@@ -272,6 +286,7 @@ def test_completed_items_with_response_pairs_current_response_only(db) -> None:
 
     project = _make_project(db)
     _make_user(db, "me")
+    form_version = _make_form_version(db, project)
     publication = _make_publication(db, project)
     item = ExtractionWorkItem(
         project_id=project.id,
@@ -286,7 +301,7 @@ def test_completed_items_with_response_pairs_current_response_only(db) -> None:
     stale = ExtractionResponse(
         work_item_id=item.id,
         reviewer_id="me",
-        form_version_id="version-1",
+        form_version_id=form_version.id,
         answers={"old": True},
         version=1,
         is_current=False,
@@ -294,7 +309,7 @@ def test_completed_items_with_response_pairs_current_response_only(db) -> None:
     current = ExtractionResponse(
         work_item_id=item.id,
         reviewer_id="me",
-        form_version_id="version-1",
+        form_version_id=form_version.id,
         answers={"new": True},
         version=2,
         is_current=True,
