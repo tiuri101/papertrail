@@ -55,17 +55,31 @@ export function ProjectProgressDots({ stage }: { stage: string }) {
             />
           ) : null}
           <span
-            className={cn(
-              'flex shrink-0 items-center justify-center rounded-full text-primary-contrast [&_svg]:size-4 [&_svg]:fill-current',
-              index < currentIndex && 'size-[22px] bg-(--progress-accent)',
-              index === currentIndex && 'size-3.5 bg-(--progress-accent) shadow-[0_0_0_4px_color-mix(in_srgb,var(--progress-accent)_25%,transparent)]',
-              index > currentIndex && 'size-2 border-2 border-border-strong bg-surface-hover',
-            )}
-            style={index <= currentIndex ? accentStyle : undefined}
-            title={step.label}
+              className={cn(
+                  'flex shrink-0 items-center justify-center rounded-full text-primary-contrast [&_svg]:size-4 [&_svg]:fill-current',
+
+                  // Finished stages, including the final "Completed" stage
+                  (index < currentIndex ||
+                      (index === currentIndex && step.value === 'completed')) &&
+                  'size-[22px] bg-(--progress-accent)',
+
+                  // Current in-progress stage
+                  index === currentIndex &&
+                  step.value !== 'completed' &&
+                  'size-3.5 bg-(--progress-accent) shadow-[0_0_0_4px_color-mix(in_srgb,var(--progress-accent)_25%,transparent)]',
+
+                  // Future stages
+                  index > currentIndex &&
+                  'size-2 border-2 border-border-strong bg-surface-hover',
+              )}
+              style={index <= currentIndex ? accentStyle : undefined}
+              title={step.label}
           >
-            {index < currentIndex ? <IconCheck /> : null}
-          </span>
+  {(index < currentIndex ||
+      (index === currentIndex && step.value === 'completed')) && (
+      <IconCheck />
+  )}
+</span>
         </Fragment>
       ))}
     </div>

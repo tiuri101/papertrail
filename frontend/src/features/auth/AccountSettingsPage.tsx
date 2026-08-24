@@ -12,6 +12,8 @@ import { ScreeningHotkeysSection } from '../screening/ScreeningHotkeysSection'
 import { BrowserHelpersSection } from './BrowserHelpersSection'
 import type { LoginResponse, User } from './types'
 import { sessionQueryOptions } from './sessionQuery'
+import { FieldLabel } from '../../components/FieldLabel'
+import { Form } from '../../components/Form'
 
 const accountSections = [
   { id: 'section-account-profile', label: 'Profile' },
@@ -72,7 +74,7 @@ export function AccountSettingsPage() {
         <p className="text-text">Manage your profile, password, and personal preferences.</p>
         <CollapsibleSection id="section-account-profile" title="Profile" icon={<IconPerson />}>
           <p className="text-text">Changes save automatically when you leave a field.</p>
-          <label>
+          <FieldLabel>
             Display name
             <Input
               value={displayName}
@@ -80,8 +82,8 @@ export function AccountSettingsPage() {
               onBlur={saveProfileIfChanged}
               required
             />
-          </label>
-          <label>
+          </FieldLabel>
+          <FieldLabel>
             Email address
             <Input
               type="email"
@@ -90,15 +92,15 @@ export function AccountSettingsPage() {
               onBlur={saveProfileIfChanged}
               placeholder="you@example.org"
             />
-          </label>
+          </FieldLabel>
           {updateProfile.error ? <p className="text-danger" role="alert">{updateProfile.error.message}</p> : null}
           <p className="text-text" aria-live="polite">
             {updateProfile.isPending ? 'Saving…' : updateProfile.isSuccess ? 'Saved.' : ' '}
           </p>
         </CollapsibleSection>
         <CollapsibleSection id="section-account-password" title="Password" icon={<IconSettings />}>
-          <form onSubmit={(event) => { event.preventDefault(); updatePassword.mutate() }}>
-            <label>
+          <Form onSubmit={(event) => { event.preventDefault(); updatePassword.mutate() }}>
+            <FieldLabel>
               Current password
               <Input
                 type="password"
@@ -107,8 +109,8 @@ export function AccountSettingsPage() {
                 autoComplete="current-password"
                 required
               />
-            </label>
-            <label>
+            </FieldLabel>
+            <FieldLabel>
               New password
               <Input
                 type="password"
@@ -118,8 +120,8 @@ export function AccountSettingsPage() {
                 minLength={8}
                 required
               />
-            </label>
-            <label>
+            </FieldLabel>
+            <FieldLabel>
               Confirm new password
               <Input
                 type="password"
@@ -129,7 +131,7 @@ export function AccountSettingsPage() {
                 minLength={8}
                 required
               />
-            </label>
+            </FieldLabel>
             {passwordUnchanged ? (
               <p className="text-danger" role="alert">
                 New password must be different from your current password.
@@ -151,7 +153,7 @@ export function AccountSettingsPage() {
               <IconCheckCircle />
               Change Password
             </Button>
-          </form>
+          </Form>
         </CollapsibleSection>
         <ScreeningHotkeysSection />
         <BrowserHelpersSection />

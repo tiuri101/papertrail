@@ -44,6 +44,8 @@ import { BulkPdfUploadPanel } from './BulkPdfUploadPanel'
 import { PublicationFieldInputs } from './publicationFields'
 
 import { PublicationDraft, toPayload } from './publicationFieldsData'
+import { FieldLabel } from '../../components/FieldLabel'
+import { Form } from '../../components/Form'
 import {
   primaryStage,
   sortPublications,
@@ -128,14 +130,14 @@ export function PublicationEditForm({
   })
 
   return (
-    <form onSubmit={(event) => { event.preventDefault(); update.mutate() }}>
+    <Form onSubmit={(event) => { event.preventDefault(); update.mutate() }}>
       <PublicationFieldInputs draft={draft} setField={setField} />
       {update.error ? <p className="text-danger" role="alert">{update.error.message}</p> : null}
       <div className={toolbarClass}>
         <Button type="submit" disabled={update.isPending}><IconCheckCircle />Save</Button>
         <Button type="button" variant="secondary" onClick={onDone}>Cancel</Button>
       </div>
-    </form>
+    </Form>
   )
 }
 
@@ -675,30 +677,30 @@ export function PublicationsPage() {
                     placeholder="Title, author, DOI, keyword…"
                   />
                 </label>
-                <label>
+                <FieldLabel>
                   Title/Abstract stage
                   <Select value={titleAbstractFilter} onChange={(event) => setTitleAbstractFilter(event.target.value)}>
                     {SCREENING_FILTER_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>{option.label}</option>
                     ))}
                   </Select>
-                </label>
-                <label>
+                </FieldLabel>
+                <FieldLabel>
                   Full-text stage
                   <Select value={fullTextFilter} onChange={(event) => setFullTextFilter(event.target.value)}>
                     {SCREENING_FILTER_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>{option.label}</option>
                     ))}
                   </Select>
-                </label>
-                <label>
+                </FieldLabel>
+                <FieldLabel>
                   PDF status
                   <Select value={pdfStatusFilter} onChange={(event) => setPdfStatusFilter(event.target.value)}>
                     {PDF_STATUS_FILTER_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>{option.label}</option>
                     ))}
                   </Select>
-                </label>
+                </FieldLabel>
                 <button
                   type="button"
                   className={cn(
@@ -747,14 +749,14 @@ export function PublicationsPage() {
             ) : null}
             {canManage && filteredPublications.length > 0 ? (
               <div className={`${toolbarClass} publication-list__bulk-actions`}>
-                <label>
+                <FieldLabel inline>
                   <Input
                     type="checkbox"
                     checked={allFilteredSelected}
                     onChange={toggleSelectAll}
                   />
                   {' '}Select All ({filteredPublications.length})
-                </label>
+                </FieldLabel>
                 {selectedIds.size > 0 ? (
                   <>
                     <span className="text-text-muted">{selectedIds.size} selected</span>

@@ -8,6 +8,7 @@ import { IconAlertTriangle, IconRestart } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
 import { Select } from '../../components/Select'
 import { humanizeStage, stageOrder, stages } from './lifecycleStages'
+import { FieldLabel } from '../../components/FieldLabel'
 
 export function ReopenProjectPanel({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient()
@@ -40,7 +41,7 @@ export function ReopenProjectPanel({ projectId }: { projectId: string }) {
         </p>
       </InfoBox>
       {reopen.error ? <p className="text-danger" role="alert">{reopen.error.message}</p> : null}
-      <label>
+      <FieldLabel>
         Reopen at
         <Select
           value={targetStage}
@@ -48,7 +49,7 @@ export function ReopenProjectPanel({ projectId }: { projectId: string }) {
         >
           {reopenOptions.map((stage) => <option key={stage} value={stage}>{humanizeStage(stage)}</option>)}
         </Select>
-      </label>
+      </FieldLabel>
       <ConfirmButton
         label="Reopen Project"
         confirmLabel="Reopen"

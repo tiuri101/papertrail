@@ -205,7 +205,7 @@ function ProjectAdministrationPage() {
                   membership changes, configuration updates, and stage transitions.
                 </p>
               </InfoBox>
-              <div className={toolbarClass}>
+              <div className={toolbarClass + ' mb-0'}>
                 <Button type="button" onClick={() => navigate(`/projects/${projectId}/audit`)}>
                   View Audit Log
                 </Button>

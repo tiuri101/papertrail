@@ -9,6 +9,10 @@ import { InfoBox } from '../../components/InfoBox'
 import { IconSwap } from '../../components/icons'
 import type { User } from '../auth/types'
 import type { ProjectMembers as ProjectMembersOf } from './types'
+import { Input } from '../../components/Input'
+import { Select } from '../../components/Select'
+import { SortableColumnHeader } from '../../components/SortableColumnHeader'
+import { FieldLabel } from '../../components/FieldLabel'
 
 type RoleKey = 'canTitleAbstractScreen' | 'canFullTextScreen'
 
@@ -68,26 +72,6 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
   return debounced
 }
 
-function SortableHeader({
-  column,
-  sort,
-  order,
-  onSort,
-}: {
-  column: { key: string; label: string }
-  sort: string
-  order: 'asc' | 'desc'
-  onSort: (key: string) => void
-}) {
-  const active = sort === column.key
-  return (
-    <th scope="col" aria-sort={active ? (order === 'asc' ? 'ascending' : 'descending') : 'none'}>
-      <button type="button" className="link-button" onClick={() => onSort(column.key)}>
-        {column.label}{active ? (order === 'asc' ? ' ▲' : ' ▼') : ''}
-      </button>
-    </th>
-  )
-}
 
 function ReassignRow({
   item,
@@ -110,7 +94,7 @@ function ReassignRow({
   return (
     <tr className={selected ? 'assignment-row assignment-row--selected' : 'assignment-row'}>
       <td>
-        <input
+        <Input
           type="checkbox"
           aria-label={`Select ${item.publicationTitle}, slot ${item.slotNumber}`}
           checked={selected}
@@ -127,7 +111,7 @@ function ReassignRow({
           <span className="muted">Already submitted</span>
         ) : (
           <div className="toolbar">
-            <select
+            <Select
               aria-label={`Reassign ${item.publicationTitle}`}
               value={selectedReviewer}
               onChange={(event) => setSelectedReviewer(event.target.value)}
@@ -138,7 +122,7 @@ function ReassignRow({
                 .map((reviewer) => (
                   <option key={reviewer.id} value={reviewer.id}>{reviewer.displayName}</option>
                 ))}
-            </select>
+            </Select>
             <Button
               type="button"
               variant="secondary"
@@ -300,42 +284,42 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
         <p>Move a publication to a different reviewer who has been added to this project.</p>
       </InfoBox>
       <div className="toolbar">
-        <label>
+        <FieldLabel>
           Stage
-          <select value={stage} onChange={(event) => setStage(event.target.value)}>
+          <Select value={stage} onChange={(event) => setStage(event.target.value)}>
             {STAGES.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
-          </select>
-        </label>
-        <label>
+          </Select>
+        </FieldLabel>
+        <FieldLabel>
           Search
-          <input
+          <Input
             type="search"
             value={searchInput}
             onChange={(event) => setSearchInput(event.target.value)}
             placeholder="Publication title…"
           />
-        </label>
-        <label>
+        </FieldLabel>
+        <FieldLabel>
           Status
-          <select value={status} onChange={(event) => setStatus(event.target.value)}>
+          <Select value={status} onChange={(event) => setStatus(event.target.value)}>
             <option value="">All statuses</option>
             <option value="available">Available</option>
             <option value="reserved">Reserved</option>
             <option value="submitted">Submitted</option>
-          </select>
-        </label>
-        <label>
+          </Select>
+        </FieldLabel>
+        <FieldLabel>
           Reviewer
-          <select value={reviewerId} onChange={(event) => setReviewerId(event.target.value)}>
+          <Select value={reviewerId} onChange={(event) => setReviewerId(event.target.value)}>
             <option value="">All reviewers</option>
             <option value="unassigned">Unassigned</option>
             {eligibleReviewers.map((reviewer) => (
               <option key={reviewer.id} value={reviewer.id}>{reviewer.displayName}</option>
             ))}
-          </select>
-        </label>
+          </Select>
+        </FieldLabel>
       </div>
       {assignments.data ? (
         <CountPill count={total}>
@@ -345,7 +329,7 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
       {assignments.data && reassignableTotal > 0 ? (
         <div className="bulk-selection-panel">
           <label className="bulk-selection-panel__all">
-            <input
+            <Input
               type="checkbox"
               checked={selectAllFiltered}
               onChange={(event) => {
@@ -357,9 +341,9 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
             Select all {reassignableTotal} filtered assignments
           </label>
           <div className="toolbar bulk-selection-panel__controls">
-            <label>
+            <FieldLabel>
               Reassign selected to
-              <select
+              <Select
                 value={bulkReviewerId}
                 onChange={(event) => setBulkReviewerId(event.target.value)}
               >
@@ -367,16 +351,16 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
                 {eligibleReviewers.map((reviewer) => (
                   <option key={reviewer.id} value={reviewer.id}>{reviewer.displayName}</option>
                 ))}
-              </select>
-            </label>
-            <button
+              </Select>
+            </FieldLabel>
+            <Button
               type="button"
               disabled={!bulkReviewerId || selectedCount === 0 || bulkReassign.isPending}
               onClick={() => bulkReassign.mutate()}
             >
               <IconSwap />
               {bulkReassign.isPending ? 'Reassigning…' : `Reassign selected (${selectedCount})`}
-            </button>
+            </Button>
           </div>
           {selectAllFiltered && excludedIds.size > 0 ? (
             <p className="muted">{excludedIds.size} assignment{excludedIds.size === 1 ? '' : 's'} excluded from this selection.</p>
@@ -401,7 +385,13 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
               <tr>
                 <th scope="col">Select</th>
                 {SORT_COLUMNS.map((column) => (
-                  <SortableHeader key={column.key} column={column} sort={sort} order={order} onSort={handleSort} />
+                  <SortableColumnHeader
+                    key={column.key}
+                    label={column.label}
+                    active={sort === column.key}
+                    direction={order}
+                    onSort={() => handleSort(column.key)}
+                  />
                 ))}
                 <th scope="col">Actions</th>
               </tr>

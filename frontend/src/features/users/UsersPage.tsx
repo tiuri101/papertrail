@@ -11,6 +11,8 @@ import { IconPlus, IconRestart, IconTrash } from '../../components/icons'
 import { Input } from '../../components/Input'
 import { toolbarClass } from '../../components/layoutStyles'
 import type { LoginResponse, User } from '../auth/types'
+import { FieldLabel } from '../../components/FieldLabel'
+import { Form } from '../../components/Form'
 
 export function UsersPage() {
   const queryClient = useQueryClient()
@@ -54,24 +56,24 @@ export function UsersPage() {
       {showCreateForm ? (
         <Card as="section">
           <h2>Create Reviewer</h2>
-          <form onSubmit={(event) => { event.preventDefault(); create.mutate() }}>
-            <label>
+          <Form onSubmit={(event) => { event.preventDefault(); create.mutate() }}>
+            <FieldLabel>
               Username
               <Input
                 value={username}
                 onChange={(event) => setUsername(event.target.value)}
                 required
               />
-            </label>
-            <label>
+            </FieldLabel>
+            <FieldLabel>
               Display name
               <Input
                 value={displayName}
                 onChange={(event) => setDisplayName(event.target.value)}
                 required
               />
-            </label>
-            <label>
+            </FieldLabel>
+            <FieldLabel>
               Email address
               <Input
                 type="email"
@@ -80,8 +82,8 @@ export function UsersPage() {
                 placeholder="reviewer@example.org"
               />
               <small>Optional. Notifications are sent only when email is configured.</small>
-            </label>
-            <label>
+            </FieldLabel>
+            <FieldLabel>
               Temporary password
               <Input
                 type="password"
@@ -90,12 +92,12 @@ export function UsersPage() {
                 minLength={8}
                 required
               />
-            </label>
+            </FieldLabel>
             <div className={toolbarClass}>
               <Button type="submit" loading={create.isPending}><IconPlus />Create Reviewer</Button>
               <Button type="button" variant="secondary" onClick={() => setShowCreateForm(false)}>Cancel</Button>
             </div>
-          </form>
+          </Form>
         </Card>
       ) : (
         <div className={toolbarClass}>

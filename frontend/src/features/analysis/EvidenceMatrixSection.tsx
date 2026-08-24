@@ -7,6 +7,7 @@ import { CountPill } from '../../components/CountPill'
 import { Input } from '../../components/Input'
 import { Select } from '../../components/Select'
 import { LlmEvidence } from '../llm/LlmTaskComponents'
+import { FieldLabel } from '../../components/FieldLabel'
 import {
   useEvidenceCellDetail,
   useEvidenceMatrix,
@@ -95,7 +96,7 @@ function ColumnFilterControl({
 
   return (
     <div className="mt-1.5 flex flex-col gap-1 font-normal normal-case tracking-normal [&_input]:text-[0.8rem] [&_select]:text-[0.8rem]">
-      <label>
+      <FieldLabel>
         <span className="sr-only">Filter {column.label}</span>
         <Select
           value={mode}
@@ -107,7 +108,7 @@ function ColumnFilterControl({
           <option value="missing">Only missing</option>
           <option value="pending_reconciliation">Only pending reconciliation</option>
         </Select>
-      </label>
+      </FieldLabel>
       {mode === 'value' && predicate?.type === 'categorical' ? (
         <Select
           multiple
@@ -129,7 +130,7 @@ function ColumnFilterControl({
           {options.map((option) => {
             const checked = predicate.anyOf.includes(option)
             return (
-              <label key={option}>
+              <FieldLabel key={option} inline>
                 <Input
                   type="checkbox"
                   checked={checked}
@@ -141,7 +142,7 @@ function ColumnFilterControl({
                   }}
                 />
                 {option}
-              </label>
+              </FieldLabel>
             )
           })}
         </fieldset>
@@ -306,7 +307,7 @@ export function EvidenceMatrixSection({ projectId }: { projectId: string }) {
       </p>
       {query.error ? <p className="text-danger" role="alert">{query.error.message}</p> : null}
       <div className={toolbarClass}>
-        <label>
+        <FieldLabel>
           Search
           <Input
             type="search"
@@ -317,8 +318,8 @@ export function EvidenceMatrixSection({ projectId }: { projectId: string }) {
             }}
             placeholder="Filter by title, author, or any answer…"
           />
-        </label>
-        <label>
+        </FieldLabel>
+        <FieldLabel>
           Rows per page
           <Select
             value={pageSize}
@@ -331,21 +332,21 @@ export function EvidenceMatrixSection({ projectId }: { projectId: string }) {
               <option key={size} value={size}>{size}</option>
             ))}
           </Select>
-        </label>
+        </FieldLabel>
       </div>
       {data ? (
         <details className="mb-3">
           <summary>Show/hide columns ({visibleColumns.length} of {data.columns.length} shown)</summary>
           <div className="mt-3 flex flex-wrap gap-3">
             {data.columns.map((column) => (
-              <label key={column.key}>
+              <FieldLabel key={column.key} inline>
                 <Input
                   type="checkbox"
                   checked={!hiddenColumns.has(column.key)}
                   onChange={() => toggleColumn(column.key)}
                 />
                 {column.label}
-              </label>
+              </FieldLabel>
             ))}
           </div>
         </details>

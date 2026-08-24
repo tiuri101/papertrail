@@ -23,6 +23,8 @@ import { StageEyebrow } from '../projects/StageEyebrow'
 import { AttachPdfsPanel } from './AttachPdfsPanel'
 import { FileDropZone } from './FileDropZone'
 import { PdfMatchReview, type PdfSummary } from './PdfMatchReview'
+import { FieldLabel } from '../../components/FieldLabel'
+import { Form } from '../../components/Form'
 
 interface SearchImportBatch {
   id: string
@@ -245,20 +247,20 @@ export function ImportPage() {
         >
         <p className="text-text">Record the database and search string used alongside the file, so it can be traced back for this import and reported in your PRISMA flow.</p>
         {submit.error ? <p className="text-danger" role="alert">{submit.error.message}</p> : null}
-        <form onSubmit={(event) => { event.preventDefault(); submit.mutate() }}>
-          <label>
+        <Form onSubmit={(event) => { event.preventDefault(); submit.mutate() }}>
+          <FieldLabel>
             Database
             <Input value={sourceName} onChange={(event) => setSourceName(event.target.value)} required />
-          </label>
-          <label>
+          </FieldLabel>
+          <FieldLabel>
             Search string
             <Textarea value={query} onChange={(event) => setQuery(event.target.value)} rows={2} required />
-          </label>
+          </FieldLabel>
           <DateField label="Search date" value={searchDate} onChange={setSearchDate} required />
-          <label>
+          <FieldLabel>
             Filters applied (optional)
             <Input value={filters} onChange={(event) => setFilters(event.target.value)} />
-          </label>
+          </FieldLabel>
           <FileDropZone
             id="bibliographic-export"
             label="Bibliographic export"
@@ -296,7 +298,7 @@ export function ImportPage() {
               {pdfArchives.length ? `, ${pdfArchives.length} ZIP archives` : ''}…
             </p>
           ) : null}
-        </form>
+        </Form>
         {submit.data ? (
           !pendingJob || isJobActive(pendingJob.status) ? (
             <p>Import queued: {submit.data.jobId}</p>

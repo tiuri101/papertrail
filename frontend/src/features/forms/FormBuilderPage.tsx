@@ -16,6 +16,8 @@ import { StageEyebrow } from '../projects/StageEyebrow'
 import { FormFieldsEditor } from './FormFieldsEditor'
 import { FormKindSection } from './FormKindSection'
 import type { ReviewForm } from './types'
+import { Input } from '../../components/Input'
+import { FieldLabel } from '../../components/FieldLabel'
 
 const formBuilderSections = [
   { id: 'section-extraction-form', label: 'Extraction Form' },
@@ -54,13 +56,13 @@ function TemplateCard({ template, isAdmin, onRemove, removing }: {
         <h3>{template.name}</h3>
       </div>
       <div className="toolbar form-template-card__actions" data-template-actions>
-        <button
+        <Button
           type="button"
-          className="button-secondary"
+          variant="secondary"
           onClick={() => setExpanded((current) => !current)}
         >
           {isAdmin ? 'Inspect & Edit' : 'Inspect'}
-        </button>
+        </Button>
         {isAdmin ? (
           <ConfirmButton
             label="Remove"
@@ -83,10 +85,10 @@ function TemplateCard({ template, isAdmin, onRemove, removing }: {
                   className="inline-flex flex-wrap items-center gap-2"
                   onSubmit={(event) => { event.preventDefault(); renameTemplate.mutate() }}
                 >
-                  <label>
+                  <FieldLabel>
                     Name
-                    <input value={nameDraft} onChange={(event) => setNameDraft(event.target.value)} required />
-                  </label>
+                    <Input value={nameDraft} onChange={(event) => setNameDraft(event.target.value)} required />
+                  </FieldLabel>
                   <Button type="submit" variant="secondary" size="sm" loading={renameTemplate.isPending}>Save Name</Button>
                   <Button type="button" variant="secondary" size="sm" onClick={() => setRenaming(false)}>Cancel</Button>
                 </form>

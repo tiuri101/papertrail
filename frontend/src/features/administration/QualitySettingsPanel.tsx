@@ -6,6 +6,9 @@ import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { InfoBox } from '../../components/InfoBox'
 import { IconCheckCircle } from '../../components/icons'
 import type { QualityConfig } from '../quality/types'
+import { Input } from '../../components/Input'
+import { Select } from '../../components/Select'
+import { FieldLabel } from '../../components/FieldLabel'
 
 type TaskAllocationMode = QualityConfig['allocationMode']
 
@@ -59,40 +62,40 @@ export function QualitySettingsPanel({ projectId }: { projectId: string }) {
       {config.error ? <p className="error" role="alert">{config.error.message}</p> : null}
       {config.isLoading ? <p>Loadingâ€¦</p> : (
         <div className="quality-settings-fields" data-quality-settings>
-          <label>
-            <input
+          <FieldLabel inline>
+            <Input
               type="checkbox"
               checked={enabled}
               onChange={(event) => update({ enabled: event.target.checked, mode, aggregation, allocationMode })}
             />
             Enable quality assessment
-          </label>
+          </FieldLabel>
           <div className="quality-settings-selects" data-quality-settings-selects>
-            <label>
+            <FieldLabel>
               Mode
-              <select
+              <Select
                 value={mode}
                 onChange={(event) => update({ enabled, mode: event.target.value, aggregation, allocationMode })}
               >
                 <option value="qualitative">Qualitative only</option>
                 <option value="numeric">Numerical scoring only</option>
                 <option value="both">Both</option>
-              </select>
-            </label>
-            <label>
+              </Select>
+            </FieldLabel>
+            <FieldLabel>
               Aggregation
-              <select
+              <Select
                 value={aggregation}
                 onChange={(event) => update({ enabled, mode, aggregation: event.target.value, allocationMode })}
               >
                 <option value="sum">Simple sum</option>
                 <option value="average">Average</option>
                 <option value="weighted_average">Weighted average</option>
-              </select>
-            </label>
-            <label>
+              </Select>
+            </FieldLabel>
+            <FieldLabel>
               Allocation
-              <select
+              <Select
                 value={allocationMode}
                 onChange={(event) => update({
                   enabled, mode, aggregation, allocationMode: event.target.value as TaskAllocationMode,
@@ -101,8 +104,8 @@ export function QualitySettingsPanel({ projectId }: { projectId: string }) {
                 {(Object.keys(TASK_ALLOCATION_MODE_LABELS) as TaskAllocationMode[]).map((value) => (
                   <option key={value} value={value}>{TASK_ALLOCATION_MODE_LABELS[value]}</option>
                 ))}
-              </select>
-            </label>
+              </Select>
+            </FieldLabel>
           </div>
         </div>
       )}

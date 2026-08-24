@@ -9,6 +9,8 @@ import type { PublicationSummary } from '../publications/types'
 import { ReviewPublicationHeader } from '../reviews/ReviewPublicationHeader'
 import { ReviewQueueEmptyState } from '../reviews/ReviewQueueEmptyState'
 import { useReviewWorkQueue } from '../reviews/useReviewWorkQueue'
+import { Button } from '../../components/Button'
+import { Form } from '../../components/Form'
 
 interface WorkItem {
   id: string
@@ -118,7 +120,7 @@ export function QualityWorkspace({
           fullTextDocument={fullTextDocument}
         />
       ) : null}
-      <form onSubmit={(event) => { event.preventDefault(); submit.mutate() }}>
+      <Form onSubmit={(event) => { event.preventDefault(); submit.mutate() }}>
         <DynamicForm
           fields={item.fields}
           value={answers}
@@ -130,33 +132,33 @@ export function QualityWorkspace({
         {submit.error ? <p className="error" role="alert">{submit.error.message}</p> : null}
         {skip.error ? <p className="error" role="alert">{skip.error.message}</p> : null}
         <div className="toolbar">
-          <button type="submit" disabled={submit.isPending || skip.isPending || missingRequired}>
+          <Button type="submit" disabled={submit.isPending || skip.isPending || missingRequired}>
             <IconCheckCircle />
             {completedResponse ? 'Save corrected assessment' : 'Submit Assessment'}
-          </button>
+          </Button>
           {!itemId ? (
-            <button
+            <Button
               type="button"
-              className="button-secondary"
+              variant="secondary"
               onClick={() => skip.mutate()}
               disabled={submit.isPending || skip.isPending}
             >
               <IconArrowRight />
               Skip for now
-            </button>
+            </Button>
           ) : null}
           {variant === 'inline' && onCancel ? (
-            <button
+            <Button
               type="button"
-              className="button-secondary"
+              variant="secondary"
               onClick={onCancel}
               disabled={submit.isPending}
             >
               Cancel
-            </button>
+            </Button>
           ) : null}
         </div>
-      </form>
+      </Form>
     </>
   )
 

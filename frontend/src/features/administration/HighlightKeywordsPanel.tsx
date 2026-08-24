@@ -8,6 +8,8 @@ import { HighlightedText } from '../../components/HighlightedText'
 import { InfoBox } from '../../components/InfoBox'
 import { Input } from '../../components/Input'
 import { IconHighlighter, IconPlus, IconTrash } from '../../components/icons'
+import { FieldLabel } from '../../components/FieldLabel'
+import { FieldLegend } from '../../components/FieldLegend'
 
 function cleanKeywords(keywords: string[]): string[] {
   return keywords.map((keyword) => keyword.trim()).filter(Boolean)
@@ -82,7 +84,7 @@ export function HighlightKeywordsPanel({ projectId }: { projectId: string }) {
       ) : null}
       {draft.length > 0 ? (
         <fieldset className="grid gap-3">
-          <legend>Keywords</legend>
+          <FieldLegend>Keywords</FieldLegend>
           {draft.map((keyword, index) => (
             <div className="grid grid-cols-[minmax(0,1fr)_40px] items-center gap-3 min-[681px]:grid-cols-[minmax(12rem,1fr)_minmax(10rem,0.7fr)_40px]" key={index}>
               <label className="min-w-0">
@@ -118,7 +120,7 @@ export function HighlightKeywordsPanel({ projectId }: { projectId: string }) {
           addKeyword()
         }}
       >
-        <label htmlFor={newKeywordId}>Add a keyword</label>
+        <FieldLabel htmlFor={newKeywordId}>Add a keyword</FieldLabel>
         <div className="flex flex-col items-stretch gap-3 min-[681px]:flex-row min-[681px]:items-center">
           <Input
             id={newKeywordId}
