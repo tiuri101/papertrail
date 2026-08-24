@@ -153,6 +153,7 @@ export function FieldEditForm({
             aria-label={`Edit score weight for ${field.label}`}
             value={editingWeight}
             onChange={(event) => onEditingWeightChange(event.target.value)}
+            className="!w-100"
           />
         </FieldLabel>
       ) : null}

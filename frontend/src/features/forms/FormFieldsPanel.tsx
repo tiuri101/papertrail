@@ -657,6 +657,7 @@ export function FormFieldsPanel({
                               disabled={removeField.isPending}
                               variant="danger"
                               icon={<IconTrash />}
+                              className="w=fit justify-self-start"
                             />
                           )}
                         />
