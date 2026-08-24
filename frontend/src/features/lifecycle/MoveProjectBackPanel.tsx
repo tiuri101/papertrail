@@ -8,6 +8,7 @@ import { IconAlertTriangle, IconRestart } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
 import { Select } from '../../components/Select'
 import { activeStages, humanizeStage, stageOrder, stages } from './lifecycleStages'
+import { FieldLabel } from '../../components/FieldLabel'
 
 export function MoveProjectBackPanel({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient()
@@ -51,7 +52,7 @@ export function MoveProjectBackPanel({ projectId }: { projectId: string }) {
         </p>
       </InfoBox>
       {moveBack.error ? <p className="text-danger" role="alert">{moveBack.error.message}</p> : null}
-      <label>
+      <FieldLabel>
         Move back to
         <Select
           value={moveBackTarget}
@@ -59,7 +60,7 @@ export function MoveProjectBackPanel({ projectId }: { projectId: string }) {
         >
           {moveBackOptions.map((stage) => <option key={stage} value={stage}>{humanizeStage(stage)}</option>)}
         </Select>
-      </label>
+      </FieldLabel>
       <ConfirmButton
         label="Move Project Back"
         confirmLabel="Move Back"

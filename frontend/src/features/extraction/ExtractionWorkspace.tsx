@@ -13,6 +13,8 @@ import { ReviewPublicationHeader } from '../reviews/ReviewPublicationHeader'
 import { ReviewQueueEmptyState } from '../reviews/ReviewQueueEmptyState'
 import { useReviewWorkQueue } from '../reviews/useReviewWorkQueue'
 import type { ValidationResult } from './types'
+import { Button } from '../../components/Button'
+import { Form } from '../../components/Form'
 
 interface WorkItem {
   id: string
@@ -216,9 +218,9 @@ export function ExtractionWorkspace({
             <>
               <p><code>{JSON.stringify(suggestion.value)}</code></p>
               <div className="toolbar">
-                <button
+                <Button
                   type="button"
-                  className="button-secondary"
+                  variant="secondary"
                   onClick={() => {
                     setAnswers((values) => ({
                       ...values, [field.stableKey]: suggestion.value,
@@ -229,7 +231,7 @@ export function ExtractionWorkspace({
                   }}
                 >
                   {isAnswered(current) || applied ? 'Reset to LLM suggestion' : 'Apply suggestion'}
-                </button>
+                </Button>
               </div>
             </>
           )}
@@ -311,14 +313,14 @@ export function ExtractionWorkspace({
           <div className="llm-task-panel__heading">
             <LlmAssistanceHeading qualifier={assistance.data.state === 'failed' ? 'failed' : undefined} />
             {['unavailable', 'failed', 'cancelled'].includes(assistance.data.state) ? (
-              <button
+              <Button
                 type="button"
-                className="button-secondary"
+                variant="secondary"
                 onClick={() => runLlm.mutate(assistance.data?.state === 'failed')}
                 disabled={runLlm.isPending}
               >
                 {runLlm.isPending ? 'Queueing…' : assistance.data.state === 'failed' ? 'Re-run LLM extraction' : 'Run LLM extraction'}
-              </button>
+              </Button>
             ) : null}
           </div>
           <p className={assistance.data.state === 'failed' ? 'error' : 'muted'}>
@@ -331,16 +333,16 @@ export function ExtractionWorkspace({
         <aside className="llm-task-panel" aria-label="LLM assistance is stale">
           <div className="llm-task-panel__heading">
             <LlmAssistanceHeading qualifier="is stale" />
-            <button type="button" className="button-secondary" onClick={() => runLlm.mutate(true)} disabled={runLlm.isPending}>
+            <Button type="button" variant="secondary" onClick={() => runLlm.mutate(true)} disabled={runLlm.isPending}>
               <IconRestart />
               Re-run with current schema
-            </button>
+            </Button>
           </div>
           <p className="muted">LLM result uses an older schema version.</p>
         </aside>
       ) : null}
       {runLlm.error ? <p className="error" role="alert">{runLlm.error.message}</p> : null}
-      <form onSubmit={(event) => { event.preventDefault(); submit.mutate() }}>
+      <Form onSubmit={(event) => { event.preventDefault(); submit.mutate() }}>
         <DynamicForm
           fields={item.fields}
           value={answers}
@@ -375,30 +377,30 @@ export function ExtractionWorkspace({
         {submit.error ? <p className="error" role="alert">{submit.error.message}</p> : null}
         {skip.error ? <p className="error" role="alert">{skip.error.message}</p> : null}
         <div className="toolbar">
-          <button type="submit" disabled={submit.isPending || skip.isPending || missingRequired}>
+          <Button type="submit" disabled={submit.isPending || skip.isPending || missingRequired}>
             <IconCheckCircle />
             {completedResponse ? 'Save corrected extraction' : 'Submit Extraction'}
-          </button>
+          </Button>
           {!itemId ? (
-            <button
+            <Button
               type="button"
-              className="button-secondary"
+              variant="secondary"
               onClick={() => skip.mutate()}
               disabled={submit.isPending || skip.isPending}
             >
               <IconArrowRight />
               Skip for now
-            </button>
+            </Button>
           ) : null}
           {variant === 'inline' && onCancel ? (
-            <button
+            <Button
               type="button"
-              className="button-secondary"
+              variant="secondary"
               onClick={onCancel}
               disabled={submit.isPending}
             >
               Cancel
-            </button>
+            </Button>
           ) : null}
         </div>
         {completedResponse && itemId && validation.data?.state !== 'disabled' ? (
@@ -430,7 +432,7 @@ export function ExtractionWorkspace({
             </Link>
           </section>
         ) : null}
-      </form>
+      </Form>
     </>
   )
 

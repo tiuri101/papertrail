@@ -3,6 +3,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import { cn } from '../lib/cn'
 import { Button, IconButton } from './Button'
 import { Input } from './Input'
+import { FieldLabel } from './FieldLabel'
 
 interface DateFieldProps {
   id?: string
@@ -117,7 +118,7 @@ export function DateField({ id, label, value, onChange, required, disabled }: Da
 
   return (
     <div className="relative w-[min(14rem,100%)]" ref={containerRef}>
-      <label htmlFor={fieldId}>
+      <FieldLabel htmlFor={fieldId}>
         {label}
         <div className="relative">
           <Input
@@ -143,7 +144,7 @@ export function DateField({ id, label, value, onChange, required, disabled }: Da
             <path d="M7 2v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-2V2h-2v2H9V2H7Zm12 8v10H5V10h14ZM5 6h14v2H5V6Z" />
           </svg>
         </div>
-      </label>
+      </FieldLabel>
       {open ? (
         <div className="absolute top-[calc(100%+0.5rem)] left-0 z-50 w-[min(300px,88vw)] rounded-md border border-border bg-surface-raised p-4 shadow-lg" role="dialog" aria-label={`${label} calendar`}>
           <div className="mb-3 flex items-center justify-between">

@@ -10,6 +10,8 @@ import { Input } from '../../components/Input'
 import { IconCheckCircle, IconSettings } from '../../components/icons'
 import { Select } from '../../components/Select'
 import { InfoTooltip } from '../../components/Tooltip'
+import { Form } from '../../components/Form'
+import { Fieldset } from '../../components/Fieldset'
 
 type AllocationMode = 'independent' | 'divided' | 'claim'
 type ResolutionMethod =
@@ -101,13 +103,13 @@ function StageConfigForm({
   }, [draft, config, onDirtyChange])
 
   return (
-    <form
+    <Form
       onSubmit={(event) => {
         event.preventDefault()
         onSave(draft)
       }}
     >
-      <fieldset>
+      <Fieldset>
         <legend className="mb-3 text-base font-semibold leading-[1.2] text-text">{label}</legend>
         <div className="grid grid-cols-2 gap-4 max-[560px]:grid-cols-1">
           <FormField label="Reviewers required per publication">
@@ -174,9 +176,16 @@ function StageConfigForm({
           </FormField>
         </div>
         {error ? <p className="text-danger" role="alert">{error.message}</p> : null}
-        <Button type="submit" disabled={pending}><IconCheckCircle />Save {label} Settings</Button>
-      </fieldset>
-    </form>
+        <Button
+            type="submit"
+            disabled={pending}
+            className="justify-self-start mt-4"
+            startIcon={<IconCheckCircle />}
+        >
+          Save {label} Settings
+        </Button>
+      </Fieldset>
+    </Form>
   )
 }
 

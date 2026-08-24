@@ -28,6 +28,10 @@ import { type SortDirection, sortByValue } from '../../lib/sort'
 import { LlmEvidence } from '../llm/LlmTaskComponents'
 import { StageEyebrow } from '../projects/StageEyebrow'
 import type { ValidationResult } from './types'
+import { Input } from '../../components/Input'
+import { Select } from '../../components/Select'
+import { Button } from '../../components/Button'
+import { Page } from '../../components/Page'
 
 interface ValidationReviewItem {
   workItemId: string
@@ -158,9 +162,9 @@ function ValidationRow({
           {submitted.time ? <span className={reviewWorkSubmittedTimeClass}>{submitted.time}</span> : null}
         </time>
         <span className={reviewWorkActionsClass}>
-          <Link className="button-secondary button-sm" to={`/projects/${projectId}/extraction/review/${item.workItemId}`}>
+          <Button as={Link} variant="secondary" size="sm" to={`/projects/${projectId}/extraction/review/${item.workItemId}`}>
             Review and correct extraction
-          </Link>
+          </Button>
         </span>
       </div>
 
@@ -193,7 +197,7 @@ function ValidationRow({
               </a>
             ) : null}
             {['failed', 'awaiting_validation'].includes(item.state) ? (
-              <button type="button" className="button-secondary" onClick={() => retry(item)}>Retry validation</button>
+              <Button type="button" variant="secondary" onClick={() => retry(item)}>Retry validation</Button>
             ) : null}
           </div>
         </details>
@@ -247,14 +251,14 @@ export function ValidationReviewPage() {
     }
   }
 
-  if (review.isLoading) return <main className="page"><p>Loading validation review…</p></main>
-  if (review.isError || !review.data) return <main className="page"><p className="error" role="alert">Validation review could not be loaded.</p></main>
+  if (review.isLoading) return <Page><p>Loading validation review…</p></Page>
+  if (review.isError || !review.data) return <Page><p className="error" role="alert">Validation review could not be loaded.</p></Page>
   if (!review.data.enabled) {
-    return <main className="page"><StageEyebrow stage="extraction_quality" /><h1>LLM Extraction Validation</h1><p>LLM extraction validation is not enabled for this project.</p></main>
+    return <Page><StageEyebrow stage="extraction_quality" /><h1>LLM Extraction Validation</h1><p>LLM extraction validation is not enabled for this project.</p></Page>
   }
 
   return (
-    <main className="page">
+    <Page>
       <StageEyebrow stage="extraction_quality" />
       <h1>Review LLM Extraction Validation</h1>
       <section className="card">
@@ -277,11 +281,11 @@ export function ValidationReviewPage() {
           <div className="toolbar">
             <label className="paper-search-field">
               Search papers
-              <input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Title, author, DOI…" />
+              <Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Title, author, DOI…" />
             </label>
             <label className="review-work-mobile-sort">
               Sort by
-              <select value={`${sortKey}:${sortDirection}`} onChange={(event) => {
+              <Select value={`${sortKey}:${sortDirection}`} onChange={(event) => {
                 const [key, direction] = event.target.value.split(':') as [ValidationSortKey, SortDirection]
                 setSortKey(key)
                 setSortDirection(direction)
@@ -296,7 +300,7 @@ export function ValidationReviewPage() {
                 <option value="venue:desc">Venue Z–A</option>
                 <option value="status:asc">Status A–Z</option>
                 <option value="status:desc">Status Z–A</option>
-              </select>
+              </Select>
             </label>
           </div>
         </>
@@ -326,6 +330,6 @@ export function ValidationReviewPage() {
           </ul>
         </>
       )}
-    </main>
+    </Page>
   )
 }

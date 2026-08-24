@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { Button } from '../../components/Button'
 
 /**
  * "No item is open" state shared by the extraction and quality workspaces: loading, a completed
@@ -27,9 +28,9 @@ export function ReviewQueueEmptyState({
       {!loadingNext && queueEmpty ? (
         <>
           <p>{completedMessage}</p>
-          <button type="button" className="button-secondary" onClick={() => navigate(`/projects/${projectId}`)}>
+          <Button type="button" variant="secondary" onClick={() => navigate(`/projects/${projectId}`)}>
             Back to project
-          </button>
+          </Button>
         </>
       ) : null}
       {!loadingNext && nextError ? (

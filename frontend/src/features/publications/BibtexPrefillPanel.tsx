@@ -7,6 +7,8 @@ import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { IconSparkle } from '../../components/icons'
 import { FileDropZone } from '../imports/FileDropZone'
 import { applyBibtexFields, PublicationDraft } from './publicationFieldsData'
+import { Textarea } from '../../components/Textarea'
+import { FieldLabel } from '../../components/FieldLabel'
 
 interface PreviewResponse {
   filename: string
@@ -82,9 +84,9 @@ export function BibtexPrefillPanel({
         }}
         disabled={prefill.isPending}
       />
-      <label>
+      <FieldLabel>
         Or paste BibTeX
-        <textarea
+        <Textarea
           value={bibText}
           onChange={(event) => {
             setBibText(event.target.value)
@@ -94,7 +96,7 @@ export function BibtexPrefillPanel({
           disabled={prefill.isPending}
           placeholder="@article{..."
         />
-      </label>
+      </FieldLabel>
       <div className="toolbar">
         <Button
           type="button"

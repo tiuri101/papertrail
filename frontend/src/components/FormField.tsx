@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 
 import { cn } from '../lib/cn'
+import { FieldLabel } from './FieldLabel'
 
 const labelTextClass = 'text-[0.9rem] font-semibold text-text-secondary'
 
@@ -23,16 +24,16 @@ export interface FormFieldProps {
 export function FormField({ label, htmlFor, accessory, className, children }: FormFieldProps) {
   if (!accessory) {
     return (
-      <label htmlFor={htmlFor} className={cn('grid gap-2', labelTextClass, className)}>
+      <FieldLabel htmlFor={htmlFor} className={className}>
         {label}
         {children}
-      </label>
+      </FieldLabel>
     )
   }
   return (
     <div className={cn('grid gap-2', className)}>
       <span className={cn('inline-flex items-center gap-2', labelTextClass)}>
-        <label htmlFor={htmlFor}>{label}</label>
+        <FieldLabel htmlFor={htmlFor}>{label}</FieldLabel>
         {accessory}
       </span>
       {children}

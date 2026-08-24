@@ -11,6 +11,7 @@ import { IconGear, IconPlus, IconSearch } from '../../components/icons'
 import { Page } from '../../components/Page'
 import { Select } from '../../components/Select'
 import { ProjectProgressDots, STAGES } from './StageProgress'
+import { FieldLabel } from '../../components/FieldLabel'
 
 interface Project {
   id: string
@@ -192,7 +193,7 @@ export function ProjectsPage() {
       {projects.error ? <p className="text-danger" role="alert">{projects.error.message}</p> : null}
       {projects.data && projects.data.length > 0 ? (
         <section className="my-5 mb-4 flex flex-wrap items-center gap-3 max-[680px]:flex-col max-[680px]:items-stretch" aria-label="Project filters">
-          <label>
+          <FieldLabel>
             <span className="sr-only">Stage</span>
             <Select className="min-w-36 rounded-full bg-surface pl-4 max-[680px]:w-full" value={stageFilter} onChange={(event) => setStageFilter(event.target.value)}>
               <option value="">All Status</option>
@@ -200,8 +201,8 @@ export function ProjectsPage() {
                 <option key={stage.value} value={stage.value}>{formatStage(stage.value)}</option>
               ))}
             </Select>
-          </label>
-          <label>
+          </FieldLabel>
+          <FieldLabel>
             <span className="sr-only">My role</span>
             <Select className="min-w-36 rounded-full bg-surface pl-4 max-[680px]:w-full" value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)}>
               <option value="">All Roles</option>
@@ -211,8 +212,8 @@ export function ProjectsPage() {
                   <option key={value} value={value}>{label}</option>
                 ))}
             </Select>
-          </label>
-          <label>
+          </FieldLabel>
+          <FieldLabel>
             <span className="sr-only">Project type</span>
             <Select className="min-w-36 rounded-full bg-surface pl-4 max-[680px]:w-full" value={reviewTypeFilter} onChange={(event) => setReviewTypeFilter(event.target.value)}>
               <option value="">All Types</option>
@@ -220,8 +221,8 @@ export function ProjectsPage() {
                 <option key={value} value={value}>{label}</option>
               ))}
             </Select>
-          </label>
-          <label>
+          </FieldLabel>
+          <FieldLabel>
             <span className="sr-only">Project owner</span>
             <Select className="min-w-36 rounded-full bg-surface pl-4 max-[680px]:w-full" value={ownerFilter} onChange={(event) => setOwnerFilter(event.target.value)}>
               <option value="">All Owners</option>
@@ -229,7 +230,7 @@ export function ProjectsPage() {
                 <option key={id} value={id}>{displayName}</option>
               ))}
             </Select>
-          </label>
+          </FieldLabel>
           <Button className="max-[680px]:w-full" type="button" variant="secondary" disabled={!hasFilters} onClick={clearFilters}>
             Clear filters
           </Button>
@@ -246,7 +247,7 @@ export function ProjectsPage() {
       {projects.data && projects.data.length > 0 && filteredProjects.length === 0 ? (
         <p className="text-text">No projects match your filters.</p>
       ) : null}
-      <ul className="m-0 grid list-none grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4 p-0" aria-label="Projects">
+      <ul className="m-0 grid list-none bg-transparent border-none grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4 p-0" aria-label="Projects">
         {filteredProjects.map((project) => (
           <Card as="li" key={project.id} className="flex flex-col">
             <div className="flex items-start justify-between gap-3">

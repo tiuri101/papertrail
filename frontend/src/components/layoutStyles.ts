@@ -1,4 +1,4 @@
-export const toolbarClass = 'my-5 flex flex-wrap items-center gap-3'
+export const toolbarClass = 'my-5 flex flex-wrap items-center gap-3 mb-0'
 
 export const tableScrollClass = 'w-full overflow-x-auto'
 

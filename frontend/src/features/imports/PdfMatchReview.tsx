@@ -6,6 +6,9 @@ import { ConfirmButton } from '../../components/ConfirmButton'
 import { CountPill } from '../../components/CountPill'
 import { IconFile, IconUpload } from '../../components/icons'
 import { formatFileSize } from '../../lib/format'
+import { Select } from '../../components/Select'
+import { Button } from '../../components/Button'
+import { FieldLabel } from '../../components/FieldLabel'
 
 interface MatchCandidate {
   publicationId: string
@@ -129,15 +132,15 @@ export function PdfMatchReview({ projectId, importBatchId }: {
     <section className="card pdf-match-review" id={importBatchId ? undefined : 'section-pdf-review'}>
       <h2>Review PDF matches</h2>
       {review.error ? <p className="error" role="alert">{review.error.message}</p> : null}
-      <label>
+      <FieldLabel>
         PDF match filter
-        <select value={filter} onChange={(event) => setFilter(event.target.value)}>
+        <Select value={filter} onChange={(event) => setFilter(event.target.value)}>
           <option value="needs_review">Needs review{needsReviewCount !== undefined ? ` (${needsReviewCount})` : ''}</option>
           <option value="unmatched">Unmatched{counts ? ` (${counts.unmatched ?? 0})` : ''}</option>
           <option value="conflict_existing_pdf">Existing-PDF conflicts{counts ? ` (${counts.conflict_existing_pdf ?? 0})` : ''}</option>
           <option value="all">All{counts ? ` (${counts.total ?? 0})` : ''}</option>
-        </select>
-      </label>
+        </Select>
+      </FieldLabel>
       {review.data ? (
         <CountPill count={items.length}>
           {filter === 'all'
@@ -206,9 +209,9 @@ export function PdfMatchReview({ projectId, importBatchId }: {
                       {item.candidates.map(candidateDescription).join('; ')}
                     </p>
                   ) : null}
-                  <label>
+                  <FieldLabel>
                     Publication match for {item.originalFilename}
-                    <select
+                    <Select
                       value={selected}
                       onChange={(event) => setSelections((current) => ({
                         ...current,
@@ -223,17 +226,17 @@ export function PdfMatchReview({ projectId, importBatchId }: {
                           {publication.hasPdf ? ' · PDF attached' : ''}
                         </option>
                       ))}
-                    </select>
-                  </label>
+                    </Select>
+                  </FieldLabel>
                   <div className="toolbar">
-                    <button
+                    <Button
                       type="button"
                       disabled={!selected || resolve.isPending || isConflict}
                       onClick={() => resolve.mutate({ itemId: item.id, publicationId: selected, action: 'attach' })}
                     >
                       <IconUpload />
                       Attach
-                    </button>
+                    </Button>
                     {isConflict ? (
                       <ConfirmButton
                         label="Replace existing"
@@ -244,9 +247,9 @@ export function PdfMatchReview({ projectId, importBatchId }: {
                         icon={<IconUpload />}
                       />
                     ) : null}
-                    <button
+                    <Button
                       type="button"
-                      className="button-secondary"
+                      variant="secondary"
                       disabled={resolve.isPending}
                       onClick={() => resolve.mutate({
                         itemId: item.id,
@@ -255,7 +258,7 @@ export function PdfMatchReview({ projectId, importBatchId }: {
                       })}
                     >
                       {isConflict ? 'Keep existing' : 'Skip'}
-                    </button>
+                    </Button>
                   </div>
                 </>
               ) : null}

@@ -13,6 +13,9 @@ import { Input } from '../../components/Input'
 import { Select } from '../../components/Select'
 import type { User } from '../auth/types'
 import type { ProjectMembers as ProjectMembersOf } from './types'
+import { FieldLabel } from '../../components/FieldLabel'
+import { Form } from '../../components/Form'
+import { Fieldset } from '../../components/Fieldset'
 
 type RoleKey =
   | 'canTitleAbstractScreen'
@@ -85,27 +88,27 @@ function MemberRow({
       <tr>
         <td>{label}</td>
         <td colSpan={2}>
-          <form
+          <Form
             onSubmit={(event) => {
               event.preventDefault()
               setEditing(false)
               onSave(draft, Number(weight))
             }}
           >
-            <fieldset>
+            <Fieldset>
               <legend className="mb-3 text-base font-semibold leading-[1.2] text-text">Stages</legend>
               {ROLE_FIELDS.map(([field, fieldLabel]) => (
-                <label key={field}>
+                <FieldLabel key={field} inline>
                   <Input
                     type="checkbox"
                     checked={draft[field]}
                     onChange={(event) => setDraft({ ...draft, [field]: event.target.checked })}
                   />
                   {fieldLabel}
-                </label>
+                </FieldLabel>
               ))}
-            </fieldset>
-            <label>
+            </Fieldset>
+            <FieldLabel>
               Workload weight
               <Input
                 type="number"
@@ -117,7 +120,7 @@ function MemberRow({
                 onChange={(event) => setWeight(event.target.value)}
                 required
               />
-            </label>
+            </FieldLabel>
             <div className={toolbarClass}>
               <Button type="submit" disabled={pending}><IconCheckCircle />Save</Button>
               <Button
@@ -132,7 +135,7 @@ function MemberRow({
                 Cancel
               </Button>
             </div>
-          </form>
+          </Form>
         </td>
       </tr>
     )
@@ -291,8 +294,8 @@ export function MembersPanel({
           })}
         </tbody>
       </table>
-      <form onSubmit={(event) => { event.preventDefault(); addMember.mutate() }}>
-        <label>
+      <Form onSubmit={(event) => { event.preventDefault(); addMember.mutate() }}>
+        <FieldLabel>
           Reviewer
           <Select
             value={selectedUserId}
@@ -304,23 +307,23 @@ export function MembersPanel({
               <option key={user.id} value={user.id}>{user.displayName} ({user.username})</option>
             ))}
           </Select>
-        </label>
+        </FieldLabel>
         {selectedUserId ? (
           <>
-            <fieldset>
+            <Fieldset>
               <legend className="mb-3 text-base font-semibold leading-[1.2] text-text">Stages</legend>
               {ROLE_FIELDS.map(([field, label]) => (
-                <label key={field}>
+                <FieldLabel key={field} inline>
                   <Input
                     type="checkbox"
                     checked={roles[field]}
                     onChange={(event) => setRoles({ ...roles, [field]: event.target.checked })}
                   />
                   {label}
-                </label>
+                </FieldLabel>
               ))}
-            </fieldset>
-            <label>
+            </Fieldset>
+            <FieldLabel>
               Workload weight
               <Input
                 type="number"
@@ -332,14 +335,14 @@ export function MembersPanel({
                 onChange={(event) => setNewWeight(event.target.value)}
                 required
               />
-            </label>
+            </FieldLabel>
           </>
         ) : null}
         <Button type="submit" disabled={addMember.isPending || selectedUserId === ''}>
           <IconPlus />
           Add Member
         </Button>
-      </form>
+      </Form>
     </CollapsibleSection>
   )
 }
