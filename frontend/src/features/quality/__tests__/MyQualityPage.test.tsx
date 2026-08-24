@@ -45,7 +45,7 @@ describe('MyQualityPage', () => {
       '/projects/p1/publications/publication-1',
     )
     expect(document.querySelector('time')).toHaveAttribute('datetime', baseEntry.completedAt)
-    expect(screen.getByRole('button', { name: 'Edit Quality Assessment' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Edit Assessment' })).toBeInTheDocument()
   })
 
   it('reports when nothing has been submitted yet', async () => {
@@ -113,7 +113,7 @@ describe('MyQualityPage', () => {
     })
 
     await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
-    fireEvent.click(screen.getByRole('button', { name: 'Edit Quality Assessment' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Edit Assessment' }))
 
     expect(await screen.findByLabelText('Study design *')).toHaveValue('Strong')
     fireEvent.change(screen.getByLabelText('Study design *'), { target: { value: 'Weak' } })
@@ -130,7 +130,7 @@ describe('MyQualityPage', () => {
     })
 
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: 'Edit Quality Assessment' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Edit Assessment' })).toBeInTheDocument()
     })
     expect(await screen.findByText(/Total score 5/)).toBeInTheDocument()
   })
