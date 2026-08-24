@@ -85,7 +85,7 @@ function QualityRow({ projectId, entry, highlightKeywords }: {
           {entry.totalScore === null ? `Version ${entry.version}` : `Total score ${entry.totalScore} · v${entry.version}`}
         </span>
       )}
-      editLabel="Edit Quality Assessment"
+      editLabel="Edit Assessment"
       highlightKeywords={highlightKeywords}
       renderEditor={({ onDone }) => (
         <QualityWorkspace

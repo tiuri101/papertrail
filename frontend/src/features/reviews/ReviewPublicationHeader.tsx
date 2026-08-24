@@ -54,7 +54,7 @@ export function ReviewPublicationHeader({
       {fullTextDocument.data?.available ? (
         <Button
           as="a"
-          variant="secondary"
+          variant="primary"
           size="sm"
           href={`${fullTextDocumentEndpoint(projectId, publicationId)}/content`}
           target="_blank"

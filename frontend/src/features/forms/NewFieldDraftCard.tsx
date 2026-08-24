@@ -148,7 +148,7 @@ export function NewFieldDraftCard({
         {isQualityForm && weightedFieldTypes.has(fieldType) ? (
           <FieldLabel>
             Score weight
-            <Input type="number" value={weight} onChange={(event) => onWeightChange(event.target.value)} />
+            <Input type="number" value={weight} onChange={(event) => onWeightChange(event.target.value)} className="!w-100" />
           </FieldLabel>
         ) : null}
         {isQualityForm && fieldType === 'single_select' ? (
