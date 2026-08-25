@@ -11,6 +11,7 @@ import { DragHandle } from '../../components/DragHandle'
 import { InfoBox } from '../../components/InfoBox'
 import { IconCheckCircle, IconChart, IconSettings, IconSparkle, IconTrash } from '../../components/icons'
 import { InfoTooltip } from '../../components/Tooltip'
+import { tableBaseClass } from '../../components/layoutStyles'
 import {
   llmSchemaContentClass,
   llmSchemaFieldClass,
@@ -562,8 +563,9 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
               <div className="llm-processing-status flex flex-wrap items-start gap-5">
                 <table
                   className={cn(
-                    'table-compact table-narrow llm-processing-status__table w-auto max-w-full flex-[0_1_auto] min-w-0',
-                    '[&_th]:px-3 [&_th]:py-[7px] [&_th]:text-[0.85rem] [&_td]:px-3 [&_td]:py-[7px] [&_td]:text-[0.85rem] [&_thead_th]:text-[0.68rem]',
+                    tableBaseClass,
+                    'table-compact table-narrow llm-processing-status__table w-auto! max-w-full flex-[0_1_auto] min-w-0',
+                    '[&_th]:px-3! [&_th]:py-[7px]! [&_th]:text-[0.85rem]! [&_td]:px-3! [&_td]:py-[7px]! [&_td]:text-[0.85rem]! [&_thead_th]:text-[0.68rem]!',
                   )}
                 >
                   <thead>

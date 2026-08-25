@@ -9,7 +9,7 @@ import { Card } from '../../components/Card'
 import { CountPill } from '../../components/CountPill'
 import { DoiPill } from '../../components/DoiPill'
 import { Input } from '../../components/Input'
-import { toolbarClass } from '../../components/layoutStyles'
+import { tableBaseClass, tableMobileScrollClass, toolbarClass } from '../../components/layoutStyles'
 import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
 import { PublisherLinkPill } from '../../components/PublisherLinkPill'
 import { Textarea } from '../../components/Textarea'
@@ -188,7 +188,7 @@ function ReconciliationForm({ projectId, publicationId, onDone, onCancel }: {
           />
         ) : null}
       </div>
-      <table>
+      <table className={`${tableBaseClass} ${tableMobileScrollClass}`}>
         <thead>
           <tr>
             <th scope="col">Field</th>

@@ -1,4 +1,4 @@
-import { tableCompactClass, toolbarClass } from '../../components/layoutStyles'
+import { tableBaseClass, tableCompactClass, toolbarClass } from '../../components/layoutStyles'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
@@ -11,6 +11,7 @@ import { IconCheckCircle, IconPlus, IconTrash, IconUsers } from '../../component
 import { InfoBox } from '../../components/InfoBox'
 import { Input } from '../../components/Input'
 import { Select } from '../../components/Select'
+import { cn } from '../../lib/cn'
 import type { User } from '../auth/types'
 import type { ProjectMembers as ProjectMembersOf } from './types'
 import { FieldLabel } from '../../components/FieldLabel'
@@ -259,7 +260,7 @@ export function MembersPanel({
       <CountPill count={project.data.memberships.length}>
         project member{project.data.memberships.length === 1 ? '' : 's'}
       </CountPill>
-      <table className={tableCompactClass}>
+      <table className={cn(tableBaseClass, tableCompactClass)}>
         <thead>
           <tr>
             <th scope="col">Reviewer</th>

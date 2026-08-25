@@ -1,4 +1,4 @@
-import { toolbarClass } from '../../components/layoutStyles'
+import { tableBaseClass, toolbarClass } from '../../components/layoutStyles'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
@@ -156,7 +156,7 @@ function ScreeningResponseForm({
       {formatDate(decision.createdAt) ? (
         <p className="text-text-muted my-1 text-[0.8rem]">Decided {formatDate(decision.createdAt)}</p>
       ) : null}
-      <table className="m-0 w-full text-[0.82rem] [&_td]:px-[7px] [&_td]:py-[5px] [&_td]:text-center [&_th]:px-[7px] [&_th]:py-[5px] [&_th:not(:first-child)]:text-center [&_th:first-child]:min-w-64 [&_th:first-child]:text-left">
+      <table className={`${tableBaseClass} m-0 w-full text-[0.82rem] [&_td]:px-[7px]! [&_td]:py-[5px]! [&_td]:text-center! [&_th]:px-[7px]! [&_th]:py-[5px]! [&_th:not(:first-child)]:text-center! [&_th:first-child]:min-w-64 [&_th:first-child]:text-left`}>
         <thead>
           <tr>
             <th scope="col">Criterion</th>
@@ -453,7 +453,7 @@ export function PublicationReviewDetails({
                   Editing the response submitted by {responseOverride.reviewerName}. The previous
                   version will remain in the audit history.
                 </p>
-                <table className="m-0 w-full text-[0.82rem] [&_td]:px-[7px] [&_td]:py-[5px] [&_td]:text-center [&_th]:px-[7px] [&_th]:py-[5px] [&_th:not(:first-child)]:text-center [&_th:first-child]:min-w-64 [&_th:first-child]:text-left">
+                <table className={`${tableBaseClass} m-0 w-full text-[0.82rem] [&_td]:px-[7px]! [&_td]:py-[5px]! [&_td]:text-center! [&_th]:px-[7px]! [&_th]:py-[5px]! [&_th:not(:first-child)]:text-center! [&_th:first-child]:min-w-64 [&_th:first-child]:text-left`}>
                   <thead>
                     <tr>
                       <th scope="col">Criterion</th>

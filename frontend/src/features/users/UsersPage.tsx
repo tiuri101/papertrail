@@ -9,7 +9,7 @@ import { ConfirmButton } from '../../components/ConfirmButton'
 import { CountPill } from '../../components/CountPill'
 import { IconPlus, IconRestart, IconTrash } from '../../components/icons'
 import { Input } from '../../components/Input'
-import { toolbarClass } from '../../components/layoutStyles'
+import { tableBaseClass, tableMobileScrollClass, toolbarClass } from '../../components/layoutStyles'
 import type { LoginResponse, User } from '../auth/types'
 import { FieldLabel } from '../../components/FieldLabel'
 import { Form } from '../../components/Form'
@@ -112,7 +112,7 @@ export function UsersPage() {
         <CountPill count={users.data.length}>user{users.data.length === 1 ? '' : 's'}</CountPill>
       ) : null}
       {users.data ? (
-        <table>
+        <table className={`${tableBaseClass} ${tableMobileScrollClass}`}>
           <thead>
             <tr>
               <th scope="col">Display name</th>

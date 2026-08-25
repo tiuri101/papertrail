@@ -1,4 +1,4 @@
-import { tableScrollClass } from '../../components/layoutStyles'
+import { tableBaseClass, tableScrollClass } from '../../components/layoutStyles'
 import { useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
@@ -166,7 +166,7 @@ export function AuditLogPage() {
       ) : null}
       {sortedEvents.length ? (
         <div className={tableScrollClass}>
-          <table>
+          <table className={tableBaseClass}>
             <caption className="sr-only">Audit events</caption>
             <thead>
               <tr>

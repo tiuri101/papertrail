@@ -1,4 +1,4 @@
-import { tableCompactClass, tableScrollClass } from '../../components/layoutStyles'
+import { tableBaseClass, tableCompactClass, tableScrollClass } from '../../components/layoutStyles'
 import { Fragment, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
@@ -367,7 +367,7 @@ export function JobsPage() {
       ) : null}
       {sortedJobs.length ? (
         <div className={tableScrollClass}>
-          <table className={`${tableCompactClass} jobs-table`}>
+          <table className={`${tableBaseClass} ${tableCompactClass} jobs-table`}>
             <caption className="sr-only">Background jobs</caption>
             <thead>
               <tr>

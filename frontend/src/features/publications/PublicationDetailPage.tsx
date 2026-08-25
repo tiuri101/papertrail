@@ -1,4 +1,4 @@
-import { tableScrollClass } from '../../components/layoutStyles'
+import { tableBaseClass, tableScrollClass } from '../../components/layoutStyles'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
@@ -349,7 +349,7 @@ export function PublicationDetailPage() {
 
             {activeTab === 'details' ? (
               <div className={tableScrollClass}>
-                <table>
+                <table className={tableBaseClass}>
                   <caption className="sr-only">Publication details</caption>
                   <thead>
                     <tr>
@@ -400,7 +400,7 @@ export function PublicationDetailPage() {
                     <p className="text-text-muted">No recorded history for this publication yet.</p>
                   ) : (
                     <div className={tableScrollClass}>
-                      <table>
+                      <table className={tableBaseClass}>
                         <caption className="sr-only">Activity log</caption>
                         <thead>
                           <tr>
