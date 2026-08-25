@@ -57,7 +57,7 @@ def login(client, username: str, password: str) -> str:
 
 
 def _seed_extraction_project(db):
-    reviewer = create_user(db, "reviewer", "Reviewer", "password-1")
+    reviewer = create_user(db, "reviewer", "Reviewer", "long-password-1")
     project = Project(
         name="Review",
         review_type="systematic_review",
@@ -183,8 +183,8 @@ def test_compute_extraction_stats_uses_consensus_not_an_unresolved_response(db) 
     from app.extraction.service import extraction_required_reviewers
 
     admin = create_user(db, "admin", "Admin", "secret-password", is_admin=True)
-    r1 = create_user(db, "r1", "R1", "password-1")
-    r2 = create_user(db, "r2", "R2", "password-2")
+    r1 = create_user(db, "r1", "R1", "long-password-1")
+    r2 = create_user(db, "r2", "R2", "long-password-2")
     project = Project(
         name="Dual",
         review_type="systematic_review",
@@ -349,7 +349,7 @@ def test_compute_title_abstract_stats_breaks_down_outcomes_and_exclusion_reasons
     db,
 ) -> None:
     project = _project(db)
-    reviewer = create_user(db, "screener", "Screener", "password-1")
+    reviewer = create_user(db, "screener", "Screener", "long-password-1")
     population = _add_criterion(
         db, project, CriterionKind.INCLUSION, "Population matches"
     )
@@ -408,7 +408,7 @@ def test_compute_title_abstract_stats_breaks_down_outcomes_and_exclusion_reasons
 
 def test_compute_full_text_stats_breaks_down_retrieval_and_outcomes(db) -> None:
     project = _project(db)
-    reviewer = create_user(db, "assessor", "Assessor", "password-1")
+    reviewer = create_user(db, "assessor", "Assessor", "long-password-1")
     criterion = _add_criterion(db, project, CriterionKind.EXCLUSION, "Wrong outcome")
 
     included = Publication(project_id=project.id, title="Included paper")

@@ -8,8 +8,7 @@ import { CountPill } from '../../components/CountPill'
 import { InfoBox } from '../../components/InfoBox'
 import { IconSwap } from '../../components/icons'
 import { tableBaseClass } from '../../components/layoutStyles'
-import type { User } from '../auth/types'
-import type { ProjectMembers as ProjectMembersOf } from './types'
+import type { MemberCandidate, ProjectMembers as ProjectMembersOf } from './types'
 import { Input } from '../../components/Input'
 import { Select } from '../../components/Select'
 import { SortableColumnHeader } from '../../components/SortableColumnHeader'
@@ -175,8 +174,9 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
     enabled: Boolean(projectId),
   })
   const users = useQuery({
-    queryKey: ['users'],
-    queryFn: () => apiRequest<User[]>('/api/v1/users'),
+    queryKey: ['member-candidates', projectId],
+    queryFn: () => apiRequest<MemberCandidate[]>(`/api/v1/projects/${projectId}/member-candidates`),
+    enabled: Boolean(projectId),
   })
 
   const queryParams = new URLSearchParams({
@@ -234,7 +234,7 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
   const eligibleReviewers = (project.data?.memberships ?? [])
       .filter((membership) => membership[activeStage.roleKey])
       .map((membership) => usersById.get(membership.userId))
-      .filter((user): user is User => user !== undefined && user.isActive)
+      .filter((user): user is MemberCandidate => user !== undefined && user.isActive)
       .map((user) => ({
         id: user.id,
         displayName: user.displayName,

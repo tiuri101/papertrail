@@ -1,7 +1,11 @@
+import { DEFAULT_REQUEST_TIMEOUT_MS, fetchWithTimeout } from './response-limits'
 import { isSafePublisherUrl } from './url-safety'
 
 export interface RedirectFetchOptions {
   init?: RequestInit
+  /** How long the request may take to produce response headers. The body is
+   * separately bounded by the streaming readers in `response-limits.ts`. */
+  timeoutMs?: number
 }
 
 export interface RedirectFetchResult {
@@ -31,6 +35,11 @@ export interface RedirectFetchResult {
  * own network stack decides which intermediate hops to follow, not this
  * code -- but it's what the platform actually allows for a request that
  * needs to work across origins the way DOI resolution requires.
+ *
+ * The request is bounded by an `AbortController` timeout so a publisher that
+ * accepts a connection and then never answers cannot pin a retrieval slot
+ * indefinitely. The *body* is not read here -- callers must consume it
+ * through the bounded readers in `response-limits.ts`.
  */
 export async function safeRedirectFetch(
   startUrl: string,
@@ -40,11 +49,15 @@ export async function safeRedirectFetch(
     throw new Error(`Refusing to fetch an unsafe URL: ${startUrl}`)
   }
 
-  const response = await fetch(startUrl, {
-    ...options.init,
-    credentials: 'include',
-    redirect: 'follow',
-  })
+  const response = await fetchWithTimeout(
+    startUrl,
+    {
+      ...options.init,
+      credentials: 'include',
+      redirect: 'follow',
+    },
+    options.timeoutMs ?? DEFAULT_REQUEST_TIMEOUT_MS,
+  )
 
   const finalUrl = response.url || startUrl
   if (!isSafePublisherUrl(finalUrl)) {

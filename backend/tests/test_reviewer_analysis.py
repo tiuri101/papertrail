@@ -231,8 +231,8 @@ def make_decision(
 
 def test_reviewer_analysis_perfect_agreement_two_reviewers(db) -> None:
     project = make_project(db)
-    r1 = create_user(db, "r1", "R1", "password-1")
-    r2 = create_user(db, "r2", "R2", "password-2")
+    r1 = create_user(db, "r1", "R1", "long-password-1")
+    r2 = create_user(db, "r2", "R2", "long-password-2")
     pubs = [Publication(project_id=project.id, title=f"P{i}") for i in range(3)]
     db.add_all(pubs)
     db.flush()
@@ -269,8 +269,8 @@ def test_reviewer_analysis_perfect_agreement_two_reviewers(db) -> None:
 
 def test_reviewer_analysis_total_disagreement(db) -> None:
     project = make_project(db)
-    r1 = create_user(db, "r1", "R1", "password-1")
-    r2 = create_user(db, "r2", "R2", "password-2")
+    r1 = create_user(db, "r1", "R1", "long-password-1")
+    r2 = create_user(db, "r2", "R2", "long-password-2")
     pubs = [Publication(project_id=project.id, title=f"P{i}") for i in range(4)]
     db.add_all(pubs)
     db.flush()
@@ -303,8 +303,8 @@ def test_reviewer_analysis_total_disagreement(db) -> None:
 
 def test_reviewer_analysis_uncertain_decisions_counted_separately(db) -> None:
     project = make_project(db)
-    r1 = create_user(db, "r1", "R1", "password-1")
-    r2 = create_user(db, "r2", "R2", "password-2")
+    r1 = create_user(db, "r1", "R1", "long-password-1")
+    r2 = create_user(db, "r2", "R2", "long-password-2")
     pub = Publication(project_id=project.id, title="P")
     db.add(pub)
     db.flush()
@@ -334,8 +334,8 @@ def test_reviewer_analysis_uncertain_decisions_counted_separately(db) -> None:
 
 def test_reviewer_analysis_excludes_incomplete_reviewer_sets(db) -> None:
     project = make_project(db)
-    r1 = create_user(db, "r1", "R1", "password-1")
-    r2 = create_user(db, "r2", "R2", "password-2")
+    r1 = create_user(db, "r1", "R1", "long-password-1")
+    r2 = create_user(db, "r2", "R2", "long-password-2")
     complete_pub = Publication(project_id=project.id, title="Complete")
     incomplete_pub = Publication(project_id=project.id, title="Incomplete")
     db.add_all([complete_pub, incomplete_pub])
@@ -388,7 +388,7 @@ def test_reviewer_analysis_excludes_incomplete_reviewer_sets(db) -> None:
 
 def test_reviewer_analysis_does_not_treat_single_reviewer_as_agreement(db) -> None:
     project = make_project(db, required_reviewers=1)
-    reviewer = create_user(db, "r1", "R1", "password-1")
+    reviewer = create_user(db, "r1", "R1", "long-password-1")
     db.add(
         ProjectMembership(
             project_id=project.id,
@@ -425,9 +425,9 @@ def test_reviewer_analysis_does_not_treat_single_reviewer_as_agreement(db) -> No
 
 def test_reviewer_analysis_excludes_additional_resolution_slots(db) -> None:
     project = make_project(db)
-    r1 = create_user(db, "r1", "R1", "password-1")
-    r2 = create_user(db, "r2", "R2", "password-2")
-    r3 = create_user(db, "r3", "R3", "password-3")
+    r1 = create_user(db, "r1", "R1", "long-password-1")
+    r2 = create_user(db, "r2", "R2", "long-password-2")
+    r3 = create_user(db, "r3", "R3", "long-password-3")
     pub = Publication(project_id=project.id, title="P")
     db.add(pub)
     db.flush()
@@ -478,8 +478,8 @@ def test_reviewer_analysis_excludes_final_decision_consensus_from_pairwise(db) -
     resolution outcomes, not independent reviewer decisions, and must never
     be treated as though they were another reviewer's original input."""
     project = make_project(db)
-    r1 = create_user(db, "r1", "R1", "password-1")
-    r2 = create_user(db, "r2", "R2", "password-2")
+    r1 = create_user(db, "r1", "R1", "long-password-1")
+    r2 = create_user(db, "r2", "R2", "long-password-2")
     pub = Publication(project_id=project.id, title="P")
     db.add(pub)
     db.flush()
@@ -513,8 +513,8 @@ def test_reviewer_analysis_excludes_final_decision_consensus_from_pairwise(db) -
 
 def test_reviewer_analysis_flags_non_agreement_resolution(db) -> None:
     project = make_project(db)
-    r1 = create_user(db, "r1", "R1", "password-1")
-    r2 = create_user(db, "r2", "R2", "password-2")
+    r1 = create_user(db, "r1", "R1", "long-password-1")
+    r2 = create_user(db, "r2", "R2", "long-password-2")
     pub = Publication(project_id=project.id, title="P")
     db.add(pub)
     db.flush()
@@ -554,8 +554,8 @@ def test_reviewer_analysis_flags_non_agreement_resolution(db) -> None:
 
 def test_reviewer_analysis_title_abstract_and_full_text_kept_separate(db) -> None:
     project = make_project(db)
-    r1 = create_user(db, "r1", "R1", "password-1")
-    r2 = create_user(db, "r2", "R2", "password-2")
+    r1 = create_user(db, "r1", "R1", "long-password-1")
+    r2 = create_user(db, "r2", "R2", "long-password-2")
     pub = Publication(project_id=project.id, title="P")
     db.add(pub)
     db.flush()
@@ -589,7 +589,7 @@ def test_reviewer_analysis_title_abstract_and_full_text_kept_separate(db) -> Non
 
 def test_reviewer_analysis_three_reviewers_computes_fleiss_kappa(db) -> None:
     project = make_project(db, required_reviewers=3)
-    reviewers = [create_user(db, f"r{i}", f"R{i}", f"password-{i}") for i in range(3)]
+    reviewers = [create_user(db, f"r{i}", f"R{i}", f"long-password-{i}") for i in range(3)]
     outcomes_by_pub = [
         [ScreeningOutcome.INCLUDE, ScreeningOutcome.INCLUDE, ScreeningOutcome.INCLUDE],
         [ScreeningOutcome.EXCLUDE, ScreeningOutcome.EXCLUDE, ScreeningOutcome.EXCLUDE],
@@ -623,8 +623,8 @@ def test_reviewer_analysis_three_reviewers_computes_fleiss_kappa(db) -> None:
 
 def test_reviewer_analysis_multi_reviewer_unavailable_for_two_reviewers(db) -> None:
     project = make_project(db)
-    r1 = create_user(db, "r1", "R1", "password-1")
-    r2 = create_user(db, "r2", "R2", "password-2")
+    r1 = create_user(db, "r1", "R1", "long-password-1")
+    r2 = create_user(db, "r2", "R2", "long-password-2")
     pub = Publication(project_id=project.id, title="P")
     db.add(pub)
     db.flush()
@@ -655,8 +655,8 @@ def test_reviewer_analysis_multi_reviewer_unavailable_for_two_reviewers(db) -> N
 
 def test_reviewer_analysis_revision_rate(db) -> None:
     project = make_project(db)
-    r1 = create_user(db, "r1", "R1", "password-1")
-    r2 = create_user(db, "r2", "R2", "password-2")
+    r1 = create_user(db, "r1", "R1", "long-password-1")
+    r2 = create_user(db, "r2", "R2", "long-password-2")
     pub = Publication(project_id=project.id, title="P")
     db.add(pub)
     db.flush()
@@ -688,8 +688,8 @@ def test_reviewer_analysis_revision_rate(db) -> None:
 
 def test_reviewer_analysis_criterion_level_agreement(db) -> None:
     project = make_project(db)
-    r1 = create_user(db, "r1", "R1", "password-1")
-    r2 = create_user(db, "r2", "R2", "password-2")
+    r1 = create_user(db, "r1", "R1", "long-password-1")
+    r2 = create_user(db, "r2", "R2", "long-password-2")
     criterion = Criterion(
         project_id=project.id, kind=CriterionKind.INCLUSION, text="Relevant", position=0
     )
@@ -752,8 +752,8 @@ def test_reviewer_analysis_criterion_level_agreement(db) -> None:
 
 def test_reviewer_analysis_weekly_trend_buckets_by_completion_date(db) -> None:
     project = make_project(db)
-    r1 = create_user(db, "r1", "R1", "password-1")
-    r2 = create_user(db, "r2", "R2", "password-2")
+    r1 = create_user(db, "r1", "R1", "long-password-1")
+    r2 = create_user(db, "r2", "R2", "long-password-2")
     week1 = datetime(2026, 1, 5, tzinfo=UTC)  # a Monday
     week2 = week1 + timedelta(days=8)
     pub1 = Publication(project_id=project.id, title="P1")
@@ -816,8 +816,8 @@ def test_reviewer_analysis_weekly_trend_buckets_by_completion_date(db) -> None:
 
 def test_reviewer_summary_has_no_identifying_fields(db) -> None:
     project = make_project(db)
-    r1 = create_user(db, "r1", "R1", "password-1")
-    r2 = create_user(db, "r2", "R2", "password-2")
+    r1 = create_user(db, "r1", "R1", "long-password-1")
+    r2 = create_user(db, "r2", "R2", "long-password-2")
     pub = Publication(project_id=project.id, title="P")
     db.add(pub)
     db.flush()
@@ -868,8 +868,8 @@ def test_reviewer_analysis_api_response_contains_no_identifying_fields(
     admin = create_user(db, "admin", "Admin", "secret-password", is_admin=True)
     project = make_project(db)
     project.stage = ProjectStage.FULL_TEXT
-    r1 = create_user(db, "r1", "R1", "password-1", email="r1@example.org")
-    r2 = create_user(db, "r2", "R2", "password-2", email="r2@example.org")
+    r1 = create_user(db, "r1", "R1", "long-password-1", email="r1@example.org")
+    r2 = create_user(db, "r2", "R2", "long-password-2", email="r2@example.org")
     db.add_all(
         [
             ProjectMembership(project_id=project.id, user_id=admin.id, is_owner=True),

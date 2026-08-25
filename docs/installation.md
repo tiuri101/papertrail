@@ -21,7 +21,7 @@ Optional features additionally require:
 ## Initial installation
 
 1. Copy `.env.example` to `.env`.
-2. Replace the PostgreSQL and administrator passwords.
+2. Replace the PostgreSQL and administrator passwords, and generate a unique `PAPERTRAIL_RUNTIME_DATABASE_PASSWORD` (the least-privilege identity the API and workers actually connect as — see [Configuration](configuration.md) and [Security Operations](operations/security.md#database-privilege-separation)).
 3. Set `PAPERTRAIL_IMAGE_TAG` to the backend/frontend release tag to deploy.
 4. Configure host binding/reverse-proxy values for your environment.
 5. Run:
@@ -35,7 +35,9 @@ Optional features additionally require:
 
 The one-shot `migrate` service runs Alembic migrations and then invokes the idempotent administrator bootstrap before `api` starts. If the administrator account already exists, a later deployment/migration run does not reset its password.
 
-Keep `PAPERTRAIL_ADMIN_PASSWORD` available for future migration-container invocations unless you deliberately change the deployment/bootstrap process.
+Keep `PAPERTRAIL_ADMIN_PASSWORD` available for future migration-container invocations unless you deliberately change the deployment/bootstrap process. Only the `migrate` service ever receives it; `api`, `worker`, and `llm-worker` do not.
+
+`docker-compose.yml` runs with `PAPERTRAIL_ENV=production` by default, which refuses to start on an insecure cookie/CORS/host/URL/database-password setting — see [Security Operations](operations/security.md#production-configuration-is-fail-closed) if `migrate`/`api` exit immediately with a configuration error.
 
 ## Reverse proxy and ports
 
@@ -85,6 +87,8 @@ Environment variables remain the baseline and some process-level worker values a
 Email delivery is asynchronous through the normal worker. Configuration requires a public base URL, SMTP host/from address, and the provider's TLS/authentication settings. The Global Settings page can send a test email to the administrator's own account address.
 
 Password recovery from the login page depends on email being enabled. In the current implementation the forgot-password request gate checks process-level `PAPERTRAIL_EMAIL_ENABLED`, so installations that require self-service recovery should enable email and provide valid SMTP host/from values in the API environment as well as any Global Settings overrides; see [Configuration](configuration.md). Account creation itself does not require an email address.
+
+Self-service recovery additionally requires `PAPERTRAIL_NOTIFICATION_ENCRYPTION_KEY`, which encrypts the reset link while it waits in the notification queue so that a database dump alone cannot yield a working reset token. Without it the forgot-password route answers exactly as it always does but queues no email and logs an error naming the variable. See [Configuration](configuration.md#notification-encryption-key) for how to generate and rotate it.
 
 ## Optional Ollama/LLM
 

@@ -7,6 +7,7 @@ import { Button } from '../../components/Button'
 import { IconCheckCircle } from '../../components/icons'
 import { Input } from '../../components/Input'
 import { AuthAlert, AuthCard, authFieldClassName, authFormClassName, AuthHeading, AuthPage } from './AuthLayout'
+import { MIN_PASSWORD_LENGTH, PASSWORD_REQUIREMENTS_TEXT, passwordMeetsPolicy } from './passwordPolicy'
 import { setCsrfToken } from './session'
 import type { LoginResponse } from './types'
 
@@ -40,17 +41,24 @@ export function ResetPasswordPage() {
         </AuthHeading>
         {token ? (
           <form className={authFormClassName} onSubmit={(event) => { event.preventDefault(); resetPassword.mutate() }}>
-            <label className={authFieldClassName}>
-              New password
-              <Input
-                type="password"
-                value={newPassword}
-                onChange={(event) => setNewPassword(event.target.value)}
-                autoComplete="new-password"
-                minLength={8}
-                required
-              />
-            </label>
+            {/* The hint sits outside the <label> on purpose: this label wraps
+                its control, so anything inside it becomes part of the field's
+                accessible name. */}
+            <div className="grid gap-2">
+              <label className={authFieldClassName}>
+                New password
+                <Input
+                  type="password"
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  autoComplete="new-password"
+                  minLength={MIN_PASSWORD_LENGTH}
+                  aria-describedby="reset-password-requirements"
+                  required
+                />
+              </label>
+              <small id="reset-password-requirements" className="text-text-secondary">{PASSWORD_REQUIREMENTS_TEXT}</small>
+            </div>
             <label className={authFieldClassName}>
               Confirm new password
               <Input
@@ -58,7 +66,7 @@ export function ResetPasswordPage() {
                 value={confirmPassword}
                 onChange={(event) => setConfirmPassword(event.target.value)}
                 autoComplete="new-password"
-                minLength={8}
+                minLength={MIN_PASSWORD_LENGTH}
                 required
               />
             </label>
@@ -71,7 +79,7 @@ export function ResetPasswordPage() {
             <Button
               type="submit"
               loading={resetPassword.isPending}
-              disabled={newPassword.length < 8 || passwordsMismatch}
+              disabled={!passwordMeetsPolicy(newPassword) || passwordsMismatch}
             >
               <IconCheckCircle />
               {resetPassword.isPending ? 'Updating…' : 'Set New Password'}

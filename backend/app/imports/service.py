@@ -7,9 +7,30 @@ from typing import Any
 from sqlalchemy import delete, distinct, exists, select
 from sqlalchemy.orm import Session
 
+from app.api.errors import NotFoundError
 from app.imports.adapters import normalize_imported_row, parse_file
 from app.imports.models import ImportBatch, ImportedRecord, ImportStatus, SearchSource
 from app.jobs.models import BackgroundJob
+
+
+def resolve_project_search_source(
+    db: Session, project_id: str, search_source_id: str | None
+) -> SearchSource | None:
+    """Resolve a caller-supplied search-source id *within this project*.
+
+    A `SearchSource` belongs to exactly one project, so accepting an id that
+    merely exists would let a member of project A attribute an import batch
+    to project B's documented search -- leaking that the search exists and
+    corrupting B's PRISMA source accounting. A source belonging to another
+    project is reported as simply not found, so the response can't be used to
+    probe for ids outside the caller's own project.
+    """
+    if not search_source_id:
+        return None
+    source = db.get(SearchSource, search_source_id)
+    if source is None or source.project_id != project_id:
+        raise NotFoundError("Search source not found")
+    return source
 
 
 def process_import_job(db: Session, job: BackgroundJob) -> dict[str, object]:

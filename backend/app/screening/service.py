@@ -23,6 +23,10 @@ from app.projects.models import (
 )
 from app.projects.service import reviewer_weights, weighted_round_robin_sequence
 from app.publications.models import Publication
+from app.review_work.eligibility import (
+    capability_for_stage,
+    require_reviewer_capability_by_id,
+)
 from app.screening.models import (
     ScreeningDecision,
     ScreeningOutcome,
@@ -354,6 +358,9 @@ def claim_next_work_item(
     publication_id: str | None = None,
     excluded_item_ids: set[str] | None = None,
 ) -> ScreeningWorkItem | None:
+    require_reviewer_capability_by_id(
+        db, project_id, reviewer_id, capability_for_stage(stage)
+    )
     now = utcnow()
     excluded_item_ids = excluded_item_ids or set()
     # A page reload or interrupted browser session can leave the current item
@@ -453,6 +460,9 @@ def release_work_item(db: Session, item: ScreeningWorkItem, reviewer_id: str) ->
     yet still counted in their `remaining` total by
     `remaining_claimable_publications`, which only checks `assigned_reviewer_id`.
     """
+    require_reviewer_capability_by_id(
+        db, item.project_id, reviewer_id, capability_for_stage(item.stage)
+    )
     if item.reserved_by_id != reviewer_id:
         raise ForbiddenError("This work item is not reserved by the current reviewer")
     config = get_screening_config(db, item.project_id, item.stage)
@@ -465,8 +475,11 @@ def release_work_item(db: Session, item: ScreeningWorkItem, reviewer_id: str) ->
 
 
 def save_draft(
-    item: ScreeningWorkItem, reviewer_id: str, draft: dict[str, Any]
+    db: Session, item: ScreeningWorkItem, reviewer_id: str, draft: dict[str, Any]
 ) -> None:
+    require_reviewer_capability_by_id(
+        db, item.project_id, reviewer_id, capability_for_stage(item.stage)
+    )
     if item.reserved_by_id != reviewer_id or item.status == WorkItemStatus.SUBMITTED:
         raise ForbiddenError("This work item cannot be edited")
     item.draft = draft
@@ -490,6 +503,9 @@ def submit_decision(
     criteria_answers: dict[str, bool],
     notes: str | None,
 ) -> ScreeningDecision:
+    require_reviewer_capability_by_id(
+        db, item.project_id, reviewer_id, capability_for_stage(item.stage)
+    )
     if item.assigned_reviewer_id != reviewer_id:
         raise ForbiddenError("This work item is assigned to another reviewer")
     required = required_criterion_ids(db, item.project_id)

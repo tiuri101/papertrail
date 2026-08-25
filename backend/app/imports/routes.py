@@ -41,7 +41,7 @@ from app.imports.schemas import (
     SearchSourceCreate,
     SearchSourceResponse,
 )
-from app.imports.service import preview_or_delete_search
+from app.imports.service import preview_or_delete_search, resolve_project_search_source
 from app.jobs.service import enqueue_job
 from app.projects.dependencies import require_project_member_csrf
 from app.projects.service import get_project, require_project_access
@@ -188,8 +188,9 @@ async def upload_import(
     db: Session = Depends(get_db),
 ) -> JobAccepted:
     get_project(db, project_id)
-    if search_source_id and db.get(SearchSource, search_source_id) is None:
-        raise NotFoundError("Search source not found")
+    # Must run before anything is written: a foreign search-source id has to
+    # fail before an ImportBatch (or a staged upload) exists for it.
+    resolve_project_search_source(db, project_id, search_source_id)
 
     safe_name = Path(file.filename or "import").name
     suffix = Path(safe_name).suffix.lower()

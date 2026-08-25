@@ -3,6 +3,7 @@ import { Route, Routes } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 
 import { ChangePasswordPage } from '../ChangePasswordPage'
+import { MIN_PASSWORD_LENGTH, PASSWORD_REQUIREMENTS_TEXT } from '../passwordPolicy'
 import { sessionQueryOptions } from '../sessionQuery'
 import type { LoginResponse } from '../types'
 import { jsonResponse, mockFetch } from '../../../test/http'
@@ -149,5 +150,33 @@ describe('ChangePasswordPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Set Password' }))
 
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Current password is incorrect'))
+  })
+
+  it('states the length requirement and blocks a password below it', () => {
+    const session: LoginResponse = {
+      user: {
+        id: 'u1',
+        username: 'newbie',
+        displayName: 'Newbie',
+        isAdmin: false,
+        isActive: true,
+        mustChangePassword: true,
+      },
+      csrfToken: 'csrf-session',
+    }
+    renderChangePassword(session)
+
+    expect(screen.getByText(PASSWORD_REQUIREMENTS_TEXT)).toBeInTheDocument()
+
+    const tooShort = 'a'.repeat(MIN_PASSWORD_LENGTH - 1)
+    fireEvent.change(screen.getByLabelText('Current password'), { target: { value: 'temporary-password' } })
+    fireEvent.change(screen.getByLabelText('New password'), { target: { value: tooShort } })
+    fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: tooShort } })
+    expect(screen.getByRole('button', { name: 'Set Password' })).toBeDisabled()
+
+    const longEnough = 'a'.repeat(MIN_PASSWORD_LENGTH)
+    fireEvent.change(screen.getByLabelText('New password'), { target: { value: longEnough } })
+    fireEvent.change(screen.getByLabelText('Confirm new password'), { target: { value: longEnough } })
+    expect(screen.getByRole('button', { name: 'Set Password' })).toBeEnabled()
   })
 })

@@ -22,14 +22,14 @@ const projectDetail = {
 }
 
 const users = [
-  { id: 'u1', username: 'alice', displayName: 'Alice Reviewer', isAdmin: false, isActive: true },
-  { id: 'u2', username: 'bob', displayName: 'Bob Reviewer', isAdmin: false, isActive: true },
+  { id: 'u1', username: 'alice', displayName: 'Alice Reviewer', isActive: true },
+  { id: 'u2', username: 'bob', displayName: 'Bob Reviewer', isActive: true },
 ]
 
 describe('MembersPanel', () => {
   it('lists existing members with their roles', async () => {
     mockFetch((input) => {
-      if (String(input).endsWith('/users')) return jsonResponse(users)
+      if (String(input).endsWith('/member-candidates')) return jsonResponse(users)
       return jsonResponse(projectDetail)
     })
     renderWithProviders(<MembersPanel projectId="p1" />)
@@ -40,7 +40,7 @@ describe('MembersPanel', () => {
 
   it('only offers non-member users when adding a new member', async () => {
     mockFetch((input) => {
-      if (String(input).endsWith('/users')) return jsonResponse(users)
+      if (String(input).endsWith('/member-candidates')) return jsonResponse(users)
       return jsonResponse(projectDetail)
     })
     renderWithProviders(<MembersPanel projectId="p1" />)
@@ -54,7 +54,7 @@ describe('MembersPanel', () => {
 
   it('hides the stage checkboxes until a reviewer is selected', async () => {
     mockFetch((input) => {
-      if (String(input).endsWith('/users')) return jsonResponse(users)
+      if (String(input).endsWith('/member-candidates')) return jsonResponse(users)
       return jsonResponse(projectDetail)
     })
     renderWithProviders(<MembersPanel projectId="p1" />)
@@ -82,7 +82,7 @@ describe('MembersPanel', () => {
           workloadWeight: 1,
         })
       }
-      if (String(input).endsWith('/users')) return jsonResponse(users)
+      if (String(input).endsWith('/member-candidates')) return jsonResponse(users)
       return jsonResponse(projectDetail)
     })
     renderWithProviders(<MembersPanel projectId="p1" />)
@@ -109,7 +109,7 @@ describe('MembersPanel', () => {
   it('removes a member after confirmation', async () => {
     const fetchMock = mockFetch((input, init) => {
       if (init?.method === 'DELETE') return jsonResponse(null, 204)
-      if (String(input).endsWith('/users')) return jsonResponse(users)
+      if (String(input).endsWith('/member-candidates')) return jsonResponse(users)
       return jsonResponse(projectDetail)
     })
     renderWithProviders(<MembersPanel projectId="p1" />)
@@ -141,7 +141,7 @@ describe('MembersPanel', () => {
           201,
         )
       }
-      if (String(input).endsWith('/users')) return jsonResponse(users)
+      if (String(input).endsWith('/member-candidates')) return jsonResponse(users)
       return jsonResponse(projectDetail)
     })
     renderWithProviders(<MembersPanel projectId="p1" />)

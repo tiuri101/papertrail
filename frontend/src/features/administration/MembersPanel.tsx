@@ -12,8 +12,7 @@ import { InfoBox } from '../../components/InfoBox'
 import { Input } from '../../components/Input'
 import { Select } from '../../components/Select'
 import { cn } from '../../lib/cn'
-import type { User } from '../auth/types'
-import type { ProjectMembers as ProjectMembersOf } from './types'
+import type { MemberCandidate, ProjectMembers as ProjectMembersOf } from './types'
 import { FieldLabel } from '../../components/FieldLabel'
 import { Form } from '../../components/Form'
 import { Fieldset } from '../../components/Fieldset'
@@ -184,8 +183,9 @@ export function MembersPanel({
     enabled: Boolean(projectId),
   })
   const users = useQuery({
-    queryKey: ['users'],
-    queryFn: () => apiRequest<User[]>('/api/v1/users'),
+    queryKey: ['member-candidates', projectId],
+    queryFn: () => apiRequest<MemberCandidate[]>(`/api/v1/projects/${projectId}/member-candidates`),
+    enabled: Boolean(projectId),
   })
 
   const [selectedUserId, setSelectedUserId] = useState('')

@@ -73,8 +73,10 @@ class LoginThrottle(UUIDPrimaryKeyMixin, Base):
         String(64), unique=True, index=True, nullable=False
     )
     attempts: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    # Indexed so the opportunistic prune of finished windows stays a bounded
+    # index scan instead of a full sweep of every identity ever throttled.
     window_started_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
+        DateTime(timezone=True), index=True, nullable=False
     )
     blocked_until: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), index=True

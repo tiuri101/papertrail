@@ -31,8 +31,8 @@ from app.screening.service import (
 
 
 def setup_screening(db):
-    reviewer1 = create_user(db, "reviewer1", "Reviewer 1", "password-1")
-    reviewer2 = create_user(db, "reviewer2", "Reviewer 2", "password-2")
+    reviewer1 = create_user(db, "reviewer1", "Reviewer 1", "long-password-1")
+    reviewer2 = create_user(db, "reviewer2", "Reviewer 2", "long-password-2")
     project = Project(
         name="Review",
         review_type=ReviewType.SYSTEMATIC_REVIEW,
@@ -117,7 +117,7 @@ def test_claim_next_work_item_prefers_publication_with_completed_llm_suggestion(
     monkeypatch.setattr(settings, "llm_enabled", True)
     monkeypatch.setattr(settings, "ollama_model", "test-model:latest")
 
-    reviewer = create_user(db, "reviewer1", "Reviewer 1", "password-1")
+    reviewer = create_user(db, "reviewer1", "Reviewer 1", "long-password-1")
     project = Project(
         name="Review",
         review_type=ReviewType.SYSTEMATIC_REVIEW,
@@ -246,8 +246,8 @@ def setup_three_publications_two_reviewers(db):
     them -- then one reviewer is removed, and their single assigned publication
     should not end up permanently stuck."""
     admin = create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
-    reviewer1 = create_user(db, "reviewer1", "Reviewer 1", "password-1")
-    reviewer2 = create_user(db, "reviewer2", "Reviewer 2", "password-2")
+    reviewer1 = create_user(db, "reviewer1", "Reviewer 1", "long-password-1")
+    reviewer2 = create_user(db, "reviewer2", "Reviewer 2", "long-password-2")
     project = Project(
         name="Test",
         review_type=ReviewType.SYSTEMATIC_REVIEW,
@@ -314,7 +314,7 @@ def test_removing_a_reviewer_reassigns_their_pending_work_items(client, db) -> N
     assert assignees(db, project.id) == {reviewer1.id}
 
     reviewer_login = client.post(
-        "/api/v1/auth/login", json={"username": "reviewer1", "password": "password-1"}
+        "/api/v1/auth/login", json={"username": "reviewer1", "password": "long-password-1"}
     )
     reviewer_csrf = reviewer_login.json()["csrfToken"]
     claimed_titles = set()
@@ -384,7 +384,7 @@ def test_next_endpoint_self_heals_a_work_item_left_on_an_ineligible_reviewer(
     assert reviewer2.id in assignees(db, project.id)
 
     login = client.post(
-        "/api/v1/auth/login", json={"username": "reviewer1", "password": "password-1"}
+        "/api/v1/auth/login", json={"username": "reviewer1", "password": "long-password-1"}
     )
     csrf = login.json()["csrfToken"]
     claimed_titles = set()
@@ -468,7 +468,7 @@ def test_rebalance_spreads_backlog_onto_a_newly_added_reviewer(db) -> None:
     before = counts()
     assert before == {reviewer1.id: 2, reviewer2.id: 1}
 
-    reviewer3 = create_user(db, "reviewer3", "Reviewer 3", "password-3")
+    reviewer3 = create_user(db, "reviewer3", "Reviewer 3", "long-password-3")
     db.add(
         ProjectMembership(
             project_id=project.id, user_id=reviewer3.id, can_title_abstract_screen=True
@@ -488,8 +488,8 @@ def test_rebalance_spreads_backlog_onto_a_newly_added_reviewer(db) -> None:
 
 def test_rebalance_never_gives_a_reviewer_two_slots_of_the_same_publication(db) -> None:
     create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
-    reviewer1 = create_user(db, "reviewer1", "Reviewer 1", "password-1")
-    reviewer2 = create_user(db, "reviewer2", "Reviewer 2", "password-2")
+    reviewer1 = create_user(db, "reviewer1", "Reviewer 1", "long-password-1")
+    reviewer2 = create_user(db, "reviewer2", "Reviewer 2", "long-password-2")
     project = Project(
         name="Test",
         review_type=ReviewType.SYSTEMATIC_REVIEW,
@@ -639,7 +639,7 @@ def test_non_admin_cannot_reassign_work_items(client, db) -> None:
     )
 
     login = client.post(
-        "/api/v1/auth/login", json={"username": "reviewer1", "password": "password-1"}
+        "/api/v1/auth/login", json={"username": "reviewer1", "password": "long-password-1"}
     )
     csrf = login.json()["csrfToken"]
     response = client.patch(
@@ -803,7 +803,7 @@ def test_next_endpoint_returns_a_claimable_work_item_over_http(client, db) -> No
     db.commit()
 
     login = client.post(
-        "/api/v1/auth/login", json={"username": "reviewer1", "password": "password-1"}
+        "/api/v1/auth/login", json={"username": "reviewer1", "password": "long-password-1"}
     )
     assert login.status_code == 200
     csrf = login.json()["csrfToken"]
@@ -856,7 +856,7 @@ def test_next_endpoint_backfills_a_publication_left_without_a_work_item(
     )
 
     login = client.post(
-        "/api/v1/auth/login", json={"username": "reviewer1", "password": "password-1"}
+        "/api/v1/auth/login", json={"username": "reviewer1", "password": "long-password-1"}
     )
     csrf = login.json()["csrfToken"]
 
@@ -902,7 +902,7 @@ def test_get_work_item_returns_the_reviewers_own_decision(client, db) -> None:
     db.commit()
 
     login = client.post(
-        "/api/v1/auth/login", json={"username": "reviewer1", "password": "password-1"}
+        "/api/v1/auth/login", json={"username": "reviewer1", "password": "long-password-1"}
     )
     csrf = login.json()["csrfToken"]
 
@@ -937,7 +937,7 @@ def test_get_work_item_returns_the_reviewers_own_decision(client, db) -> None:
     }
 
     other_login = client.post(
-        "/api/v1/auth/login", json={"username": "reviewer2", "password": "password-2"}
+        "/api/v1/auth/login", json={"username": "reviewer2", "password": "long-password-2"}
     )
     assert other_login.status_code == 200
     forbidden = client.get(
@@ -955,7 +955,7 @@ def test_progress_endpoint_reports_assigned_and_completed_counts(client, db) -> 
     db.commit()
 
     login = client.post(
-        "/api/v1/auth/login", json={"username": "reviewer1", "password": "password-1"}
+        "/api/v1/auth/login", json={"username": "reviewer1", "password": "long-password-1"}
     )
     csrf = login.json()["csrfToken"]
 
@@ -1011,7 +1011,7 @@ def test_progress_endpoint_reports_remaining_in_claim_mode(client, db) -> None:
     db.commit()
 
     login = client.post(
-        "/api/v1/auth/login", json={"username": "reviewer1", "password": "password-1"}
+        "/api/v1/auth/login", json={"username": "reviewer1", "password": "long-password-1"}
     )
     csrf = login.json()["csrfToken"]
 
@@ -1071,7 +1071,7 @@ def test_releasing_claimed_item_returns_it_to_the_open_pool(client, db) -> None:
     db.commit()
 
     login = client.post(
-        "/api/v1/auth/login", json={"username": "reviewer1", "password": "password-1"}
+        "/api/v1/auth/login", json={"username": "reviewer1", "password": "long-password-1"}
     )
     csrf = login.json()["csrfToken"]
 
@@ -1207,7 +1207,7 @@ def test_reviewer_can_revise_decision_via_http_and_gets_flagged_after_completion
     db.commit()
 
     login = client.post(
-        "/api/v1/auth/login", json={"username": "reviewer1", "password": "password-1"}
+        "/api/v1/auth/login", json={"username": "reviewer1", "password": "long-password-1"}
     )
     csrf = login.json()["csrfToken"]
 

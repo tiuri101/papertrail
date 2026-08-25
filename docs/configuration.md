@@ -33,7 +33,9 @@ These values are consumed by `docker-compose.yml` or the administrator bootstrap
 | `POSTGRES_PASSWORD` | `change-me` | PostgreSQL password; replace for production. |
 | `PAPERTRAIL_ADMIN_USERNAME` | `admin` | Initial administrator username used by the migration container. |
 | `PAPERTRAIL_ADMIN_DISPLAY_NAME` | `Papertrail Administrator` | Initial administrator display name. |
-| `PAPERTRAIL_ADMIN_PASSWORD` | none; required | Initial administrator password. Existing administrator accounts are not reset by subsequent migration runs. |
+| `PAPERTRAIL_ADMIN_PASSWORD` | none; required | Initial administrator password. Only the `migrate` service receives this; `api`/`worker`/`llm-worker` do not. Existing administrator accounts are not reset by subsequent migration runs. |
+| `PAPERTRAIL_RUNTIME_DATABASE_ROLE` | none; required | Name of the least-privilege PostgreSQL role that `api`/`worker`/`llm-worker` connect as (DML only — no schema/DDL rights). `migrate` creates/refreshes this role via `python -m app.cli ensure-runtime-role` after applying migrations. See [Security Operations](operations/security.md#database-privilege-separation). |
+| `PAPERTRAIL_RUNTIME_DATABASE_PASSWORD` | none; required | Password for the role above. Generate with `python -c "import secrets; print(secrets.token_urlsafe(32))"`. Changing it requires restarting `migrate` (to update the role) and then `api`/`worker`/`llm-worker`. |
 | `PAPERTRAIL_API_BIND` | `127.0.0.1` | Host/interface to which container port 8000 is published. |
 | `PAPERTRAIL_API_PORT` | `8000` | Published API port. |
 | `PAPERTRAIL_FRONTEND_BIND` | `127.0.0.1` | Host/interface to which container port 80 is published. |
@@ -46,7 +48,9 @@ All settings below use the `PAPERTRAIL_` prefix. Defaults are those in `backend/
 
 | Variable | Default | Global Settings override | Notes |
 | --- | --- | --- | --- |
-| `PAPERTRAIL_ENV` | `development` | no | Compose defaults this to `production`. Tests use `test`. |
+| `PAPERTRAIL_ENV` | `development` | no | Compose defaults this to `production`. Tests use `test`. With `production`, startup fails closed on insecure defaults — see [Security Operations](operations/security.md#production-configuration-is-fail-closed). |
+| `PAPERTRAIL_ALLOW_INSECURE_PRODUCTION` | `false` | no | Explicit escape hatch to let `PAPERTRAIL_ENV=production` start despite an insecure setting (e.g. a throwaway internal staging stack). Never set on an internet-facing installation. |
+| `PAPERTRAIL_API_DOCS_ENABLED` | unset | no | Forces `/docs`, `/redoc`, `/openapi.json` on or off regardless of environment. Unset means "on outside production, off in production". |
 | `PAPERTRAIL_APP_NAME` | `Papertrail` | no | FastAPI application title. |
 | `PAPERTRAIL_APP_VERSION` | `dev` | no | Normally injected into built images. |
 | `PAPERTRAIL_API_PREFIX` | `/api/v1` | no | Versioned API prefix. |
@@ -56,11 +60,11 @@ All settings below use the `PAPERTRAIL_` prefix. Defaults are those in `backend/
 | `PAPERTRAIL_SESSION_COOKIE_NAME` | `papertrail_session` | no | HTTP-only session cookie name. |
 | `PAPERTRAIL_SESSION_COOKIE_SECURE` | `false` | no | Set `true` when the public site is HTTPS. |
 | `PAPERTRAIL_SESSION_TTL_HOURS` | `168` | no | Session lifetime. |
-| `PAPERTRAIL_LOGIN_MAX_ATTEMPTS` | `5` | no | Failed login attempts before a temporary block. |
+| `PAPERTRAIL_LOGIN_MAX_ATTEMPTS` | `5` | no | Failed login attempts per account+address before a temporary block. The account-wide limit is 3x and the source-address-wide limit 6x this value. |
 | `PAPERTRAIL_LOGIN_WINDOW_SECONDS` | `900` | no | Login-throttle counting window. |
 | `PAPERTRAIL_LOGIN_BLOCK_SECONDS` | `900` | no | Temporary login/password-reset block duration. |
 | `PAPERTRAIL_PASSWORD_RESET_TTL_MINUTES` | `60` | yes | Password-reset link lifetime. |
-| `PAPERTRAIL_PASSWORD_RESET_MAX_ATTEMPTS` | `5` | yes | Reset-request throttle threshold. |
+| `PAPERTRAIL_PASSWORD_RESET_MAX_ATTEMPTS` | `5` | yes | Reset-request threshold per email+address; the same 3x/6x account and address scopes apply. |
 | `PAPERTRAIL_MAX_UPLOAD_BYTES` | `26214400` | no | General upload limit used outside the PDF-specific path. |
 | `PAPERTRAIL_IMPORT_DIR` | `./data/imports` | no | Compose fixes this to `/data/imports`. |
 | `PAPERTRAIL_EXPORT_DIR` | `./data/exports` | no | Compose fixes this to `/data/exports`. |
@@ -93,8 +97,41 @@ Email is optional. When enabled, `PAPERTRAIL_SMTP_HOST` and `PAPERTRAIL_SMTP_FRO
 | `PAPERTRAIL_SMTP_STARTTLS` | `true` | yes |
 | `PAPERTRAIL_SMTP_USE_SSL` | `false` | yes |
 | `PAPERTRAIL_SMTP_TIMEOUT_SECONDS` | `30` | yes |
+| `PAPERTRAIL_NOTIFICATION_ENCRYPTION_KEY` | unset | no; environment only |
 
 The administrator can send a test message from Global Settings. The recipient is the administrator's own account email address.
+
+### Notification encryption key
+
+A queued password-reset email has to carry a working reset link until the worker
+delivers it. That link is a credential, so it is never written to PostgreSQL in
+clear text: it is sealed with AES-256-GCM under
+`PAPERTRAIL_NOTIFICATION_ENCRYPTION_KEY`, and the ciphertext is discarded once
+the message has been sent. A database dump on its own therefore cannot yield a
+usable reset token.
+
+- **Required for self-service password recovery.** Without it the
+  forgot-password route still answers identically for every address (it must not
+  become an account-existence oracle), but queues nothing and logs an error
+  naming this variable. Every other email template is unaffected.
+- **Must be identical for the API and the worker processes**, and must survive
+  restarts — a key that changes between queueing and sending makes the pending
+  email undeliverable (the job fails with a "could not be decrypted" error).
+- **Environment/secret store only.** It is never stored in the database, never
+  returned by an API, never exposed in Global Settings, and never logged. It is
+  not overridable from Global Settings by design.
+- Minimum 32 characters, and it must be high-entropy random data rather than a
+  memorable phrase. Generate one with:
+
+  ```bash
+  python -c "import secrets; print(secrets.token_urlsafe(48))"
+  ```
+
+- **Rotation:** changing the key invalidates only reset emails that are still
+  queued; affected users simply request a new link.
+- Deployments using `docker-compose.yml` must add
+  `PAPERTRAIL_NOTIFICATION_ENCRYPTION_KEY` to the `x-backend-environment` block,
+  like any other variable that is not already listed there.
 
 ## Ollama / LLM settings
 
