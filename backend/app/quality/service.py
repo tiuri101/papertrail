@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.accounts.models import User
 from app.api.errors import DomainError, ForbiddenError, NotFoundError
 from app.core.time import utcnow
-from app.extraction.service import validate_answers
+from app.extraction.service import normalize_answers, validate_answers
 from app.forms.models import FieldType, FormField, FormKind, ReviewForm
 from app.forms.service import active_fields as forms_active_fields
 from app.forms.service import project_form_by_kind
@@ -318,6 +318,7 @@ def submit_quality(
     if form is None or config is None or not form.active_version_id:
         raise NotFoundError("Quality assessment configuration not found")
     fields = active_fields(db, form)
+    answers = normalize_answers(fields, answers)
     validate_answers(fields, answers)
     current = db.scalar(
         select(QualityResponse).where(

@@ -119,10 +119,6 @@ function subjectsFrom(keywords: string | null): string[] {
   return keywords.split(/[,;]/).map((part) => part.trim()).filter(Boolean)
 }
 
-function screeningStageLabel(stage: 'title_abstract' | 'full_text'): string {
-  return stage === 'title_abstract' ? 'Title/Abstract Screening' : 'Full-Text Screening'
-}
-
 function activityOutcomeLabel(outcome: string): string {
   const labels: Record<string, string> = {
     include: 'Included',
@@ -279,11 +275,6 @@ export function PublicationDetailPage() {
   const yourDecision = activeStageDetails?.reviewerDecisions.find(
     (decision) => decision.reviewerName === session.data?.user.displayName,
   )
-  const screeningActionable = activeStage === 'title_abstract'
-    || (activeStage === 'full_text' && Boolean(publication.fullText?.available))
-  const screeningHref = activeStage === 'title_abstract'
-    ? `/projects/${projectId}/screening/title_abstract`
-    : `/projects/${projectId}/full-text`
 
   return (
       <main className={pageStyles}>
@@ -457,7 +448,7 @@ export function PublicationDetailPage() {
         <aside className="sticky top-[92px] grid gap-4 max-[960px]:static max-[960px]:order-2 max-[960px]:min-w-0 max-[960px]:max-w-full">
           <section className={cn(cardStyles, '[&_h2]:mb-3 [&_h2]:mt-0')} data-ui="card">
             <h2>Review Status</h2>
-            <dl className="mb-4 grid gap-3">
+            <dl className="grid gap-3">
               <div className="flex items-center justify-between gap-2">
                 <dt className="text-[0.85rem] text-text-muted">Stage</dt>
                 <dd className="m-0"><Badge variant={stage.variant}>{stage.label}</Badge></dd>
@@ -474,25 +465,6 @@ export function PublicationDetailPage() {
                 </div>
               ) : null}
             </dl>
-            {activeStage ? (
-              screeningActionable ? (
-                <>
-                  <Button as={Link} variant="secondary" className="w-full" to={screeningHref}>
-                    Open Screening Queue
-                  </Button>
-                  <p className="text-text-muted mt-2 text-[0.82rem]">
-                    Claims the next item in the {screeningStageLabel(activeStage)} queue -- not
-                    guaranteed to be this publication.
-                  </p>
-                </>
-              ) : (
-                <p className="text-text-muted mt-2 text-[0.82rem]">
-                  Awaiting full-text retrieval before it can be screened.
-                </p>
-              )
-            ) : (
-              <p className="text-text-muted mt-2 text-[0.82rem]">Screening complete.</p>
-            )}
           </section>
 
           <section className={cn(cardStyles, '[&_h2]:mb-3 [&_h2]:mt-0')} data-ui="card">

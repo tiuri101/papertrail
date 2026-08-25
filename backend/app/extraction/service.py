@@ -447,6 +447,29 @@ def active_fields(db: Session, form: ReviewForm) -> list[FormField]:
     return forms_active_fields(db, form)
 
 
+def normalize_answers(
+    fields: list[FormField], answers: dict[str, Any]
+) -> dict[str, Any]:
+    """Fill in the implicit default for field types whose UI control never fires
+    a change event when left at its default -- an unchecked checkbox, or a
+    multi-select with nothing picked, submits no key at all, indistinguishable
+    from a field the reviewer never looked at. Without this, an explicit "no"
+    (or "none selected") silently vanishes: it's missing from stored answers,
+    so it renders as an absent field in history rather than as false/empty,
+    and quality scoring skips a missing checkbox as unanswered rather than
+    counting it as false.
+    """
+    normalized = dict(answers)
+    for field in fields:
+        if field.stable_key in normalized:
+            continue
+        if field.field_type == FieldType.CHECKBOX:
+            normalized[field.stable_key] = False
+        elif field.field_type == FieldType.MULTIPLE_SELECT:
+            normalized[field.stable_key] = []
+    return normalized
+
+
 def validate_answers(fields: list[FormField], answers: dict[str, Any]) -> None:
     known = {field.stable_key: field for field in fields}
     unknown = set(answers) - set(known)
@@ -493,7 +516,9 @@ def submit_extraction(
     form = project_form(db, item.project_id)
     if form is None or not form.active_version_id:
         raise NotFoundError("Extraction form not found")
-    validate_answers(active_fields(db, form), answers)
+    fields = active_fields(db, form)
+    answers = normalize_answers(fields, answers)
+    validate_answers(fields, answers)
     current = db.scalar(
         select(ExtractionResponse).where(
             ExtractionResponse.work_item_id == item.id,
@@ -570,6 +595,7 @@ def override_extraction(
             .order_by(FormField.position)
         )
     )
+    answers = normalize_answers(fields, answers)
     validate_answers(fields, answers)
     current.is_current = False
     response = ExtractionResponse(

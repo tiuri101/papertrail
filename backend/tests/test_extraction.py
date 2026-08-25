@@ -154,6 +154,30 @@ def test_extraction_validates_required_fields_and_preserves_revisions(db) -> Non
     assert second.is_current is True
 
 
+def test_extraction_normalizes_missing_checkbox_and_multiselect(db) -> None:
+    project, form, required, _, _, r1, _ = setup_extraction(db)
+    randomized = add_field(db, form, "Randomized", "checkbox", required=False)
+    outcomes = add_field(
+        db,
+        form,
+        "Outcomes measured",
+        "multiple_select",
+        required=False,
+        options=["mortality", "quality_of_life"],
+    )
+    initialize_extraction(db, project)
+    db.commit()
+    item = claim_next_extraction(db, project.id, r1.id)
+    assert item is not None
+    # The reviewer never touches the checkbox or the multi-select -- their
+    # stable keys are absent from the submitted answers entirely, exactly
+    # like the DynamicForm UI never firing an onChange for them.
+    response = submit_extraction(db, item, r1.id, {required.stable_key: "Finding"})
+    db.commit()
+    assert response.answers[randomized.stable_key] is False
+    assert response.answers[outcomes.stable_key] == []
+
+
 def test_owner_can_view_and_override_extraction_with_audit_history(client, db) -> None:
     project, _, required, optional, _, r1, _ = setup_extraction(db)
     initialize_extraction(db, project)

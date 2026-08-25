@@ -102,7 +102,7 @@ export function PreviousItemCard({
               disabled={save.isPending || !criteriaComplete}
             >
               Save Changes
-              {submitHotkey ? <kbd className="submit-button__hotkey" aria-hidden="true">{submitHotkey}</kbd> : null}
+              {submitHotkey ? <kbd className="submit-button__hotkey border-[rgba(255,255,255,0.5)] bg-[rgba(255,255,255,0.16)] text-inherit" aria-hidden="true">{submitHotkey}</kbd> : null}
             </Button>
             <Button type="button" variant="secondary" onClick={onClose} disabled={save.isPending}>
               Continue to current paper

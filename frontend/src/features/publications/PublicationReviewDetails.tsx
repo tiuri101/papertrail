@@ -72,12 +72,27 @@ interface ExtractionDetails {
   final: ExtractionFinal | null
 }
 
+interface QualityResponseDetails {
+  reviewerName: string | null
+  answers: Record<string, unknown>
+  totalScore: number | null
+  version: number
+  fields: DynamicFormField[]
+}
+
+interface QualityDetails {
+  status: string
+  completedAt: string | null
+  response: QualityResponseDetails | null
+}
+
 interface ReviewDetails {
   screening: {
     titleAbstract: ScreeningDetails | null
     fullText: ScreeningDetails | null
   }
   extraction: ExtractionDetails | null
+  quality: QualityDetails | null
 }
 
 const OUTCOMES = ['include', 'exclude', 'uncertain', 'duplicate']
@@ -331,6 +346,7 @@ export function PublicationReviewDetails({
   }
 
   const extraction = details.data?.extraction
+  const quality = details.data?.quality
   const extractionFieldLabel = (stableKey: string): string => (
     extraction?.slots.find((slot) => slot.response?.fields.some((field) => field.stableKey === stableKey))
       ?.response?.fields.find((field) => field.stableKey === stableKey)?.label ?? stableKey
@@ -397,6 +413,31 @@ export function PublicationReviewDetails({
               <p className="text-text-muted">Data extraction is in progress; no final result yet.</p>
             ) : extraction ? (
               <p className="text-text-muted">No completed data extraction is available.</p>
+            ) : null}
+
+            {quality?.response ? (
+              <section className="rounded-sm border border-border bg-[color-mix(in_srgb,var(--color-surface-hover)_55%,transparent)] p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <h4>Quality assessment</h4>
+                  {quality.response.totalScore != null ? (
+                    <Badge variant="plain">Score: {quality.response.totalScore}</Badge>
+                  ) : null}
+                </div>
+                <p className="text-text-muted my-1 text-[0.8rem]">
+                  Assessed by {quality.response.reviewerName ?? 'Unknown reviewer'}
+                  {formatDate(quality.completedAt) ? ` on ${formatDate(quality.completedAt)}` : ''}
+                </p>
+                <dl className="my-2 grid grid-cols-1 gap-x-4 min-[681px]:grid-cols-2">
+                  {quality.response.fields.map((field) => (
+                    <div className="flex justify-between gap-2 border-b border-border py-1" key={field.stableKey}>
+                      <dt className="text-text-muted">{field.label}</dt>
+                      <dd className="m-0 text-right font-semibold text-text">{valueLabel(quality.response!.answers[field.stableKey])}</dd>
+                    </div>
+                  ))}
+                </dl>
+              </section>
+            ) : quality ? (
+              <p className="text-text-muted">Quality assessment is in progress; no result yet.</p>
             ) : null}
 
             {responseOverride ? (

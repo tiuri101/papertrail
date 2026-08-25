@@ -21,6 +21,7 @@ import {
   IconDownload,
   IconEye,
   IconFolder,
+  IconHelpCircle,
   IconPlus,
   IconSparkle,
   IconTrash,
@@ -53,10 +54,11 @@ import {
   type PublicationSortKey,
   type SortDirection,
 } from './publicationShared'
+import {InfoBox} from "../../components/InfoBox";
 
 const dangerRowActionItemClass = actionListItemClass({ danger: true })
 
-const publicationRowGridClass = "grid grid-cols-[1.5rem_minmax(0,1fr)_3.25rem_9rem_6.5rem_4.5rem_4.5rem] items-center gap-3 [&>*]:min-w-0 max-[900px]:grid-cols-[1.5rem_auto_minmax(0,1fr)_auto_auto] max-[900px]:grid-rows-2 max-[900px]:[grid-template-areas:'checkbox_title_title_title_actions'_'._year_source_stage_pdf'] max-[900px]:gap-y-2 max-[600px]:grid-cols-[1.5rem_minmax(0,1fr)_auto] max-[600px]:grid-rows-4 max-[600px]:[grid-template-areas:'checkbox_title_actions'_'._source_source'_'._year_stage'_'._pdf_pdf']"
+const publicationRowGridClass = "grid grid-cols-[1.5rem_minmax(0,1fr)_3.25rem_9rem_6.5rem_4.5rem_4.5rem] items-center gap-3 [&>*]:min-w-0 max-[900px]:grid-cols-[1.5rem_auto_minmax(0,1fr)_auto_auto] max-[900px]:grid-rows-2 max-[900px]:[grid-template-areas:'checkbox_title_title_title_actions'_'._year_source_stage_pdf'] max-[900px]:gap-y-2 max-[600px]:grid-cols-[1.5rem_minmax(0,1fr)_auto] max-[600px]:grid-rows-3 max-[600px]:[grid-template-areas:'checkbox_title_actions'_'._source_pdf'_'._year_stage'] max-[600px]:gap-y-1"
 
 const SCREENING_FILTER_OPTIONS = [
   { value: '', label: 'All' },
@@ -637,9 +639,6 @@ export function PublicationsPage() {
     <Page>
       <AdministrationEyebrow />
       <h1>Publications</h1>
-      <p className="text-text-muted">
-        Want to import a database export? Go to <Link to={`/projects/${projectId}/imports`}>Searches and Imports</Link>.
-      </p>
       <TabList
         idPrefix="publications"
         label="Publications sections"
@@ -665,6 +664,11 @@ export function PublicationsPage() {
                 publication{query.data.length === 1 ? '' : 's'} in this project
               </CountPill>
             ) : null}
+            <InfoBox icon={<IconHelpCircle />} className="mb-4">
+              <p className="text-text-muted">
+                Want to import a database export? Go to <Link to={`/projects/${projectId}/imports`}>Searches and Imports</Link>.
+              </p>
+            </InfoBox>
             {query.error ? <p className="text-danger" role="alert">{query.error.message}</p> : null}
             {query.data ? (
               <div className="flex flex-wrap items-center gap-3">

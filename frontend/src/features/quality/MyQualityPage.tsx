@@ -13,6 +13,7 @@ import {
   reviewWorkGridClass,
   reviewWorkListClass,
 } from '../../components/reviewWorkStyles'
+import { statusPillClass } from '../../components/statusPillStyles'
 import { Select } from '../../components/Select'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 import { type SortDirection, sortByValue } from '../../lib/sort'
@@ -81,7 +82,7 @@ function QualityRow({ projectId, entry, highlightKeywords }: {
       doi={publication.doi}
       submittedAt={entry.completedAt}
       statusContent={(
-        <span className="status-pill">
+        <span className={statusPillClass()}>
           {entry.totalScore === null ? `Version ${entry.version}` : `Total score ${entry.totalScore} · v${entry.version}`}
         </span>
       )}

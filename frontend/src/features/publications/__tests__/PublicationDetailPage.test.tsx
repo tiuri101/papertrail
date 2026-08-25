@@ -272,16 +272,6 @@ describe('PublicationDetailPage', () => {
     })
   })
 
-  it('links Open Screening Queue to the active screening stage', async () => {
-    mockFetch((input, init) => defaultFetch(input, init) ?? jsonResponse(null))
-    render()
-
-    await screen.findByRole('heading', { name: 'Urban Data in VR' })
-    expect(screen.getByRole('link', { name: 'Open Screening Queue' })).toHaveAttribute(
-      'href', '/projects/p1/full-text',
-    )
-  })
-
   it('shows review details and lets a manager override screening and extraction', async () => {
     let reviewDetails = {
       screening: {
@@ -328,6 +318,20 @@ describe('PublicationDetailPage', () => {
           resolvedAt: '2026-08-01T12:00:00Z',
         },
       },
+      quality: {
+        status: 'completed',
+        completedAt: '2026-08-03T09:00:00Z',
+        response: {
+          reviewerName: 'Assessor One',
+          answers: { design: 'strong', blinded: false },
+          totalScore: 4,
+          version: 1,
+          fields: [
+            { stableKey: 'design', label: 'Study design', fieldType: 'single_select', required: true, options: ['strong', 'weak'] },
+            { stableKey: 'blinded', label: 'Blinded', fieldType: 'checkbox', required: false, options: [] },
+          ],
+        },
+      },
     }
     const fetchMock = mockFetch((input, init) => {
       const url = String(input)
@@ -362,6 +366,13 @@ describe('PublicationDetailPage', () => {
     expect(screen.getByText(/Decided/)).toHaveTextContent(new Date('2026-08-01T09:00:00Z').toLocaleString())
     expect(screen.getByText(/Final via agreement/)).toHaveTextContent(new Date('2026-08-02T09:00:00Z').toLocaleString())
     expect(screen.getByText('Original finding')).toBeInTheDocument()
+    expect(screen.getByText('Quality assessment')).toBeInTheDocument()
+    expect(screen.getByText(/Assessed by Assessor One/)).toBeInTheDocument()
+    expect(screen.getByText('strong')).toBeInTheDocument()
+    // The unchecked "Blinded" checkbox was recorded (and is shown) as an
+    // explicit "No" rather than being missing from the section entirely.
+    expect(screen.getByText('Blinded')).toBeInTheDocument()
+    expect(screen.getByText('No')).toBeInTheDocument()
 
     const screeningOverride = screen.getByRole('button', { name: 'Override Title/Abstract' })
     expect(screen.getByRole('button', { name: 'Override data extraction' })).toBeInTheDocument()

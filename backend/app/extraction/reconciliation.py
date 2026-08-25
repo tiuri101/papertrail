@@ -280,7 +280,12 @@ def submit_reconciliation(
     field_choices: dict[str, dict[str, Any]],
     note: str | None,
 ) -> FinalExtraction:
-    from app.extraction.service import active_fields, project_form, validate_answers
+    from app.extraction.service import (
+        active_fields,
+        normalize_answers,
+        project_form,
+        validate_answers,
+    )
 
     if not note or not note.strip():
         raise DomainError("A reconciliation note is required")
@@ -344,6 +349,7 @@ def submit_reconciliation(
             raise DomainError(f"Invalid resolution choice for field: {item.stable_key}")
         resolved_choices[item.stable_key] = selection
 
+    merged = normalize_answers(fields, merged)
     validate_answers(fields, merged)
 
     final = create_or_replace_final_extraction(

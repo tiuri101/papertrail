@@ -112,7 +112,7 @@ export function FullTextPage() {
       {progress ? (
         <CountPill
           count={progress.addressed}
-          className="full-text-retrieval-progress"
+          className="full-text-retrieval-progress mt-5"
           prefix="Retrieval status recorded for"
         >
           of {progress.total} publications
