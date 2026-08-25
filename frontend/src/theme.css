@@ -1,0 +1,228 @@
+/*
+ * Papertrail design tokens.
+ *
+ * The concrete values below live on `:root` (and are overridden per
+ * `data-theme`) so JS-driven theme switching (see app/theme.ts, which sets
+ * `<html data-theme="dark|light">`) only ever touches these two blocks.
+ * The `@theme inline` block below does not redeclare values — it exposes
+ * the same runtime variables as Tailwind utilities (bg-surface, text-muted,
+ * rounded-md, shadow-lg, ...) so both themes stay derived from one source.
+ */
+:root,
+:root[data-theme="dark"] {
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  color-scheme: dark;
+
+  --color-bg: #090e1a;
+  --color-bg-elevated: #0f1626;
+  --color-surface: #121b2e;
+  --color-surface-raised: #172238;
+  --color-surface-hover: #1d2a43;
+  --color-surface-active: #23314d;
+  --color-border: #2a3854;
+  --color-border-strong: #3a4b6d;
+  --color-text: #ffffff;
+  --color-text-secondary: #e6ebf3;
+  --color-text-muted: #c3cddc;
+  --color-primary: #8fa6ff;
+  --color-primary-strong: #7690f4;
+  --color-primary-contrast: #0d1530;
+  --color-primary-container: rgba(143, 166, 255, 0.14);
+  --color-primary-container-hover: rgba(143, 166, 255, 0.22);
+  --color-success: #69d9ad;
+  --color-success-container: rgba(105, 217, 173, 0.12);
+  --color-warning: #f6c76c;
+  --color-warning-container: rgba(246, 199, 108, 0.12);
+  --color-danger: #ff9a9a;
+  --color-danger-strong: #ff7f82;
+  --color-danger-container: rgba(255, 127, 130, 0.12);
+  --color-focus: rgba(143, 166, 255, 0.35);
+  --color-overlay: rgba(3, 7, 18, 0.64);
+
+  /* Tooltips stay neutral grey/white regardless of the app's blue-tinted surface tokens. */
+  --tooltip-bg: #4a4e57;
+  --tooltip-border: #6b7078;
+  --tooltip-text: #ffffff;
+
+  /* Button interaction tokens */
+  --button-primary-bg-hover: #899cf8;
+  --button-primary-bg-active: #6e82e7;
+  --button-primary-border: #92a4ff;
+  --button-secondary-bg: #15213a;
+  --button-secondary-bg-active: #101a2d;
+  --button-secondary-text: #eef2fb;
+  --button-ghost-bg-active: rgba(255, 255, 255, 0.085);
+  --button-danger-bg-active: rgba(171, 53, 72, 0.32);
+  --button-focus: #8297ff;
+  --button-disabled-opacity: 0.48;
+
+  --kw-0-fg: #f6c76c;
+  --kw-0-bg: rgba(246, 199, 108, 0.16);
+  --kw-1-fg: #7dd3fc;
+  --kw-1-bg: rgba(125, 211, 252, 0.16);
+  --kw-2-fg: #6ee7b7;
+  --kw-2-bg: rgba(110, 231, 183, 0.16);
+  --kw-3-fg: #fca5c5;
+  --kw-3-bg: rgba(252, 165, 197, 0.16);
+  --kw-4-fg: #c4b5fd;
+  --kw-4-bg: rgba(196, 181, 253, 0.16);
+  --kw-5-fg: #5eead4;
+  --kw-5-bg: rgba(94, 234, 212, 0.16);
+  --kw-6-fg: #fdba74;
+  --kw-6-bg: rgba(253, 186, 116, 0.16);
+  --kw-7-fg: #fca5a5;
+  --kw-7-bg: rgba(252, 165, 165, 0.16);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.22);
+  --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.22);
+  --shadow-lg: 0 28px 80px rgba(0, 0, 0, 0.32);
+
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-xl: 24px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  color: var(--color-text);
+  background: var(--color-bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+:root[data-theme="light"] {
+  color-scheme: light;
+
+  --color-bg: #f4f6fb;
+  --color-bg-elevated: #edf1f8;
+  --color-surface: #ffffff;
+  --color-surface-raised: #ffffff;
+  --color-surface-hover: #f1f4fa;
+  --color-surface-active: #e8edf7;
+  --color-border: #d9e0ec;
+  --color-border-strong: #c4cede;
+  --color-text: #172033;
+  --color-text-secondary: #59667a;
+  --color-text-muted: #7a8799;
+  --color-primary: #5369d8;
+  --color-primary-strong: #4358c6;
+  --color-primary-contrast: #ffffff;
+  --color-primary-container: rgba(83, 105, 216, 0.1);
+  --color-primary-container-hover: rgba(83, 105, 216, 0.16);
+  --color-success: #147a59;
+  --color-success-container: rgba(20, 122, 89, 0.1);
+  --color-warning: #9d6712;
+  --color-warning-container: rgba(157, 103, 18, 0.1);
+  --color-danger: #bf3f46;
+  --color-danger-strong: #a9323a;
+  --color-danger-container: rgba(191, 63, 70, 0.09);
+  --color-focus: rgba(83, 105, 216, 0.25);
+  --color-overlay: rgba(21, 29, 43, 0.4);
+
+  /* Tooltips stay neutral grey/white regardless of the app's blue-tinted surface tokens. */
+  --tooltip-bg: #ffffff;
+  --tooltip-border: #c8ccd2;
+  --tooltip-text: #23262b;
+
+  --button-primary-bg-hover: #6176e4;
+  --button-primary-bg-active: #4358c6;
+  --button-primary-border: #7185ed;
+  --button-secondary-bg: #f5f7fb;
+  --button-secondary-bg-active: #e4eaf4;
+  --button-secondary-text: #172033;
+  --button-ghost-bg-active: rgba(23, 32, 51, 0.085);
+  --button-danger-bg-active: rgba(191, 63, 70, 0.22);
+  --button-focus: #5369d8;
+
+  --kw-0-fg: #9d6712;
+  --kw-0-bg: rgba(157, 103, 18, 0.14);
+  --kw-1-fg: #0369a1;
+  --kw-1-bg: rgba(3, 105, 161, 0.12);
+  --kw-2-fg: #15803d;
+  --kw-2-bg: rgba(21, 128, 61, 0.12);
+  --kw-3-fg: #be185d;
+  --kw-3-bg: rgba(190, 24, 93, 0.1);
+  --kw-4-fg: #6d28d9;
+  --kw-4-bg: rgba(109, 40, 217, 0.1);
+  --kw-5-fg: #0f766e;
+  --kw-5-bg: rgba(15, 118, 110, 0.1);
+  --kw-6-fg: #c2410c;
+  --kw-6-bg: rgba(194, 65, 12, 0.12);
+  --kw-7-fg: #b91c1c;
+  --kw-7-bg: rgba(185, 28, 28, 0.1);
+
+  --shadow-sm: 0 1px 2px rgba(28, 39, 60, 0.08);
+  --shadow-md: 0 12px 32px rgba(28, 39, 60, 0.09);
+  --shadow-lg: 0 28px 80px rgba(28, 39, 60, 0.14);
+
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+
+@theme inline {
+  --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+
+  --color-bg: var(--color-bg);
+  --color-bg-elevated: var(--color-bg-elevated);
+  --color-surface: var(--color-surface);
+  --color-surface-raised: var(--color-surface-raised);
+  --color-surface-hover: var(--color-surface-hover);
+  --color-surface-active: var(--color-surface-active);
+  --color-border: var(--color-border);
+  --color-border-strong: var(--color-border-strong);
+  --color-text: var(--color-text);
+  --color-text-secondary: var(--color-text-secondary);
+  --color-text-muted: var(--color-text-muted);
+  --color-primary: var(--color-primary);
+  --color-primary-strong: var(--color-primary-strong);
+  --color-primary-contrast: var(--color-primary-contrast);
+  --color-primary-container: var(--color-primary-container);
+  --color-primary-container-hover: var(--color-primary-container-hover);
+  --color-success: var(--color-success);
+  --color-success-container: var(--color-success-container);
+  --color-warning: var(--color-warning);
+  --color-warning-container: var(--color-warning-container);
+  --color-danger: var(--color-danger);
+  --color-danger-strong: var(--color-danger-strong);
+  --color-danger-container: var(--color-danger-container);
+  --color-focus: var(--color-focus);
+  --color-overlay: var(--color-overlay);
+
+  --color-kw-0-fg: var(--kw-0-fg);
+  --color-kw-0-bg: var(--kw-0-bg);
+  --color-kw-1-fg: var(--kw-1-fg);
+  --color-kw-1-bg: var(--kw-1-bg);
+  --color-kw-2-fg: var(--kw-2-fg);
+  --color-kw-2-bg: var(--kw-2-bg);
+  --color-kw-3-fg: var(--kw-3-fg);
+  --color-kw-3-bg: var(--kw-3-bg);
+  --color-kw-4-fg: var(--kw-4-fg);
+  --color-kw-4-bg: var(--kw-4-bg);
+  --color-kw-5-fg: var(--kw-5-fg);
+  --color-kw-5-bg: var(--kw-5-bg);
+  --color-kw-6-fg: var(--kw-6-fg);
+  --color-kw-6-bg: var(--kw-6-bg);
+  --color-kw-7-fg: var(--kw-7-fg);
+  --color-kw-7-bg: var(--kw-7-bg);
+
+  --shadow-sm: var(--shadow-sm);
+  --shadow-md: var(--shadow-md);
+  --shadow-lg: var(--shadow-lg);
+
+  --radius-sm: var(--radius-sm);
+  --radius-md: var(--radius-md);
+  --radius-lg: var(--radius-lg);
+  --radius-xl: var(--radius-xl);
+}
