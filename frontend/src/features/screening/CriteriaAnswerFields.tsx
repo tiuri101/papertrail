@@ -207,7 +207,7 @@ export function CriteriaAnswerFields({
               >
                 {value === 'include' ? <IconCheckCircle /> : value === 'exclude' ? <IconXCircle /> : null}
                 {label}
-                {hotkey ? <kbd className={`absolute right-1.5 top-1/2 -translate-y-1/2 rounded px-1 py-0.5 text-[0.65rem] ${selected ? 'bg-white/15 text-current' : 'bg-surface-active text-text-muted'}`} aria-hidden="true">{hotkey}</kbd> : null}
+                {hotkey ? <kbd className={`absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex h-[20px] min-w-[20px] items-center justify-center rounded border border-border-strong px-1 py-0.5 text-[0.65rem] leading-none font-bold opacity-[0.85] [font-family:inherit] ${selected ? 'bg-white/15 text-current' : 'bg-surface-active text-text-muted'}`} aria-hidden="true">{hotkey}</kbd> : null}
               </button>
             )
           })}

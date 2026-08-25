@@ -70,6 +70,7 @@ export function CollapsibleSection({
       id={id}
       className={cn(
         'collapsible-section',
+        id && 'scroll-mt-[92px]',
         shellByTone[tone],
         cardPageSiblingSpacingStyles,
         expanded ? cardPaddingStyles : 'p-0',

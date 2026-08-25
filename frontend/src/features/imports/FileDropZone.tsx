@@ -89,14 +89,14 @@ export function FileDropZone({
           <span className="dropzone__browse font-[640] text-primary">Click to browse</span>
           {' '}or drag and drop {multiple ? 'files' : 'a file'} here
         </p>
-        {hint ? <p className="muted dropzone__hint text-[0.78rem]">{hint}</p> : null}
+        {hint ? <p className="text-text dropzone__hint text-[0.78rem]">{hint}</p> : null}
       </div>
       {files.length ? (
         <ul className="file-list grid grid-cols-[minmax(0,1fr)] gap-2 m-0 p-0 list-none">
           {files.map((file, index) => (
             <li key={fileKey(file)} className="file-chip flex items-center gap-3 min-w-0 rounded-sm border border-border bg-surface px-3 py-2">
               <span className="file-chip__name flex-1 min-w-0 overflow-hidden text-text font-[620] text-[0.88rem] text-ellipsis whitespace-nowrap">{file.name}</span>
-              <span className="file-chip__size muted flex-none text-[0.78rem]">{formatFileSize(file.size)}</span>
+              <span className="file-chip__size text-text flex-none text-[0.78rem]">{formatFileSize(file.size)}</span>
               <button
                 type="button"
                 className="file-chip__remove flex-none w-[26px] min-w-[26px] h-[26px] min-h-[26px] rounded-full border-0 bg-transparent p-0 text-text-muted shadow-none hover:not-disabled:bg-danger-container hover:not-disabled:text-danger hover:not-disabled:shadow-none hover:not-disabled:scale-100"

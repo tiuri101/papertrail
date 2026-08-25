@@ -1,4 +1,3 @@
-import { toolbarClass } from './layoutStyles'
 import type { ReactNode } from 'react'
 import { useState } from 'react'
 import { Button, type ButtonSize } from './Button'
@@ -28,7 +27,7 @@ export function ConfirmButton({ label, confirmLabel = 'Confirm', warning, onConf
   }
 
   return (
-    <span className={toolbarClass} role="alertdialog" aria-label={`Confirm: ${label}`}>
+    <span className="my-5 mb-0 flex flex-wrap items-start gap-3 rounded-md border border-[rgba(255,127,130,0.28)] bg-danger-container p-4" role="alertdialog" aria-label={`Confirm: ${label}`}>
       <span className="text-danger" role="alert">{warning}</span>
       <Button
         className={className}

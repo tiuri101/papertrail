@@ -194,7 +194,7 @@ export function MyQualityPage() {
                 <PublicationListSortHeader label="Submitted" sortKey="submitted" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
                 <span className={reviewWorkActionsClass}>Actions</span>
               </div>
-              <ul className={reviewWorkListClass} aria-label="Submitted quality assessments">
+              <ul className={`${reviewWorkListClass} overflow-hidden rounded-md border border-border bg-surface`} aria-label="Submitted quality assessments">
                 {filteredItems.map((entry) => <QualityRow key={entry.id} projectId={projectId} entry={entry} highlightKeywords={highlightKeywords} />)}
               </ul>
             </>

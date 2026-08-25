@@ -172,7 +172,7 @@ function JobFailureDetails({ job }: { job: BackgroundJob }) {
                 <dt>Error type</dt><dd>{report.data.errorType ?? 'Unknown'}</dd>
               </dl>
               <strong>Traceback</strong>
-              <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-sm bg-bg-elevated p-3 text-xs">{diagnosticText}</pre>
+              <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-sm border border-border bg-bg-elevated p-3 text-xs leading-[1.55] text-text-secondary">{diagnosticText}</pre>
               <a
                 download={`job-${job.id}-error.txt`}
                 href={`data:text/plain;charset=utf-8,${encodeURIComponent(downloadText)}`}

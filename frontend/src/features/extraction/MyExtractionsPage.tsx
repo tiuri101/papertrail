@@ -189,7 +189,7 @@ export function MyExtractionsPage() {
                 <PublicationListSortHeader label="Submitted" sortKey="submitted" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
                 <span className={reviewWorkActionsClass}>Actions</span>
               </div>
-              <ul className={reviewWorkListClass} aria-label="Submitted extractions">
+              <ul className={`${reviewWorkListClass} overflow-hidden rounded-md border border-border bg-surface`} aria-label="Submitted extractions">
                 {filteredItems.map((entry) => <ExtractionRow key={entry.id} projectId={projectId} entry={entry} highlightKeywords={highlightKeywords} />)}
               </ul>
             </>

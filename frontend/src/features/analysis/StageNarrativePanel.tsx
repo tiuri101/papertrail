@@ -61,13 +61,13 @@ export function StageNarrativePanel({
         </>
       ) : (
         <div className="stage-narrative__empty mt-4 rounded-sm border border-dashed border-border p-4 [&>p]:m-0">
-          <p className="muted">No summary generated yet.</p>
+          <p className="text-text">No summary generated yet.</p>
           <p className="stage-narrative__empty-hint !mt-2 text-[0.8rem] text-text-muted">Generate an interpretation to add context to the results above.</p>
         </div>
       )}
-      {regenerate.error ? <p className="error" role="alert">{regenerate.error.message}</p> : null}
+      {regenerate.error ? <p className="text-danger" role="alert">{regenerate.error.message}</p> : null}
       {pendingJob?.status === 'failed' ? (
-        <p className="error" role="alert">
+        <p className="text-danger" role="alert">
           Summary generation failed{pendingJob.errorMessage ? `: ${pendingJob.errorMessage}` : ''}
         </p>
       ) : null}

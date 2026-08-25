@@ -287,13 +287,13 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
           <dt>Context length</dt><dd>{settings.data.contextLength.toLocaleString()}</dd>
         </dl>
       ) : null}
-      <div className="toolbar">
+      <div className="toolbar flex flex-wrap items-center gap-3 my-5 max-[760px]:gap-2">
         <Button type="button" onClick={() => test.mutate()} disabled={test.isPending}>
           {test.isPending ? 'Testing…' : 'Test Connection'}
         </Button>
       </div>
       {connection ? (
-        <p className={connection.ok ? 'success' : 'error'} role={connection.ok ? 'status' : 'alert'}>
+        <p className={connection.ok ? 'text-success' : 'text-danger'} role={connection.ok ? 'status' : 'alert'}>
           {connection.message}
         </p>
       ) : null}
@@ -355,7 +355,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
           </FieldLabel>
         </Fieldset>
       ) : null}
-      {capabilitiesError ? <p className="error" role="alert">{capabilitiesError.message}</p> : null}
+      {capabilitiesError ? <p className="text-danger" role="alert">{capabilitiesError.message}</p> : null}
     </CollapsibleSection>
 
     <CollapsibleSection id="section-llm-extraction-schema" title="LLM Extraction Schema" icon={<IconSparkle />}>
@@ -485,7 +485,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
                 </FieldLabel>
               ) : null}
               {field.mappingState && !['active', 'helper'].includes(field.mappingState) ? (
-                <p className="error">Mapping is {field.mappingState}; resolve it before publishing.</p>
+                <p className="text-danger">Mapping is {field.mappingState}; resolve it before publishing.</p>
               ) : null}
               <div className="inline-flex w-fit items-center">
                 <FieldLabel inline>
@@ -525,14 +525,14 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
             )
           })}
           </div>
-          <div className="toolbar">
+          <div className="toolbar flex flex-wrap items-center gap-3 my-5 max-[760px]:gap-2">
             <Button type="button" variant="secondary" onClick={addHelper}>Add helper field</Button>
             {!setupMode ? (
               <Button type="button" onClick={() => save.mutate()} disabled={save.isPending}>Save draft</Button>
             ) : null}
           </div>
           {!setupMode ? (
-            <div className="toolbar">
+            <div className="toolbar flex flex-wrap items-center gap-3 my-5 max-[760px]:gap-2">
               <Button
                 type="button"
                 variant="primary"
@@ -546,7 +546,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
           ) : null}
           </>
         )}
-      {schemaError ? <p className="error" role="alert">{schemaError.message}</p> : null}
+      {schemaError ? <p className="text-danger" role="alert">{schemaError.message}</p> : null}
     </CollapsibleSection>
 
     {showProcessingStatus ? (
@@ -640,7 +640,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
               ) : null}
             </>
           ) : <p>Loading processing status…</p>}
-          {processingError ? <p className="error" role="alert">{processingError.message}</p> : null}
+          {processingError ? <p className="text-danger" role="alert">{processingError.message}</p> : null}
       </CollapsibleSection>
     ) : null}
     </>

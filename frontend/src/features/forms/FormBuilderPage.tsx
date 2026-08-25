@@ -55,7 +55,7 @@ function TemplateCard({ template, isAdmin, onRemove, removing }: {
         </span>
         <h3 className="my-2">{template.name}</h3>
       </div>
-      <div className="toolbar form-template-card__actions justify-self-end m-0" data-template-actions>
+      <div className="toolbar form-template-card__actions flex flex-wrap items-center gap-3 justify-self-end m-0 max-[760px]:gap-2" data-template-actions>
         <Button
           type="button"
           variant="secondary"
@@ -103,10 +103,10 @@ function TemplateCard({ template, isAdmin, onRemove, removing }: {
                 </Button>
               )
             ) : (
-              <p className="muted">Templates are read-only unless you are an installation administrator.</p>
+              <p className="text-text">Templates are read-only unless you are an installation administrator.</p>
             )}
           </div>
-          {renameTemplate.error ? <p className="error" role="alert">{renameTemplate.error.message}</p> : null}
+          {renameTemplate.error ? <p className="text-danger" role="alert">{renameTemplate.error.message}</p> : null}
           <FormFieldsEditor
             formId={template.id}
             isQualityForm={template.kind === 'quality'}
@@ -145,7 +145,7 @@ export function FormBuilderPage() {
     return (
       <Page>
         <h1>Forms and Templates</h1>
-        <p className="error" role="alert">
+        <p className="text-danger" role="alert">
           Only the project owner or an administrator can manage forms and templates.
         </p>
       </Page>
@@ -156,7 +156,7 @@ export function FormBuilderPage() {
     <Page>
       <StageEyebrow stage="draft" />
       <h1>Forms and Templates</h1>
-      <p className="muted">
+      <p className="muted text-text">
         This project's extraction and (optional) quality assessment forms, shown to reviewers
         during screening and data extraction.
       </p>
@@ -171,8 +171,8 @@ export function FormBuilderPage() {
             template{templateCatalog.length === 1 ? '' : 's'}
           </CountPill>
         </div>
-        {templates.error ? <p className="error" role="alert">{templates.error.message}</p> : null}
-        {templates.isLoading ? <p className="muted">Loading templates…</p> : null}
+        {templates.error ? <p className="text-danger" role="alert">{templates.error.message}</p> : null}
+        {templates.isLoading ? <p className="text-text">Loading templates…</p> : null}
         {templateCatalog.length === 0 ? (
           <div className="empty-state form-template-manager__empty grid justify-items-center rounded-md border border-dashed border-border-strong p-8 text-center">
             <h3>No reusable templates yet</h3>
