@@ -213,7 +213,7 @@ export function FieldEditForm({
           Cancel
         </Button>
       </div>
-      {trailingAction}
+      {trailingAction ? <div className="justify-self-start">{trailingAction}</div> : null}
     </>
   )
 }
