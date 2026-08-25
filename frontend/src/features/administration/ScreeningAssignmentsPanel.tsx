@@ -7,6 +7,7 @@ import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { CountPill } from '../../components/CountPill'
 import { InfoBox } from '../../components/InfoBox'
 import { IconSwap } from '../../components/icons'
+import { tableBaseClass } from '../../components/layoutStyles'
 import type { User } from '../auth/types'
 import type { ProjectMembers as ProjectMembersOf } from './types'
 import { Input } from '../../components/Input'
@@ -382,7 +383,7 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
       ) : null}
       {assignments.data && assignments.data.items.length > 0 ? (
         <>
-          <table className="table-compact [&_th]:px-3 [&_th]:py-[7px] [&_th]:text-[0.85rem] [&_td]:px-3 [&_td]:py-[7px] [&_td]:text-[0.85rem] [&_thead_th]:text-[0.68rem]">
+          <table className={`${tableBaseClass} table-compact [&_th]:px-3! [&_th]:py-[7px]! [&_th]:text-[0.85rem]! [&_td]:px-3! [&_td]:py-[7px]! [&_td]:text-[0.85rem]! [&_thead_th]:text-[0.68rem]!`}>
             <thead>
               <tr>
                 <th scope="col">Select</th>

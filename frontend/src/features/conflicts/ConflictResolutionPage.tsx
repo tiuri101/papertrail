@@ -7,6 +7,7 @@ import { Page } from '../../components/Page'
 import { Button } from '../../components/Button'
 import { Card } from '../../components/Card'
 import { CountPill } from '../../components/CountPill'
+import { tableBaseClass } from '../../components/layoutStyles'
 import { Textarea } from '../../components/Textarea'
 import { useProjectManageState } from '../../hooks/useCanManageProject'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
@@ -151,7 +152,7 @@ function ConflictCard({ conflict, resolving, addingReviewer, onResolve, onAddRev
       {link ? <p><a href={link} target="_blank" rel="noreferrer">View publication</a></p> : null}
       <h3>Reviewer Decisions</h3>
       <div className="overflow-x-auto">
-      <table className="min-w-[36rem]">
+      <table className={`${tableBaseClass} min-w-[36rem]`}>
         <thead>
           <tr>
             <th scope="col">Reviewer</th>

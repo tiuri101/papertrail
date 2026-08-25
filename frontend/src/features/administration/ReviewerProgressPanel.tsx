@@ -1,4 +1,4 @@
-import { tableCompactClass, tableNarrowClass } from '../../components/layoutStyles'
+import { tableBaseClass, tableCompactClass, tableNarrowClass } from '../../components/layoutStyles'
 import { useQuery } from '@tanstack/react-query'
 
 import { apiRequest } from '../../api/client'
@@ -41,7 +41,7 @@ export function ReviewerProgressPanel({ projectId }: { projectId: string }) {
           {stage.reviewers.length === 0 ? (
             <p className="text-text-muted">No reviewers have been assigned work for this stage yet.</p>
           ) : (
-            <table className={`${tableCompactClass} ${tableNarrowClass}`}>
+            <table className={`${tableBaseClass} ${tableCompactClass} ${tableNarrowClass}`}>
               <thead>
                 <tr>
                   <th scope="col">Reviewer</th>

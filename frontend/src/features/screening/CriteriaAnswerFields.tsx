@@ -4,6 +4,7 @@ import type { KeyboardEvent } from 'react'
 import { IconCheckCircle, IconXCircle } from '../../components/icons'
 import { formatHotkey, loadScreeningHotkeys, type ScreeningHotkeyAction } from '../../lib/screeningHotkeys'
 import { criterionNumbers, sortedByKind } from './criteriaNumbering'
+import { tableBaseClass } from '../../components/layoutStyles'
 import type { CriterionAnswer, ScreeningCriterion } from './useScreeningQueue'
 import {InfoBox} from "../../components/InfoBox";
 import { Textarea } from '../../components/Textarea'
@@ -89,7 +90,7 @@ export function CriteriaAnswerFields({
   return (
     <>
       <h3>Criteria</h3>
-      <table className="w-full [&_td]:text-center [&_td]:align-middle [&_th]:align-middle [&_th:not(:first-child)]:text-center">
+      <table className={`${tableBaseClass} w-full [&_td]:text-center! [&_td]:align-middle! [&_th]:align-middle! [&_th:not(:first-child)]:text-center!`}>
         <thead>
           <tr>
             <th scope="col">Criterion</th>

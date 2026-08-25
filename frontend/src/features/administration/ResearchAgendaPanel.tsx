@@ -1,4 +1,4 @@
-import { toolbarClass } from '../../components/layoutStyles'
+import { tableBaseClass, toolbarClass } from '../../components/layoutStyles'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
@@ -303,7 +303,7 @@ export function ResearchQuestionsPanel({
       </h2>
 
       {mutationError ? <p className="text-danger" role="alert">{mutationError.message}</p> : null}
-      <table className="w-full [&_td]:align-middle [&_td:first-child]:w-16 [&_td:last-child]:w-px [&_td:last-child]:whitespace-nowrap">
+      <table className={`${tableBaseClass} w-full [&_td]:align-middle! [&_td:first-child]:w-16 [&_td:last-child]:w-px [&_td:last-child]:whitespace-nowrap`}>
         <thead>
           <tr>
             <th>#</th>
@@ -460,7 +460,7 @@ export function CriteriaPanel({
         </p>
       </InfoBox>
       {mutationError ? <p className="text-danger" role="alert">{mutationError.message}</p> : null}
-      <table className="w-full [&_td]:align-middle [&_td:first-child]:w-16 [&_td:last-child]:w-px [&_td:last-child]:whitespace-nowrap">
+      <table className={`${tableBaseClass} w-full [&_td]:align-middle! [&_td:first-child]:w-16 [&_td:last-child]:w-px [&_td:last-child]:whitespace-nowrap`}>
         <thead>
           <tr>
             <th>#</th>
