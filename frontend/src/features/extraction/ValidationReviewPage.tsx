@@ -26,7 +26,9 @@ import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 import { formatSubmittedAtParts } from '../../lib/format'
 import { type SortDirection, sortByValue } from '../../lib/sort'
 import { LlmEvidence } from '../llm/LlmTaskComponents'
+import { llmValidationClass } from '../llm/llmStyles'
 import { StageEyebrow } from '../projects/StageEyebrow'
+import { statusPillClass } from '../../components/statusPillStyles'
 import type { ValidationResult } from './types'
 import { Input } from '../../components/Input'
 import { Select } from '../../components/Select'
@@ -93,9 +95,9 @@ function statusLabel(item: ReviewItem) {
 }
 
 function statusClass(item: ReviewItem) {
-  if (item.state === 'failed') return 'status-pill status-pill--danger'
-  if (item.state === 'ready' && item.issues.length > 0) return 'status-pill status-pill--warning'
-  return 'status-pill'
+  if (item.state === 'failed') return statusPillClass('danger')
+  if (item.state === 'ready' && item.issues.length > 0) return statusPillClass('warning')
+  return statusPillClass()
 }
 
 function sortValue(item: ReviewItem, key: ValidationSortKey): string | number {
@@ -169,11 +171,14 @@ function ValidationRow({
       </div>
 
       {item.issues.length > 0 || item.error || item.fullTextAvailable || ['failed', 'awaiting_validation'].includes(item.state) ? (
-        <details className="validation-review-card__issues" open={item.issues.length > 0}>
+        <details
+          className="validation-review-card__issues mt-4 cursor-default border-t border-border pt-4 [&>summary]:w-fit [&>summary]:cursor-pointer [&>summary]:font-[650] [&>summary]:text-primary"
+          open={item.issues.length > 0}
+        >
           <summary>{item.issues.length > 0 ? `Validation findings (${item.issues.length})` : 'Validation details'}</summary>
           {item.error ? <p className="error">{item.error}</p> : null}
           {item.issues.map((result) => (
-            <section className={`llm-validation llm-validation--${result.assessment}`} key={result.fieldKey}>
+            <section className={llmValidationClass(result.assessment)} key={result.fieldKey}>
               <h3>{result.fieldLabel}</h3>
               <p>
                 <Tooltip text={ASSESSMENT_HELP[result.assessment]}>
@@ -279,11 +284,11 @@ export function ValidationReviewPage() {
             {search ? `of ${totalReviewItems} publications match your filters` : `publication${totalReviewItems === 1 ? '' : 's'} need review`}
           </CountPill>
           <div className="toolbar">
-            <label className="paper-search-field">
+            <label className="paper-search-field flex-[0_1_32rem] w-[min(32rem,100%)]">
               Search papers
               <Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Title, author, DOI…" />
             </label>
-            <label className="review-work-mobile-sort">
+            <label className="review-work-mobile-sort hidden max-[900px]:grid">
               Sort by
               <Select value={`${sortKey}:${sortDirection}`} onChange={(event) => {
                 const [key, direction] = event.target.value.split(':') as [ValidationSortKey, SortDirection]
@@ -323,7 +328,7 @@ export function ValidationReviewPage() {
             <PublicationListSortHeader label="Submitted" sortKey="submitted" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
             <span className={reviewWorkActionsClass}>Actions</span>
           </div>
-          <ul className="card-list stacked publication-list">
+          <ul className="card-list stacked publication-list gap-2">
             {visibleItems.map((item) => (
               <ValidationRow key={item.workItemId} projectId={projectId} item={item} highlightKeywords={highlightKeywords} retry={(target) => retry.mutate(target)} />
             ))}

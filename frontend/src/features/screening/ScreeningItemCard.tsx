@@ -110,7 +110,7 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
         >
           <IconCheckCircle />
           {awaitingConfirmation ? 'Confirm Decision' : 'Submit Decision'}
-          {submitHotkey ? <kbd className="submit-button__hotkey" aria-hidden="true">{submitHotkey}</kbd> : null}
+          {submitHotkey ? <kbd className="submit-button__hotkey border-[rgba(255,255,255,0.5)] bg-[rgba(255,255,255,0.16)] text-inherit" aria-hidden="true">{submitHotkey}</kbd> : null}
         </Button>
         {!awaitingConfirmation ? (
           <Button

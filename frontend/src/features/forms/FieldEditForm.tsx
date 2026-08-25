@@ -124,7 +124,7 @@ export function FieldEditForm({
         </FieldLabel>
       ) : null}
       {editingType === 'rating' ? (
-        <div className="form-editor-field__settings-row">
+        <div className="form-editor-field__settings-row grid grid-cols-2 gap-4 max-[560px]:grid-cols-1">
           <FieldLabel>
             Scale minimum
             <Input
@@ -175,7 +175,7 @@ export function FieldEditForm({
         </Fieldset>
       ) : null}
       {isQualityForm && editingType === 'checkbox' ? (
-        <div className="form-editor-field__settings-row">
+        <div className="form-editor-field__settings-row grid grid-cols-2 gap-4 max-[560px]:grid-cols-1">
           <FieldLabel>
             Score if checked
             <Input

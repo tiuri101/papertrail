@@ -112,6 +112,30 @@ def test_quality_assignment_and_weighted_score(db) -> None:
     assert item.status == "completed"
 
 
+def test_quality_normalizes_missing_checkbox_to_false_and_scores_it(db) -> None:
+    project, form, design, reporting, reviewer, _ = setup_quality(db)
+    peer_reviewed = add_field(
+        db,
+        form,
+        "Peer reviewed",
+        "checkbox",
+        required=False,
+        scoring={"true": 1, "false": 0},
+    )
+    assert initialize_quality(db, project) == 1
+    db.commit()
+    item = claim_next_quality(db, project.id, reviewer.id)
+    # The checkbox is never touched -- its stable key is absent from the
+    # submitted answers entirely, exactly like an unchecked checkbox the
+    # DynamicForm UI never fired an onChange for.
+    response = submit_quality(
+        db, item, reviewer.id, {design.stable_key: "strong", reporting.stable_key: 4}
+    )
+    db.commit()
+    assert response.answers[peer_reviewed.stable_key] is False
+    assert response.total_score == pytest.approx((2 * 2 + 4 * 1 + 0 * 1) / 4)
+
+
 def test_quality_save_draft_persists_and_locks_after_submission(db) -> None:
     project, _, design, reporting, reviewer, _ = setup_quality(db)
     other_reviewer = create_user(db, "other", "Other", "other-password")

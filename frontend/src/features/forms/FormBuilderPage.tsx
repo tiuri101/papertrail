@@ -48,14 +48,14 @@ function TemplateCard({ template, isAdmin, onRemove, removing }: {
   })
 
   return (
-    <li className="form-template-card">
+    <li className="form-template-card grid grid-cols-[minmax(0,1fr)_auto] min-w-0 items-center gap-5 rounded-md border border-border bg-surface-raised p-5">
       <div>
-        <span className="form-template-card__kind">
+        <span className="form-template-card__kind text-[0.72rem] font-[750] tracking-[0.07em] text-primary uppercase">
           {template.kind === 'quality' ? 'Quality assessment' : 'Extraction'}
         </span>
-        <h3>{template.name}</h3>
+        <h3 className="my-2">{template.name}</h3>
       </div>
-      <div className="toolbar form-template-card__actions" data-template-actions>
+      <div className="toolbar form-template-card__actions justify-self-end m-0" data-template-actions>
         <Button
           type="button"
           variant="secondary"
@@ -76,9 +76,9 @@ function TemplateCard({ template, isAdmin, onRemove, removing }: {
         ) : null}
       </div>
       {expanded ? (
-        <div className="form-editor-existing-form">
+        <div className="form-editor-existing-form grid gap-3 [&>p]:m-0">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <span className="form-editor-selection-type">Reusable template</span>
+            <span className="form-editor-selection-type block text-base font-[750] tracking-[0.02em] text-primary">Reusable template</span>
             {isAdmin ? (
               renaming ? (
                 <form
@@ -163,9 +163,9 @@ export function FormBuilderPage() {
       <FormKindSection projectId={projectId} kind="extraction" id="section-extraction-form" />
       <FormKindSection projectId={projectId} kind="quality" id="section-quality-form" />
       <Card as="section" id="section-manage-templates" className="form-template-manager">
-        <div className="form-template-manager__heading">
+        <div className="form-template-manager__heading mb-5 flex items-start justify-between gap-4">
           <div>
-            <h2>Manage Templates</h2>
+            <h2 className="mt-0">Manage Templates</h2>
           </div>
           <CountPill count={templateCatalog.length}>
             template{templateCatalog.length === 1 ? '' : 's'}
@@ -174,12 +174,12 @@ export function FormBuilderPage() {
         {templates.error ? <p className="error" role="alert">{templates.error.message}</p> : null}
         {templates.isLoading ? <p className="muted">Loading templates…</p> : null}
         {templateCatalog.length === 0 ? (
-          <div className="empty-state form-template-manager__empty">
+          <div className="empty-state form-template-manager__empty grid justify-items-center rounded-md border border-dashed border-border-strong p-8 text-center">
             <h3>No reusable templates yet</h3>
             <p>Save an extraction or quality form above as a template to build your catalog.</p>
           </div>
         ) : (
-          <ul className="form-template-grid" aria-label="Form templates">
+          <ul className="form-template-grid grid grid-cols-1 gap-3 m-0 p-0 list-none" aria-label="Form templates">
             {templateCatalog.map((template) => (
               <TemplateCard
                 key={template.id}

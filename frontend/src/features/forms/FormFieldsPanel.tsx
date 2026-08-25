@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useRef, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { Badge } from '../../components/Badge'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { Button, IconButton } from '../../components/Button'
 import { DragHandle } from '../../components/DragHandle'
@@ -29,6 +30,16 @@ import { FieldLabel } from '../../components/FieldLabel'
 import { Form } from '../../components/Form'
 import { Fieldset } from '../../components/Fieldset'
 import { FieldLegend } from '../../components/FieldLegend'
+import { cn } from '../../lib/cn'
+import {
+  llmSchemaContentClass,
+  llmSchemaFieldClass,
+  llmSchemaFieldsClass,
+  llmSchemaMappingClass,
+  llmSchemaPreviewClass,
+  llmSchemaSummaryClass,
+  llmSchemaTitleClass,
+} from '../llm/llmStyles'
 
 type FormKind = 'extraction' | 'quality'
 
@@ -315,7 +326,7 @@ export function FormFieldsPanel({
       {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
 
       {isQualityForm ? (
-        <div className="quality-settings-fields">
+        <div className="quality-settings-fields grid gap-5">
           <FieldLabel inline>
             <Input
               type="checkbox"
@@ -326,7 +337,7 @@ export function FormFieldsPanel({
             />
             Enable quality assessment
           </FieldLabel>
-          <div className="quality-settings-selects">
+          <div className="quality-settings-selects grid grid-cols-2 gap-4 max-[560px]:grid-cols-1">
             <FieldLabel>
               Mode
               <Select
@@ -374,7 +385,7 @@ export function FormFieldsPanel({
           </p>
         </div>
       ) : (
-        <div className="quality-settings-fields">
+        <div className="quality-settings-fields grid gap-5">
           <FieldLabel>
             Allocation
             <Select
@@ -507,13 +518,19 @@ export function FormFieldsPanel({
           <h3>Fields</h3>
           {fields.error ? <p className="error" role="alert">{fields.error.message}</p> : null}
           {activeFields.length === 0 && !inlineAdd ? <p className="muted">No fields added yet.</p> : (
-            <div className="llm-schema-fields form-editor-fields">
+            <div className={cn(llmSchemaFieldsClass, 'form-editor-fields')}>
               {activeFields.length === 0 && !addingField ? <p className="muted">No fields added yet.</p> : null}
               {activeFields.map((field) => {
                 const fieldIndex = activeFields.findIndex((item) => item.stableKey === field.stableKey)
                 return (
                   <details
-                    className={`llm-schema-field form-editor-field${draggedFieldKey === field.stableKey ? ' llm-schema-field--dragging' : ''}${dragOverFieldKey === field.stableKey ? ' llm-schema-field--drag-over' : ''}`}
+                    className={cn(
+                      llmSchemaFieldClass({
+                        dragging: draggedFieldKey === field.stableKey,
+                        dragOver: dragOverFieldKey === field.stableKey,
+                      }),
+                      'form-editor-field',
+                    )}
                     key={field.id}
                     data-ui="form-editor-field"
                     data-field-sort-key={field.stableKey}
@@ -534,7 +551,7 @@ export function FormFieldsPanel({
                     }}
                   >
                     <summary
-                      className="llm-schema-field__summary"
+                      className={llmSchemaSummaryClass}
                       onClick={(event) => {
                         event.preventDefault()
                         if (editingKey === field.stableKey) {
@@ -544,18 +561,18 @@ export function FormFieldsPanel({
                         }
                       }}
                     >
-                      <span className="llm-schema-field__title">
+                      <span className={llmSchemaTitleClass}>
                         <strong>{field.label}</strong>
-                        <span className="status-badge">
+                        <Badge variant="plain">
                           {fieldTypeLabels[field.fieldType] ?? field.fieldType}
                           {field.fieldType === 'rating' ? ` (${describeRatingScale(field.options)})` : ''}
-                        </span>
-                        {field.required ? <span className="status-badge">Required</span> : null}
+                        </Badge>
+                        {field.required ? <Badge variant="plain">Required</Badge> : null}
                       </span>
-                      <span className="llm-schema-field__mapping">
+                      <span className={llmSchemaMappingClass}>
                         {field.required ? 'Reviewers must complete this field' : 'Optional for reviewers'}
                       </span>
-                      <span className="llm-schema-field__preview">
+                      <span className={llmSchemaPreviewClass}>
                         {field.fieldType === 'rating'
                           ? `Rating scale ${describeRatingScale(field.options)}`
                           : selectFieldTypes.has(field.fieldType)
@@ -595,7 +612,7 @@ export function FormFieldsPanel({
                         }}
                       />
                     </summary>
-                    <div className="llm-schema-field__content">
+                    <div className={llmSchemaContentClass}>
                       {editingKey === field.stableKey ? (
                         <FieldEditForm
                           field={field}

@@ -10,6 +10,8 @@ from app.audit.models import AuditEvent
 from app.conflicts.service import record_final_decision
 from app.core.config import get_settings
 from app.extraction.models import ExtractionStatus, ExtractionWorkItem
+from app.forms.models import FormKind
+from app.forms.service import add_field, create_form
 from app.fulltext.models import FullTextRetrieval, RetrievalStatus
 from app.imports.models import ImportBatch, ImportedRecord, ImportStatus, SearchSource
 from app.projects.models import (
@@ -29,6 +31,8 @@ from app.publications.service import (
     clean_text,
     normalize_imported_records,
 )
+from app.quality.models import QualityConfig, QualityStatus, QualityWorkItem
+from app.quality.service import submit_quality
 from app.screening.models import (
     ScreeningDecision,
     ScreeningOutcome,
@@ -873,3 +877,69 @@ def test_publication_response_includes_screening_status_per_stage(client, db) ->
     assert audit.event_metadata["previousOutcome"] == "include"
     assert audit.event_metadata["outcome"] == "exclude"
     assert audit.event_metadata["reason"] == "Incorrectly included during screening"
+
+
+def test_review_details_includes_quality_assessment(client, db) -> None:
+    admin = create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    project = Project(
+        name="Review", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed"
+    )
+    db.add(project)
+    db.flush()
+    assessed = Publication(project_id=project.id, title="Quality-assessed paper")
+    unassessed = Publication(project_id=project.id, title="Not yet assessed paper")
+    db.add_all([assessed, unassessed])
+    db.flush()
+    form = create_form(db, "Quality", FormKind.QUALITY, project_id=project.id)
+    design = add_field(
+        db,
+        form,
+        "Study design",
+        "single_select",
+        required=True,
+        options=["strong", "weak"],
+        scoring={"values": {"strong": 2, "weak": 0}},
+    )
+    blinded = add_field(db, form, "Blinded", "checkbox", required=False)
+    db.add(
+        QualityConfig(project_id=project.id, enabled=True, mode="both", aggregation="sum")
+    )
+    db.add(
+        QualityWorkItem(
+            project_id=project.id,
+            publication_id=assessed.id,
+            assigned_reviewer_id=admin.id,
+            random_rank="quality-rank",
+            status=QualityStatus.RESERVED,
+        )
+    )
+    db.commit()
+    item = db.scalar(
+        select(QualityWorkItem).where(QualityWorkItem.publication_id == assessed.id)
+    )
+    # The checkbox is never touched -- its stable key is absent from the
+    # submitted answers, exactly like an unchecked checkbox the DynamicForm UI
+    # never fired an onChange for.
+    submit_quality(db, item, admin.id, {design.stable_key: "strong"})
+    db.commit()
+    login(client)
+
+    assessed_details = client.get(
+        f"/api/v1/projects/{project.id}/publications/{assessed.id}/review-details"
+    )
+    assert assessed_details.status_code == 200
+    quality = assessed_details.json()["quality"]
+    assert quality["status"] == "completed"
+    assert quality["response"]["reviewerName"] == "Administrator"
+    assert quality["response"]["answers"][design.stable_key] == "strong"
+    assert quality["response"]["answers"][blinded.stable_key] is False
+    assert {field["stableKey"] for field in quality["response"]["fields"]} == {
+        design.stable_key,
+        blinded.stable_key,
+    }
+
+    unassessed_details = client.get(
+        f"/api/v1/projects/{project.id}/publications/{unassessed.id}/review-details"
+    )
+    assert unassessed_details.status_code == 200
+    assert unassessed_details.json()["quality"] is None

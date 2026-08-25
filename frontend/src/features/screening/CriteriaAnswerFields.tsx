@@ -164,7 +164,7 @@ export function CriteriaAnswerFields({
           })}
         </tbody>
       </table>
-      <InfoBox icon={<IconCheckCircle />} className="hotkey-hint mb-4">
+      <InfoBox icon={<IconCheckCircle />} className="hotkey-hint mb-4 max-[760px]:hidden">
         <p>
           Click on a checkbox, then use the arrow keys to move between criteria and Left/Right keys to answer them. Use your
           personalized hotkeys to include/exclude the paper and submit.

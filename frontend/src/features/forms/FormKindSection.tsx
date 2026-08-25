@@ -14,6 +14,7 @@ import { FormFieldsEditor } from './FormFieldsEditor'
 import { NewFieldDraftCard } from './NewFieldDraftCard'
 import type { FormField, ReviewForm } from './types'
 import { useFormFieldEditor } from './useFormFieldEditor'
+import { llmSchemaFieldsClass } from '../llm/llmStyles'
 import { Input } from '../../components/Input'
 import { Select } from '../../components/Select'
 import { FieldLabel } from '../../components/FieldLabel'
@@ -238,7 +239,7 @@ export function FormKindSection({ projectId, kind, id }: { projectId: string; ki
               </Select>
             </FieldLabel>
           ) : null}
-          <div className="llm-schema-fields form-editor-fields">
+          <div className={cn(llmSchemaFieldsClass, 'form-editor-fields')}>
             {addingField ? (
               <NewFieldDraftCard
                 fieldLabel={fieldLabel}

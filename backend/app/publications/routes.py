@@ -41,6 +41,7 @@ from app.publications.schemas import (
     PublicationUpdate,
 )
 from app.publications.service import normalize_doi, sync_new_publications_with_stage
+from app.quality.models import QualityResponse, QualityWorkItem
 from app.reporting.bibtex import build_bibtex_for_publications
 from app.screening.service import current_decisions
 
@@ -253,6 +254,57 @@ def get_publication(
     return publication
 
 
+def _quality_review_details(
+    db: Session, publication_id: str
+) -> dict[str, Any] | None:
+    item = db.scalar(
+        select(QualityWorkItem).where(
+            QualityWorkItem.publication_id == publication_id
+        )
+    )
+    if item is None:
+        return None
+    response = db.scalar(
+        select(QualityResponse)
+        .where(
+            QualityResponse.work_item_id == item.id,
+            QualityResponse.is_current.is_(True),
+        )
+        .order_by(QualityResponse.created_at.desc())
+    )
+    response_payload = None
+    if response is not None:
+        reviewer = db.get(User, response.reviewer_id)
+        fields = list(
+            db.scalars(
+                select(FormField)
+                .where(FormField.form_version_id == response.form_version_id)
+                .order_by(FormField.position)
+            )
+        )
+        response_payload = {
+            "reviewerName": reviewer.display_name if reviewer else None,
+            "answers": response.answers,
+            "totalScore": response.total_score,
+            "version": response.version,
+            "fields": [
+                {
+                    "stableKey": field.stable_key,
+                    "label": field.label,
+                    "fieldType": field.field_type.value,
+                    "required": field.required,
+                    "options": field.options,
+                }
+                for field in fields
+            ],
+        }
+    return {
+        "status": item.status.value,
+        "completedAt": item.completed_at,
+        "response": response_payload,
+    }
+
+
 @router.get("/projects/{project_id}/publications/{publication_id}/review-details")
 def get_publication_review_details(
     project_id: str,
@@ -276,6 +328,7 @@ def get_publication_review_details(
         "extraction": _extraction_review_details(
             db, publication_id, user.id, is_project_manager(db, project_id, user)
         ),
+        "quality": _quality_review_details(db, publication_id),
     }
 
 

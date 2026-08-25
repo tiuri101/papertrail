@@ -340,7 +340,7 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
             />
             Select all {reassignableTotal} filtered assignments
           </label>
-          <div className="toolbar bulk-selection-panel__controls">
+          <div className="toolbar bulk-selection-panel__controls items-end">
             <FieldLabel>
               Reassign selected to
               <Select
@@ -380,7 +380,7 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
       ) : null}
       {assignments.data && assignments.data.items.length > 0 ? (
         <>
-          <table className="table-compact">
+          <table className="table-compact [&_th]:px-3 [&_th]:py-[7px] [&_th]:text-[0.85rem] [&_td]:px-3 [&_td]:py-[7px] [&_td]:text-[0.85rem] [&_thead_th]:text-[0.68rem]">
             <thead>
               <tr>
                 <th scope="col">Select</th>
