@@ -23,7 +23,11 @@ from app.fulltext.service import (
     transition_if_full_text_complete,
 )
 from app.projects.dependencies import require_full_text_reviewer_csrf
-from app.projects.service import get_project, require_project_access
+from app.projects.service import (
+    get_project,
+    is_project_manager,
+    require_project_access,
+)
 
 router = APIRouter(tags=["full text"])
 
@@ -108,6 +112,9 @@ def update_retrieval(
         RetrievalStatus(payload.status),
         note=payload.note,
         user_id=reviewer.id,
+        # Managers administer the retrieval queue and correct records nobody
+        # has claimed; ordinary reviewers must hold the claim themselves.
+        is_manager=is_project_manager(db, project_id, reviewer),
         decision_outcome=payload.decision.outcome if payload.decision else None,
         decision_criteria_answers=(
             payload.decision.criteria_answers if payload.decision else None

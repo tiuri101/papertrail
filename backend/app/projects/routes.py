@@ -12,13 +12,15 @@ from app.accounts.service import get_user_or_raise
 from app.api.errors import ConflictError, DomainError, NotFoundError
 from app.audit.service import record_audit
 from app.db.session import get_db
-from app.imports.schemas import JobResponse, JobRestartRequest, JobStageSummary
+from app.imports.schemas import JobRestartRequest, JobStageSummary
 from app.jobs.diagnostics import STAGE_ORDER
 from app.jobs.models import BackgroundJob, JobStatus
 from app.jobs.registry import JOB_STAGES
+from app.jobs.schemas import JobResponse
 from app.jobs.service import restart_job
 from app.notifications.service import queue_membership_email
 from app.projects.dependencies import (
+    require_project_manager,
     require_project_manager_csrf,
     require_project_member_csrf,
 )
@@ -36,6 +38,7 @@ from app.projects.schemas import (
     CriterionUpdate,
     HighlightKeywordsResponse,
     HighlightKeywordsUpdate,
+    MemberCandidate,
     MembershipCreate,
     MembershipResponse,
     MembershipUpdate,
@@ -268,6 +271,10 @@ def _reconcile_work_assignments(db: Session, project_id: str) -> None:
     is currently eligible -- so a newly added (or newly permitted) reviewer picks
     up a fair share of pending work instead of the backlog staying stuck on
     whoever was eligible when the stage started.
+
+    Browser-helper PDF retrieval claims are released here too: a helper paired
+    to a reviewer who just lost full-text access must not keep holding this
+    project's retrieval jobs until its lease expires.
     """
     from app.extraction.service import (
         reassign_work_items_from_ineligible_reviewers as reassign_extraction,
@@ -275,6 +282,7 @@ def _reconcile_work_assignments(db: Session, project_id: str) -> None:
     from app.extraction.service import (
         rebalance_pending_work_items as rebalance_extraction,
     )
+    from app.pdf_acquisition.service import release_ineligible_claims
     from app.quality.service import (
         reassign_work_items_from_ineligible_reviewers as reassign_quality,
     )
@@ -293,6 +301,24 @@ def _reconcile_work_assignments(db: Session, project_id: str) -> None:
     rebalance_extraction(db, project_id)
     reassign_quality(db, project_id)
     rebalance_quality(db, project_id)
+    release_ineligible_claims(db, project_id)
+
+
+@router.get("/{project_id}/member-candidates", response_model=list[MemberCandidate])
+def list_member_candidates(
+    project_id: str,
+    _: User = Depends(require_project_manager),
+    db: Session = Depends(get_db),
+) -> list[User]:
+    """Users a project owner or administrator may put on this project.
+
+    Managing membership genuinely needs to see accounts that aren't members
+    yet, so this stays instance-wide -- but it is scoped to callers who
+    actually manage a project, and returns only identity fields (see
+    `MemberCandidate`), never email, admin status or password state.
+    """
+    get_project(db, project_id)
+    return list(db.scalars(select(User).order_by(User.username)))
 
 
 @router.post(

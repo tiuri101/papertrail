@@ -27,6 +27,10 @@ from app.projects.models import (
 )
 from app.projects.service import reviewer_weights, weighted_round_robin_sequence
 from app.review_work.allocation import reassign_orphaned_items, rebalance_pending_items
+from app.review_work.eligibility import (
+    ReviewCapability,
+    require_reviewer_capability_by_id,
+)
 from app.review_work.progress import (
     completed_items_with_response,
     remaining_claimable_items,
@@ -337,6 +341,9 @@ def claim_next_extraction(
     reviewer_id: str,
     excluded_item_ids: set[str] | None = None,
 ) -> ExtractionWorkItem | None:
+    require_reviewer_capability_by_id(
+        db, project_id, reviewer_id, ReviewCapability.EXTRACTION
+    )
     now = utcnow()
     claim_mode = extraction_allocation_mode(db, project_id) == TaskAllocationMode.CLAIM
     # A reviewer's own reserved-but-not-completed item is always resumed first,
@@ -409,14 +416,31 @@ def claim_next_extraction(
 
 
 def save_draft(
-    item: ExtractionWorkItem, reviewer_id: str, draft: dict[str, Any]
+    db: Session, item: ExtractionWorkItem, reviewer_id: str, draft: dict[str, Any]
 ) -> None:
+    require_reviewer_capability_by_id(
+        db, item.project_id, reviewer_id, ReviewCapability.EXTRACTION
+    )
     if (
         item.assigned_reviewer_id != reviewer_id
         or item.status == ExtractionStatus.COMPLETED
     ):
         raise ForbiddenError("This extraction work item cannot be edited")
     item.draft = draft
+
+
+def release_extraction_item(
+    db: Session, item: ExtractionWorkItem, reviewer_id: str
+) -> None:
+    """Hand a reserved extraction slot back to the queue."""
+    require_reviewer_capability_by_id(
+        db, item.project_id, reviewer_id, ReviewCapability.EXTRACTION
+    )
+    if item.assigned_reviewer_id != reviewer_id:
+        raise ForbiddenError("Extraction is assigned to another reviewer")
+    if item.status != ExtractionStatus.COMPLETED:
+        item.status = ExtractionStatus.AVAILABLE
+        item.reserved_until = None
 
 
 def slot_responses_visible(
@@ -511,6 +535,9 @@ def submit_extraction(
     *,
     suggestion_actions: Mapping[str, str] | None = None,
 ) -> ExtractionResponse:
+    require_reviewer_capability_by_id(
+        db, item.project_id, reviewer_id, ReviewCapability.EXTRACTION
+    )
     if item.assigned_reviewer_id != reviewer_id:
         raise ForbiddenError("Extraction is assigned to another reviewer")
     form = project_form(db, item.project_id)

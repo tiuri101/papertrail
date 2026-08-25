@@ -152,8 +152,8 @@ def setup_dual_extraction(db, *, extra_reviewers: int = 0, publication_count: in
     cross-publication behavior (e.g. distinct-reviewer-per-publication
     guarantees)."""
     create_user(db, "admin", "Admin", "secret-password", is_admin=True)
-    r1 = create_user(db, "r1", "R1", "password-1")
-    r2 = create_user(db, "r2", "R2", "password-2")
+    r1 = create_user(db, "r1", "R1", "long-password-1")
+    r2 = create_user(db, "r2", "R2", "long-password-2")
     reviewers = [r1, r2]
     for index in range(extra_reviewers):
         reviewers.append(
@@ -325,7 +325,7 @@ def test_dual_init_creates_two_slots_per_included_publication(db):
 
 def test_dual_init_requires_at_least_two_eligible_reviewers(db):
     create_user(db, "admin", "Admin", "secret-password", is_admin=False)
-    r1 = create_user(db, "r1", "R1", "password-1")
+    r1 = create_user(db, "r1", "R1", "long-password-1")
     project = Project(
         name="P",
         review_type=ReviewType.SYSTEMATIC_REVIEW,
@@ -435,7 +435,7 @@ def test_reviewer_blind_to_sibling_until_own_slot_completed(db):
 
 def test_single_reviewer_mode_never_blinds(db):
     create_user(db, "admin", "Admin", "secret-password", is_admin=True)
-    r1 = create_user(db, "r1", "R1", "password-1")
+    r1 = create_user(db, "r1", "R1", "long-password-1")
     project = Project(
         name="P",
         review_type=ReviewType.SYSTEMATIC_REVIEW,
@@ -759,7 +759,7 @@ def test_manager_override_writes_authoritative_final_and_invalidates_prior(db):
 
 def test_single_reviewer_mode_is_immediately_authoritative_never_reconciles(db):
     create_user(db, "admin", "Admin", "secret-password", is_admin=True)
-    r1 = create_user(db, "r1", "R1", "password-1")
+    r1 = create_user(db, "r1", "R1", "long-password-1")
     project = Project(
         name="Single Review",
         review_type=ReviewType.SYSTEMATIC_REVIEW,

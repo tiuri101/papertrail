@@ -7,6 +7,7 @@ import { filenameFromResponse } from './filename'
 import { hasOriginPermission, hasPublisherAccess, originPattern, PUBLISHER_ACCESS_ORIGIN } from './permission-manager'
 import { validatePdfResponse } from './pdf-validator'
 import { safeRedirectFetch } from './redirect-fetch'
+import { MAX_LANDING_PAGE_BYTES, readTextWithLimit } from './response-limits'
 import { looksLikeLoginOrPaywallPage } from './response-classifier'
 import { isSafePublisherUrl } from './url-safety'
 
@@ -104,7 +105,15 @@ export class RetrievalEngine {
     }
 
     this.onEvent({ phase: 'discovering-pdf-links', job })
-    const html = await response.text()
+    // Streamed with a hard byte cap: a landing page is untrusted remote
+    // content and must never be buffered whole before it is measured.
+    let html: string
+    try {
+      html = await readTextWithLimit(response, MAX_LANDING_PAGE_BYTES)
+    } catch (error) {
+      console.debug('[papertrail] job', job.jobId, 'landing-page read failed', error)
+      return this.reportTerminal(job, 'invalid_response', messageOf(error), finalUrl)
+    }
     if (looksLikeLoginOrPaywallPage(html)) {
       return this.reportTerminal(
         job,
@@ -156,7 +165,14 @@ export class RetrievalEngine {
 
       const candidateContentType = candidateResult.response.headers.get('Content-Type') ?? ''
       if (candidateContentType.includes('text/html')) {
-        const body = await candidateResult.response.text()
+        let body: string
+        try {
+          body = await readTextWithLimit(candidateResult.response, MAX_LANDING_PAGE_BYTES)
+        } catch {
+          // An oversized or stalled HTML body tells us nothing useful about
+          // this candidate -- move on to the next one.
+          continue
+        }
         if (looksLikeLoginOrPaywallPage(body)) {
           return this.reportTerminal(
             job,

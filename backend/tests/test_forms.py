@@ -232,7 +232,7 @@ def test_update_field_type_is_blocked_once_responses_exist(db) -> None:
     from app.projects.models import ProjectMembership, ProjectStage, ScreeningStage
     from app.publications.models import Publication
 
-    reviewer = create_user(db, "r2", "R2", "password-1")
+    reviewer = create_user(db, "r2", "R2", "long-password-1")
     project = Project(
         name="Review",
         review_type=ReviewType.SYSTEMATIC_REVIEW,
@@ -280,7 +280,7 @@ def test_marking_a_field_required_reopens_completed_extraction_responses(db) -> 
     from app.projects.models import ProjectMembership, ProjectStage, ScreeningStage
     from app.publications.models import Publication
 
-    reviewer = create_user(db, "r-extraction", "R Extraction", "password-1")
+    reviewer = create_user(db, "r-extraction", "R Extraction", "long-password-1")
     project = Project(
         name="Review",
         review_type=ReviewType.SYSTEMATIC_REVIEW,
@@ -329,7 +329,7 @@ def test_marking_a_field_required_reopens_completed_quality_responses(db) -> Non
         submit_quality,
     )
 
-    reviewer = create_user(db, "r-quality", "R Quality", "password-1")
+    reviewer = create_user(db, "r-quality", "R Quality", "long-password-1")
     project = Project(
         name="Review",
         review_type=ReviewType.SYSTEMATIC_REVIEW,
@@ -401,7 +401,7 @@ def test_delete_field_is_blocked_once_responses_exist(db) -> None:
     from app.projects.models import ProjectMembership, ProjectStage, ScreeningStage
     from app.publications.models import Publication
 
-    reviewer = create_user(db, "r3", "R3", "password-1")
+    reviewer = create_user(db, "r3", "R3", "long-password-1")
     project = Project(
         name="Review",
         review_type=ReviewType.SYSTEMATIC_REVIEW,
@@ -464,7 +464,7 @@ def test_delete_form_is_blocked_once_responses_exist(db) -> None:
     from app.projects.models import ProjectMembership, ProjectStage, ScreeningStage
     from app.publications.models import Publication
 
-    reviewer = create_user(db, "r1", "R1", "password-1")
+    reviewer = create_user(db, "r1", "R1", "long-password-1")
     project = Project(
         name="Review",
         review_type=ReviewType.SYSTEMATIC_REVIEW,

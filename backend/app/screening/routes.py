@@ -284,7 +284,7 @@ def update_draft(
     item = db.get(ScreeningWorkItem, item_id)
     if item is None or item.project_id != project_id:
         raise NotFoundError("Screening work item not found")
-    save_draft(item, session.user.id, payload.draft)
+    save_draft(db, item, session.user.id, payload.draft)
     db.commit()
     return {"status": "saved"}
 

@@ -271,8 +271,8 @@ def test_dataset_reports_missing_for_a_publication_not_yet_extracted(db):
 
 def test_dataset_marks_pending_reconciliation_distinctly_from_missing(db):
     admin = create_user(db, "matrix-admin", "Admin", "secret-password", is_admin=True)
-    r1 = create_user(db, "matrix-r1", "R1", "password-1")
-    r2 = create_user(db, "matrix-r2", "R2", "password-2")
+    r1 = create_user(db, "matrix-r1", "R1", "long-password-1")
+    r2 = create_user(db, "matrix-r2", "R2", "long-password-2")
     project = Project(
         name="Dual Matrix", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed"
     )

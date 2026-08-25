@@ -9,11 +9,12 @@ from email.utils import parseaddr
 
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
-from sqlalchemy import select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session
 
-from app.accounts.models import PasswordResetToken, User, UserSession
-from app.api.errors import ConflictError, DomainError, NotFoundError
+from app.accounts.models import LoginThrottle, PasswordResetToken, User, UserSession
+from app.accounts.password_policy import validate_password_policy
+from app.api.errors import ConflictError, DomainError, NotFoundError, RateLimitError
 from app.core.config import get_settings
 from app.core.time import utcnow
 from app.instance_settings.service import effective_instance_settings
@@ -41,6 +42,7 @@ def create_user(
     email: str | None = None,
     must_change_password: bool = False,
 ) -> User:
+    validate_password_policy(password)
     normalized_username = username.strip().lower()
     if db.scalar(select(User).where(User.username == normalized_username)):
         raise ConflictError("A user with this username already exists")
@@ -90,6 +92,17 @@ def set_user_email(db: Session, user: User, value: str | None) -> None:
         if existing:
             raise ConflictError("A user with this email address already exists")
     user.email = normalized
+
+
+def set_user_password(user: User, password: str) -> None:
+    """The one place a password becomes a stored hash after account creation.
+
+    Routing every change-password path (self service, emailed reset, admin
+    reset) through here is what keeps the policy from being enforced on some
+    endpoints and forgotten on others.
+    """
+    validate_password_policy(password)
+    user.password_hash = password_hasher.hash(password)
 
 
 def verify_password(user: User, password: str) -> bool:
@@ -215,9 +228,6 @@ def consume_password_reset_token(db: Session, token: PasswordResetToken) -> None
 
 
 def _ensure_throttle_allowed(db: Session, identity: str, error_message: str) -> None:
-    from app.accounts.models import LoginThrottle
-    from app.api.errors import RateLimitError
-
     throttle = db.scalar(
         select(LoginThrottle).where(LoginThrottle.identity_hash == identity)
     )
@@ -238,8 +248,6 @@ def _record_throttle_attempt(
     max_attempts: int,
     block_seconds: int,
 ) -> None:
-    from app.accounts.models import LoginThrottle
-
     now = utcnow()
     throttle = db.scalar(
         select(LoginThrottle).where(LoginThrottle.identity_hash == identity)
@@ -265,23 +273,137 @@ def _record_throttle_attempt(
     db.flush()
 
 
-def ensure_password_reset_allowed(db: Session, email: str, client_address: str) -> None:
-    identity = login_identity_hash(f"pwreset:{email}", client_address)
-    _ensure_throttle_allowed(
-        db, identity, "Too many password reset requests. Try again later."
+# A single account+IP counter is trivially sidestepped: rotate the source IP
+# and every bucket is empty again, or hold the IP and rotate usernames. So each
+# attempt is counted three times -- against the pair, against the account on its
+# own, and against the source address on its own -- and any one of them can
+# block. The broader the scope, the looser the limit, so that a shared NAT or a
+# busy office does not lock out honest users before the pair counter fires.
+ACCOUNT_SCOPE_ATTEMPT_MULTIPLIER = 3
+ADDRESS_SCOPE_ATTEMPT_MULTIPLIER = 6
+
+# Throttle rows are only interesting while their window (or block) is live.
+# Left alone they accumulate one row per attempted username/address forever,
+# which is a slow table-growth denial of service in its own right.
+THROTTLE_RETENTION_MULTIPLIER = 4
+THROTTLE_PRUNE_BATCH = 200
+
+
+@dataclass(frozen=True)
+class _ThrottleScope:
+    identity: str
+    max_attempts: int
+
+
+def _scoped_identity_hash(scope: str, value: str) -> str:
+    # The unit separator cannot appear in an email address or an IP literal, so
+    # scopes cannot be made to collide with each other by choosing a username.
+    payload = f"{scope}\x1f{value.strip().lower()}".encode()
+    return hashlib.sha256(payload).hexdigest()
+
+
+def login_identity_hash(username: str, client_address: str) -> str:
+    """The account+address ("pair") throttle identity."""
+    value = f"{username.strip().lower()}:{client_address}".encode()
+    return hashlib.sha256(value).hexdigest()
+
+
+def _login_scopes(
+    username: str, client_address: str, max_attempts: int
+) -> list[_ThrottleScope]:
+    return [
+        _ThrottleScope(login_identity_hash(username, client_address), max_attempts),
+        _ThrottleScope(
+            _scoped_identity_hash("login-account", username),
+            max_attempts * ACCOUNT_SCOPE_ATTEMPT_MULTIPLIER,
+        ),
+        _ThrottleScope(
+            _scoped_identity_hash("login-address", client_address),
+            max_attempts * ADDRESS_SCOPE_ATTEMPT_MULTIPLIER,
+        ),
+    ]
+
+
+def _password_reset_scopes(
+    email: str, client_address: str, max_attempts: int
+) -> list[_ThrottleScope]:
+    return [
+        _ThrottleScope(
+            login_identity_hash(f"pwreset:{email}", client_address), max_attempts
+        ),
+        _ThrottleScope(
+            _scoped_identity_hash("password-reset-account", email),
+            max_attempts * ACCOUNT_SCOPE_ATTEMPT_MULTIPLIER,
+        ),
+        _ThrottleScope(
+            _scoped_identity_hash("password-reset-address", client_address),
+            max_attempts * ADDRESS_SCOPE_ATTEMPT_MULTIPLIER,
+        ),
+    ]
+
+
+def prune_expired_throttles(db: Session, *, limit: int = THROTTLE_PRUNE_BATCH) -> int:
+    """Delete throttle rows whose window and block are both long finished.
+
+    Bounded on purpose: this runs inline on failed-authentication paths, so it
+    must stay a small indexed delete rather than a full table sweep. Rows that
+    are still blocking anyone are never touched.
+    """
+    settings = get_settings()
+    retention_seconds = THROTTLE_RETENTION_MULTIPLIER * max(
+        settings.login_window_seconds, settings.login_block_seconds, 1
     )
+    now = utcnow()
+    horizon = now - timedelta(seconds=retention_seconds)
+    stale_ids = list(
+        db.scalars(
+            select(LoginThrottle.id)
+            .where(
+                LoginThrottle.window_started_at < horizon,
+                or_(
+                    LoginThrottle.blocked_until.is_(None),
+                    LoginThrottle.blocked_until < now,
+                ),
+            )
+            .limit(limit)
+        )
+    )
+    if not stale_ids:
+        return 0
+    db.execute(delete(LoginThrottle).where(LoginThrottle.id.in_(stale_ids)))
+    db.flush()
+    return len(stale_ids)
+
+
+def ensure_password_reset_allowed(db: Session, email: str, client_address: str) -> None:
+    """Reject an over-budget reset request.
+
+    Evaluated purely from the submitted address and the caller's IP, before any
+    account lookup happens, so the outcome never depends on whether the account
+    exists.
+    """
+    settings = effective_instance_settings(db)
+    for scope in _password_reset_scopes(
+        email, client_address, settings.password_reset_max_attempts
+    ):
+        _ensure_throttle_allowed(
+            db, scope.identity, "Too many password reset requests. Try again later."
+        )
 
 
 def record_password_reset_attempt(db: Session, email: str, client_address: str) -> None:
     settings = effective_instance_settings(db)
-    identity = login_identity_hash(f"pwreset:{email}", client_address)
-    _record_throttle_attempt(
-        db,
-        identity,
-        window_seconds=settings.login_window_seconds,
-        max_attempts=settings.password_reset_max_attempts,
-        block_seconds=settings.login_block_seconds,
-    )
+    prune_expired_throttles(db)
+    for scope in _password_reset_scopes(
+        email, client_address, settings.password_reset_max_attempts
+    ):
+        _record_throttle_attempt(
+            db,
+            scope.identity,
+            window_seconds=settings.login_window_seconds,
+            max_attempts=scope.max_attempts,
+            block_seconds=settings.login_block_seconds,
+        )
 
 
 def get_user_or_raise(db: Session, user_id: str) -> User:
@@ -291,37 +413,38 @@ def get_user_or_raise(db: Session, user_id: str) -> User:
     return user
 
 
-def login_identity_hash(username: str, client_address: str) -> str:
-    value = f"{username.strip().lower()}:{client_address}".encode()
-    return hashlib.sha256(value).hexdigest()
-
-
 def ensure_login_allowed(db: Session, username: str, client_address: str) -> None:
-    identity = login_identity_hash(username, client_address)
-    _ensure_throttle_allowed(
-        db, identity, "Too many failed login attempts. Try again later."
-    )
+    settings = get_settings()
+    for scope in _login_scopes(username, client_address, settings.login_max_attempts):
+        _ensure_throttle_allowed(
+            db, scope.identity, "Too many failed login attempts. Try again later."
+        )
 
 
 def record_login_failure(db: Session, username: str, client_address: str) -> None:
     settings = get_settings()
-    identity = login_identity_hash(username, client_address)
-    _record_throttle_attempt(
-        db,
-        identity,
-        window_seconds=settings.login_window_seconds,
-        max_attempts=settings.login_max_attempts,
-        block_seconds=settings.login_block_seconds,
-    )
+    prune_expired_throttles(db)
+    for scope in _login_scopes(username, client_address, settings.login_max_attempts):
+        _record_throttle_attempt(
+            db,
+            scope.identity,
+            window_seconds=settings.login_window_seconds,
+            max_attempts=scope.max_attempts,
+            block_seconds=settings.login_block_seconds,
+        )
 
 
 def clear_login_failures(db: Session, username: str, client_address: str) -> None:
-    from app.accounts.models import LoginThrottle
+    """Reset the counters a successful authentication vindicates.
 
-    identity = login_identity_hash(username, client_address)
-    throttle = db.scalar(
-        select(LoginThrottle).where(LoginThrottle.identity_hash == identity)
-    )
-    if throttle is not None:
-        db.delete(throttle)
-        db.flush()
+    The pair and the account are cleared: whoever just authenticated owns the
+    account. The source-address counter deliberately survives -- otherwise one
+    valid login would wipe the evidence of a username-spraying run coming from
+    the same address.
+    """
+    identities = [
+        login_identity_hash(username, client_address),
+        _scoped_identity_hash("login-account", username),
+    ]
+    db.execute(delete(LoginThrottle).where(LoginThrottle.identity_hash.in_(identities)))
+    db.flush()

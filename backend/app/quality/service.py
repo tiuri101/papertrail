@@ -27,6 +27,10 @@ from app.quality.models import (
     QualityWorkItem,
 )
 from app.review_work.allocation import reassign_orphaned_items, rebalance_pending_items
+from app.review_work.eligibility import (
+    ReviewCapability,
+    require_reviewer_capability_by_id,
+)
 from app.review_work.progress import (
     completed_items_with_response,
     remaining_claimable_items,
@@ -221,6 +225,9 @@ def claim_next_quality(
     reviewer_id: str,
     excluded_item_ids: set[str] | None = None,
 ) -> QualityWorkItem | None:
+    require_reviewer_capability_by_id(
+        db, project_id, reviewer_id, ReviewCapability.QUALITY
+    )
     now = utcnow()
     config = quality_config(db, project_id)
     claim_mode = (
@@ -259,13 +266,32 @@ def claim_next_quality(
     return item
 
 
-def save_draft(item: QualityWorkItem, reviewer_id: str, draft: dict[str, Any]) -> None:
+def save_draft(
+    db: Session, item: QualityWorkItem, reviewer_id: str, draft: dict[str, Any]
+) -> None:
+    require_reviewer_capability_by_id(
+        db, item.project_id, reviewer_id, ReviewCapability.QUALITY
+    )
     if (
         item.assigned_reviewer_id != reviewer_id
         or item.status == QualityStatus.COMPLETED
     ):
         raise ForbiddenError("This quality-assessment work item cannot be edited")
     item.draft = draft
+
+
+def release_quality_item(
+    db: Session, item: QualityWorkItem, reviewer_id: str
+) -> None:
+    """Hand a reserved quality assessment back to the queue."""
+    require_reviewer_capability_by_id(
+        db, item.project_id, reviewer_id, ReviewCapability.QUALITY
+    )
+    if item.assigned_reviewer_id != reviewer_id:
+        raise ForbiddenError("Quality assessment is assigned to another reviewer")
+    if item.status != QualityStatus.COMPLETED:
+        item.status = QualityStatus.AVAILABLE
+        item.reserved_until = None
 
 
 def active_fields(db: Session, form: ReviewForm) -> list[FormField]:
@@ -311,6 +337,9 @@ def score_response(
 def submit_quality(
     db: Session, item: QualityWorkItem, reviewer_id: str, answers: dict[str, Any]
 ) -> QualityResponse:
+    require_reviewer_capability_by_id(
+        db, item.project_id, reviewer_id, ReviewCapability.QUALITY
+    )
     if item.assigned_reviewer_id != reviewer_id:
         raise ForbiddenError("Quality assessment is assigned to another reviewer")
     form = quality_form(db, item.project_id)

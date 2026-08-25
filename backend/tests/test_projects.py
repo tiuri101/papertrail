@@ -204,8 +204,8 @@ def test_adding_a_reviewer_mid_stage_rebalances_the_backlog_onto_them(
     client, db
 ) -> None:
     admin = create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
-    reviewer1 = create_user(db, "reviewer1", "Reviewer 1", "password-1")
-    reviewer2 = create_user(db, "reviewer2", "Reviewer 2", "password-2")
+    reviewer1 = create_user(db, "reviewer1", "Reviewer 1", "long-password-1")
+    reviewer2 = create_user(db, "reviewer2", "Reviewer 2", "long-password-2")
     project = Project(
         name="Test",
         review_type=ReviewType.SYSTEMATIC_REVIEW,

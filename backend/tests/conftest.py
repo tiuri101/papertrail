@@ -1,10 +1,17 @@
 from __future__ import annotations
 
 import os
+import secrets
 from collections.abc import Generator
 
 # Must be set before importing application modules.
 os.environ.setdefault("PAPERTRAIL_ENV", "test")
+# Sensitive email payloads (the password-reset link) are encrypted before they
+# are persisted, so the suite needs an application key just like a real
+# deployment. Generated per test run and never written down anywhere.
+os.environ.setdefault(
+    "PAPERTRAIL_NOTIFICATION_ENCRYPTION_KEY", secrets.token_urlsafe(48)
+)
 
 import pytest
 from fastapi.testclient import TestClient

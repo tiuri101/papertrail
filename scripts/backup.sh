@@ -1,6 +1,12 @@
 #!/usr/bin/env sh
 set -eu
 
+# Every file this script creates -- the backup directory, the dump, the
+# archives, the manifest -- must be readable only by whoever runs the backup.
+# Setting this before `mkdir -p "$destination"` is what actually matters: a
+# umask set afterwards would not affect a directory that already exists.
+umask 077
+
 usage() {
   cat <<'USAGE'
 Usage: scripts/backup.sh [--leave-stopped] [DESTINATION]
@@ -32,6 +38,10 @@ fi
 stamp=$(date -u +%Y%m%dT%H%M%SZ)
 destination=${1:-"./backups/papertrail-$stamp"}
 mkdir -p "$destination"
+# umask only governs newly created entries: if $destination already existed
+# (e.g. a caller-supplied path) it may still carry looser permissions from
+# whatever created it, so tighten it explicitly.
+chmod 700 "$destination"
 destination_abs=$(cd "$destination" && pwd)
 
 running_app_services=$(
@@ -70,16 +80,21 @@ docker compose exec -T postgres sh -c \
   > "$destination_abs/database.dump"
 
 echo "Backing up imported files and exports..."
+# The umask above only governs this shell's own file creation; `tar` runs
+# inside a separate alpine container with its own default umask, so the
+# archive's mode has to be tightened explicitly once it lands on the host.
 docker run --rm \
   -v papertrail_files:/data:ro \
   -v "$destination_abs":/backup \
   alpine:3.22 tar -C /data -czf /backup/files.tar.gz .
+chmod 600 "$destination_abs/files.tar.gz"
 
 echo "Backing up stored PDFs..."
 docker run --rm \
   -v papertrail_pdf_data:/pdf-data:ro \
   -v "$destination_abs":/backup \
   alpine:3.22 tar -C /pdf-data -czf /backup/pdfs.tar.gz .
+chmod 600 "$destination_abs/pdfs.tar.gz"
 
 cat > "$destination_abs/BACKUP_INFO.txt" <<INFO
 format_version=2

@@ -143,20 +143,20 @@ def test_quality_save_draft_persists_and_locks_after_submission(db) -> None:
     db.commit()
     item = claim_next_quality(db, project.id, reviewer.id)
 
-    save_draft(item, reviewer.id, {design.stable_key: "strong"})
+    save_draft(db, item, reviewer.id, {design.stable_key: "strong"})
     db.commit()
     db.refresh(item)
     assert item.draft == {design.stable_key: "strong"}
 
     with pytest.raises(ForbiddenError):
-        save_draft(item, other_reviewer.id, {design.stable_key: "weak"})
+        save_draft(db, item, other_reviewer.id, {design.stable_key: "weak"})
 
     submit_quality(
         db, item, reviewer.id, {design.stable_key: "strong", reporting.stable_key: 4}
     )
     db.commit()
     with pytest.raises(ForbiddenError):
-        save_draft(item, reviewer.id, {design.stable_key: "weak"})
+        save_draft(db, item, reviewer.id, {design.stable_key: "weak"})
 
 
 def test_quality_revision_preserves_old_response(db) -> None:

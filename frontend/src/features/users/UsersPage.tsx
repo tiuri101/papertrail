@@ -10,6 +10,7 @@ import { CountPill } from '../../components/CountPill'
 import { IconPlus, IconRestart, IconTrash } from '../../components/icons'
 import { Input } from '../../components/Input'
 import { tableBaseClass, tableMobileScrollClass, toolbarClass } from '../../components/layoutStyles'
+import { MIN_PASSWORD_LENGTH, PASSWORD_REQUIREMENTS_TEXT, passwordMeetsPolicy } from '../auth/passwordPolicy'
 import type { LoginResponse, User } from '../auth/types'
 import { FieldLabel } from '../../components/FieldLabel'
 import { Form } from '../../components/Form'
@@ -83,18 +84,33 @@ export function UsersPage() {
               />
               <small>Optional. Notifications are sent only when email is configured.</small>
             </FieldLabel>
-            <FieldLabel>
-              Temporary password
-              <Input
-                type="password"
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                minLength={8}
-                required
-              />
-            </FieldLabel>
+            {/* The hint sits outside the <label> on purpose: FieldLabel wraps
+                its control, so anything inside it becomes part of the field's
+                accessible name. */}
+            <div className="grid gap-2">
+              <FieldLabel>
+                Temporary password
+                <Input
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  minLength={MIN_PASSWORD_LENGTH}
+                  autoComplete="new-password"
+                  aria-describedby="create-user-password-requirements"
+                  required
+                />
+              </FieldLabel>
+              <small id="create-user-password-requirements" className="text-text-secondary">{PASSWORD_REQUIREMENTS_TEXT}</small>
+            </div>
             <div className={toolbarClass}>
-              <Button type="submit" loading={create.isPending}><IconPlus />Create Reviewer</Button>
+              <Button
+                type="submit"
+                loading={create.isPending}
+                disabled={!passwordMeetsPolicy(password)}
+              >
+                <IconPlus />
+                Create Reviewer
+              </Button>
               <Button type="button" variant="secondary" onClick={() => setShowCreateForm(false)}>Cancel</Button>
             </div>
           </Form>

@@ -568,8 +568,8 @@ def test_final_results_use_reconciled_value_not_an_arbitrary_response(db) -> Non
     from app.projects.models import ProjectStage
 
     admin = create_user(db, "admin", "Admin", "secret-password", is_admin=True)
-    r1 = create_user(db, "r1", "R1", "password-1")
-    r2 = create_user(db, "r2", "R2", "password-2")
+    r1 = create_user(db, "r1", "R1", "long-password-1")
+    r2 = create_user(db, "r2", "R2", "long-password-2")
     project = Project(
         name="Dual",
         review_type=ReviewType.SYSTEMATIC_REVIEW,

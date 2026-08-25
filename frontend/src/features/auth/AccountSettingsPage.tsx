@@ -10,6 +10,7 @@ import { Input } from '../../components/Input'
 import { SectionNavigationLayout } from '../../components/SectionNavigationLayout'
 import { ScreeningHotkeysSection } from '../screening/ScreeningHotkeysSection'
 import { BrowserHelpersSection } from './BrowserHelpersSection'
+import { MIN_PASSWORD_LENGTH, PASSWORD_REQUIREMENTS_TEXT, passwordMeetsPolicy } from './passwordPolicy'
 import type { LoginResponse, User } from './types'
 import { sessionQueryOptions } from './sessionQuery'
 import { FieldLabel } from '../../components/FieldLabel'
@@ -110,17 +111,24 @@ export function AccountSettingsPage() {
                 required
               />
             </FieldLabel>
-            <FieldLabel>
-              New password
-              <Input
-                type="password"
-                value={newPassword}
-                onChange={(event) => setNewPassword(event.target.value)}
-                autoComplete="new-password"
-                minLength={8}
-                required
-              />
-            </FieldLabel>
+            {/* The hint sits outside the <label> on purpose: FieldLabel wraps
+                its control, so anything inside it becomes part of the field's
+                accessible name. */}
+            <div className="grid gap-2">
+              <FieldLabel>
+                New password
+                <Input
+                  type="password"
+                  value={newPassword}
+                  onChange={(event) => setNewPassword(event.target.value)}
+                  autoComplete="new-password"
+                  minLength={MIN_PASSWORD_LENGTH}
+                  aria-describedby="account-password-requirements"
+                  required
+                />
+              </FieldLabel>
+              <small id="account-password-requirements" className="text-text-secondary">{PASSWORD_REQUIREMENTS_TEXT}</small>
+            </div>
             <FieldLabel>
               Confirm new password
               <Input
@@ -128,7 +136,7 @@ export function AccountSettingsPage() {
                 value={confirmPassword}
                 onChange={(event) => setConfirmPassword(event.target.value)}
                 autoComplete="new-password"
-                minLength={8}
+                minLength={MIN_PASSWORD_LENGTH}
                 required
               />
             </FieldLabel>
@@ -145,7 +153,7 @@ export function AccountSettingsPage() {
               loading={updatePassword.isPending}
               disabled={
                 !currentPassword
-                || newPassword.length < 8
+                || !passwordMeetsPolicy(newPassword)
                 || passwordUnchanged
                 || passwordsMismatch
               }

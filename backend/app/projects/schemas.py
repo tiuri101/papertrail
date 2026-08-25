@@ -51,6 +51,20 @@ class ProjectListItem(ProjectSummary):
     percent_complete: int = Field(serialization_alias="percentComplete", ge=0, le=100)
 
 
+class MemberCandidate(ApiModel):
+    """A user a project manager may add to (or already has on) this project.
+
+    Deliberately narrower than `UserResponse`: identity plus account state is
+    everything the membership and assignment UIs need, so email addresses,
+    administrator status and password state never leave the admin directory.
+    """
+
+    id: str
+    username: str
+    display_name: str = Field(serialization_alias="displayName")
+    is_active: bool = Field(serialization_alias="isActive")
+
+
 class MembershipCreate(ApiModel):
     user_id: str = Field(alias="userId")
     can_title_abstract_screen: bool = Field(
