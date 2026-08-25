@@ -58,7 +58,7 @@ export function PreviousItemCard({
   return (
     <Card as="article">
       <p className="text-text-muted">You went back to the previous paper. Changes here update your existing decision.</p>
-      <h2 ref={titleRef} className="publication-title"><HighlightedText text={previousItem.publication.title} keywords={highlightKeywords} /></h2>
+      <h2 ref={titleRef} className="scroll-mt-[92px]"><HighlightedText text={previousItem.publication.title} keywords={highlightKeywords} /></h2>
       <p>{previousItem.publication.authors ?? 'Unknown authors'}</p>
       {previousItem.publication.venue ? <p className="text-text-muted">{previousItem.publication.venue}</p> : null}
       <p>
@@ -102,7 +102,7 @@ export function PreviousItemCard({
               disabled={save.isPending || !criteriaComplete}
             >
               Save Changes
-              {submitHotkey ? <kbd className="submit-button__hotkey border-[rgba(255,255,255,0.5)] bg-[rgba(255,255,255,0.16)] text-inherit" aria-hidden="true">{submitHotkey}</kbd> : null}
+              {submitHotkey ? <kbd className="submit-button__hotkey inline-flex h-[20px] min-w-[20px] items-center justify-center rounded-[5px] border border-[rgba(255,255,255,0.5)] bg-[rgba(255,255,255,0.16)] px-[5px] text-[0.72rem] leading-none font-bold text-inherit opacity-[0.85] [font-family:inherit]" aria-hidden="true">{submitHotkey}</kbd> : null}
             </Button>
             <Button type="button" variant="secondary" onClick={onClose} disabled={save.isPending}>
               Continue to current paper

@@ -150,10 +150,10 @@ export function DuplicateReviewPage() {
         </CountPill>
       ) : null}
       {candidates.data && candidates.data.length === 0 ? <p className="text-text-muted">No duplicates found.</p> : null}
-      <ul className="mb-6 grid list-none gap-6 p-0" aria-label="Duplicate candidates">
+      <ul className="mt-6 mb-6 grid list-none gap-6 overflow-hidden rounded-md border border-border bg-surface p-0" aria-label="Duplicate candidates">
         {candidates.data?.map((candidate) => (
           <li
-            className="overflow-hidden rounded-lg border border-border bg-surface/90 shadow-sm data-[resolved=true]:opacity-70"
+            className="overflow-hidden rounded-lg border border-border bg-surface/90 px-5 py-4 shadow-sm data-[resolved=true]:opacity-70"
             data-resolved={candidate.status !== 'unresolved'}
             key={candidate.id}
           >

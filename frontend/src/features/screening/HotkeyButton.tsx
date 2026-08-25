@@ -36,7 +36,9 @@ export function HotkeyButton({
       onKeyDown={onKeyDown}
       onBlur={onBlur}
     >
-      {isCapturing ? 'Press a key…' : currentKey ? <kbd>{currentKey}</kbd> : 'Not set'}
+      {isCapturing ? 'Press a key…' : currentKey ? (
+        <kbd className="inline-flex h-[20px] min-w-[20px] items-center justify-center rounded-[5px] border border-border-strong bg-surface px-[5px] text-[0.72rem] leading-none font-bold text-inherit opacity-[0.85] [font-family:inherit]">{currentKey}</kbd>
+      ) : 'Not set'}
     </button>
   )
 }

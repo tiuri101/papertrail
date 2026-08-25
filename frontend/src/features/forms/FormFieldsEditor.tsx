@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { Badge } from '../../components/Badge'
+import { cardStyles } from '../../components/Card'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { DragHandle } from '../../components/DragHandle'
 import { IconPlus } from '../../components/icons'
@@ -160,10 +161,10 @@ export function FormFieldsEditor({
     <div>
       {mutationError ? <p className="text-danger" role="alert">{mutationError.message}</p> : null}
       {activeFields.length === 0 && !addingField && readOnly ? (
-        <p className="muted">No fields added yet.</p>
+        <p className="text-text">No fields added yet.</p>
       ) : (
         <div className={cn(llmSchemaFieldsClass, 'form-editor-fields')}>
-          {activeFields.length === 0 && !addingField ? emptyState ?? <p className="muted">No fields added yet.</p> : null}
+          {activeFields.length === 0 && !addingField ? emptyState ?? <p className="text-text">No fields added yet.</p> : null}
           {orderedFields.map((field) => {
             const fieldIndex = activeFields.findIndex((item) => item.stableKey === field.stableKey)
             return (
@@ -330,7 +331,7 @@ export function FormFieldsEditor({
                       ) : null}
                     />
                   ) : field.isArchived ? (
-                    <p className="muted">
+                    <p className="text-text">
                       This field is no longer shown on new submissions. Previously recorded values are preserved.
                     </p>
                   ) : null}
@@ -391,7 +392,7 @@ export function FormFieldsEditor({
       {activeFields.length ? (
         <>
           <h3>Preview</h3>
-          <div className="card">
+          <div className={cardStyles} data-ui="card">
             <DynamicForm
               fields={activeFields.map((field) => ({
                 stableKey: field.stableKey,

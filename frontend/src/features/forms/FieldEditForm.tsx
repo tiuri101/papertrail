@@ -160,7 +160,7 @@ export function FieldEditForm({
       {isQualityForm && editingType === 'single_select' ? (
         <Fieldset>
           <FieldLegend>Score per option</FieldLegend>
-          {editingOptions.length === 0 ? <p className="muted">Add options above first.</p> : null}
+          {editingOptions.length === 0 ? <p className="text-text">Add options above first.</p> : null}
           {editingOptions.map((option) => (
             <FieldLabel key={option}>
               {option}
@@ -196,7 +196,7 @@ export function FieldEditForm({
           </FieldLabel>
         </div>
       ) : null}
-      <div className="toolbar">
+      <div className="toolbar flex flex-wrap items-center gap-3 my-5 max-[760px]:gap-2">
         <Button
           type="button"
           disabled={saving}

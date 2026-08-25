@@ -108,10 +108,11 @@ function ReassignRow({
       <td>{item.assignedReviewerName ?? 'Unassigned'}</td>
       <td>
         {locked ? (
-          <span className="muted">Already submitted</span>
+          <span className="text-text">Already submitted</span>
         ) : (
-          <div className="toolbar">
+          <div className="toolbar flex flex-wrap items-center gap-3 my-0 max-[760px]:flex-col max-[760px]:items-start max-[760px]:gap-2">
             <Select
+              className="max-[760px]:w-full"
               aria-label={`Reassign ${item.publicationTitle}`}
               value={selectedReviewer}
               onChange={(event) => setSelectedReviewer(event.target.value)}
@@ -124,6 +125,7 @@ function ReassignRow({
                 ))}
             </Select>
             <Button
+              className="max-[760px]:w-full"
               type="button"
               variant="secondary"
               disabled={!selectedReviewer || pending}
@@ -283,7 +285,7 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
       <InfoBox icon={<IconSwap />}>
         <p>Move a publication to a different reviewer who has been added to this project.</p>
       </InfoBox>
-      <div className="toolbar">
+      <div className="toolbar flex flex-wrap items-center gap-3 my-5 max-[760px]:gap-2">
         <FieldLabel>
           Stage
           <Select value={stage} onChange={(event) => setStage(event.target.value)}>
@@ -340,7 +342,7 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
             />
             Select all {reassignableTotal} filtered assignments
           </label>
-          <div className="toolbar bulk-selection-panel__controls items-end">
+          <div className="toolbar bulk-selection-panel__controls flex flex-wrap items-end gap-3 my-5 max-[760px]:gap-2">
             <FieldLabel>
               Reassign selected to
               <Select
@@ -363,7 +365,7 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
             </Button>
           </div>
           {selectAllFiltered && excludedIds.size > 0 ? (
-            <p className="muted">{excludedIds.size} assignment{excludedIds.size === 1 ? '' : 's'} excluded from this selection.</p>
+            <p className="text-text">{excludedIds.size} assignment{excludedIds.size === 1 ? '' : 's'} excluded from this selection.</p>
           ) : null}
         </div>
       ) : null}
@@ -371,12 +373,12 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
         <p role="status">Reassigned {bulkReassign.data.reassigned} assignment{bulkReassign.data.reassigned === 1 ? '' : 's'}.</p>
       ) : null}
       {reassign.error || bulkReassign.error ? (
-        <p className="error" role="alert">{(reassign.error ?? bulkReassign.error)?.message}</p>
+        <p className="text-danger" role="alert">{(reassign.error ?? bulkReassign.error)?.message}</p>
       ) : null}
-      {assignments.error ? <p className="error" role="alert">{assignments.error.message}</p> : null}
+      {assignments.error ? <p className="text-danger" role="alert">{assignments.error.message}</p> : null}
       {assignments.isLoading ? <p>Loading…</p> : null}
       {assignments.data && assignments.data.items.length === 0 ? (
-        <p className="muted">No publications match these filters.</p>
+        <p className="text-text">No publications match these filters.</p>
       ) : null}
       {assignments.data && assignments.data.items.length > 0 ? (
         <>
@@ -410,11 +412,11 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
               ))}
             </tbody>
           </table>
-          <div className="toolbar">
+          <div className="toolbar flex flex-wrap items-center gap-3 my-5 max-[760px]:gap-2">
             <Button type="button" variant="secondary" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>
               Previous
             </Button>
-            <span className="muted">Page {page} of {totalPages} ({total} total)</span>
+            <span className="text-text">Page {page} of {totalPages} ({total} total)</span>
             <Button type="button" variant="secondary" disabled={page >= totalPages} onClick={() => setPage((current) => current + 1)}>
               Next
             </Button>

@@ -168,7 +168,7 @@ export function NewFieldDraftCard({
         {isQualityForm && fieldType === 'single_select' ? (
           <Fieldset>
             <FieldLegend>Score per option</FieldLegend>
-            {options.length === 0 ? <p className="muted">Add options above first.</p> : null}
+            {options.length === 0 ? <p className="text-text">Add options above first.</p> : null}
             {options.map((option) => (
               <FieldLabel key={option}>
                 {option}
@@ -193,7 +193,7 @@ export function NewFieldDraftCard({
             </FieldLabel>
           </div>
         ) : null}
-        <div className="toolbar">
+        <div className="toolbar flex flex-wrap items-center gap-3 my-5 max-[760px]:gap-2">
           <Button
             type="submit"
             variant="primary"

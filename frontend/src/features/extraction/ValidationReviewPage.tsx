@@ -33,6 +33,7 @@ import type { ValidationResult } from './types'
 import { Input } from '../../components/Input'
 import { Select } from '../../components/Select'
 import { Button } from '../../components/Button'
+import { cardStyles } from '../../components/Card'
 import { Page } from '../../components/Page'
 
 interface ValidationReviewItem {
@@ -176,7 +177,7 @@ function ValidationRow({
           open={item.issues.length > 0}
         >
           <summary>{item.issues.length > 0 ? `Validation findings (${item.issues.length})` : 'Validation details'}</summary>
-          {item.error ? <p className="error">{item.error}</p> : null}
+          {item.error ? <p className="text-danger">{item.error}</p> : null}
           {item.issues.map((result) => (
             <section className={llmValidationClass(result.assessment)} key={result.fieldKey}>
               <h3>{result.fieldLabel}</h3>
@@ -195,7 +196,7 @@ function ValidationRow({
               ) : null}
             </section>
           ))}
-          <div className="toolbar">
+          <div className="toolbar flex flex-wrap items-center gap-3 my-5 max-[760px]:gap-2">
             {item.fullTextAvailable ? (
               <a href={`/api/v1/projects/${projectId}/publications/${item.publicationId}/full-text/content`} target="_blank" rel="noreferrer">
                 View PDF
@@ -257,7 +258,7 @@ export function ValidationReviewPage() {
   }
 
   if (review.isLoading) return <Page><p>Loading validation review…</p></Page>
-  if (review.isError || !review.data) return <Page><p className="error" role="alert">Validation review could not be loaded.</p></Page>
+  if (review.isError || !review.data) return <Page><p className="text-danger" role="alert">Validation review could not be loaded.</p></Page>
   if (!review.data.enabled) {
     return <Page><StageEyebrow stage="extraction_quality" /><h1>LLM Extraction Validation</h1><p>LLM extraction validation is not enabled for this project.</p></Page>
   }
@@ -266,7 +267,7 @@ export function ValidationReviewPage() {
     <Page>
       <StageEyebrow stage="extraction_quality" />
       <h1>Review LLM Extraction Validation</h1>
-      <section className="card">
+      <section className={cardStyles} data-ui="card">
         <h2>Validation progress</h2>
         <CountPill count={review.data.progress.completed}>
           of {review.data.progress.total} validated
@@ -274,16 +275,16 @@ export function ValidationReviewPage() {
           {review.data.progress.failed ? ` · ${review.data.progress.failed} failed` : ''}
           {review.data.progress.unavailable ? ` · ${review.data.progress.unavailable} unavailable` : ''}
         </CountPill>
-        <p className="muted">Human extraction values remain authoritative. Review flagged fields, then correct the extraction if needed.</p>
+        <p className="text-text">Human extraction values remain authoritative. Review flagged fields, then correct the extraction if needed.</p>
       </section>
 
-      {retry.error ? <p className="error" role="alert">{retry.error.message}</p> : null}
+      {retry.error ? <p className="text-danger" role="alert">{retry.error.message}</p> : null}
       {totalReviewItems > 0 ? (
         <>
           <CountPill count={search ? visibleItems.length : totalReviewItems}>
             {search ? `of ${totalReviewItems} publications match your filters` : `publication${totalReviewItems === 1 ? '' : 's'} need review`}
           </CountPill>
-          <div className="toolbar">
+          <div className="toolbar flex flex-wrap items-center gap-3 my-5 max-[760px]:gap-2">
             <label className="paper-search-field flex-[0_1_32rem] w-[min(32rem,100%)]">
               Search papers
               <Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Title, author, DOI…" />
@@ -312,9 +313,9 @@ export function ValidationReviewPage() {
       ) : null}
 
       {totalReviewItems === 0 ? (
-        <section className="card"><p>No validation mismatches require review.</p></section>
+        <section className={cardStyles} data-ui="card"><p>No validation mismatches require review.</p></section>
       ) : visibleItems.length === 0 ? (
-        <p className="muted">No validation items match your filters.</p>
+        <p className="text-text">No validation items match your filters.</p>
       ) : (
         <>
           <div className={`${reviewWorkGridClass} mt-6 mb-2 px-4 text-[0.72rem] font-bold tracking-[0.04em] text-text-muted uppercase max-[520px]:hidden`}>
@@ -328,7 +329,7 @@ export function ValidationReviewPage() {
             <PublicationListSortHeader label="Submitted" sortKey="submitted" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
             <span className={reviewWorkActionsClass}>Actions</span>
           </div>
-          <ul className="card-list stacked publication-list gap-2">
+          <ul className="publication-list grid grid-cols-1 items-start gap-2 mb-6">
             {visibleItems.map((item) => (
               <ValidationRow key={item.workItemId} projectId={projectId} item={item} highlightKeywords={highlightKeywords} retry={(target) => retry.mutate(target)} />
             ))}

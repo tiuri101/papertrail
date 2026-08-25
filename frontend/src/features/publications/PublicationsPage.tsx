@@ -849,7 +849,7 @@ export function PublicationsPage() {
         ) : null}
         {activeTab === 'metadata' && canManage ? (
           <>
-            <section className={cardStyles} data-ui="card" id="section-metadata-enrichment">
+            <section className={cn(cardStyles, 'scroll-mt-[92px]')} data-ui="card" id="section-metadata-enrichment">
               <h2>Metadata Enrichment</h2>
               <p className="text-text-muted">
                 Fill in missing metadata from Crossref and Semantic Scholar for every record missing metadata.

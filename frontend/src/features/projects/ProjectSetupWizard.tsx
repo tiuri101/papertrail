@@ -4,6 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { cn } from '../../lib/cn'
+import { cardStyles } from '../../components/Card'
 import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { Button } from '../../components/Button'
 import { IconArrowRight, IconCheckCircle, IconFolder } from '../../components/icons'
@@ -115,7 +116,7 @@ function ProjectDetailsStep({
   const error = create.error ?? update.error
 
   return (
-    <section className="card">
+    <section className={cardStyles} data-ui="card">
       <h2>
         <span className="collapsible-section__title inline-flex items-center gap-2">
           <span className="collapsible-section__icon inline-flex shrink-0 text-primary [&_svg]:size-5 [&_svg]:fill-current" aria-hidden="true"><IconFolder /></span>
@@ -165,8 +166,8 @@ function ProjectDetailsStep({
               ))}
             </Select>
           </FieldLabel>
-          {projectId ? <p className="muted">Review type can&apos;t be changed after the project is created.</p> : null}
-          {error ? <p className="error" role="alert">{error.message}</p> : null}
+          {projectId ? <p className="text-text">Review type can&apos;t be changed after the project is created.</p> : null}
+          {error ? <p className="text-danger" role="alert">{error.message}</p> : null}
           <Button type="submit" disabled={pending || name.trim().length === 0}>
             {projectId ? 'Save & Continue' : 'Create Project & Continue'}
             <IconArrowRight />
@@ -234,7 +235,7 @@ export function ProjectSetupWizard() {
         <div className="project-wizard__header col-start-2 row-start-1 max-[760px]:col-start-1 max-[760px]:row-auto">
           <p className="eyebrow mb-1 block text-[0.74rem] font-[750] tracking-[0.08em] text-primary uppercase">Project setup · Step {step + 1} of {WIZARD_STEPS.length}</p>
           <h1 className="m-0">Project Setup Wizard</h1>
-          <p className="muted mt-1">
+          <p className="text-text mt-1">
             {project.data?.name
               ? `Setting up "${project.data.name}". Every step but the first can be revisited later from the project's Project Administration page.`
               : 'Create a project by walking through each setup step. You can finish the rest later from the project\'s Project Administration page.'}
@@ -295,7 +296,7 @@ export function ProjectSetupWizard() {
                       )}
                     >
                       {wizardStep.label}
-                      {wizardStep.optional ? <span className="muted"> (optional)</span> : null}
+                      {wizardStep.optional ? <span className="text-text"> (optional)</span> : null}
                     </span>
                   </button>
                 </li>

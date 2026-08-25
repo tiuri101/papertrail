@@ -2,10 +2,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { cardStyles } from '../../components/Card'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { CountPill } from '../../components/CountPill'
 import { IconFile, IconUpload } from '../../components/icons'
 import { statusPillClass } from '../../components/statusPillStyles'
+import { cn } from '../../lib/cn'
 import { formatFileSize } from '../../lib/format'
 import { Select } from '../../components/Select'
 import { Button } from '../../components/Button'
@@ -130,9 +132,9 @@ export function PdfMatchReview({ projectId, importBatchId }: {
   )) ?? []
 
   return (
-    <section className="card pdf-match-review" id={importBatchId ? undefined : 'section-pdf-review'}>
+    <section className={cn(cardStyles, 'pdf-match-review', !importBatchId && 'scroll-mt-[92px]')} data-ui="card" id={importBatchId ? undefined : 'section-pdf-review'}>
       <h2>Review PDF matches</h2>
-      {review.error ? <p className="error" role="alert">{review.error.message}</p> : null}
+      {review.error ? <p className="text-danger" role="alert">{review.error.message}</p> : null}
       <FieldLabel>
         PDF match filter
         <Select value={filter} onChange={(event) => setFilter(event.target.value)}>
@@ -149,7 +151,7 @@ export function PdfMatchReview({ projectId, importBatchId }: {
             : `of ${counts?.total ?? review.data.items.length} PDF files match the current filter`}
         </CountPill>
       ) : null}
-      <div className="card-list stacked mt-4">
+      <div className="grid grid-cols-1 items-start gap-5 mt-4 mb-6">
         {items.map((item) => {
           const selected = selections[item.id]
             ?? item.matchedPublicationId
@@ -169,7 +171,7 @@ export function PdfMatchReview({ projectId, importBatchId }: {
                 <span className="pdf-match-item__icon inline-flex flex-none items-center justify-center w-[38px] h-[38px] rounded-sm bg-primary-container text-primary [&_svg]:w-5 [&_svg]:h-5 [&_svg]:fill-current" aria-hidden="true"><IconFile /></span>
                 <div className="pdf-match-item__identity min-w-0 flex-1">
                   <h3 className="[overflow-wrap:anywhere]">{item.originalFilename}</h3>
-                  {item.fileSize ? <span className="muted pdf-match-item__size block mt-0.5 text-[0.78rem]">{formatFileSize(item.fileSize)}</span> : null}
+                  {item.fileSize ? <span className="text-text pdf-match-item__size block mt-0.5 text-[0.78rem]">{formatFileSize(item.fileSize)}</span> : null}
                 </div>
                 <span className={statusPillClass(meta.tone)}>{meta.label}</span>
               </header>
@@ -199,7 +201,7 @@ export function PdfMatchReview({ projectId, importBatchId }: {
                 ) : null}
               </dl>
 
-              {item.errorMessage ? <p className="error">{item.errorMessage}</p> : null}
+              {item.errorMessage ? <p className="text-danger">{item.errorMessage}</p> : null}
 
               {matchedTitle ? (
                 <p className="pdf-match-item__note text-[0.88rem]">
@@ -217,7 +219,7 @@ export function PdfMatchReview({ projectId, importBatchId }: {
                     </p>
                   ) : null}
                   {item.candidates.length ? (
-                    <p className="muted pdf-match-item__hint text-[0.84rem]">
+                    <p className="text-text pdf-match-item__hint text-[0.84rem]">
                       Suggested {item.candidates.length > 1 ? 'matches' : 'match'}:{' '}
                       {item.candidates.map(candidateDescription).join('; ')}
                     </p>
@@ -241,7 +243,7 @@ export function PdfMatchReview({ projectId, importBatchId }: {
                       ))}
                     </Select>
                   </FieldLabel>
-                  <div className="toolbar">
+                  <div className="toolbar flex flex-wrap items-center gap-3 my-5 max-[760px]:gap-2">
                     <Button
                       type="button"
                       disabled={!selected || resolve.isPending || isConflict}
@@ -279,7 +281,7 @@ export function PdfMatchReview({ projectId, importBatchId }: {
           )
         })}
       </div>
-      {items.length === 0 && review.data ? <p className="muted">No PDF matches in this view.</p> : null}
+      {items.length === 0 && review.data ? <p className="text-text">No PDF matches in this view.</p> : null}
     </section>
   )
 }

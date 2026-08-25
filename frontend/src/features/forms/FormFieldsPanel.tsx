@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { Badge } from '../../components/Badge'
+import { cardStyles } from '../../components/Card'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { Button, IconButton } from '../../components/Button'
 import { DragHandle } from '../../components/DragHandle'
@@ -308,7 +309,7 @@ export function FormFieldsPanel({
   const activeFields = orderedFields.filter((field) => !field.isArchived)
 
   return (
-    <section className="card">
+    <section className={cardStyles} data-ui="card">
       <h2>
         <span className="collapsible-section__title inline-flex items-center gap-2">
           <span className="collapsible-section__icon inline-flex shrink-0 text-primary [&_svg]:size-5 [&_svg]:fill-current" aria-hidden="true">
@@ -322,8 +323,8 @@ export function FormFieldsPanel({
           <p>{description}</p>
         </InfoBox>
       ) : null}
-      {forms.error ? <p className="error" role="alert">{forms.error.message}</p> : null}
-      {mutationError ? <p className="error" role="alert">{mutationError.message}</p> : null}
+      {forms.error ? <p className="text-danger" role="alert">{forms.error.message}</p> : null}
+      {mutationError ? <p className="text-danger" role="alert">{mutationError.message}</p> : null}
 
       {isQualityForm ? (
         <div className="quality-settings-fields grid gap-5">
@@ -379,8 +380,8 @@ export function FormFieldsPanel({
               </Select>
             </FieldLabel>
           </div>
-          {saveQualityConfig.error ? <p className="error" role="alert">{saveQualityConfig.error.message}</p> : null}
-          <p className="muted" aria-live="polite">
+          {saveQualityConfig.error ? <p className="text-danger" role="alert">{saveQualityConfig.error.message}</p> : null}
+          <p className="text-text" aria-live="polite">
             {saveQualityConfig.isPending ? 'Saving…' : saveQualityConfig.isSuccess ? 'Saved.' : ' '}
           </p>
         </div>
@@ -397,8 +398,8 @@ export function FormFieldsPanel({
               ))}
             </Select>
           </FieldLabel>
-          {saveExtractionConfig.error ? <p className="error" role="alert">{saveExtractionConfig.error.message}</p> : null}
-          <p className="muted" aria-live="polite">
+          {saveExtractionConfig.error ? <p className="text-danger" role="alert">{saveExtractionConfig.error.message}</p> : null}
+          <p className="text-text" aria-live="polite">
             {saveExtractionConfig.isPending ? 'Saving…' : saveExtractionConfig.isSuccess ? 'Saved.' : ' '}
           </p>
         </div>
@@ -422,7 +423,7 @@ export function FormFieldsPanel({
               ))}
             </Select>
           </FieldLabel>
-          {templates.error ? <p className="error" role="alert">{templates.error.message}</p> : null}
+          {templates.error ? <p className="text-danger" role="alert">{templates.error.message}</p> : null}
           <Button type="submit" variant="primary" loading={createForm.isPending}>
             <IconPlus />
             Create {isQualityForm ? 'Quality' : 'Extraction'} Form
@@ -485,7 +486,7 @@ export function FormFieldsPanel({
             {isQualityForm && fieldType === 'single_select' ? (
               <Fieldset>
                 <FieldLegend>Score per option</FieldLegend>
-                {options.length === 0 ? <p className="muted">Add options above first.</p> : null}
+                {options.length === 0 ? <p className="text-text">Add options above first.</p> : null}
                 {options.map((option) => (
                   <FieldLabel key={option}>
                     {option}
@@ -516,10 +517,10 @@ export function FormFieldsPanel({
           ) : null}
 
           <h3>Fields</h3>
-          {fields.error ? <p className="error" role="alert">{fields.error.message}</p> : null}
-          {activeFields.length === 0 && !inlineAdd ? <p className="muted">No fields added yet.</p> : (
+          {fields.error ? <p className="text-danger" role="alert">{fields.error.message}</p> : null}
+          {activeFields.length === 0 && !inlineAdd ? <p className="text-text">No fields added yet.</p> : (
             <div className={cn(llmSchemaFieldsClass, 'form-editor-fields')}>
-              {activeFields.length === 0 && !addingField ? <p className="muted">No fields added yet.</p> : null}
+              {activeFields.length === 0 && !addingField ? <p className="text-text">No fields added yet.</p> : null}
               {activeFields.map((field) => {
                 const fieldIndex = activeFields.findIndex((item) => item.stableKey === field.stableKey)
                 return (
@@ -742,7 +743,7 @@ export function FormFieldsPanel({
           {activeFields.length ? (
             <>
               <h3>Preview</h3>
-              <div className="card">
+              <div className={cardStyles} data-ui="card">
                 <DynamicForm
                   fields={activeFields.map((field) => ({
                     stableKey: field.stableKey,

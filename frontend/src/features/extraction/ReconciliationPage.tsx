@@ -105,7 +105,7 @@ export function ReconciliationPage() {
       <CountPill count={list.length}>
         publication{list.length === 1 ? '' : 's'} awaiting reconciliation
       </CountPill>
-      <ul className="m-0 grid list-none gap-5 p-0" aria-label="Publications awaiting reconciliation">
+      <ul className="m-0 grid list-none gap-5 overflow-hidden rounded-md border border-border bg-surface p-0" aria-label="Publications awaiting reconciliation">
         {list.map((item) => (
           <Card as="li" key={item.publication.id}>
             <h2>{item.publication.title}</h2>

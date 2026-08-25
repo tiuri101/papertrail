@@ -273,7 +273,7 @@ export function ProjectsPage() {
       {projects.data && projects.data.length > 0 && filteredProjects.length === 0 ? (
         <p className="text-text">No projects match your filters.</p>
       ) : null}
-      <ul className="m-0 grid list-none bg-transparent border-none grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4 p-0" aria-label="Projects">
+      <ul className="m-0 grid list-none overflow-hidden bg-transparent border-none grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4 p-0" aria-label="Projects">
         {sortedProjects.map((project) => (
           <Card as="li" key={project.id} className="flex flex-col">
             <div className="flex items-start justify-between gap-3">
