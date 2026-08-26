@@ -2,8 +2,10 @@ import type {
   AgentProject,
   CaptureAttachResult,
   ClaimedJob,
+  CreatedPublication,
   JobResult,
   JobStateUpdate,
+  NewPublicationFields,
   PdfDetectResult,
   PublicationPickerResult,
   StoredConnection,
@@ -141,6 +143,17 @@ export class PapertrailClient {
     return this.request(`/api/v1/browser-agent/publications/${publicationId}/pdf-captures`, {
       method: 'POST',
       body: form,
+    })
+  }
+
+  /** Adds a publication on the spot -- e.g. when a capture doesn't match
+   * anything already in the project -- instead of leaving the reviewer
+   * stuck searching for something that was never imported. */
+  createPublication(projectId: string, fields: NewPublicationFields): Promise<CreatedPublication> {
+    return this.request(`/api/v1/browser-agent/projects/${projectId}/publications`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(fields),
     })
   }
 }

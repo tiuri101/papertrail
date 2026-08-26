@@ -33,9 +33,11 @@ from app.pdf_acquisition.models import (
     RetrievalJobStatus,
 )
 from app.projects.models import Project, ProjectMembership
-from app.projects.service import is_project_manager
+from app.projects.service import get_project, is_project_manager
 from app.publications.listing import PublicationFilters, publications_page
 from app.publications.models import Publication
+from app.publications.service import create_publication as create_publication_record
+from app.publications.service import overwrite_values_from_providers
 
 ERROR_MESSAGE_MAX_LENGTH = 500
 
@@ -1096,6 +1098,8 @@ class PdfMatchCandidate:
 class PdfDetectResult:
     detected_doi: str | None
     detected_title: str | None
+    detected_authors: str | None
+    detected_year: int | None
     match: PdfMatchCandidate | None
     ambiguous: bool
 
@@ -1144,6 +1148,8 @@ async def detect_manual_capture(
     return PdfDetectResult(
         detected_doi=detected.detected_doi,
         detected_title=detected.detected_title,
+        detected_authors=detected.detected_authors,
+        detected_year=detected.detected_year,
         match=match,
         ambiguous=ambiguous,
     )
@@ -1169,6 +1175,36 @@ def search_publications_for_agent(
         page_size=max(1, min(limit, 20)),
     )
     return page.items
+
+
+def create_agent_publication(
+    db: Session,
+    agent: BrowserAgent,
+    project_id: str,
+    values: dict[str, Any],
+) -> Publication:
+    """Add a publication on the spot when a capture doesn't match anything
+    that already exists, rather than leaving the reviewer stuck searching
+    for a publication that was never imported. Delegates to the same
+    create_publication the web UI's "add publication" form uses -- same
+    validation, same screening-stage enrollment -- with a distinct audit
+    action so the two entry points stay distinguishable in the audit log.
+
+    Uniquely to this entry point: if a DOI is present (typed, or carried
+    over from what detect_manual_capture found in the PDF itself), an
+    authoritative record is looked up and overwrites whatever was typed --
+    see overwrite_values_from_providers for why that's safe only here and
+    not in the shared create_publication path."""
+    _require_agent_full_text_access(db, agent, project_id)
+    project = get_project(db, project_id)
+    values = overwrite_values_from_providers(values)
+    return create_publication_record(
+        db,
+        project,
+        values,
+        actor_id=agent.user_id,
+        audit_action="publication.created_browser_capture",
+    )
 
 
 async def upload_manual_capture(

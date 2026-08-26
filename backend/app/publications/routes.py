@@ -55,7 +55,7 @@ from app.publications.schemas import (
     PublicationResponse,
     PublicationUpdate,
 )
-from app.publications.service import normalize_doi, sync_new_publications_with_stage
+from app.publications.service import create_publication, normalize_doi
 from app.quality.models import QualityResponse, QualityWorkItem
 from app.reporting.bibtex import build_bibtex_for_publications
 from app.screening.service import current_decisions
@@ -631,21 +631,8 @@ def create_manual_publication(
     db: Session = Depends(get_db),
 ) -> Publication:
     project = require_project_access(db, project_id, admin)
-    values = payload.model_dump(exclude_unset=True)
-    if values.get("doi"):
-        values["doi"] = normalize_doi(values["doi"])
-    publication = Publication(project_id=project_id, **values)
-    db.add(publication)
-    db.flush()
-    sync_new_publications_with_stage(db, project, [publication.id])
-    record_audit(
-        db,
-        action="publication.created_manually",
-        entity_type="publication",
-        entity_id=publication.id,
-        project_id=project_id,
-        actor_id=admin.id,
-        summary="Added publication manually",
+    publication = create_publication(
+        db, project, payload.model_dump(exclude_unset=True), actor_id=admin.id
     )
     db.commit()
     return publication

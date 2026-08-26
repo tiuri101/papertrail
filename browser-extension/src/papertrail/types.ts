@@ -67,6 +67,8 @@ export interface PublicationPickerResult {
 export interface PdfDetectResult {
   detectedDoi: string | null
   detectedTitle: string | null
+  detectedAuthors: string | null
+  detectedYear: number | null
   match: PublicationPickerResult | null
   ambiguous: boolean
 }
@@ -74,5 +76,17 @@ export interface PdfDetectResult {
 export interface CaptureAttachResult {
   documentId: string
   publicationId: string
+  title: string
+}
+
+export interface NewPublicationFields {
+  title: string
+  authors?: string
+  publicationYear?: number
+  doi?: string
+}
+
+export interface CreatedPublication {
+  id: string
   title: string
 }

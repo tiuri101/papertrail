@@ -2,9 +2,10 @@ import type { PapertrailClient } from '../papertrail/client'
 import type { ClaimedJob, TerminalFailureStatus } from '../papertrail/types'
 import { resolverFor } from '../resolvers'
 import type { PdfCandidate } from '../resolvers/resolver'
+import { tryPdfCandidates } from './candidate-fetch'
 import { resolveDoiUrl } from './doi-resolver'
 import { filenameFromResponse } from './filename'
-import { hasOriginPermission, hasPublisherAccess, originPattern, PUBLISHER_ACCESS_ORIGIN } from './permission-manager'
+import { hasPublisherAccess, PUBLISHER_ACCESS_ORIGIN } from './permission-manager'
 import { validatePdfResponse } from './pdf-validator'
 import { safeRedirectFetch } from './redirect-fetch'
 import { MAX_LANDING_PAGE_BYTES, readTextWithLimit } from './response-limits'
@@ -142,57 +143,27 @@ export class RetrievalEngine {
     candidates: PdfCandidate[],
     landingUrl: string,
   ): Promise<EngineJobOutcome> {
-    for (const candidate of candidates) {
-      if (!isSafePublisherUrl(candidate.url)) continue
-      const origin = originPattern(candidate.url)
-      if (!(await hasOriginPermission(origin))) {
-        // A candidate might live on a different origin than the landing
-        // page (e.g. a CDN). Skip rather than silently requesting broader
-        // access than the user granted.
-        continue
-      }
+    this.onEvent({ phase: 'downloading-pdf', job })
+    const outcome = await tryPdfCandidates(candidates)
 
-      this.onEvent({ phase: 'downloading-pdf', job })
-      await sleep(REQUEST_DELAY_MS)
-
-      let candidateResult
-      try {
-        candidateResult = await safeRedirectFetch(candidate.url)
-      } catch {
-        continue
-      }
-      if (!candidateResult.response.ok) continue
-
-      const candidateContentType = candidateResult.response.headers.get('Content-Type') ?? ''
-      if (candidateContentType.includes('text/html')) {
-        let body: string
-        try {
-          body = await readTextWithLimit(candidateResult.response, MAX_LANDING_PAGE_BYTES)
-        } catch {
-          // An oversized or stalled HTML body tells us nothing useful about
-          // this candidate -- move on to the next one.
-          continue
-        }
-        if (looksLikeLoginOrPaywallPage(body)) {
-          return this.reportTerminal(
-            job,
-            'needs_authentication',
-            'The PDF link required institutional sign-in',
-            candidateResult.finalUrl,
-          )
-        }
-        continue
-      }
-
-      return this.downloadAndUpload(job, candidateResult.response, candidateResult.finalUrl, landingUrl)
+    if (outcome.status === 'needs_authentication') {
+      return this.reportTerminal(
+        job,
+        'needs_authentication',
+        'The PDF link required institutional sign-in',
+        outcome.finalUrl,
+      )
+    }
+    if (outcome.status === 'not_found') {
+      return this.reportTerminal(
+        job,
+        'not_found',
+        'No accessible PDF link was found on the publisher page',
+        landingUrl,
+      )
     }
 
-    return this.reportTerminal(
-      job,
-      'not_found',
-      'No accessible PDF link was found on the publisher page',
-      landingUrl,
-    )
+    return this.downloadAndUpload(job, outcome.response, outcome.finalUrl, landingUrl)
   }
 
   private async downloadAndUpload(

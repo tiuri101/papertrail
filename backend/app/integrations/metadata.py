@@ -53,6 +53,14 @@ class MetadataProvider(Protocol):
         ...
 
 
+def metadata_providers() -> list[MetadataProvider]:
+    """The providers a DOI-based metadata lookup tries, in order. Shared by
+    the background enrichment job (app.publications.jobs) and the browser
+    extension's create-and-overwrite flow (app.publications.service), so
+    both draw on the same sources without either redefining the list."""
+    return [CrossrefClient(), SemanticScholarClient()]
+
+
 def _classify_status(status_code: int) -> MetadataLookup:
     if status_code == 404:
         return MetadataLookup(LookupOutcome.NOT_FOUND, error=f"HTTP {status_code}")
