@@ -1,6 +1,20 @@
-import type { ClaimedJob, JobResult, JobStateUpdate, StoredConnection } from './types'
+import type {
+  AgentProject,
+  CaptureAttachResult,
+  ClaimedJob,
+  JobResult,
+  JobStateUpdate,
+  PdfDetectResult,
+  PublicationPickerResult,
+  StoredConnection,
+} from './types'
 
 export class PapertrailAuthError extends Error {}
+
+/** Thrown for HTTP 409 -- the publication already has an active PDF. Kept
+ * distinct from a generic failure so callers (the manual-capture flow) can
+ * offer a "replace?" confirmation instead of just showing an error. */
+export class PapertrailConflictError extends Error {}
 
 /**
  * All requests carry the agent's bearer token and go only to the paired
@@ -30,6 +44,12 @@ export class PapertrailClient {
     if (response.status === 401 || response.status === 403) {
       throw new PapertrailAuthError(
         'Papertrail rejected this browser helper\'s credentials. It may have been revoked. Pair again from Account Settings.',
+      )
+    }
+    if (response.status === 409) {
+      const body = await response.json().catch(() => null) as { error?: { message?: string } } | null
+      throw new PapertrailConflictError(
+        body?.error?.message ?? 'This publication already has an active PDF.',
       )
     }
     if (!response.ok) {
@@ -84,5 +104,43 @@ export class PapertrailClient {
 
   retryJob(jobId: string): Promise<JobResult> {
     return this.request(`/api/v1/browser-agent/retrieval-jobs/${jobId}/retry`, { method: 'POST' })
+  }
+
+  // --- Manual capture (ad-hoc tab capture, no PdfRetrievalJob) ----------------------
+
+  listAccessibleProjects(): Promise<AgentProject[]> {
+    return this.request('/api/v1/browser-agent/projects')
+  }
+
+  searchPublications(projectId: string, query: string): Promise<PublicationPickerResult[]> {
+    const params = new URLSearchParams({ q: query })
+    return this.request(
+      `/api/v1/browser-agent/projects/${projectId}/publications/search?${params.toString()}`,
+    )
+  }
+
+  detectPdfMatch(projectId: string, file: Blob, filename: string): Promise<PdfDetectResult> {
+    const form = new FormData()
+    form.append('file', file, filename)
+    form.append('project_id', projectId)
+    return this.request('/api/v1/browser-agent/pdf-captures/detect', {
+      method: 'POST',
+      body: form,
+    })
+  }
+
+  uploadCapturedPdf(
+    publicationId: string,
+    file: Blob,
+    filename: string,
+    replace: boolean,
+  ): Promise<CaptureAttachResult> {
+    const form = new FormData()
+    form.append('file', file, filename)
+    form.append('replace', replace ? 'true' : 'false')
+    return this.request(`/api/v1/browser-agent/publications/${publicationId}/pdf-captures`, {
+      method: 'POST',
+      body: form,
+    })
   }
 }

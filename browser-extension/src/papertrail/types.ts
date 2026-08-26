@@ -48,3 +48,31 @@ export interface JobResult {
   errorMessage: string | null
   leaseUntil: string | null
 }
+
+// --- Manual capture (ad-hoc tab capture, no PdfRetrievalJob) ------------------------
+
+export interface AgentProject {
+  id: string
+  name: string
+}
+
+export interface PublicationPickerResult {
+  id: string
+  title: string
+  authors: string | null
+  publicationYear: number | null
+  doi: string | null
+}
+
+export interface PdfDetectResult {
+  detectedDoi: string | null
+  detectedTitle: string | null
+  match: PublicationPickerResult | null
+  ambiguous: boolean
+}
+
+export interface CaptureAttachResult {
+  documentId: string
+  publicationId: string
+  title: string
+}
