@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, Form, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
 from app.accounts.dependencies import require_csrf
@@ -15,10 +15,12 @@ from app.pdf_acquisition.dependencies import get_current_browser_agent
 from app.pdf_acquisition.models import BatchStatus, BrowserAgent, PdfRetrievalBatch
 from app.pdf_acquisition.schemas import (
     AgentMeResponse,
+    AgentProjectResponse,
     BatchCreatedResponse,
     BatchCreateRequest,
     BatchResponse,
     BrowserAgentResponse,
+    CaptureAttachResponse,
     ClaimResponse,
     JobResponse,
     JobStateUpdate,
@@ -26,7 +28,9 @@ from app.pdf_acquisition.schemas import (
     PairingSecretResponse,
     PairRequest,
     PairResponse,
+    PdfDetectResponse,
     PendingJobsCountResponse,
+    PublicationPickerResult,
 )
 from app.projects.dependencies import require_full_text_reviewer_csrf
 from app.projects.service import get_project, require_project_access
@@ -246,6 +250,89 @@ def retry_retrieval_job(
         "error_code": job.error_code,
         "error_message": job.error_message,
         "lease_until": job.lease_until,
+    }
+
+
+# --- Manual capture (browser extension, ad-hoc tab capture) ------------------------
+#
+# Independent of the PdfRetrievalJob flow above: the reviewer is looking at a
+# PDF right now and wants it attached, rather than the backend having
+# assigned a job for it. Still bearer-authenticated via get_current_browser_agent
+# and still registered on agent_router only -- see the module docstring on
+# get_current_browser_agent for why a BrowserAgent token must never reach
+# any endpoint outside this router.
+
+
+@agent_router.get("/projects", response_model=list[AgentProjectResponse])
+def list_agent_projects(
+    agent: BrowserAgent = Depends(get_current_browser_agent),
+    db: Session = Depends(get_db),
+) -> list[Any]:
+    projects = service.list_accessible_projects(db, agent)
+    db.commit()
+    return projects
+
+
+@agent_router.get(
+    "/projects/{project_id}/publications/search",
+    response_model=list[PublicationPickerResult],
+)
+def search_agent_publications(
+    project_id: str,
+    q: str = Query(default="", max_length=500),
+    agent: BrowserAgent = Depends(get_current_browser_agent),
+    db: Session = Depends(get_db),
+) -> list[Any]:
+    results = service.search_publications_for_agent(db, agent, project_id, q)
+    db.commit()
+    return results
+
+
+@agent_router.post("/pdf-captures/detect", response_model=PdfDetectResponse)
+async def detect_pdf_capture(
+    project_id: str = Form(...),
+    file: UploadFile = File(...),
+    agent: BrowserAgent = Depends(get_current_browser_agent),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    result = await service.detect_manual_capture(db, agent, project_id, file)
+    db.commit()
+    return {
+        "detected_doi": result.detected_doi,
+        "detected_title": result.detected_title,
+        "ambiguous": result.ambiguous,
+        "match": (
+            {
+                "id": result.match.publication_id,
+                "title": result.match.title,
+                "authors": result.match.authors,
+                "publication_year": result.match.publication_year,
+                "doi": result.match.doi,
+            }
+            if result.match
+            else None
+        ),
+    }
+
+
+@agent_router.post(
+    "/publications/{publication_id}/pdf-captures", response_model=CaptureAttachResponse
+)
+async def upload_pdf_capture(
+    publication_id: str,
+    file: UploadFile = File(...),
+    replace: bool = Form(default=False),
+    agent: BrowserAgent = Depends(get_current_browser_agent),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    document = await service.upload_manual_capture(
+        db, agent, publication_id, file, replace=replace
+    )
+    db.commit()
+    return {
+        "document_id": document.id,
+        "publication_id": document.publication_id,
+        "title": document.publication.title if document.publication else "",
     }
 
 

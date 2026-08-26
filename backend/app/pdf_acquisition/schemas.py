@@ -149,3 +149,32 @@ class BatchCreatedResponse(ApiModel):
     eligible_publication_count: int = Field(
         serialization_alias="eligiblePublicationCount"
     )
+
+
+# --- Manual capture (agent-authenticated) -------------------------------------------
+
+
+class AgentProjectResponse(ApiModel):
+    id: str
+    name: str
+
+
+class PublicationPickerResult(ApiModel):
+    id: str
+    title: str
+    authors: str | None
+    publication_year: int | None = Field(serialization_alias="publicationYear")
+    doi: str | None
+
+
+class PdfDetectResponse(ApiModel):
+    detected_doi: str | None = Field(serialization_alias="detectedDoi")
+    detected_title: str | None = Field(serialization_alias="detectedTitle")
+    match: PublicationPickerResult | None
+    ambiguous: bool
+
+
+class CaptureAttachResponse(ApiModel):
+    document_id: str = Field(serialization_alias="documentId")
+    publication_id: str = Field(serialization_alias="publicationId")
+    title: str

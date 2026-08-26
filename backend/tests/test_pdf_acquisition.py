@@ -37,11 +37,14 @@ from app.publications.models import Publication
 from app.screening.models import ScreeningWorkItem
 
 
-def pdf_bytes(*, title: str = "Test paper") -> bytes:
+def pdf_bytes(*, title: str = "Test paper", doi: str | None = None) -> bytes:
     stream = BytesIO()
     writer = PdfWriter()
     writer.add_blank_page(width=72, height=72)
-    writer.add_metadata({"/Title": title, "/Author": "Doe, Jane"})
+    metadata = {"/Title": title, "/Author": "Doe, Jane"}
+    if doi:
+        metadata["/Subject"] = doi
+    writer.add_metadata(metadata)
     writer.write(stream)
     return stream.getvalue()
 
@@ -896,3 +899,250 @@ def test_retry_resets_retryable_jobs_and_reopens_batch(client, db) -> None:
     assert job.status == RetrievalJobStatus.QUEUED
     assert job.claimed_by_agent_id is None
     assert job.error_code is None
+
+
+# --- Manual capture (ad-hoc tab capture, no PdfRetrievalJob) ------------------------
+
+
+def detect(client, token: str, project_id: str, content: bytes, filename="paper.pdf"):
+    return client.post(
+        "/api/v1/browser-agent/pdf-captures/detect",
+        files={"file": (filename, content, "application/pdf")},
+        data={"project_id": project_id},
+        headers=agent_headers(token),
+    )
+
+
+def capture_upload(
+    client, token: str, publication_id: str, content: bytes, *, replace: bool = False
+):
+    return client.post(
+        f"/api/v1/browser-agent/publications/{publication_id}/pdf-captures",
+        files={"file": ("paper.pdf", content, "application/pdf")},
+        data={"replace": "true" if replace else "false"},
+        headers=agent_headers(token),
+    )
+
+
+def test_agent_projects_lists_only_projects_with_full_text_access(client, db) -> None:
+    _admin, reviewer, outsider, project, *_ = setup_project(db)
+    csrf = login(client, reviewer.username, "reviewer-password")
+    token = pair_agent(client, csrf)
+
+    response = client.get("/api/v1/browser-agent/projects", headers=agent_headers(token))
+    assert response.status_code == 200
+    assert [p["id"] for p in response.json()] == [project.id]
+
+    outsider_csrf = login(client, outsider.username, "outsider-password")
+    outsider_token = pair_agent(client, outsider_csrf, device_name="Outsider Chrome")
+    outsider_response = client.get(
+        "/api/v1/browser-agent/projects", headers=agent_headers(outsider_token)
+    )
+    assert outsider_response.json() == []
+
+
+def test_agent_publication_search_finds_by_title(client, db) -> None:
+    _admin, reviewer, _outsider, project, pub_missing, *_ = setup_project(db)
+    csrf = login(client, reviewer.username, "reviewer-password")
+    token = pair_agent(client, csrf)
+
+    response = client.get(
+        f"/api/v1/browser-agent/projects/{project.id}/publications/search",
+        params={"q": "Missing PDF"},
+        headers=agent_headers(token),
+    )
+    assert response.status_code == 200
+    ids = [row["id"] for row in response.json()]
+    assert ids == [pub_missing.id]
+
+
+def test_agent_publication_search_requires_full_text_access(client, db) -> None:
+    _admin, _reviewer, outsider, project, *_ = setup_project(db)
+    csrf = login(client, outsider.username, "outsider-password")
+    token = pair_agent(client, csrf)
+
+    response = client.get(
+        f"/api/v1/browser-agent/projects/{project.id}/publications/search",
+        params={"q": "Missing"},
+        headers=agent_headers(token),
+    )
+    assert response.status_code == 403
+
+
+def test_detect_auto_matches_exact_doi(client, db) -> None:
+    _admin, reviewer, _outsider, project, pub_missing, *_ = setup_project(db)
+    pub_missing.doi = "10.1234/exact-match"
+    db.commit()
+    csrf = login(client, reviewer.username, "reviewer-password")
+    token = pair_agent(client, csrf)
+
+    content = pdf_bytes(doi="10.1234/exact-match")
+    response = detect(client, token, project.id, content)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["detectedDoi"] == "10.1234/exact-match"
+    assert body["ambiguous"] is False
+    assert body["match"]["id"] == pub_missing.id
+
+
+def test_detect_reports_ambiguous_doi_without_a_match(client, db) -> None:
+    _admin, reviewer, _outsider, project, pub_missing, pub_available, *_ = (
+        setup_project(db)
+    )
+    pub_missing.doi = "10.1234/shared"
+    pub_available.doi = "10.1234/shared"
+    db.commit()
+    csrf = login(client, reviewer.username, "reviewer-password")
+    token = pair_agent(client, csrf)
+
+    response = detect(client, token, project.id, pdf_bytes(doi="10.1234/shared"))
+    assert response.status_code == 200
+    body = response.json()
+    assert body["ambiguous"] is True
+    assert body["match"] is None
+
+
+def test_detect_with_no_doi_returns_no_match(client, db) -> None:
+    _admin, reviewer, _outsider, project, *_ = setup_project(db)
+    csrf = login(client, reviewer.username, "reviewer-password")
+    token = pair_agent(client, csrf)
+
+    response = detect(client, token, project.id, pdf_bytes())
+    assert response.status_code == 200
+    body = response.json()
+    assert body["detectedDoi"] is None
+    assert body["match"] is None
+    assert body["ambiguous"] is False
+
+
+def test_detect_does_not_write_to_disk(client, db, tmp_path) -> None:
+    _admin, reviewer, _outsider, project, *_ = setup_project(db)
+    csrf = login(client, reviewer.username, "reviewer-password")
+    token = pair_agent(client, csrf)
+
+    detect(client, token, project.id, pdf_bytes(doi="10.1234/exact-match"))
+
+    staging_root = get_settings().pdf_storage_path / "staging"
+    written_files = list(staging_root.rglob("*.pdf")) if staging_root.exists() else []
+    assert written_files == []
+
+
+def test_detect_requires_full_text_access(client, db) -> None:
+    _admin, _reviewer, outsider, project, *_ = setup_project(db)
+    csrf = login(client, outsider.username, "outsider-password")
+    token = pair_agent(client, csrf)
+
+    response = detect(client, token, project.id, pdf_bytes())
+    assert response.status_code == 403
+
+
+def test_capture_upload_attaches_pdf_and_marks_available(client, db) -> None:
+    _admin, reviewer, _outsider, project, pub_missing, *_ = setup_project(db)
+    csrf = login(client, reviewer.username, "reviewer-password")
+    token = pair_agent(client, csrf)
+
+    content = pdf_bytes()
+    response = capture_upload(client, token, pub_missing.id, content)
+    assert response.status_code == 200
+    body = response.json()
+    assert body["publicationId"] == pub_missing.id
+
+    document = db.scalar(select(PublicationDocument))
+    assert document is not None
+    assert document.source.value == "browser_manual_capture"
+    assert document.sha256 == hashlib.sha256(content).hexdigest()
+    assert document.uploaded_by_user_id == reviewer.id
+    assert document.is_active is True
+
+    retrieval = db.scalar(
+        select(FullTextRetrieval).where(
+            FullTextRetrieval.publication_id == pub_missing.id
+        )
+    )
+    assert retrieval.status == RetrievalStatus.AVAILABLE
+
+    audit = db.scalar(
+        select(AuditEvent).where(AuditEvent.action == "pdf.captured_browser_manual")
+    )
+    assert audit is not None
+    assert audit.event_metadata["publicationId"] == pub_missing.id
+
+
+def test_capture_upload_conflicts_without_replace(client, db) -> None:
+    _admin, reviewer, _outsider, project, pub_missing, *_ = setup_project(db)
+    csrf = login(client, reviewer.username, "reviewer-password")
+    token = pair_agent(client, csrf)
+
+    manual_upload = client.post(
+        f"/api/v1/projects/{project.id}/publications/{pub_missing.id}/full-text",
+        files={"file": ("manual.pdf", pdf_bytes(title="Manual"), "application/pdf")},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert manual_upload.status_code == 201
+    manual_document_id = manual_upload.json()["document"]["id"]
+
+    response = capture_upload(
+        client, token, pub_missing.id, pdf_bytes(title="Captured")
+    )
+    assert response.status_code == 409
+
+    active_document = db.scalar(
+        select(PublicationDocument).where(PublicationDocument.is_active.is_(True))
+    )
+    assert active_document.id == manual_document_id
+
+
+def test_capture_upload_replaces_existing_pdf_when_asked(client, db) -> None:
+    _admin, reviewer, _outsider, project, pub_missing, *_ = setup_project(db)
+    csrf = login(client, reviewer.username, "reviewer-password")
+    token = pair_agent(client, csrf)
+
+    manual_upload = client.post(
+        f"/api/v1/projects/{project.id}/publications/{pub_missing.id}/full-text",
+        files={"file": ("manual.pdf", pdf_bytes(title="Manual"), "application/pdf")},
+        headers={"X-CSRF-Token": csrf},
+    )
+    manual_document_id = manual_upload.json()["document"]["id"]
+
+    response = capture_upload(
+        client, token, pub_missing.id, pdf_bytes(title="Captured"), replace=True
+    )
+    assert response.status_code == 200
+
+    old_document = db.get(PublicationDocument, manual_document_id)
+    assert old_document.is_active is False
+    assert old_document.replaced_by_document_id is not None
+
+    new_document = db.scalar(
+        select(PublicationDocument).where(PublicationDocument.is_active.is_(True))
+    )
+    assert new_document.id == old_document.replaced_by_document_id
+    assert new_document.source.value == "browser_manual_capture"
+
+
+def test_capture_upload_requires_full_text_access(client, db) -> None:
+    _admin, _reviewer, outsider, project, pub_missing, *_ = setup_project(db)
+    csrf = login(client, outsider.username, "outsider-password")
+    token = pair_agent(client, csrf)
+
+    response = capture_upload(client, token, pub_missing.id, pdf_bytes())
+    assert response.status_code == 403
+    assert db.scalar(select(PublicationDocument)) is None
+
+
+def test_agent_token_still_cannot_reach_session_only_publication_endpoints(
+    client, db
+) -> None:
+    """Regression guard for the invariant documented on
+    get_current_browser_agent: a BrowserAgent bearer token must never
+    authenticate any endpoint outside app.pdf_acquisition's agent_router,
+    including the new manual-capture surface's neighbors."""
+    _admin, reviewer, _outsider, project, *_ = setup_project(db)
+    csrf = login(client, reviewer.username, "reviewer-password")
+    token = pair_agent(client, csrf)
+    client.cookies.clear()
+
+    response = client.get(
+        f"/api/v1/projects/{project.id}/publications", headers=agent_headers(token)
+    )
+    assert response.status_code == 403

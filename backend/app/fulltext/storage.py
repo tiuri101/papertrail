@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import io
 import os
 import re
 from dataclasses import dataclass
@@ -31,6 +32,21 @@ class StoredPdf:
     detected_year: int | None
 
 
+@dataclass(frozen=True)
+class DetectedPdf:
+    """The same metadata :class:`StoredPdf` carries, without writing
+    anything to disk. Used where a caller only needs to know what a PDF
+    *is* -- e.g. to look up a matching publication -- before deciding
+    whether it's worth staging at all."""
+
+    file_size: int
+    sha256: str
+    detected_doi: str | None
+    detected_title: str | None
+    detected_authors: str | None
+    detected_year: int | None
+
+
 def safe_display_filename(filename: str | None) -> str:
     value = (filename or "document.pdf").replace("\\", "/").split("/")[-1]
     value = "".join(
@@ -52,11 +68,9 @@ def storage_path(storage_key: str, settings: Settings | None = None) -> Path:
     return candidate
 
 
-def _metadata(path: Path) -> tuple[str | None, str | None, str | None, int | None]:
-    try:
-        reader = PdfReader(path, strict=False)
-    except Exception as exc:
-        raise UnsupportedMediaError("File is not a valid PDF") from exc
+def _metadata_from_reader(
+    reader: PdfReader,
+) -> tuple[str | None, str | None, str | None, int | None]:
     metadata: Any = reader.metadata or {}
     title = str(metadata.get("/Title") or "").strip() or None
     authors = str(metadata.get("/Author") or "").strip() or None
@@ -73,6 +87,24 @@ def _metadata(path: Path) -> tuple[str | None, str | None, str | None, int | Non
     doi = normalize_doi(candidates[0].rstrip('.,;:)"]}')) if candidates else None
     year = parse_year(" ".join(part for part in (subject, text[:10_000]) if part))
     return doi, title, authors, year
+
+
+def _metadata(path: Path) -> tuple[str | None, str | None, str | None, int | None]:
+    try:
+        reader = PdfReader(path, strict=False)
+    except Exception as exc:
+        raise UnsupportedMediaError("File is not a valid PDF") from exc
+    return _metadata_from_reader(reader)
+
+
+def _metadata_from_bytes(
+    data: bytes,
+) -> tuple[str | None, str | None, str | None, int | None]:
+    try:
+        reader = PdfReader(io.BytesIO(data), strict=False)
+    except Exception as exc:
+        raise UnsupportedMediaError("File is not a valid PDF") from exc
+    return _metadata_from_reader(reader)
 
 
 @dataclass(frozen=True)
@@ -206,6 +238,50 @@ async def stage_pdf_upload(
     except Exception:
         staging.path.unlink(missing_ok=True)
         raise
+    finally:
+        await upload.close()
+
+
+async def detect_pdf_upload(
+    upload: UploadFile,
+    *,
+    settings: Settings | None = None,
+) -> DetectedPdf:
+    """Read and validate an uploaded PDF entirely in memory, without staging
+    it to disk. Mirrors :func:`stage_pdf_upload`'s size/header/trailer
+    validation and DOI/title extraction, for callers (e.g. the browser
+    extension's manual-capture flow) that need to know what a PDF is before
+    committing to store it -- staging happens separately, only once a
+    destination publication has been chosen."""
+    settings = settings or get_settings()
+    limit = settings.max_pdf_size_mb * 1024 * 1024
+    digest = hashlib.sha256()
+    size = 0
+    first = b""
+    tail = b""
+    buffer = bytearray()
+    try:
+        while chunk := await upload.read(1024 * 1024):
+            size += len(chunk)
+            if size > limit:
+                raise PayloadTooLargeError(
+                    f"PDF exceeds the {settings.max_pdf_size_mb} MB limit"
+                )
+            if len(first) < 1024:
+                first += chunk[: 1024 - len(first)]
+            tail = (tail + chunk)[-4096:]
+            digest.update(chunk)
+            buffer.extend(chunk)
+        _validate_staged_pdf(size=size, first=first, tail=tail)
+        doi, title, authors, year = _metadata_from_bytes(bytes(buffer))
+        return DetectedPdf(
+            file_size=size,
+            sha256=digest.hexdigest(),
+            detected_doi=doi,
+            detected_title=title,
+            detected_authors=authors,
+            detected_year=year,
+        )
     finally:
         await upload.close()
 

@@ -18,6 +18,7 @@ export default defineConfig({
         popup: resolve(__dirname, 'src/popup/popup.html'),
         options: resolve(__dirname, 'src/options/options.html'),
         retrieval: resolve(__dirname, 'src/retrieval/retrieval.html'),
+        capture: resolve(__dirname, 'src/capture/capture.html'),
         offscreen: resolve(__dirname, 'src/offscreen/offscreen.html'),
       },
       output: {
