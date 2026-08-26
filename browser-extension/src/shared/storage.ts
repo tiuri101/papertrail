@@ -41,6 +41,23 @@ export async function setAutoRetrievalEnabled(enabled: boolean): Promise<void> {
   await chrome.storage.local.set({ [AUTO_RETRIEVAL_STORAGE_KEY]: enabled })
 }
 
+// Which project the manual-capture flow last attached a PDF to, so a
+// reviewer working through several papers for the same project isn't asked
+// to pick it again every time. Only ever used as a default -- the picker is
+// still shown whenever the remembered project is no longer among the
+// agent's accessible projects.
+const LAST_CAPTURE_PROJECT_STORAGE_KEY = 'papertrail_last_capture_project_id'
+
+export async function loadLastCaptureProjectId(): Promise<string | null> {
+  const result = await chrome.storage.local.get(LAST_CAPTURE_PROJECT_STORAGE_KEY)
+  const value = result[LAST_CAPTURE_PROJECT_STORAGE_KEY]
+  return typeof value === 'string' ? value : null
+}
+
+export async function saveLastCaptureProjectId(projectId: string): Promise<void> {
+  await chrome.storage.local.set({ [LAST_CAPTURE_PROJECT_STORAGE_KEY]: projectId })
+}
+
 function isStoredConnection(value: unknown): value is StoredConnection {
   return (
     typeof value === 'object'

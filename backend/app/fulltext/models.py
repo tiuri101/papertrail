@@ -61,6 +61,7 @@ class DocumentSource(enum.StrEnum):
     MANUAL = "manual"
     BULK_IMPORT = "bulk_import"
     BROWSER_RETRIEVAL = "browser_retrieval"
+    BROWSER_MANUAL_CAPTURE = "browser_manual_capture"
 
 
 class PublicationDocument(UUIDPrimaryKeyMixin, TimestampMixin, Base):
