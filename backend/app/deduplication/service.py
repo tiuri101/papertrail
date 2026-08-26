@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from collections import defaultdict
 from datetime import UTC, datetime
 from itertools import combinations
 from typing import Any
@@ -53,6 +54,93 @@ def normalized_authors(authors: str | None) -> str:
 
 def _pair_key(left_id: str, right_id: str) -> tuple[str, str]:
     return (left_id, right_id) if left_id < right_id else (right_id, left_id)
+
+
+# --------------------------------------------------------------------------
+# Candidate-pair generation (blocking)
+# --------------------------------------------------------------------------
+#
+# Comparing every publication against every other one is O(n^2): a 5,000-
+# record systematic review would need ~12.5 million rapidfuzz calls. Instead,
+# publications are grouped into cheap "blocks" -- publications that could
+# plausibly be the same record -- and only pairs that land in a shared block
+# ever reach the expensive fuzzy comparison in _duplicate_assessment.
+#
+# Blocking keys, chosen to mirror the match reasons _duplicate_assessment can
+# actually produce, so blocking narrows the search space without discarding
+# a pair that could otherwise be flagged:
+#   * an exact identifier (DOI, PubMed ID, arXiv ID) -- covers "exact_*";
+#   * a handful of the longest, least-common title words -- covers
+#     "exact_title"/"similar_title"/"similar_title_authors", including
+#     reordered or lightly-edited titles, since genuine near-duplicates
+#     almost always still share several long, distinctive words;
+#   * (year, first title word) -- a coarse net that also catches short or
+#     heavily-reworded titles sharing only their opening word and year,
+#     covering "similar_title_year".
+# A publication with no usable title text (blank/whitespace-only) still gets
+# whatever identifier keys it has; it simply cannot be title-blocked, which
+# matches _duplicate_assessment's own behavior (no title, no title score).
+
+#: Common words carry no distinguishing power and would put a large fraction
+#: of the project into one block, defeating the point of blocking.
+_TITLE_STOPWORDS = frozenset(
+    {
+        "the", "a", "an", "of", "and", "for", "with", "from", "using", "into",
+        "this", "that", "study", "review", "analysis", "systematic", "based",
+        "effects", "effect", "among", "between", "during", "after", "before",
+        "their", "which", "when", "what", "randomized", "controlled", "trial",
+    }
+)
+#: Longest-title-words considered per publication. Bounds how many blocks one
+#: publication can join, which in turn bounds worst-case block fan-out.
+_MAX_TITLE_BLOCK_TOKENS = 6
+
+
+def _title_block_tokens(title: str) -> list[str]:
+    tokens = {token for token in normalized_title(title).split() if len(token) >= 4}
+    tokens -= _TITLE_STOPWORDS
+    return sorted(tokens, key=len, reverse=True)[:_MAX_TITLE_BLOCK_TOKENS]
+
+
+def _blocking_keys(publication: Publication) -> set[tuple[str, Any]]:
+    keys: set[tuple[str, Any]] = set()
+    if publication.doi:
+        keys.add(("doi", publication.doi.strip().lower()))
+    for field in UNIQUE_IDENTIFIER_FIELDS:
+        value = getattr(publication, field)
+        if value:
+            keys.add((field, value))
+    title = publication.title or ""
+    for token in _title_block_tokens(title):
+        keys.add(("title_token", token))
+    normalized = normalized_title(title)
+    first_word = normalized.split()[0] if normalized else None
+    if first_word and publication.publication_year:
+        keys.add(("year_first_word", (publication.publication_year, first_word)))
+    return keys
+
+
+def candidate_pairs(publications: list[Publication]) -> set[tuple[str, str]]:
+    """Publication-id pairs worth an expensive fuzzy comparison.
+
+    Every returned pair shares at least one blocking key; two publications
+    that share nothing (no identifier, no title vocabulary, no year+opening
+    word) are assumed not worth comparing. This trades a small amount of
+    recall on records with almost no metadata in common for avoiding an
+    O(n^2) scan -- see the module-level comment above for why the chosen
+    keys track _duplicate_assessment's actual match reasons.
+    """
+    blocks: dict[tuple[str, Any], list[str]] = defaultdict(list)
+    for publication in publications:
+        for key in _blocking_keys(publication):
+            blocks[key].append(publication.id)
+    pairs: set[tuple[str, str]] = set()
+    for ids in blocks.values():
+        if len(ids) < 2:
+            continue
+        for left_id, right_id in combinations(sorted(set(ids)), 2):
+            pairs.add((left_id, right_id))
+    return pairs
 
 
 def _duplicate_assessment(
@@ -127,10 +215,24 @@ def detect_duplicates(db: Session, project_id: str) -> int:
             )
         )
     }
+    by_id = {publication.id: publication for publication in publications}
+    # Always re-assess every pair the DB already knows about, even one that
+    # blocking alone would no longer regenerate: blocking must narrow which
+    # *new* pairs get discovered, not silently retract a candidate (or a
+    # reviewer's already-recorded "not duplicate" decision) that a previous,
+    # possibly differently-blocked, run already surfaced.
+    pairs_to_assess = candidate_pairs(publications) | set(existing_candidates)
+
     active_pairs: set[tuple[str, str]] = set()
     created = 0
-    for left, right in combinations(publications, 2):
-        a_id, b_id = _pair_key(left.id, right.id)
+    for a_id, b_id in pairs_to_assess:
+        left = by_id.get(a_id)
+        right = by_id.get(b_id)
+        if left is None or right is None:
+            # One side is no longer an active publication (deleted/merged
+            # since the candidate was recorded); the cleanup pass below
+            # removes it if it's still unresolved.
+            continue
         pair = (a_id, b_id)
         active_pairs.add(pair)
         existing = existing_candidates.get(pair)
@@ -368,9 +470,13 @@ def transition_if_duplicate_review_complete(db: Session, project: Project) -> bo
     )
     if unresolved:
         return False
-    project.stage = ProjectStage.TITLE_ABSTRACT
+    from app.projects.lifecycle import set_project_stage
     from app.projects.models import ScreeningStage
     from app.screening.service import create_screening_work_items
+
+    set_project_stage(
+        project, ProjectStage.TITLE_ABSTRACT, reason="duplicate review complete"
+    )
 
     create_screening_work_items(db, project, ScreeningStage.TITLE_ABSTRACT)
 

@@ -120,6 +120,18 @@ ACTIVE_JOB_STATUSES = frozenset(
     }
 )
 
+# The subset of ACTIVE_JOB_STATUSES that means "an agent is holding this
+# right now": a lease exists and the browser helper is expected to be
+# working on it. QUEUED is deliberately excluded -- a queued job is claimable
+# by anyone, not held by anyone.
+IN_FLIGHT_JOB_STATUSES = frozenset(
+    {
+        RetrievalJobStatus.CLAIMED,
+        RetrievalJobStatus.RETRIEVING,
+        RetrievalJobStatus.UPLOADING,
+    }
+)
+
 # Failure outcomes that a human retry (after e.g. logging in, or once the
 # publisher is reachable again) has a real chance of succeeding at.
 RETRYABLE_JOB_STATUSES = frozenset(

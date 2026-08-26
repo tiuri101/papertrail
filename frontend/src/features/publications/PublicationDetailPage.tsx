@@ -1,4 +1,4 @@
-import { tableScrollClass } from '../../components/layoutStyles'
+import { tableBaseClass, tableScrollClass } from '../../components/layoutStyles'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useMemo, useState } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
@@ -23,7 +23,7 @@ import { OutcomeBadge } from '../../components/OutcomeBadge'
 import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
 import { PublisherLinkPill } from '../../components/PublisherLinkPill'
 import { useSession } from '../auth/sessionQuery'
-import type { AuditEvent } from '../audit/types'
+import type { AuditEventPage } from '../audit/types'
 import { FullTextDocumentPanel } from '../fulltext/FullTextDocumentPanel'
 import { AdministrationEyebrow } from '../projects/StageEyebrow'
 import { useCanManageProject, useCanManagePublications } from '../../hooks/useCanManageProject'
@@ -119,10 +119,6 @@ function subjectsFrom(keywords: string | null): string[] {
   return keywords.split(/[,;]/).map((part) => part.trim()).filter(Boolean)
 }
 
-function screeningStageLabel(stage: 'title_abstract' | 'full_text'): string {
-  return stage === 'title_abstract' ? 'Title/Abstract Screening' : 'Full-Text Screening'
-}
-
 function activityOutcomeLabel(outcome: string): string {
   const labels: Record<string, string> = {
     include: 'Included',
@@ -143,12 +139,25 @@ export function PublicationDetailPage() {
   const [activeTab, setActiveTab] = useState<DetailTabId>('overview')
   const [editing, setEditing] = useState(() => searchParams.get('edit') === '1')
 
-  const publications = useQuery({
-    queryKey: ['publications', projectId],
-    queryFn: () => apiRequest<Publication[]>(`/api/v1/projects/${projectId}/publications`),
-    enabled: Boolean(projectId),
+  // Ask for this publication, not for the project's whole list. The list is
+  // paged server-side now, so "fetch everything and find it here" would have
+  // meant reading page after page to display one record. The key stays under
+  // ['publications', projectId] so every existing invalidation of that prefix
+  // still refreshes this page.
+  const publicationQuery = useQuery({
+    queryKey: ['publications', projectId, publicationId],
+    queryFn: () => apiRequest<Publication>(
+      `/api/v1/projects/${projectId}/publications/${publicationId}`,
+    ),
+    enabled: Boolean(projectId && publicationId),
+    retry: false,
   })
-  const publication = publications.data?.find((item) => item.id === publicationId)
+  // A deleted publication is still readable by id (its history is preserved),
+  // but it is no longer part of the review -- the same "not found" the list
+  // used to give by simply omitting it.
+  const publication = publicationQuery.data?.isActive === false
+    ? undefined
+    : publicationQuery.data
 
   const finalExtraction = useQuery({
     queryKey: ['extraction-final', projectId, publicationId],
@@ -166,9 +175,15 @@ export function PublicationDetailPage() {
     enabled: Boolean(projectId && publicationId),
   })
 
+  // Ask for this publication's events specifically. Fetching the project's
+  // whole log and filtering it here missed anything past the first page --
+  // which, on a busy project, is most of a publication's history.
   const audit = useQuery({
-    queryKey: ['audit', projectId],
-    queryFn: () => apiRequest<AuditEvent[]>(`/api/v1/projects/${projectId}/audit`),
+    queryKey: ['audit', projectId, 'publication', publicationId],
+    queryFn: () => apiRequest<AuditEventPage>(
+      `/api/v1/projects/${projectId}/audit`
+      + `?entityType=publication&entityId=${encodeURIComponent(publicationId)}&limit=200`,
+    ),
     enabled: Boolean(projectId) && canOverride && activeTab === 'history',
   })
 
@@ -186,8 +201,7 @@ export function PublicationDetailPage() {
   })
 
   const publicationHistory = useMemo<PublicationActivityEntry[]>(() => {
-    const auditEntries = (audit.data ?? [])
-      .filter((event) => event.entityType === 'publication' && event.entityId === publicationId)
+    const auditEntries = (audit.data?.items ?? [])
       .map((event) => ({
         id: event.id,
         createdAt: event.createdAt,
@@ -223,9 +237,9 @@ export function PublicationDetailPage() {
 
     return [...auditEntries, ...decisionEntries]
       .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
-  }, [audit.data, publicationId, reviewDetails.data])
+  }, [audit.data, reviewDetails.data])
 
-  if (publications.isLoading) {
+  if (publicationQuery.isLoading) {
     return <main className={pageStyles}><p>Loading…</p></main>
   }
   if (!publication) {
@@ -279,11 +293,6 @@ export function PublicationDetailPage() {
   const yourDecision = activeStageDetails?.reviewerDecisions.find(
     (decision) => decision.reviewerName === session.data?.user.displayName,
   )
-  const screeningActionable = activeStage === 'title_abstract'
-    || (activeStage === 'full_text' && Boolean(publication.fullText?.available))
-  const screeningHref = activeStage === 'title_abstract'
-    ? `/projects/${projectId}/screening/title_abstract`
-    : `/projects/${projectId}/full-text`
 
   return (
       <main className={pageStyles}>
@@ -358,7 +367,7 @@ export function PublicationDetailPage() {
 
             {activeTab === 'details' ? (
               <div className={tableScrollClass}>
-                <table>
+                <table className={tableBaseClass}>
                   <caption className="sr-only">Publication details</caption>
                   <thead>
                     <tr>
@@ -397,6 +406,7 @@ export function PublicationDetailPage() {
                     projectId={projectId}
                     publicationId={publicationId}
                     canManage={canOverride}
+                    extractionStatus={publication.extractionStatus}
                   />
                 </section>
                 <section>
@@ -409,7 +419,7 @@ export function PublicationDetailPage() {
                     <p className="text-text-muted">No recorded history for this publication yet.</p>
                   ) : (
                     <div className={tableScrollClass}>
-                      <table>
+                      <table className={tableBaseClass}>
                         <caption className="sr-only">Activity log</caption>
                         <thead>
                           <tr>
@@ -457,7 +467,7 @@ export function PublicationDetailPage() {
         <aside className="sticky top-[92px] grid gap-4 max-[960px]:static max-[960px]:order-2 max-[960px]:min-w-0 max-[960px]:max-w-full">
           <section className={cn(cardStyles, '[&_h2]:mb-3 [&_h2]:mt-0')} data-ui="card">
             <h2>Review Status</h2>
-            <dl className="mb-4 grid gap-3">
+            <dl className="grid gap-3">
               <div className="flex items-center justify-between gap-2">
                 <dt className="text-[0.85rem] text-text-muted">Stage</dt>
                 <dd className="m-0"><Badge variant={stage.variant}>{stage.label}</Badge></dd>
@@ -474,25 +484,6 @@ export function PublicationDetailPage() {
                 </div>
               ) : null}
             </dl>
-            {activeStage ? (
-              screeningActionable ? (
-                <>
-                  <Button as={Link} variant="secondary" className="w-full" to={screeningHref}>
-                    Open Screening Queue
-                  </Button>
-                  <p className="text-text-muted mt-2 text-[0.82rem]">
-                    Claims the next item in the {screeningStageLabel(activeStage)} queue -- not
-                    guaranteed to be this publication.
-                  </p>
-                </>
-              ) : (
-                <p className="text-text-muted mt-2 text-[0.82rem]">
-                  Awaiting full-text retrieval before it can be screened.
-                </p>
-              )
-            ) : (
-              <p className="text-text-muted mt-2 text-[0.82rem]">Screening complete.</p>
-            )}
           </section>
 
           <section className={cn(cardStyles, '[&_h2]:mb-3 [&_h2]:mt-0')} data-ui="card">

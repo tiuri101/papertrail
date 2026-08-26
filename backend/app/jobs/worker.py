@@ -19,8 +19,8 @@ from app.db import models as _models  # noqa: F401  # registers all SQLAlchemy m
 from app.db.session import SessionFactory
 from app.instance_settings.service import effective_instance_settings
 from app.jobs.models import BackgroundJob, JobStatus
-from app.jobs.registry import HANDLERS, LLM_JOB_TYPES
-from app.jobs.service import claim_job, renew_job_lease
+from app.jobs.registry import HANDLERS, LLM_JOB_TYPES, PERMANENT_FAILURE_HOOKS
+from app.jobs.service import claim_job, reap_abandoned_jobs, renew_job_lease
 from app.llm.service import TEXT_JOB
 from app.notifications.service import (
     SEND_EMAIL_JOB,
@@ -50,6 +50,58 @@ def maintain_lease(
             logger.exception("Could not renew lease for background job %s", job_id)
 
 
+def run_permanent_failure_hook(db: Session, job: BackgroundJob, error: str) -> None:
+    """Let the owning domain react to a job that has failed for good.
+
+    Runs in a SAVEPOINT: a hook that raises must never destroy the failure
+    record the worker is in the middle of writing, and must never leave a
+    partially applied domain change behind either.
+    """
+    hook = PERMANENT_FAILURE_HOOKS.get(job.job_type)
+    if hook is None:
+        return
+    try:
+        with db.begin_nested():
+            hook(db, job, error)
+    except Exception:
+        logger.exception(
+            "Permanent-failure hook for background job %s (%s) failed",
+            job.id,
+            job.job_type,
+        )
+
+
+def fail_abandoned_jobs(session_factory: sessionmaker[Session]) -> int:
+    """Record terminal failure for jobs whose worker died mid-execution."""
+    try:
+        with session_factory() as db:
+            abandoned = reap_abandoned_jobs(db)
+            for job in abandoned:
+                logger.warning(
+                    "Background job %s (%s) was abandoned by worker %s; "
+                    "no attempts left, marking failed",
+                    job.id,
+                    job.job_type,
+                    job.locked_by,
+                )
+                run_permanent_failure_hook(db, job, job.error_message or "")
+                record_audit(
+                    db,
+                    action="job.failed",
+                    entity_type="background_job",
+                    entity_id=job.id,
+                    project_id=job.project_id,
+                    actor_id=job.created_by_id,
+                    summary=f"Background job {job.job_type} failed",
+                    metadata={"error": job.error_message},
+                )
+            db.commit()
+            return len(abandoned)
+    except Exception:
+        logger.exception("Failed to reap abandoned background jobs")
+        return 0
+
+
 def execute_next_job(
     session_factory: sessionmaker[Session],
     worker_id: str,
@@ -57,6 +109,7 @@ def execute_next_job(
     allowed_job_types: set[str] | None = None,
     excluded_job_types: set[str] | None = None,
 ) -> bool:
+    fail_abandoned_jobs(session_factory)
     try:
         with session_factory() as claim_session:
             settings = effective_instance_settings(claim_session)
@@ -205,6 +258,7 @@ def execute_next_job(
                 if job.job_type == SEND_EMAIL_JOB:
                     record_email_job_failure(db, job, exc)
                 if job.status == JobStatus.FAILED:
+                    run_permanent_failure_hook(db, job, str(exc))
                     record_audit(
                         db,
                         action="job.failed",

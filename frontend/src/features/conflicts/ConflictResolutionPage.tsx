@@ -7,6 +7,7 @@ import { Page } from '../../components/Page'
 import { Button } from '../../components/Button'
 import { Card } from '../../components/Card'
 import { CountPill } from '../../components/CountPill'
+import { tableBaseClass } from '../../components/layoutStyles'
 import { Textarea } from '../../components/Textarea'
 import { useProjectManageState } from '../../hooks/useCanManageProject'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
@@ -114,7 +115,7 @@ export function ConflictResolutionPage() {
       {resolve.error ? <p className="text-danger" role="alert">{resolve.error.message}</p> : null}
       {addReviewer.error ? <p className="text-danger" role="alert">{addReviewer.error.message}</p> : null}
       <CountPill count={list.length}>unresolved conflicts</CountPill>
-      <ul className="m-0 grid list-none gap-5 p-0" aria-label="Unresolved conflicts">
+      <ul className="m-0 grid list-none gap-5 overflow-hidden rounded-md border border-border bg-surface p-0" aria-label="Unresolved conflicts">
         {list.map((conflict) => (
           <ConflictCard
             key={conflict.publicationId}
@@ -144,14 +145,14 @@ function ConflictCard({ conflict, resolving, addingReviewer, onResolve, onAddRev
     : isSafeHttpUrl(publication.publisherUrl) ? publication.publisherUrl : null
 
   return (
-    <Card as="li">
+    <Card as="li" className="text-text-secondary">
       <h2>{publication.title}</h2>
       <p className="text-text-muted">{publication.authors ?? 'Unknown authors'}</p>
       {publication.abstract ? <p>{publication.abstract}</p> : null}
       {link ? <p><a href={link} target="_blank" rel="noreferrer">View publication</a></p> : null}
       <h3>Reviewer Decisions</h3>
       <div className="overflow-x-auto">
-      <table className="min-w-[36rem]">
+      <table className={`${tableBaseClass} min-w-[36rem]`}>
         <thead>
           <tr>
             <th scope="col">Reviewer</th>

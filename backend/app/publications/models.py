@@ -11,7 +11,7 @@ from app.db.types import JSONType
 
 if TYPE_CHECKING:
     from app.conflicts.models import FinalDecision
-    from app.extraction.models import ExtractionWorkItem
+    from app.extraction.models import ExtractionWorkItem, FinalExtraction
     from app.fulltext.models import FullTextRetrieval, PublicationDocument
     from app.imports.models import ImportedRecord
 
@@ -62,6 +62,7 @@ class Publication(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     extraction_work_items: Mapped[list[ExtractionWorkItem]] = relationship(
         viewonly=True, order_by="ExtractionWorkItem.slot_number"
     )
+    final_extractions: Mapped[list[FinalExtraction]] = relationship(viewonly=True)
     full_text_retrieval: Mapped[FullTextRetrieval | None] = relationship(
         viewonly=True, uselist=False
     )
@@ -97,14 +98,26 @@ class Publication(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         return status
 
     @property
-    def extraction_status(self) -> str | None:
-        # NOTE: reflects slot 1's status only. In dual-extraction mode this
-        # is a placeholder pending the authoritative-FinalExtraction-aware
-        # repointing tracked separately -- callers that need the true
-        # authoritative status should use app.extraction.final instead.
-        if not self.extraction_work_items:
-            return None
-        return str(self.extraction_work_items[0].status)
+    def extraction_status(self) -> str:
+        """The publication's extraction status across *all* of its reviewer
+        slots, not one of them.
+
+        Derived by ``app.extraction.status``, the single place this is
+        computed: "completed" means a current, valid ``FinalExtraction``
+        exists, never that some slot is marked completed. Reads only
+        relationships, so it costs nothing extra when they are eager-loaded
+        with the publication.
+        """
+        from app.extraction.status import derive_publication_extraction_status
+
+        return str(
+            derive_publication_extraction_status(
+                [item.status for item in self.extraction_work_items],
+                has_valid_final=any(
+                    final.is_valid for final in self.final_extractions
+                ),
+            )
+        )
 
     @property
     def search_sources(self) -> list[dict[str, Any]]:

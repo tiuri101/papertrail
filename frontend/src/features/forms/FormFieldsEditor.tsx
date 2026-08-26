@@ -2,9 +2,12 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { Badge } from '../../components/Badge'
+import { cardStyles } from '../../components/Card'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { DragHandle } from '../../components/DragHandle'
 import { IconPlus } from '../../components/icons'
+import { cn } from '../../lib/cn'
 import { DynamicForm } from './DynamicForm'
 import { FieldEditForm } from './FieldEditForm'
 import {
@@ -18,6 +21,15 @@ import { NewFieldDraftCard } from './NewFieldDraftCard'
 import type { FormField } from './types'
 import { useFormFieldEditor } from './useFormFieldEditor'
 import { IconButton } from '../../components/Button'
+import {
+  llmSchemaContentClass,
+  llmSchemaFieldClass,
+  llmSchemaFieldsClass,
+  llmSchemaMappingClass,
+  llmSchemaPreviewClass,
+  llmSchemaSummaryClass,
+  llmSchemaTitleClass,
+} from '../llm/llmStyles'
 
 /**
  * Fields list + inline add/edit/reorder/preview for one already-existing form (a project's
@@ -149,15 +161,21 @@ export function FormFieldsEditor({
     <div>
       {mutationError ? <p className="text-danger" role="alert">{mutationError.message}</p> : null}
       {activeFields.length === 0 && !addingField && readOnly ? (
-        <p className="muted">No fields added yet.</p>
+        <p className="text-text">No fields added yet.</p>
       ) : (
-        <div className="llm-schema-fields form-editor-fields">
-          {activeFields.length === 0 && !addingField ? emptyState ?? <p className="muted">No fields added yet.</p> : null}
+        <div className={cn(llmSchemaFieldsClass, 'form-editor-fields')}>
+          {activeFields.length === 0 && !addingField ? emptyState ?? <p className="text-text">No fields added yet.</p> : null}
           {orderedFields.map((field) => {
             const fieldIndex = activeFields.findIndex((item) => item.stableKey === field.stableKey)
             return (
               <details
-                className={`llm-schema-field form-editor-field${draggedFieldKey === field.stableKey ? ' llm-schema-field--dragging' : ''}${dragOverFieldKey === field.stableKey ? ' llm-schema-field--drag-over' : ''}`}
+                className={cn(
+                  llmSchemaFieldClass({
+                    dragging: draggedFieldKey === field.stableKey,
+                    dragOver: dragOverFieldKey === field.stableKey,
+                  }),
+                  'form-editor-field',
+                )}
                 key={field.id}
                 data-ui="form-editor-field"
                 data-field-sort-key={field.isArchived ? undefined : field.stableKey}
@@ -179,7 +197,7 @@ export function FormFieldsEditor({
                 }}
               >
                 <summary
-                  className="llm-schema-field__summary"
+                  className={llmSchemaSummaryClass}
                   onClick={(event) => {
                     if (field.isArchived) return
                     if (readOnly) return
@@ -191,21 +209,21 @@ export function FormFieldsEditor({
                     }
                   }}
                 >
-                  <span className="llm-schema-field__title">
+                  <span className={llmSchemaTitleClass}>
                     <strong>{field.label}</strong>
-                    <span className="status-badge">
+                    <Badge variant="plain">
                       {fieldTypeLabels[field.fieldType] ?? field.fieldType}
                       {field.fieldType === 'rating' ? ` (${describeRatingScale(field.options)})` : ''}
-                    </span>
-                    {field.required ? <span className="status-badge">Required</span> : null}
-                    {field.isArchived ? <span className="status-badge">Archived</span> : null}
+                    </Badge>
+                    {field.required ? <Badge variant="plain">Required</Badge> : null}
+                    {field.isArchived ? <Badge variant="plain">Archived</Badge> : null}
                   </span>
-                  <span className="llm-schema-field__mapping">
+                  <span className={llmSchemaMappingClass}>
                     {field.isArchived
                       ? 'Archived field retained for historical submissions'
                       : field.required ? 'Reviewers must complete this field' : 'Optional for reviewers'}
                   </span>
-                  <span className="llm-schema-field__preview">
+                  <span className={llmSchemaPreviewClass}>
                     {field.fieldType === 'rating'
                       ? `Rating scale ${describeRatingScale(field.options)}`
                       : selectFieldTypes.has(field.fieldType)
@@ -247,7 +265,7 @@ export function FormFieldsEditor({
                     />
                   ) : null}
                 </summary>
-                <div className="llm-schema-field__content">
+                <div className={llmSchemaContentClass}>
                   {editingKey === field.stableKey ? (
                     <FieldEditForm
                       field={field}
@@ -313,7 +331,7 @@ export function FormFieldsEditor({
                       ) : null}
                     />
                   ) : field.isArchived ? (
-                    <p className="muted">
+                    <p className="text-text">
                       This field is no longer shown on new submissions. Previously recorded values are preserved.
                     </p>
                   ) : null}
@@ -374,7 +392,7 @@ export function FormFieldsEditor({
       {activeFields.length ? (
         <>
           <h3>Preview</h3>
-          <div className="card">
+          <div className={cardStyles} data-ui="card">
             <DynamicForm
               fields={activeFields.map((field) => ({
                 stableKey: field.stableKey,

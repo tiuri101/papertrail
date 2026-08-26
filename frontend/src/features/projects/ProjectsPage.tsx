@@ -34,6 +34,8 @@ interface Project {
 
 type ProjectRole = 'owner' | 'administrator' | 'reviewer'
 
+type SortOption = 'name' | 'updated' | 'created' | 'completion'
+
 const reviewTypeLabels: Record<string, string> = {
   systematic_review: 'Systematic review',
   scoping_review: 'Scoping review',
@@ -130,6 +132,7 @@ export function ProjectsPage() {
   const [stageFilter, setStageFilter] = useState('')
   const [roleFilter, setRoleFilter] = useState('')
   const [ownerFilter, setOwnerFilter] = useState('')
+  const [sortOption, setSortOption] = useState<SortOption>('name')
   const projects = useQuery({
     queryKey: ['projects'],
     queryFn: () => apiRequest<Project[]>('/api/v1/projects'),
@@ -155,6 +158,25 @@ export function ProjectsPage() {
         && (!ownerFilter || project.owner?.id === ownerFilter)
     })
   }, [ownerFilter, projects.data, reviewTypeFilter, roleFilter, search, stageFilter])
+  const sortedProjects = useMemo(() => {
+    const sorted = [...filteredProjects]
+    switch (sortOption) {
+      case 'updated':
+        sorted.sort((a, b) => new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime())
+        break
+      case 'created':
+        sorted.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        break
+      case 'completion':
+        sorted.sort((a, b) => b.percentComplete - a.percentComplete)
+        break
+      case 'name':
+      default:
+        sorted.sort((a, b) => a.name.localeCompare(b.name))
+        break
+    }
+    return sorted
+  }, [filteredProjects, sortOption])
   const hasFilters = Boolean(search || reviewTypeFilter || stageFilter || roleFilter || ownerFilter)
 
   function clearFilters() {
@@ -167,13 +189,15 @@ export function ProjectsPage() {
 
   return (
     <Page>
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="min-w-0">
-          <h1>Projects</h1>
-          <p className="text-text">Manage and monitor all your systematic reviews.</p>
-        </div>
-        <div className="flex flex-wrap items-center gap-3 max-[680px]:w-full">
-          <label className="flex h-10 w-[min(18rem,100%)] min-w-0 items-center gap-2 rounded-full border border-border bg-surface px-4 focus-within:border-primary focus-within:shadow-[0_0_0_3px_var(--color-focus)] max-[680px]:w-full">
+      <div className="min-w-0">
+        <h1>Projects</h1>
+        <p className="text-text">Manage and monitor all your systematic reviews.</p>
+      </div>
+      {projects.isLoading ? <p>Loading…</p> : null}
+      {projects.error ? <p className="text-danger" role="alert">{projects.error.message}</p> : null}
+      {projects.data && projects.data.length > 0 ? (
+        <>
+          <label className="my-5 flex h-10 w-[min(18rem,100%)] min-w-0 items-center gap-2 rounded-full border border-border bg-surface px-4 focus-within:border-primary focus-within:shadow-[0_0_0_3px_var(--color-focus)] max-[680px]:w-full">
             <span className="sr-only">Search projects</span>
             <span className="size-4 shrink-0 text-text-muted [&_svg]:size-full [&_svg]:fill-current"><IconSearch /></span>
             <input
@@ -184,57 +208,59 @@ export function ProjectsPage() {
               placeholder="Search projects…"
             />
           </label>
-          <Button type="button" startIcon={<IconPlus />} onClick={() => navigate('/projects/new')}>
-            New Project
-          </Button>
-        </div>
-      </div>
-      {projects.isLoading ? <p>Loading…</p> : null}
-      {projects.error ? <p className="text-danger" role="alert">{projects.error.message}</p> : null}
-      {projects.data && projects.data.length > 0 ? (
-        <section className="my-5 mb-4 flex flex-wrap items-center gap-3 max-[680px]:flex-col max-[680px]:items-stretch" aria-label="Project filters">
-          <FieldLabel>
-            <span className="sr-only">Stage</span>
-            <Select className="min-w-36 rounded-full bg-surface pl-4 max-[680px]:w-full" value={stageFilter} onChange={(event) => setStageFilter(event.target.value)}>
-              <option value="">All Status</option>
-              {STAGES.map((stage) => (
-                <option key={stage.value} value={stage.value}>{formatStage(stage.value)}</option>
-              ))}
-            </Select>
-          </FieldLabel>
-          <FieldLabel>
-            <span className="sr-only">My role</span>
-            <Select className="min-w-36 rounded-full bg-surface pl-4 max-[680px]:w-full" value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)}>
-              <option value="">All Roles</option>
-              {Object.entries(roleLabels)
-                .filter(([value]) => value !== 'administrator')
-                .map(([value, label]) => (
+          <section className="mb-4 flex flex-wrap items-center gap-3 max-[680px]:flex-col max-[680px]:items-stretch" aria-label="Project filters">
+            <FieldLabel>
+              <span className="sr-only">Stage</span>
+              <Select className="min-w-36 rounded-full bg-surface pl-4 max-[680px]:w-full" value={stageFilter} onChange={(event) => setStageFilter(event.target.value)}>
+                <option value="">All Status</option>
+                {STAGES.map((stage) => (
+                  <option key={stage.value} value={stage.value}>{formatStage(stage.value)}</option>
+                ))}
+              </Select>
+            </FieldLabel>
+            <FieldLabel>
+              <span className="sr-only">My role</span>
+              <Select className="min-w-36 rounded-full bg-surface pl-4 max-[680px]:w-full" value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)}>
+                <option value="">All Roles</option>
+                {Object.entries(roleLabels)
+                  .filter(([value]) => value !== 'administrator')
+                  .map(([value, label]) => (
+                    <option key={value} value={value}>{label}</option>
+                  ))}
+              </Select>
+            </FieldLabel>
+            <FieldLabel>
+              <span className="sr-only">Project type</span>
+              <Select className="min-w-36 rounded-full bg-surface pl-4 max-[680px]:w-full" value={reviewTypeFilter} onChange={(event) => setReviewTypeFilter(event.target.value)}>
+                <option value="">All Types</option>
+                {Object.entries(reviewTypeLabels).map(([value, label]) => (
                   <option key={value} value={value}>{label}</option>
                 ))}
-            </Select>
-          </FieldLabel>
-          <FieldLabel>
-            <span className="sr-only">Project type</span>
-            <Select className="min-w-36 rounded-full bg-surface pl-4 max-[680px]:w-full" value={reviewTypeFilter} onChange={(event) => setReviewTypeFilter(event.target.value)}>
-              <option value="">All Types</option>
-              {Object.entries(reviewTypeLabels).map(([value, label]) => (
-                <option key={value} value={value}>{label}</option>
-              ))}
-            </Select>
-          </FieldLabel>
-          <FieldLabel>
-            <span className="sr-only">Project owner</span>
-            <Select className="min-w-36 rounded-full bg-surface pl-4 max-[680px]:w-full" value={ownerFilter} onChange={(event) => setOwnerFilter(event.target.value)}>
-              <option value="">All Owners</option>
-              {owners.map(([id, displayName]) => (
-                <option key={id} value={id}>{displayName}</option>
-              ))}
-            </Select>
-          </FieldLabel>
-          <Button className="max-[680px]:w-full" type="button" variant="secondary" disabled={!hasFilters} onClick={clearFilters}>
-            Clear filters
-          </Button>
-        </section>
+              </Select>
+            </FieldLabel>
+            <FieldLabel>
+              <span className="sr-only">Project owner</span>
+              <Select className="min-w-36 rounded-full bg-surface pl-4 max-[680px]:w-full" value={ownerFilter} onChange={(event) => setOwnerFilter(event.target.value)}>
+                <option value="">All Owners</option>
+                {owners.map(([id, displayName]) => (
+                  <option key={id} value={id}>{displayName}</option>
+                ))}
+              </Select>
+            </FieldLabel>
+            <FieldLabel>
+              <span className="sr-only">Sort projects</span>
+              <Select className="min-w-36 rounded-full bg-surface pl-4 max-[680px]:w-full" value={sortOption} onChange={(event) => setSortOption(event.target.value as SortOption)}>
+                <option value="name">Name (A–Z)</option>
+                <option value="updated">Recently updated</option>
+                <option value="created">Recently created</option>
+                <option value="completion">Completion %</option>
+              </Select>
+            </FieldLabel>
+            <Button className="max-[680px]:w-full" type="button" variant="secondary" disabled={!hasFilters} onClick={clearFilters}>
+              Clear filters
+            </Button>
+          </section>
+        </>
       ) : null}
       {projects.data ? (
         <CountPill count={hasFilters ? filteredProjects.length : projects.data.length}>
@@ -247,8 +273,8 @@ export function ProjectsPage() {
       {projects.data && projects.data.length > 0 && filteredProjects.length === 0 ? (
         <p className="text-text">No projects match your filters.</p>
       ) : null}
-      <ul className="m-0 grid list-none bg-transparent border-none grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4 p-0" aria-label="Projects">
-        {filteredProjects.map((project) => (
+      <ul className="m-0 grid list-none overflow-hidden bg-transparent border-none grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4 p-0" aria-label="Projects">
+        {sortedProjects.map((project) => (
           <Card as="li" key={project.id} className="flex flex-col">
             <div className="flex items-start justify-between gap-3">
               <span className="inline-flex min-h-[26px] items-center rounded-full border border-[color-mix(in_srgb,var(--stage-color,var(--color-primary))_35%,transparent)] bg-[color-mix(in_srgb,var(--stage-color,var(--color-primary))_14%,transparent)] px-2.5 py-[3px] text-[0.78rem] font-bold text-(--stage-color)" data-project-stage={project.stage} style={stageBadgeStyle(project.stage)}>
@@ -307,7 +333,7 @@ export function ProjectsPage() {
             </div>
           </Card>
         ))}
-        {projects.data && projects.data.length > 0 ? (
+        {projects.data ? (
           <Card as="li" className="flex flex-col items-center justify-center border-dashed bg-surface text-center">
             <IconButton type="button" className="size-12 min-h-12 min-w-12 rounded-full [&_svg]:size-[22px]" onClick={() => navigate('/projects/new')}>
               <IconPlus />

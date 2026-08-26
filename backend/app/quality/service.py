@@ -10,10 +10,11 @@ from sqlalchemy.orm import Session
 from app.accounts.models import User
 from app.api.errors import DomainError, ForbiddenError, NotFoundError
 from app.core.time import utcnow
-from app.extraction.service import validate_answers
+from app.extraction.service import normalize_answers
 from app.forms.models import FieldType, FormField, FormKind, ReviewForm
 from app.forms.service import active_fields as forms_active_fields
 from app.forms.service import project_form_by_kind
+from app.forms.validation import as_number, validate_answers
 from app.projects.models import (
     Project,
     ProjectMembership,
@@ -21,16 +22,26 @@ from app.projects.models import (
 )
 from app.projects.service import reviewer_weights, weighted_round_robin_sequence
 from app.quality.models import (
+    QualityAggregation,
     QualityConfig,
+    QualityMode,
     QualityResponse,
     QualityStatus,
     QualityWorkItem,
 )
 from app.review_work.allocation import reassign_orphaned_items, rebalance_pending_items
+from app.review_work.eligibility import (
+    ReviewCapability,
+    require_reviewer_capability_by_id,
+)
 from app.review_work.progress import (
     completed_items_with_response,
     remaining_claimable_items,
     reviewer_progress,
+)
+from app.review_work.structural_config import (
+    StructuralSettingLockedError,
+    work_items_exist,
 )
 from app.screening.cohorts import full_text_included_ids
 
@@ -43,6 +54,101 @@ def quality_config(db: Session, project_id: str) -> QualityConfig | None:
 
 def quality_form(db: Session, project_id: str) -> ReviewForm | None:
     return project_form_by_kind(db, project_id, FormKind.QUALITY)
+
+
+def quality_work_started(db: Session, project_id: str) -> bool:
+    """Whether this project has generated any quality work item yet.
+
+    The quality counterpart of ``screening_work_started`` /
+    ``extraction_work_started``: once a single item exists, how items are
+    handed out is baked into rows nothing revisits (see
+    app.review_work.structural_config).
+    """
+    return work_items_exist(
+        db, QualityWorkItem.id, QualityWorkItem.project_id == project_id
+    )
+
+
+def quality_responses_exist(db: Session, project_id: str) -> bool:
+    """Whether any reviewer has submitted a quality assessment yet."""
+    return work_items_exist(
+        db,
+        QualityResponse.id,
+        QualityResponse.work_item_id == QualityWorkItem.id,
+        QualityWorkItem.project_id == project_id,
+    )
+
+
+def update_quality_config(
+    db: Session,
+    project_id: str,
+    *,
+    enabled: bool,
+    mode: QualityMode,
+    aggregation: QualityAggregation,
+    allocation_mode: TaskAllocationMode,
+) -> QualityConfig:
+    """Apply the project's quality-assessment configuration, refusing
+    structural changes once the state they determine already exists.
+
+    Two different freeze points, because the two kinds of setting are baked
+    into two different kinds of row:
+
+    * ``allocation_mode`` freezes as soon as a **work item** exists, exactly
+      as screening and extraction do -- switching a pre-assigned stage to
+      claim mode strands every existing item (the claim query only offers
+      *unassigned* items), and the reverse hides the open pool from everyone.
+    * ``mode`` and ``aggregation`` freeze once a **response** exists. They are
+      structural in the sense that matters here: ``QualityResponse.total_score``
+      is computed from them at submission time and then stored, and nothing
+      recomputes it afterwards. Changing either one later leaves a project
+      holding scores derived under two different rules -- some summed, some
+      averaged, some absent because the mode was qualitative at the time --
+      with no way to tell them apart. That mirrors extraction freezing its
+      reviewer count once responses exist rather than silently reinterpreting
+      recorded work.
+
+    ``enabled`` is *not* structural: it only gates whether further work is
+    generated and whether reports include a quality section, so it stays
+    editable at any point.
+    """
+    existing = quality_config(db, project_id)
+    if existing is not None:
+        if existing.allocation_mode != allocation_mode and quality_work_started(
+            db, project_id
+        ):
+            raise StructuralSettingLockedError(
+                "Cannot change the allocation mode after quality work items "
+                "exist for this project",
+                setting="allocationMode",
+                stage="quality",
+            )
+        scoring_changes = {
+            "mode": existing.mode != mode,
+            "aggregation": existing.aggregation != aggregation,
+        }
+        changed = [setting for setting, differs in scoring_changes.items() if differs]
+        if changed and quality_responses_exist(db, project_id):
+            labels = {
+                "mode": "the assessment mode",
+                "aggregation": "the score aggregation",
+            }
+            raise StructuralSettingLockedError(
+                f"Cannot change {labels[changed[0]]} after quality assessments "
+                "have been submitted for this project",
+                setting=changed[0],
+                stage="quality",
+            )
+    config = existing
+    if config is None:
+        config = QualityConfig(project_id=project_id)
+        db.add(config)
+    config.enabled = enabled
+    config.mode = mode
+    config.aggregation = aggregation
+    config.allocation_mode = allocation_mode
+    db.flush()
+    return config
 
 
 def eligible_assessors(db: Session, project_id: str) -> list[str]:
@@ -221,6 +327,9 @@ def claim_next_quality(
     reviewer_id: str,
     excluded_item_ids: set[str] | None = None,
 ) -> QualityWorkItem | None:
+    require_reviewer_capability_by_id(
+        db, project_id, reviewer_id, ReviewCapability.QUALITY
+    )
     now = utcnow()
     config = quality_config(db, project_id)
     claim_mode = (
@@ -259,7 +368,12 @@ def claim_next_quality(
     return item
 
 
-def save_draft(item: QualityWorkItem, reviewer_id: str, draft: dict[str, Any]) -> None:
+def save_draft(
+    db: Session, item: QualityWorkItem, reviewer_id: str, draft: dict[str, Any]
+) -> None:
+    require_reviewer_capability_by_id(
+        db, item.project_id, reviewer_id, ReviewCapability.QUALITY
+    )
     if (
         item.assigned_reviewer_id != reviewer_id
         or item.status == QualityStatus.COMPLETED
@@ -268,49 +382,77 @@ def save_draft(item: QualityWorkItem, reviewer_id: str, draft: dict[str, Any]) -
     item.draft = draft
 
 
+def release_quality_item(
+    db: Session, item: QualityWorkItem, reviewer_id: str
+) -> None:
+    """Hand a reserved quality assessment back to the queue."""
+    require_reviewer_capability_by_id(
+        db, item.project_id, reviewer_id, ReviewCapability.QUALITY
+    )
+    if item.assigned_reviewer_id != reviewer_id:
+        raise ForbiddenError("Quality assessment is assigned to another reviewer")
+    if item.status != QualityStatus.COMPLETED:
+        item.status = QualityStatus.AVAILABLE
+        item.reserved_until = None
+
+
 def active_fields(db: Session, form: ReviewForm) -> list[FormField]:
     return forms_active_fields(db, form)
 
 
 def score_response(
-    fields: list[FormField], answers: dict[str, Any], aggregation: str
+    fields: list[FormField], answers: dict[str, Any], aggregation: QualityAggregation
 ) -> float | None:
+    """Combine a submitted answer set into one numeric quality score.
+
+    Every value that reaches arithmetic here goes through ``as_number``, which
+    excludes ``bool``: ``isinstance(True, int)`` is ``True`` in Python, so an
+    answer (or a misconfigured weight or option score) of ``True`` would
+    otherwise be counted as ``1`` and produce a plausible-looking score that
+    no reviewer ever gave. A checkbox contributes only through its own
+    ``true``/``false`` scoring map, never as the number 1 or 0.
+    """
     weighted_values: list[tuple[float, float]] = []
     for field in fields:
         value = answers.get(field.stable_key)
         if value is None:
             continue
         scoring = field.scoring or {}
-        weight = float(scoring.get("weight", 1))
+        weight = as_number(scoring.get("weight", 1))
+        if weight is None:
+            weight = 1.0
         score: float | None = None
-        if field.field_type in {FieldType.NUMBER, FieldType.RATING} and isinstance(
-            value, (int, float)
-        ):
-            score = float(value)
-        elif field.field_type == FieldType.SINGLE_SELECT:
-            mapped = scoring.get("values", {}).get(str(value))
-            if mapped is not None:
-                score = float(mapped)
-        elif field.field_type == FieldType.CHECKBOX:
-            mapped = scoring.get("true" if value else "false")
-            if mapped is not None:
-                score = float(mapped)
+        if field.field_type in {FieldType.NUMBER, FieldType.RATING}:
+            score = as_number(value)
+        elif field.field_type == FieldType.SINGLE_SELECT and isinstance(value, str):
+            values = scoring.get("values")
+            if isinstance(values, dict):
+                score = as_number(values.get(value))
+        elif field.field_type == FieldType.CHECKBOX and isinstance(value, bool):
+            score = as_number(scoring.get("true" if value else "false"))
         if score is not None:
             weighted_values.append((score, weight))
     if not weighted_values:
         return None
     total = sum(score * weight for score, weight in weighted_values)
-    if aggregation == "weighted_average":
+    if aggregation == QualityAggregation.WEIGHTED_AVERAGE:
         denominator = sum(weight for _, weight in weighted_values)
         return total / denominator if denominator else None
-    if aggregation == "average":
+    if aggregation == QualityAggregation.AVERAGE:
         return sum(score for score, _ in weighted_values) / len(weighted_values)
-    return total
+    if aggregation == QualityAggregation.SUM:
+        return total
+    # Unreachable while ``aggregation`` is a QualityAggregation, which is the
+    # point: an unrecognized aggregation used to fall through to a plain sum.
+    raise DomainError(f"Unsupported quality score aggregation: {aggregation}")
 
 
 def submit_quality(
     db: Session, item: QualityWorkItem, reviewer_id: str, answers: dict[str, Any]
 ) -> QualityResponse:
+    require_reviewer_capability_by_id(
+        db, item.project_id, reviewer_id, ReviewCapability.QUALITY
+    )
     if item.assigned_reviewer_id != reviewer_id:
         raise ForbiddenError("Quality assessment is assigned to another reviewer")
     form = quality_form(db, item.project_id)
@@ -318,6 +460,7 @@ def submit_quality(
     if form is None or config is None or not form.active_version_id:
         raise NotFoundError("Quality assessment configuration not found")
     fields = active_fields(db, form)
+    answers = normalize_answers(fields, answers)
     validate_answers(fields, answers)
     current = db.scalar(
         select(QualityResponse).where(
@@ -331,7 +474,7 @@ def submit_quality(
         version = current.version + 1
     total = (
         score_response(fields, answers, config.aggregation)
-        if config.mode in {"numeric", "both"}
+        if config.mode in {QualityMode.NUMERIC, QualityMode.BOTH}
         else None
     )
     response = QualityResponse(

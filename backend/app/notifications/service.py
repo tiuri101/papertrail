@@ -13,6 +13,11 @@ from app.instance_settings.service import effective_instance_settings
 from app.jobs.models import BackgroundJob, JobStatus
 from app.jobs.service import enqueue_job
 from app.llm.models import LlmExtractionRun, LlmTaskType, ProcessingStatus
+from app.notifications.encryption import (
+    NotificationEncryptionError,
+    decrypt_payload,
+    encrypt_payload,
+)
 from app.notifications.mailer import send_smtp_email
 from app.notifications.models import EmailDeliveryStatus, EmailNotification
 from app.notifications.templates import render_email
@@ -20,6 +25,11 @@ from app.projects.models import Project, ProjectMembership, ProjectStage
 
 SEND_EMAIL_JOB = "send_email"
 CHECK_LLM_STAGE_EMAIL_JOB = "check_llm_stage_email"
+
+#: Templates whose rendering needs the encrypted half of the payload. Listed so
+#: a notification that has lost it fails with a clear message instead of a
+#: KeyError deep inside template rendering.
+SECRET_PAYLOAD_TEMPLATES = frozenset({"password_reset"})
 
 TASK_LABELS = {
     LlmTaskType.TITLE_ABSTRACT_SCREENING: "title and abstract screening",
@@ -46,6 +56,12 @@ def _project_owner_users(db: Session, project_id: str) -> list[User]:
     )
 
 
+def _payload_associated_data(template: str, recipient_email: str) -> str:
+    """Bind a ciphertext to the row it belongs to, so an encrypted payload
+    cannot be copied into a different notification and still decrypt."""
+    return f"{template}\x1f{recipient_email}"
+
+
 def queue_email_notification(
     db: Session,
     *,
@@ -54,7 +70,16 @@ def queue_email_notification(
     deduplication_key: str,
     context: dict[str, Any],
     project_id: str | None = None,
+    secret_context: dict[str, Any] | None = None,
 ) -> EmailNotification | None:
+    """Persist one email for the worker to deliver.
+
+    ``context`` is ordinary, non-sensitive template data and is stored as plain
+    JSON. ``secret_context`` holds credential-bearing fields (a reset link);
+    it is merged into the template context only in memory and persisted solely
+    as an authenticated-encryption envelope, so the stored row never contains a
+    usable credential.
+    """
     settings = effective_instance_settings(db)
     if not settings.email_enabled or not recipient.email or not recipient.is_active:
         return None
@@ -68,7 +93,15 @@ def queue_email_notification(
     if existing:
         return existing
 
-    rendered = render_email(template, context)
+    rendered = render_email(template, {**context, **(secret_context or {})})
+    encrypted_context = (
+        encrypt_payload(
+            secret_context,
+            associated_data=_payload_associated_data(template, recipient.email),
+        )
+        if secret_context
+        else None
+    )
     notification = EmailNotification(
         recipient_user_id=recipient.id,
         project_id=project_id,
@@ -77,6 +110,7 @@ def queue_email_notification(
         deduplication_key=hashed_key,
         subject=rendered.subject,
         context=context,
+        encrypted_context=encrypted_context,
     )
     try:
         with db.begin_nested():
@@ -119,18 +153,27 @@ def queue_account_created_email(db: Session, user: User) -> EmailNotification | 
 
 
 def queue_password_reset_email(
-    db: Session, user: User, raw_token: str
+    db: Session, user: User, raw_token: str, *, reset_token_id: str
 ) -> EmailNotification | None:
+    """Queue the emailed reset link.
+
+    The link is the credential, so it goes into ``secret_context`` and is
+    persisted encrypted. The deduplication key is derived from the reset-token
+    row id rather than the token itself -- nothing token-derived is written to
+    this table.
+    """
     settings = effective_instance_settings(db)
     return queue_email_notification(
         db,
         recipient=user,
         template="password_reset",
-        deduplication_key=f"password-reset:{_hash_key(raw_token)}",
+        deduplication_key=f"password-reset:{reset_token_id}",
         context={
             "recipient_name": user.display_name,
-            "reset_url": f"{settings.public_base_url}/reset-password?token={raw_token}",
             "expires_in_minutes": settings.password_reset_ttl_minutes,
+        },
+        secret_context={
+            "reset_url": f"{settings.public_base_url}/reset-password?token={raw_token}",
         },
     )
 
@@ -398,7 +441,37 @@ def send_email_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
     notification.status = EmailDeliveryStatus.SENDING
     notification.attempts = job.attempts
     notification.error_message = None
-    rendered = render_email(notification.template, notification.context)
+    context = dict(notification.context)
+    if (
+        notification.template in SECRET_PAYLOAD_TEMPLATES
+        and not notification.encrypted_context
+    ):
+        # Reached when a permanently failed job is restarted: the encrypted
+        # link was discarded with the failure, and the reset token has almost
+        # certainly expired anyway.
+        raise ValueError(
+            "This email can no longer be delivered: its encrypted payload was "
+            "discarded after delivery failed. The recipient must request a new "
+            "password reset link."
+        )
+    if notification.encrypted_context:
+        try:
+            context.update(
+                decrypt_payload(
+                    notification.encrypted_context,
+                    associated_data=_payload_associated_data(
+                        notification.template, notification.recipient_email
+                    ),
+                )
+            )
+        except NotificationEncryptionError as exc:
+            # `str(exc)` is deliberately sanitized in app.notifications.
+            # encryption: it names the misconfigured setting and nothing else,
+            # so it is safe to store on the job and the notification row.
+            raise ValueError(
+                f"Email payload could not be prepared: {exc}"
+            ) from None
+    rendered = render_email(notification.template, context)
     send_smtp_email(
         effective_instance_settings(db),
         recipient=notification.recipient_email,
@@ -406,6 +479,8 @@ def send_email_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
     )
     notification.status = EmailDeliveryStatus.SENT
     notification.sent_at = datetime.now(UTC)
+    # The credential has reached the recipient; keep nothing behind.
+    notification.encrypted_context = None
     return {"notification_id": notification.id}
 
 
@@ -420,3 +495,7 @@ def record_email_job_failure(db: Session, job: BackgroundJob, error: Exception) 
         if job.status == JobStatus.FAILED
         else EmailDeliveryStatus.QUEUED
     )
+    if notification.status == EmailDeliveryStatus.FAILED:
+        # Nothing will ever read this envelope again, so stop carrying an
+        # encrypted credential around in the queue table.
+        notification.encrypted_context = None

@@ -30,9 +30,9 @@ const projectDetail = {
 }
 
 const users = [
-  { id: 'u1', username: 'alice', displayName: 'Alice Reviewer', isAdmin: false, isActive: true },
-  { id: 'u2', username: 'bob', displayName: 'Bob Reviewer', isAdmin: false, isActive: true },
-  { id: 'u3', username: 'outsider', displayName: 'Outsider', isAdmin: false, isActive: true },
+  { id: 'u1', username: 'alice', displayName: 'Alice Reviewer', isActive: true },
+  { id: 'u2', username: 'bob', displayName: 'Bob Reviewer', isActive: true },
+  { id: 'u3', username: 'outsider', displayName: 'Outsider', isActive: true },
 ]
 
 const assignments = [
@@ -76,7 +76,7 @@ describe('ScreeningAssignmentsPanel', () => {
   it('is collapsed by default', async () => {
     mockFetch((input) => {
       const url = String(input)
-      if (url.endsWith('/users')) return jsonResponse(users)
+      if (url.endsWith('/member-candidates')) return jsonResponse(users)
       if (url.includes('/assignments')) return jsonResponse(page(assignments))
       return jsonResponse(projectDetail)
     })
@@ -88,7 +88,7 @@ describe('ScreeningAssignmentsPanel', () => {
   it('lists assignments with their current reviewer and status', async () => {
     mockFetch((input) => {
       const url = String(input)
-      if (url.endsWith('/users')) return jsonResponse(users)
+      if (url.endsWith('/member-candidates')) return jsonResponse(users)
       if (url.includes('/assignments')) return jsonResponse(page(assignments))
       return jsonResponse(projectDetail)
     })
@@ -106,7 +106,7 @@ describe('ScreeningAssignmentsPanel', () => {
   it('only offers project members eligible for the selected stage, excluding the current assignee', async () => {
     mockFetch((input) => {
       const url = String(input)
-      if (url.endsWith('/users')) return jsonResponse(users)
+      if (url.endsWith('/member-candidates')) return jsonResponse(users)
       if (url.includes('/assignments')) return jsonResponse(page(assignments))
       return jsonResponse(projectDetail)
     })
@@ -124,7 +124,7 @@ describe('ScreeningAssignmentsPanel', () => {
     const fetchMock = mockFetch((input, init) => {
       const url = String(input)
       if (init?.method === 'PATCH') return jsonResponse({ ...assignments[0], assignedReviewerId: 'u2' })
-      if (url.endsWith('/users')) return jsonResponse(users)
+      if (url.endsWith('/member-candidates')) return jsonResponse(users)
       if (url.includes('/assignments')) return jsonResponse(page(assignments))
       return jsonResponse(projectDetail)
     })
@@ -145,7 +145,7 @@ describe('ScreeningAssignmentsPanel', () => {
   it('switches stages and refetches assignments for that stage', async () => {
     const fetchMock = mockFetch((input) => {
       const url = String(input)
-      if (url.endsWith('/users')) return jsonResponse(users)
+      if (url.endsWith('/member-candidates')) return jsonResponse(users)
       if (url.includes('/screening/full_text/assignments')) return jsonResponse(page([]))
       if (url.includes('/assignments')) return jsonResponse(page(assignments))
       return jsonResponse(projectDetail)
@@ -164,7 +164,7 @@ describe('ScreeningAssignmentsPanel', () => {
   it('toggles sort order when a column header is clicked twice', async () => {
     const fetchMock = mockFetch((input) => {
       const url = String(input)
-      if (url.endsWith('/users')) return jsonResponse(users)
+      if (url.endsWith('/member-candidates')) return jsonResponse(users)
       if (url.includes('/assignments')) return jsonResponse(page(assignments))
       return jsonResponse(projectDetail)
     })
@@ -186,7 +186,7 @@ describe('ScreeningAssignmentsPanel', () => {
   it('sorts by a different column when its header is clicked', async () => {
     const fetchMock = mockFetch((input) => {
       const url = String(input)
-      if (url.endsWith('/users')) return jsonResponse(users)
+      if (url.endsWith('/member-candidates')) return jsonResponse(users)
       if (url.includes('/assignments')) return jsonResponse(page(assignments))
       return jsonResponse(projectDetail)
     })
@@ -204,7 +204,7 @@ describe('ScreeningAssignmentsPanel', () => {
   it('filters by search text after a short debounce', async () => {
     const fetchMock = mockFetch((input) => {
       const url = String(input)
-      if (url.endsWith('/users')) return jsonResponse(users)
+      if (url.endsWith('/member-candidates')) return jsonResponse(users)
       if (url.includes('/assignments')) return jsonResponse(page(assignments))
       return jsonResponse(projectDetail)
     })
@@ -222,7 +222,7 @@ describe('ScreeningAssignmentsPanel', () => {
   it('filters by status and by reviewer', async () => {
     const fetchMock = mockFetch((input) => {
       const url = String(input)
-      if (url.endsWith('/users')) return jsonResponse(users)
+      if (url.endsWith('/member-candidates')) return jsonResponse(users)
       if (url.includes('/assignments')) return jsonResponse(page(assignments))
       return jsonResponse(projectDetail)
     })
@@ -243,7 +243,7 @@ describe('ScreeningAssignmentsPanel', () => {
   it('paginates with Previous and Next controls', async () => {
     const fetchMock = mockFetch((input) => {
       const url = String(input)
-      if (url.endsWith('/users')) return jsonResponse(users)
+      if (url.endsWith('/member-candidates')) return jsonResponse(users)
       if (url.includes('/assignments')) return jsonResponse(page(assignments, { total: 45 }))
       return jsonResponse(projectDetail)
     })
@@ -267,7 +267,7 @@ describe('ScreeningAssignmentsPanel', () => {
       if (url.endsWith('/assignments/reassign') && init?.method === 'PATCH') {
         return jsonResponse({ reassigned: 39 })
       }
-      if (url.endsWith('/users')) return jsonResponse(users)
+      if (url.endsWith('/member-candidates')) return jsonResponse(users)
       if (url.includes('/assignments')) {
         return jsonResponse(page([assignments[0]], { total: 40, reassignableTotal: 40 }))
       }

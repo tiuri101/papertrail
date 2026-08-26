@@ -3,12 +3,24 @@ import type { CSSProperties } from 'react'
 import { forwardRef, useEffect, useImperativeHandle, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { Badge } from '../../components/Badge'
 import { Button } from '../../components/Button'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
+import { cn } from '../../lib/cn'
 import { DragHandle } from '../../components/DragHandle'
 import { InfoBox } from '../../components/InfoBox'
 import { IconCheckCircle, IconChart, IconSettings, IconSparkle, IconTrash } from '../../components/icons'
 import { InfoTooltip } from '../../components/Tooltip'
+import { tableBaseClass } from '../../components/layoutStyles'
+import {
+  llmSchemaContentClass,
+  llmSchemaFieldClass,
+  llmSchemaFieldsClass,
+  llmSchemaMappingClass,
+  llmSchemaPreviewClass,
+  llmSchemaSummaryClass,
+  llmSchemaTitleClass,
+} from './llmStyles'
 import { STAGES } from '../projects/StageProgress'
 import { Input } from '../../components/Input'
 import { Select } from '../../components/Select'
@@ -263,18 +275,26 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
         </p>
       </InfoBox>
       {settings.data ? (
-        <dl className="detail-list">
+        <dl
+          className={cn(
+            'detail-list m-0 grid grid-cols-[max-content_1fr] gap-x-5 gap-y-0 max-[480px]:grid-cols-1 max-[480px]:gap-y-1',
+            '[&>dt]:border-b [&>dt]:border-border [&>dt]:py-[10px] [&>dt]:text-[0.85rem] [&>dt]:font-[640] [&>dt]:whitespace-nowrap [&>dt]:text-text-muted',
+            '[&>dd]:m-0 [&>dd]:border-b [&>dd]:border-border [&>dd]:py-[10px] [&>dd]:text-text',
+            '[&>dt:last-of-type]:border-b-0 [&>dd:last-of-type]:border-b-0',
+            'max-[480px]:[&>dd]:pt-0 max-[480px]:[&>dd]:pb-3',
+          )}
+        >
           <dt>Model</dt><dd>{settings.data.model ?? 'Not configured'}</dd>
           <dt>Context length</dt><dd>{settings.data.contextLength.toLocaleString()}</dd>
         </dl>
       ) : null}
-      <div className="toolbar">
+      <div className="toolbar flex flex-wrap items-center gap-3 my-5 max-[760px]:gap-2">
         <Button type="button" onClick={() => test.mutate()} disabled={test.isPending}>
           {test.isPending ? 'Testing…' : 'Test Connection'}
         </Button>
       </div>
       {connection ? (
-        <p className={connection.ok ? 'success' : 'error'} role={connection.ok ? 'status' : 'alert'}>
+        <p className={connection.ok ? 'text-success' : 'text-danger'} role={connection.ok ? 'status' : 'alert'}>
           {connection.message}
         </p>
       ) : null}
@@ -288,7 +308,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
       </InfoBox>
       {settings.data ? (
         <Fieldset>
-          <legend className="subsection-heading">Stages</legend>
+          <legend className="subsection-heading m-0 mb-3 text-base leading-[1.2] font-[650] text-text">Stages</legend>
           <FieldLabel inline>
             <Input
               type="checkbox"
@@ -336,7 +356,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
           </FieldLabel>
         </Fieldset>
       ) : null}
-      {capabilitiesError ? <p className="error" role="alert">{capabilitiesError.message}</p> : null}
+      {capabilitiesError ? <p className="text-danger" role="alert">{capabilitiesError.message}</p> : null}
     </CollapsibleSection>
 
     <CollapsibleSection id="section-llm-extraction-schema" title="LLM Extraction Schema" icon={<IconSparkle />}>
@@ -353,14 +373,17 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
         ) : (
           <>
           <p>Version {currentSchema.versionNumber} · {currentSchema.status}</p>
-          <div className="llm-schema-fields">
+          <div className={llmSchemaFieldsClass}>
           {fields.map((field, index) => {
             const mappedField = schema.data?.extractionFields.find(
               (item) => item.stableKey === field.mappedExtractionFieldKey,
             )
             return (
             <details
-              className={`llm-schema-field${draggedFieldKey === field.stableKey ? ' llm-schema-field--dragging' : ''}${dragOverFieldKey === field.stableKey ? ' llm-schema-field--drag-over' : ''}`}
+              className={llmSchemaFieldClass({
+                dragging: draggedFieldKey === field.stableKey,
+                dragOver: dragOverFieldKey === field.stableKey,
+              })}
               key={field.stableKey}
               data-field-sort-key={field.stableKey}
               onDragOver={(event) => {
@@ -377,16 +400,16 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
                 setDragOverFieldKey(null)
               }}
             >
-              <summary className="llm-schema-field__summary">
-                <span className="llm-schema-field__title">
+              <summary className={llmSchemaSummaryClass}>
+                <span className={llmSchemaTitleClass}>
                   <strong>{field.label || `Field ${index + 1}`}</strong>
-                  <span className="status-badge">{field.fieldType.replaceAll('_', ' ')}</span>
-                  {!field.enabled ? <span className="status-badge">Disabled</span> : null}
+                  <Badge variant="plain">{field.fieldType.replaceAll('_', ' ')}</Badge>
+                  {!field.enabled ? <Badge variant="plain">Disabled</Badge> : null}
                 </span>
-                <span className="llm-schema-field__mapping">
+                <span className={llmSchemaMappingClass}>
                   {mappedField ? `Maps to ${mappedField.label}` : 'LLM-only helper field'}
                 </span>
-                <span className="llm-schema-field__preview">
+                <span className={llmSchemaPreviewClass}>
                   {field.instruction || 'No extraction instruction provided.'}
                 </span>
                 <DragHandle
@@ -422,7 +445,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
                   }}
                 />
               </summary>
-              <div className="llm-schema-field__content">
+              <div className={llmSchemaContentClass}>
               <FieldLabel>Label
                 <Input value={field.label} onChange={(event) => edit(index, { label: event.target.value })} />
               </FieldLabel>
@@ -463,7 +486,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
                 </FieldLabel>
               ) : null}
               {field.mappingState && !['active', 'helper'].includes(field.mappingState) ? (
-                <p className="error">Mapping is {field.mappingState}; resolve it before publishing.</p>
+                <p className="text-danger">Mapping is {field.mappingState}; resolve it before publishing.</p>
               ) : null}
               <div className="inline-flex w-fit items-center">
                 <FieldLabel inline>
@@ -503,14 +526,14 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
             )
           })}
           </div>
-          <div className="toolbar">
+          <div className="toolbar flex flex-wrap items-center gap-3 my-5 max-[760px]:gap-2">
             <Button type="button" variant="secondary" onClick={addHelper}>Add helper field</Button>
             {!setupMode ? (
               <Button type="button" onClick={() => save.mutate()} disabled={save.isPending}>Save draft</Button>
             ) : null}
           </div>
           {!setupMode ? (
-            <div className="toolbar">
+            <div className="toolbar flex flex-wrap items-center gap-3 my-5 max-[760px]:gap-2">
               <Button
                 type="button"
                 variant="primary"
@@ -524,7 +547,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
           ) : null}
           </>
         )}
-      {schemaError ? <p className="error" role="alert">{schemaError.message}</p> : null}
+      {schemaError ? <p className="text-danger" role="alert">{schemaError.message}</p> : null}
     </CollapsibleSection>
 
     {showProcessingStatus ? (
@@ -537,8 +560,14 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
         </InfoBox>
           {overview.data ? (
             <>
-              <div className="llm-processing-status">
-                <table className="table-compact table-narrow llm-processing-status__table">
+              <div className="llm-processing-status flex flex-wrap items-start gap-5">
+                <table
+                  className={cn(
+                    tableBaseClass,
+                    'table-compact table-narrow llm-processing-status__table w-auto! max-w-full flex-[0_1_auto] min-w-0',
+                    '[&_th]:px-3! [&_th]:py-[7px]! [&_th]:text-[0.85rem]! [&_td]:px-3! [&_td]:py-[7px]! [&_td]:text-[0.85rem]! [&_thead_th]:text-[0.68rem]!',
+                  )}
+                >
                   <thead>
                     <tr>
                       <th scope="col">Metric</th>
@@ -557,7 +586,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
                     <tr><th scope="row">Average generated tokens</th><td>{Math.round(overview.data.statistics.averageGeneratedTokens ?? 0)}</td></tr>
                   </tbody>
                 </table>
-                <div className="llm-rerun-actions" data-llm-rerun-actions="true">
+                <div className="llm-rerun-actions flex flex-none flex-col items-start gap-2" data-llm-rerun-actions="true">
                   <Button
                     type="button"
                     variant="secondary"
@@ -613,7 +642,7 @@ export const LlmAssistancePanel = forwardRef<LlmAssistancePanelHandle, LlmAssist
               ) : null}
             </>
           ) : <p>Loading processing status…</p>}
-          {processingError ? <p className="error" role="alert">{processingError.message}</p> : null}
+          {processingError ? <p className="text-danger" role="alert">{processingError.message}</p> : null}
       </CollapsibleSection>
     ) : null}
     </>

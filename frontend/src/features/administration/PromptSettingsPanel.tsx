@@ -82,7 +82,7 @@ export function PromptSettingsPanel({ projectId }: { projectId: string }) {
           <h3>{flow.label}</h3>
           <details>
             <summary>Base prompt</summary>
-            <pre className="mt-2 max-h-64 whitespace-pre-wrap">{flow.basePrompt}</pre>
+            <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap rounded-md border border-border bg-bg-elevated p-4 text-sm leading-[1.55] text-text-secondary">{flow.basePrompt}</pre>
           </details>
           <label className="grid gap-2 text-sm font-semibold text-text-secondary">
             Custom instructions

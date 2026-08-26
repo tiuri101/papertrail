@@ -36,6 +36,7 @@ from app.extraction.models import (
 )
 from app.forms.models import FormField
 from app.publications.models import Publication
+from app.review_work.finalization import lock_publication_for_finalization
 
 _REVISION_INVALIDATION_REASON = "reviewer_revision"
 
@@ -122,6 +123,11 @@ def attempt_auto_finalize(db: Session, publication_id: str) -> FinalExtraction |
     publication = db.get(Publication, publication_id)
     if publication is None:
         raise NotFoundError("Publication not found")
+    # Before reading the slots back, not after: whichever concurrent
+    # submission arrives here second has to see the first one's committed
+    # slot, or neither observes a complete set and the publication ends up
+    # with every slot completed and no authoritative outcome recorded.
+    lock_publication_for_finalization(db, publication_id)
     pairs = _completed_slot_pairs(db, publication_id)
     if not pairs:
         return None
@@ -280,7 +286,12 @@ def submit_reconciliation(
     field_choices: dict[str, dict[str, Any]],
     note: str | None,
 ) -> FinalExtraction:
-    from app.extraction.service import active_fields, project_form, validate_answers
+    from app.extraction.service import (
+        active_fields,
+        normalize_answers,
+        project_form,
+        validate_answers,
+    )
 
     if not note or not note.strip():
         raise DomainError("A reconciliation note is required")
@@ -288,6 +299,7 @@ def submit_reconciliation(
     publication = db.get(Publication, publication_id)
     if publication is None:
         raise NotFoundError("Publication not found")
+    lock_publication_for_finalization(db, publication_id)
     pairs = _completed_slot_pairs(db, publication_id)
     required = required_reviewers_for(db, publication.project_id)
     if required <= 1 or len(pairs) < required:
@@ -344,6 +356,7 @@ def submit_reconciliation(
             raise DomainError(f"Invalid resolution choice for field: {item.stable_key}")
         resolved_choices[item.stable_key] = selection
 
+    merged = normalize_answers(fields, merged)
     validate_answers(fields, merged)
 
     final = create_or_replace_final_extraction(

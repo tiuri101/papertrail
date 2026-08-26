@@ -13,6 +13,7 @@ from app.accounts.routes import router as accounts_router
 from app.analysis.routes import router as analysis_router
 from app.api.errors import install_error_handlers
 from app.api.health import router as health_router
+from app.api.health import system_router
 from app.audit.routes import router as audit_router
 from app.conflicts.routes import router as conflicts_router
 from app.core.config import get_settings
@@ -47,8 +48,22 @@ def create_app() -> FastAPI:
     configure_logging()
     settings = get_settings()
     logger.info("%s API starting (version=%s)", settings.app_name, settings.app_version)
+    # Interactive docs and the machine-readable schema map every route,
+    # parameter, and error shape of the installation for an unauthenticated
+    # caller. They stay on in development/test and are switched off in
+    # production unless PAPERTRAIL_API_DOCS_ENABLED explicitly re-enables them.
+    # ``app.openapi()`` keeps working either way, so client/schema generation is
+    # unaffected.
+    docs_enabled = settings.docs_enabled
+    if not docs_enabled:
+        logger.info("Interactive API documentation is disabled for this environment")
     app = FastAPI(
-        title=settings.app_name, version=settings.app_version, lifespan=lifespan
+        title=settings.app_name,
+        version=settings.app_version,
+        lifespan=lifespan,
+        docs_url="/docs" if docs_enabled else None,
+        redoc_url="/redoc" if docs_enabled else None,
+        openapi_url="/openapi.json" if docs_enabled else None,
     )
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
     app.add_middleware(
@@ -80,6 +95,7 @@ def create_app() -> FastAPI:
         return response
 
     app.include_router(health_router)
+    app.include_router(system_router, prefix=settings.api_prefix)
     app.include_router(accounts_router, prefix=settings.api_prefix)
     app.include_router(projects_router, prefix=settings.api_prefix)
     app.include_router(imports_router, prefix=settings.api_prefix)

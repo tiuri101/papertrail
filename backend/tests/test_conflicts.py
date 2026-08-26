@@ -1,4 +1,6 @@
+import pytest
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from app.accounts.service import create_user
 from app.audit.models import AuditEvent
@@ -32,7 +34,7 @@ from app.projects.models import (
 )
 from app.publications.models import Publication
 from app.publications.service import sync_new_publications_with_stage
-from app.screening.models import ScreeningWorkItem
+from app.screening.models import ScreeningOutcome, ScreeningWorkItem
 from app.screening.service import (
     claim_next_work_item,
     create_screening_work_items,
@@ -42,8 +44,8 @@ from app.screening.service import (
 
 def setup_conflict(db, second_outcome: str = "exclude"):
     admin = create_user(db, "admin", "Admin", "secret-password", is_admin=True)
-    r1 = create_user(db, "r1", "R1", "password-1")
-    r2 = create_user(db, "r2", "R2", "password-2")
+    r1 = create_user(db, "r1", "R1", "long-password-1")
+    r2 = create_user(db, "r2", "R2", "long-password-2")
     project = Project(
         name="Review",
         review_type=ReviewType.SYSTEMATIC_REVIEW,
@@ -161,7 +163,7 @@ def test_inclusion_with_preexisting_pdf_creates_full_text_work_item(db) -> None:
     full-text screening work item immediately, exactly like a publication
     whose PDF is retrieved later via set_retrieval_status."""
     admin = create_user(db, "fi-admin", "Admin", "secret-password", is_admin=True)
-    reviewer = create_user(db, "fi-reviewer", "Reviewer", "password-1")
+    reviewer = create_user(db, "fi-reviewer", "Reviewer", "long-password-1")
     project = Project(
         name="Bulk import review",
         review_type=ReviewType.SYSTEMATIC_REVIEW,
@@ -239,7 +241,7 @@ def test_late_title_abstract_inclusion_backfills_review_and_background_work(
     monkeypatch.setattr(settings, "ollama_model", "test-model:latest")
 
     admin = create_user(db, "late-admin", "Late Admin", "secret-password")
-    reviewer = create_user(db, "late-reviewer", "Late Reviewer", "password-1")
+    reviewer = create_user(db, "late-reviewer", "Late Reviewer", "long-password-1")
     project = Project(
         name="Late inclusion",
         review_type=ReviewType.SYSTEMATIC_REVIEW,
@@ -351,7 +353,7 @@ def test_publication_added_after_full_text_started_backfills_on_first_decision(
     """A newly added publication's *first* title/abstract decision is just as
     "late" as a revised one -- the backfill must not only fire on revisions."""
     create_user(db, "admin", "Admin", "secret-password", is_admin=True)
-    reviewer = create_user(db, "reviewer", "Reviewer", "password-1")
+    reviewer = create_user(db, "reviewer", "Reviewer", "long-password-1")
     project = Project(
         name="Late addition",
         review_type=ReviewType.SYSTEMATIC_REVIEW,
@@ -404,7 +406,7 @@ def test_publication_added_after_full_text_started_backfills_on_first_decision(
 
 def test_late_addition_to_a_completed_project_reopens_it_until_it_finishes(db) -> None:
     admin = create_user(db, "admin", "Admin", "secret-password", is_admin=True)
-    reviewer = create_user(db, "reviewer", "Reviewer", "password-1")
+    reviewer = create_user(db, "reviewer", "Reviewer", "long-password-1")
     project = Project(
         name="Completed review",
         review_type=ReviewType.SYSTEMATIC_REVIEW,
@@ -509,7 +511,7 @@ def test_late_addition_to_completed_project_records_audit_and_regenerates_analys
     traceable (an audit event) and should refresh the title/abstract analysis
     once that publication's screening decision settles the picture again."""
     admin = create_user(db, "admin", "Admin", "secret-password", is_admin=True)
-    reviewer = create_user(db, "reviewer", "Reviewer", "password-1")
+    reviewer = create_user(db, "reviewer", "Reviewer", "long-password-1")
     project = Project(
         name="Completed review",
         review_type=ReviewType.SYSTEMATIC_REVIEW,
@@ -732,7 +734,7 @@ def test_list_conflicts_excludes_publications_still_awaiting_decisions(
     client, db
 ) -> None:
     create_user(db, "admin3", "Admin3", "secret-password", is_admin=True)
-    r1 = create_user(db, "r1c", "R1c", "password-1")
+    r1 = create_user(db, "r1c", "R1c", "long-password-1")
     project = Project(
         name="Untouched",
         review_type=ReviewType.SYSTEMATIC_REVIEW,
@@ -778,3 +780,77 @@ def test_list_conflicts_excludes_publications_still_awaiting_decisions(
 
     assert response.status_code == 200
     assert response.json() == []
+
+
+def test_database_rejects_a_second_valid_final_decision_for_a_stage(db) -> None:
+    """Defense-in-depth behind the publication-level finalization lock: even a
+    write path that forgot to invalidate the previous verdict cannot leave two
+    rows claiming to be *the* current decision for a (publication, stage)."""
+    admin, _project, publication, *_ = setup_conflict(db)
+    record_final_decision(
+        db,
+        publication.id,
+        ScreeningStage.TITLE_ABSTRACT,
+        "include",
+        "admin_consensus",
+        admin.id,
+        "Agreed",
+    )
+    db.commit()
+
+    db.add(
+        FinalDecision(
+            project_id=publication.project_id,
+            publication_id=publication.id,
+            stage=ScreeningStage.TITLE_ABSTRACT,
+            outcome=ScreeningOutcome.EXCLUDE,
+            resolution_method="admin_consensus",
+            resolved_by_id=admin.id,
+            note="Concurrently recorded second verdict",
+            is_valid=True,
+        )
+    )
+    with pytest.raises(IntegrityError):
+        db.flush()
+    db.rollback()
+
+
+def test_the_other_stage_and_superseded_history_are_unaffected_by_the_index(db) -> None:
+    """The uniqueness is scoped to *valid* rows of one stage: history rows and
+    the other screening stage's verdict must still coexist."""
+    admin, _project, publication, *_ = setup_conflict(db)
+    for outcome in ("include", "exclude", "include"):
+        record_final_decision(
+            db,
+            publication.id,
+            ScreeningStage.TITLE_ABSTRACT,
+            outcome,
+            "admin_consensus",
+            admin.id,
+            None,
+        )
+    record_final_decision(
+        db,
+        publication.id,
+        ScreeningStage.FULL_TEXT,
+        "include",
+        "admin_consensus",
+        admin.id,
+        None,
+    )
+    db.commit()
+
+    rows = list(
+        db.scalars(
+            select(FinalDecision).where(
+                FinalDecision.publication_id == publication.id
+            )
+        )
+    )
+    assert len(rows) == 4, "superseded verdicts are kept as history, not deleted"
+    valid = [row for row in rows if row.is_valid]
+    assert {row.stage for row in valid} == {
+        ScreeningStage.TITLE_ABSTRACT,
+        ScreeningStage.FULL_TEXT,
+    }
+    assert len(valid) == 2

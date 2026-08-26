@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.api.errors import ConflictError, DomainError, NotFoundError
 from app.forms.models import FieldType, FormField, FormKind, FormVersion, ReviewForm
+from app.forms.validation import validate_field_definition
 
 
 def active_fields(db: Session, form: ReviewForm) -> list[FormField]:
@@ -142,6 +143,9 @@ def add_field(
     options: list[Any] | None = None,
     scoring: dict[str, Any] | None = None,
 ) -> FormField:
+    resolved_type, resolved_options, resolved_scoring = validate_field_definition(
+        field_type, label=label, options=options, scoring=scoring
+    )
     version = editable_version(db, form, f"Added field: {label}")
     position = int(
         db.scalar(
@@ -154,11 +158,11 @@ def add_field(
     field = FormField(
         form_version_id=version.id,
         label=label.strip(),
-        field_type=FieldType(field_type),
+        field_type=resolved_type,
         required=required,
         position=position,
-        options=options or [],
-        scoring=scoring or {},
+        options=resolved_options,
+        scoring=resolved_scoring,
     )
     db.add(field)
     db.flush()
@@ -273,16 +277,23 @@ def update_field(
         )
     version = fork_version(db, form, "Updated field")
     field = find_field(db, version, stable_key)
+    # Validate the field as it will look *after* the change, not the change in
+    # isolation: switching a select to a number while leaving its options
+    # behind, or narrowing a rating scale below an existing option score, is
+    # only visible in the combined result.
+    resolved_type, resolved_options, resolved_scoring = validate_field_definition(
+        field.field_type if field_type is None else field_type,
+        label=field.label if label is None else label,
+        options=field.options if options is None else options,
+        scoring=field.scoring if scoring is None else scoring,
+    )
     if label is not None:
         field.label = label.strip()
-    if field_type is not None:
-        field.field_type = FieldType(field_type)
+    field.field_type = resolved_type
     if required is not None:
         field.required = required
-    if options is not None:
-        field.options = list(options)
-    if scoring is not None:
-        field.scoring = dict(scoring)
+    field.options = resolved_options
+    field.scoring = resolved_scoring
     if position is not None:
         _set_field_position(db, version, stable_key, position)
     db.flush()
@@ -333,15 +344,21 @@ def replace_field(
     """
     version = fork_version(db, form, "Replaced field")
     old_field = find_field(db, version, stable_key)
+    resolved_type, resolved_options, resolved_scoring = validate_field_definition(
+        field_type,
+        label=label or old_field.label,
+        options=options,
+        scoring=scoring,
+    )
     old_field.is_archived = True
     new_field = FormField(
         form_version_id=version.id,
         label=(label or old_field.label).strip(),
-        field_type=FieldType(field_type),
+        field_type=resolved_type,
         required=required,
         position=old_field.position,
-        options=options or [],
-        scoring=scoring or {},
+        options=resolved_options,
+        scoring=resolved_scoring,
     )
     db.add(new_field)
     db.flush()

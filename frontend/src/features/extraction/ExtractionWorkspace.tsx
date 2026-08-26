@@ -8,12 +8,14 @@ import { isAnswered, normalizeForSuggestionMatch } from '../forms/answers'
 import { DynamicForm, type DynamicFormField } from '../forms/DynamicForm'
 import { useFullTextDocument } from '../fulltext/useFullTextDocument'
 import { LlmAssistanceHeading, LlmEvidence, type LlmEvidenceItem } from '../llm/LlmTaskComponents'
+import { llmPanelClass, llmPanelHeadingClass, llmValidationClass } from '../llm/llmStyles'
 import type { PublicationSummary } from '../publications/types'
 import { ReviewPublicationHeader } from '../reviews/ReviewPublicationHeader'
 import { ReviewQueueEmptyState } from '../reviews/ReviewQueueEmptyState'
 import { useReviewWorkQueue } from '../reviews/useReviewWorkQueue'
 import type { ValidationResult } from './types'
 import { Button } from '../../components/Button'
+import { cardStyles } from '../../components/Card'
 import { Form } from '../../components/Form'
 
 interface WorkItem {
@@ -199,15 +201,15 @@ export function ExtractionWorkspace({
       <>
       {suggestion ? (
         <aside
-          className={`llm-task-panel${applied ? ' llm-task-panel--match' : ''}`}
+          className={`mt-4 p-4 border border-border rounded-xl bg-primary-container ${applied ? ' border-success shadow-[0_0_0_1px_var(--color-success)]' : ''}`}
           aria-label={applied ? `LLM suggestion for ${field.label} — matches your value` : `LLM suggestion for ${field.label}`}
         >
-          <div className="llm-task-panel__heading">
+          <div className="flex flex-wrap items-center justify-between gap-y-2 gap-x-4">
             <strong>
-              <span className="llm-task-panel__icon" aria-hidden="true">✦</span>
+              <span className="text-primary" aria-hidden="true">✦</span>
               {' '}LLM suggestion · {status}
             </strong>
-            {applied ? <span className="muted">Reviewer value matches suggestion</span> : null}
+            {applied ? <span className="text-text">Reviewer value matches suggestion</span> : null}
           </div>
           {suggestion.status === 'inferred' ? (
             <p>⚠ This value is inferred; the paper does not state it directly.</p>
@@ -217,7 +219,7 @@ export function ExtractionWorkspace({
           ) : (
             <>
               <p><code>{JSON.stringify(suggestion.value)}</code></p>
-              <div className="toolbar">
+              <div className="mx-0">
                 <Button
                   type="button"
                   variant="secondary"
@@ -245,12 +247,12 @@ export function ExtractionWorkspace({
               />
             </details>
           ) : suggestion.evidenceRequired && suggestion.value != null ? (
-            <p className="error">No verified supporting evidence was returned.</p>
+            <p className="text-danger">No verified supporting evidence was returned.</p>
           ) : null}
         </aside>
       ) : null}
       {validationResult ? (
-        <aside className={`llm-validation llm-validation--${validationResult.assessment}`}>
+        <aside className={llmValidationClass(validationResult.assessment)}>
           <strong>Validation: {validationResult.assessment.replace('_', ' ')}</strong>
           <p>{validationResult.explanation}</p>
           {validationResult.evidence.length ? (
@@ -292,7 +294,7 @@ export function ExtractionWorkspace({
           publication={item.publication}
           fullTextDocument={fullTextDocument}
           afterAuthors={item.requiredReviewers > 1 ? (
-            <p className="muted">
+            <p className="text-text">
               Independent extraction {item.slotNumber} of {item.requiredReviewers}. Your answers are
               kept independent from the other reviewer&apos;s until both are submitted.
               {completedResponse ? ' Once both reviewers have submitted, agreeing answers become final automatically; any disagreements go to reconciliation.' : ''}
@@ -301,16 +303,16 @@ export function ExtractionWorkspace({
         />
       ) : null}
       {assistance.isLoading ? (
-        <aside className="llm-task-panel" aria-label="LLM assistance">
-          <div className="llm-task-panel__heading">
+        <aside className={llmPanelClass} aria-label="LLM assistance">
+          <div className={llmPanelHeadingClass}>
             <LlmAssistanceHeading />
           </div>
-          <p className="muted">Checking for LLM suggestions…</p>
+          <p className="text-text">Checking for LLM suggestions…</p>
         </aside>
       ) : null}
       {assistance.data?.state && assistance.data.state !== 'ready' && assistance.data.state !== 'disabled' ? (
-        <aside className="llm-task-panel" aria-label="LLM assistance">
-          <div className="llm-task-panel__heading">
+        <aside className={llmPanelClass} aria-label="LLM assistance">
+          <div className={llmPanelHeadingClass}>
             <LlmAssistanceHeading qualifier={assistance.data.state === 'failed' ? 'failed' : undefined} />
             {['unavailable', 'failed', 'cancelled'].includes(assistance.data.state) ? (
               <Button
@@ -323,26 +325,26 @@ export function ExtractionWorkspace({
               </Button>
             ) : null}
           </div>
-          <p className={assistance.data.state === 'failed' ? 'error' : 'muted'}>
+          <p className={assistance.data.state === 'failed' ? 'text-danger' : 'text-text'}>
             LLM assistance: {assistance.data.state.replaceAll('_', ' ')}
             {assistance.data.error ? ` — ${assistance.data.error}` : ''}. Manual extraction remains available.
           </p>
         </aside>
       ) : null}
       {assistance.data?.outdated ? (
-        <aside className="llm-task-panel" aria-label="LLM assistance is stale">
-          <div className="llm-task-panel__heading">
+        <aside className={llmPanelClass} aria-label="LLM assistance is stale">
+          <div className={llmPanelHeadingClass}>
             <LlmAssistanceHeading qualifier="is stale" />
             <Button type="button" variant="secondary" onClick={() => runLlm.mutate(true)} disabled={runLlm.isPending}>
               <IconRestart />
               Re-run with current schema
             </Button>
           </div>
-          <p className="muted">LLM result uses an older schema version.</p>
+          <p className="text-text">LLM result uses an older schema version.</p>
         </aside>
       ) : null}
-      {runLlm.error ? <p className="error" role="alert">{runLlm.error.message}</p> : null}
-      <Form onSubmit={(event) => { event.preventDefault(); submit.mutate() }}>
+      {runLlm.error ? <p className="text-danger" role="alert">{runLlm.error.message}</p> : null}
+      <Form className="gap-y-0" onSubmit={(event) => { event.preventDefault(); submit.mutate() }}>
         <DynamicForm
           fields={item.fields}
           value={answers}
@@ -356,10 +358,10 @@ export function ExtractionWorkspace({
           renderAssistance={suggestionCard}
         />
         {helpers.length ? (
-          <aside className="llm-task-panel" aria-label="Additional LLM assistance">
-            <div className="llm-task-panel__heading">
+          <aside className={llmPanelClass} aria-label="Additional LLM assistance">
+            <div className={llmPanelHeadingClass}>
               <h3>
-                <span className="llm-task-panel__icon" aria-hidden="true">✦</span>
+                <span className="text-primary" aria-hidden="true">✦</span>
                 {' '}Additional LLM assistance
               </h3>
             </div>
@@ -372,11 +374,11 @@ export function ExtractionWorkspace({
           </aside>
         ) : null}
         {missingRequired ? (
-          <p className="muted">Answer every required field before submitting.</p>
+          <p className="text-text">Answer every required field before submitting.</p>
         ) : null}
-        {submit.error ? <p className="error" role="alert">{submit.error.message}</p> : null}
-        {skip.error ? <p className="error" role="alert">{skip.error.message}</p> : null}
-        <div className="toolbar">
+        {submit.error ? <p className="text-danger" role="alert">{submit.error.message}</p> : null}
+        {skip.error ? <p className="text-danger" role="alert">{skip.error.message}</p> : null}
+        <div className="toolbar flex flex-wrap items-center gap-3 my-0 max-[760px]:gap-2">
           <Button type="submit" disabled={submit.isPending || skip.isPending || missingRequired}>
             <IconCheckCircle />
             {completedResponse ? 'Save corrected extraction' : 'Submit Extraction'}
@@ -404,14 +406,14 @@ export function ExtractionWorkspace({
           ) : null}
         </div>
         {completedResponse && itemId && validation.data?.state !== 'disabled' ? (
-          <section className="llm-task-panel" aria-label="Extraction validation">
+          <section className={llmPanelClass} aria-label="Extraction validation">
             <h3>
-              <span className="llm-task-panel__icon" aria-hidden="true">✦</span>
+              <span className="text-primary" aria-hidden="true">✦</span>
               {' '}LLM extraction validation
             </h3>
             {validation.isLoading ? <p>Checking validation status…</p> : null}
             {validation.data?.stale ? (
-              <p className="error">Validation is stale because the extraction or source changed.</p>
+              <p className="text-danger">Validation is stale because the extraction or source changed.</p>
             ) : null}
             {['queued', 'pending', 'processing'].includes(validation.data?.state ?? '') ? (
               <p>Validation {validation.data?.state}… Manual work remains available.</p>
@@ -425,7 +427,7 @@ export function ExtractionWorkspace({
               </p>
             ) : null}
             {validation.data?.state === 'failed' ? (
-              <p className="error">{validation.data.error ?? 'Validation failed.'}</p>
+              <p className="text-danger">{validation.data.error ?? 'Validation failed.'}</p>
             ) : null}
             <Link to={`/projects/${projectId}/extraction/validation`}>
               Back to validation review
@@ -436,5 +438,5 @@ export function ExtractionWorkspace({
     </>
   )
 
-  return variant === 'inline' ? body : <article className="card">{body}</article>
+  return variant === 'inline' ? body : <article className={cardStyles} data-ui="card">{body}</article>
 }

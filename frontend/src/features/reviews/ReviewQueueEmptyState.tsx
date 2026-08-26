@@ -34,7 +34,7 @@ export function ReviewQueueEmptyState({
         </>
       ) : null}
       {!loadingNext && nextError ? (
-        <p className="error" role="alert">{nextError}</p>
+        <p className="text-danger" role="alert">{nextError}</p>
       ) : null}
     </>
   )

@@ -7,9 +7,14 @@ from app.accounts.dependencies import get_current_user
 from app.accounts.models import User
 from app.api.errors import ForbiddenError, NotFoundError
 from app.db.session import get_db
-from app.imports.schemas import JobErrorResponse, JobResponse
 from app.jobs.diagnostics import build_job_diagnostics
 from app.jobs.models import BackgroundJob
+from app.jobs.sanitize import (
+    diagnostic_error_details,
+    error_type,
+    public_error_message,
+)
+from app.jobs.schemas import JobErrorResponse, JobResponse
 from app.projects.service import is_project_manager, require_project_access
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
@@ -19,6 +24,11 @@ router = APIRouter(prefix="/jobs", tags=["jobs"])
 def get_job(
     job_id: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)
 ) -> BackgroundJob:
+    """The ordinary job view -- available to every project member.
+
+    ``JobResponse`` redacts the failure diagnostics itself, so the raw
+    traceback stored in ``job.result`` never leaves through this route.
+    """
     job = db.get(BackgroundJob, job_id)
     if job is None:
         raise NotFoundError("Job not found")
@@ -33,6 +43,15 @@ def get_job_error(
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
+    """The privileged diagnostics endpoint.
+
+    Deliberately the *only* place a raw traceback and an unredacted
+    exception message are served, and only to a global administrator or a
+    manager of the job's project. An ordinary member still gets the safe
+    error category, redacted message and failure context so they can tell
+    what broke and ask for help -- but no stack frames, deployment paths,
+    SQL or internal hostnames.
+    """
     job = db.get(BackgroundJob, job_id)
     if job is None:
         raise NotFoundError("Job not found")
@@ -43,7 +62,6 @@ def get_job_error(
         if not user.is_admin:
             raise ForbiddenError("Administrator access required")
         can_view_details = True
-    result = job.result if isinstance(job.result, dict) else {}
     return {
         "job_id": job.id,
         "job_type": job.job_type,
@@ -53,8 +71,14 @@ def get_job_error(
         "queued_at": job.created_at,
         "started_at": job.started_at,
         "failed_at": job.completed_at,
-        "error_type": result.get("errorType"),
-        "error_message": job.error_message,
-        "error_details": result.get("errorDetails") if can_view_details else None,
+        "error_type": error_type(job.result),
+        "error_message": (
+            job.error_message
+            if can_view_details
+            else public_error_message(job.error_message)
+        ),
+        "error_details": (
+            diagnostic_error_details(job.result) if can_view_details else None
+        ),
         **build_job_diagnostics(db, job),
     }

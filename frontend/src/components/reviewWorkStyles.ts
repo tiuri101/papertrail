@@ -1,5 +1,5 @@
 export const reviewWorkCardClass = 'relative cursor-pointer rounded-md border border-border bg-linear-to-b from-surface-raised to-surface px-4 py-3 shadow-sm transition-[border-color,transform,box-shadow] duration-150 hover:-translate-y-0.5 hover:border-border-strong hover:shadow-md'
-export const reviewWorkGridClass = "grid grid-cols-[minmax(10rem,1fr)_minmax(5rem,9rem)_minmax(5rem,7rem)_4.5rem_4.5rem_minmax(5.5rem,7rem)] items-center gap-3 [&>*]:min-w-0 max-[520px]:grid-cols-[minmax(0,1fr)] max-[520px]:[grid-template-areas:'title'_'venue'_'status'_'doi'_'submitted'_'actions']"
+export const reviewWorkGridClass = "grid grid-cols-[minmax(10rem,1fr)_minmax(5rem,9rem)_minmax(5rem,7rem)_4.5rem_4.5rem_minmax(5.5rem,7rem)] items-center gap-3 [&>*]:min-w-0 max-[520px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] max-[520px]:[grid-template-areas:'title_title'_'venue_venue'_'status_doi'_'submitted_submitted'_'actions_actions'] max-[520px]:gap-y-1"
 export const reviewWorkTitleClass = 'min-w-0 max-[520px]:[grid-area:title]'
 export const reviewWorkMetadataClass = 'overflow-hidden text-ellipsis whitespace-nowrap text-[0.86rem] text-text-secondary'
 export const reviewWorkVenueClass = `${reviewWorkMetadataClass} max-[520px]:[grid-area:venue]`

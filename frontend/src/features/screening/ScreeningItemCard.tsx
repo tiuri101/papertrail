@@ -50,7 +50,7 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
 
   return (
     <Card as="article">
-      <h2 ref={titleRef} className="publication-title"><HighlightedText text={item.publication.title} keywords={highlightKeywords} /></h2>
+      <h2 ref={titleRef} className="scroll-mt-[92px]"><HighlightedText text={item.publication.title} keywords={highlightKeywords} /></h2>
       <p>{item.publication.authors ?? 'Unknown authors'}</p>
       {item.publication.venue ? <p className="text-text-muted">{item.publication.venue}</p> : null}
       {isFullTextStage ? (
@@ -110,7 +110,7 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
         >
           <IconCheckCircle />
           {awaitingConfirmation ? 'Confirm Decision' : 'Submit Decision'}
-          {submitHotkey ? <kbd className="submit-button__hotkey" aria-hidden="true">{submitHotkey}</kbd> : null}
+          {submitHotkey ? <kbd className="submit-button__hotkey inline-flex h-[20px] min-w-[20px] items-center justify-center rounded-[5px] border border-[rgba(255,255,255,0.5)] bg-[rgba(255,255,255,0.16)] px-[5px] text-[0.72rem] leading-none font-bold text-inherit opacity-[0.85] [font-family:inherit]" aria-hidden="true">{submitHotkey}</kbd> : null}
         </Button>
         {!awaitingConfirmation ? (
           <Button

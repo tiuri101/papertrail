@@ -34,7 +34,38 @@ class PublicationResponse(ApiModel):
     screening_status: ScreeningStatusResponse = Field(
         serialization_alias="screeningStatus"
     )
-    extraction_status: str | None = Field(serialization_alias="extractionStatus")
+    # One of app.extraction.status.PublicationExtractionStatus. Always
+    # present: "not_started" rather than null when the publication has no
+    # extraction slots, so a client never has to distinguish "no value" from
+    # "not begun".
+    extraction_status: str = Field(serialization_alias="extractionStatus")
+
+
+class PublicationPageResponse(ApiModel):
+    """One page of a project's publications, plus the counts a client used to
+    derive from holding the whole list.
+
+    ``total`` counts everything matching the request's filters;
+    ``projectTotal`` and ``missingPdfCount`` ignore them and describe the
+    project as a whole, which is what the "N of M match your filters" and
+    "N papers missing a PDF" affordances report.
+    """
+
+    items: list[PublicationResponse]
+    total: int
+    project_total: int = Field(serialization_alias="projectTotal")
+    missing_pdf_count: int = Field(serialization_alias="missingPdfCount")
+    page: int
+    page_size: int = Field(serialization_alias="pageSize")
+    page_count: int = Field(serialization_alias="pageCount")
+    has_more: bool = Field(serialization_alias="hasMore")
+
+
+class PublicationIdsResponse(ApiModel):
+    """Just the ids matching a filter, for bulk actions that span pages."""
+
+    ids: list[str]
+    total: int
 
 
 class PublicationUpdate(ApiModel):

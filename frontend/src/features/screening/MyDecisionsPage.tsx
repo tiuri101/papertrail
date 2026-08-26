@@ -397,7 +397,7 @@ export function MyDecisionsPage() {
       {query.data ? (
         <>
           {query.data.stageCompleted ? (
-            <InfoBox icon={<IconAlertTriangle />} tone="warning" alert>
+            <InfoBox icon={<IconAlertTriangle />} tone="warning" alert className="mt-4">
               <h3>This stage has been completed</h3>
               <p>
                 You can still change a decision, but doing so may affect results that have already been finalized.
@@ -436,7 +436,7 @@ export function MyDecisionsPage() {
                   ? `of ${query.data.items.length} decisions match your filters`
                   : `decision${query.data.items.length === 1 ? '' : 's'}`}
               </CountPill>
-              <div className="flex flex-wrap items-end gap-3">
+              <div className="flex flex-wrap items-end gap-3 mb-4">
                 <label className="grid min-w-[min(20rem,100%)] flex-1 gap-1 text-sm font-semibold text-text-secondary">
                   Search papers
                   <Input
@@ -484,7 +484,7 @@ export function MyDecisionsPage() {
           ) : filteredItems.length === 0 ? (
             <p className="text-text-muted">No decisions match your filters.</p>
           ) : (
-            <>
+            <div>
               <div className={`${reviewWorkGridClass} mt-6 mb-2 px-4 text-[0.72rem] font-bold tracking-[0.04em] text-text-muted uppercase max-[520px]:hidden`}>
                 <span className="flex items-center gap-0.5">
                   <PublicationListSortHeader label="Title" sortKey="title" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />{' / '}
@@ -510,7 +510,7 @@ export function MyDecisionsPage() {
                   />
                 ))}
               </ul>
-            </>
+            </div>
           )}
         </>
       ) : null}

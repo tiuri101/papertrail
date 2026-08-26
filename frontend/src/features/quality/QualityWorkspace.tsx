@@ -10,6 +10,7 @@ import { ReviewPublicationHeader } from '../reviews/ReviewPublicationHeader'
 import { ReviewQueueEmptyState } from '../reviews/ReviewQueueEmptyState'
 import { useReviewWorkQueue } from '../reviews/useReviewWorkQueue'
 import { Button } from '../../components/Button'
+import { cardStyles } from '../../components/Card'
 import { Form } from '../../components/Form'
 
 interface WorkItem {
@@ -127,11 +128,11 @@ export function QualityWorkspace({
           onChange={(key, value) => setAnswers((current) => ({ ...current, [key]: value }))}
         />
         {missingRequired ? (
-          <p className="muted">Answer every required field before submitting.</p>
+          <p className="text-text">Answer every required field before submitting.</p>
         ) : null}
-        {submit.error ? <p className="error" role="alert">{submit.error.message}</p> : null}
-        {skip.error ? <p className="error" role="alert">{skip.error.message}</p> : null}
-        <div className="toolbar">
+        {submit.error ? <p className="text-danger" role="alert">{submit.error.message}</p> : null}
+        {skip.error ? <p className="text-danger" role="alert">{skip.error.message}</p> : null}
+        <div className="toolbar flex flex-wrap items-center gap-3 my-0 max-[760px]:gap-2">
           <Button type="submit" disabled={submit.isPending || skip.isPending || missingRequired}>
             <IconCheckCircle />
             {completedResponse ? 'Save corrected assessment' : 'Submit Assessment'}
@@ -162,5 +163,5 @@ export function QualityWorkspace({
     </>
   )
 
-  return variant === 'inline' ? body : <article className="card">{body}</article>
+  return variant === 'inline' ? body : <article className={cardStyles} data-ui="card">{body}</article>
 }

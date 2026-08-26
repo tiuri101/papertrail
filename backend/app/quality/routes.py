@@ -17,7 +17,9 @@ from app.projects.models import ProjectMembership, TaskAllocationMode
 from app.projects.service import get_project, is_project_manager, require_project_access
 from app.publications.models import Publication
 from app.quality.models import (
+    QualityAggregation,
     QualityConfig,
+    QualityMode,
     QualityResponse,
     QualityStatus,
     QualityWorkItem,
@@ -38,8 +40,10 @@ from app.quality.service import (
     my_progress,
     quality_form,
     reassign_work_items_from_ineligible_reviewers,
+    release_quality_item,
     save_draft,
     submit_quality,
+    update_quality_config,
 )
 from app.screening.schemas import MyProgressResponse
 
@@ -84,8 +88,8 @@ def get_quality_config(
     if config is None:
         return {
             "enabled": False,
-            "mode": "both",
-            "aggregation": "sum",
+            "mode": QualityMode.BOTH,
+            "aggregation": QualityAggregation.SUM,
             "allocation_mode": TaskAllocationMode.CLAIM,
         }
     return {
@@ -104,15 +108,14 @@ def configure_quality(
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
     get_project(db, project_id)
-    config = db.query(QualityConfig).filter_by(project_id=project_id).one_or_none()
-    if config is None:
-        config = QualityConfig(project_id=project_id)
-        db.add(config)
-    config.enabled = payload.enabled
-    config.mode = payload.mode
-    config.aggregation = payload.aggregation
-    config.allocation_mode = payload.allocation_mode
-    db.flush()
+    config = update_quality_config(
+        db,
+        project_id,
+        enabled=payload.enabled,
+        mode=payload.mode,
+        aggregation=payload.aggregation,
+        allocation_mode=payload.allocation_mode,
+    )
     record_audit(
         db,
         action="quality.config_updated",
@@ -220,11 +223,7 @@ def release_quality(
     item = db.get(QualityWorkItem, item_id)
     if item is None or item.project_id != project_id:
         raise NotFoundError("Quality work item not found")
-    if item.assigned_reviewer_id != session.user.id:
-        raise ForbiddenError("Quality assessment is assigned to another reviewer")
-    if item.status != QualityStatus.COMPLETED:
-        item.status = QualityStatus.AVAILABLE
-        item.reserved_until = None
+    release_quality_item(db, item, session.user.id)
     db.commit()
     return {"status": "released"}
 
@@ -240,7 +239,7 @@ def update_quality_draft(
     item = db.get(QualityWorkItem, item_id)
     if item is None or item.project_id != project_id:
         raise NotFoundError("Quality work item not found")
-    save_draft(item, session.user.id, payload.draft)
+    save_draft(db, item, session.user.id, payload.draft)
     db.commit()
     return {"status": "saved"}
 

@@ -32,13 +32,13 @@ export function ReviewPublicationHeader({
 }) {
   return (
     <>
-      <h2 ref={titleRef} className="publication-title">{publication.title}</h2>
-      <p className="muted">
+      <h2 ref={titleRef} className="scroll-mt-[92px]">{publication.title}</h2>
+      <p className="text-text">
         {publication.authors ?? 'Unknown authors'}
         {publication.publicationYear ? ` (${publication.publicationYear})` : ''}
       </p>
       {afterAuthors}
-      <div className="toolbar">
+      <div className="toolbar flex flex-wrap items-center gap-3 my-5 max-[760px]:gap-2">
         {fullTextDocument.data ? (
           <PdfAvailabilityPill
             available={fullTextDocument.data.available}

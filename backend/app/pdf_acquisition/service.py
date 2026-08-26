@@ -22,6 +22,7 @@ from app.fulltext.storage import discard_pdf, stage_pdf_upload
 from app.instance_settings.service import effective_instance_settings
 from app.pdf_acquisition.models import (
     ACTIVE_JOB_STATUSES,
+    IN_FLIGHT_JOB_STATUSES,
     RETRYABLE_JOB_STATUSES,
     BatchStatus,
     BrowserAgent,
@@ -169,6 +170,9 @@ def revoke_agent(db: Session, user: User, agent_id: str) -> BrowserAgent:
             summary=f"Revoked browser helper '{agent.display_name}'",
         )
         db.flush()
+        # Don't leave the deauthorized helper's in-flight jobs claimed until
+        # their leases run out -- requeue them for whoever can still work them.
+        release_claims_for_agent(db, [agent.id])
     return agent
 
 
@@ -198,6 +202,7 @@ def revoke_all_agents_for_user(
         )
     if agents:
         db.flush()
+        release_claims_for_agent(db, [agent.id for agent in agents])
     return len(agents)
 
 
@@ -628,13 +633,7 @@ def _claimable_jobs_filter(agent: BrowserAgent, now: datetime) -> list[Any]:
         or_(
             PdfRetrievalJob.status == RetrievalJobStatus.QUEUED,
             and_(
-                PdfRetrievalJob.status.in_(
-                    [
-                        RetrievalJobStatus.CLAIMED,
-                        RetrievalJobStatus.RETRIEVING,
-                        RetrievalJobStatus.UPLOADING,
-                    ]
-                ),
+                PdfRetrievalJob.status.in_(IN_FLIGHT_JOB_STATUSES),
                 PdfRetrievalJob.lease_until < now,
             ),
         ),
@@ -692,18 +691,128 @@ def claim_next_job(db: Session, agent: BrowserAgent) -> PdfRetrievalJob | None:
     return None
 
 
-def _require_live_claim(job: PdfRetrievalJob, agent: BrowserAgent) -> None:
+def _require_agent_authorization(
+    db: Session, job: PdfRetrievalJob, agent: BrowserAgent
+) -> None:
+    """Re-derive, from current state, that this agent may still touch this job.
+
+    A claim is not a capability. Everything it was granted on -- the agent
+    being paired, the account behind it being active, that account still
+    being a project member with full-text access -- can be withdrawn while
+    the browser helper is mid-retrieval, and a bearer token in an extension
+    that has already claimed work would otherwise keep working indefinitely.
+    So every mutable Browser Helper operation re-checks the *current* facts
+    rather than trusting what was true at claim time.
+    """
+    if agent.revoked_at is not None:
+        raise ForbiddenError("This browser helper is no longer authorized")
     if job.claimed_by_agent_id != agent.id:
         raise ForbiddenError(
             "This retrieval job is not claimed by the current browser agent"
         )
+    # Covers the account being deactivated, removed from the project, or
+    # having its full-text screening capability withdrawn.
+    if not _user_has_full_text_access(db, job.project_id, agent.user_id):
+        raise ForbiddenError(
+            "Full-text retrieval access for this project is no longer granted"
+        )
+
+
+def require_active_claim(
+    db: Session, job: PdfRetrievalJob, agent: BrowserAgent
+) -> None:
+    """Authorization plus a live, unexpired claim on an in-flight job.
+
+    Used by every state/upload mutation. An expired lease is refused rather
+    than silently honoured: the job is already reclaimable by another helper
+    (see ``_claimable_jobs_filter``), so accepting a late write would let two
+    agents fight over the same publication.
+    """
+    _require_agent_authorization(db, job, agent)
+    if job.batch.status != BatchStatus.RUNNING:
+        raise ConflictError("This retrieval batch is no longer running")
+    if job.status not in IN_FLIGHT_JOB_STATUSES:
+        raise ConflictError("This retrieval job is no longer in progress")
+    if job.lease_until is None or _aware(job.lease_until) <= utcnow():
+        raise ConflictError("The claim on this retrieval job has expired")
+
+
+def release_claim(job: PdfRetrievalJob) -> bool:
+    """Return an in-flight job to the queue. Returns whether it changed."""
+    if job.status not in IN_FLIGHT_JOB_STATUSES:
+        return False
+    job.status = RetrievalJobStatus.QUEUED
+    job.claimed_by_agent_id = None
+    job.claimed_at = None
+    job.lease_until = None
+    return True
+
+
+def release_claims_for_agent(db: Session, agent_ids: list[str]) -> int:
+    """Requeue everything the given (now deauthorized) agents were holding."""
+    if not agent_ids:
+        return 0
+    jobs = list(
+        db.scalars(
+            select(PdfRetrievalJob).where(
+                PdfRetrievalJob.claimed_by_agent_id.in_(agent_ids),
+                PdfRetrievalJob.status.in_(IN_FLIGHT_JOB_STATUSES),
+            )
+        )
+    )
+    released = sum(1 for job in jobs if release_claim(job))
+    if released:
+        db.flush()
+    return released
+
+
+def release_ineligible_claims(db: Session, project_id: str) -> int:
+    """Requeue in-flight jobs whose claiming agent may no longer work them.
+
+    Called from the project's central membership-change reconciliation so a
+    revoked reviewer's helper stops holding work immediately, instead of the
+    job sitting claimed until its lease runs out.
+    """
+    jobs = list(
+        db.scalars(
+            select(PdfRetrievalJob).where(
+                PdfRetrievalJob.project_id == project_id,
+                PdfRetrievalJob.status.in_(IN_FLIGHT_JOB_STATUSES),
+            )
+        )
+    )
+    access_cache: dict[str, bool] = {}
+    released = 0
+    for job in jobs:
+        agent = (
+            db.get(BrowserAgent, job.claimed_by_agent_id)
+            if job.claimed_by_agent_id
+            else None
+        )
+        if agent is not None and agent.revoked_at is None:
+            has_access = access_cache.get(agent.user_id)
+            if has_access is None:
+                has_access = _user_has_full_text_access(db, project_id, agent.user_id)
+                access_cache[agent.user_id] = has_access
+            if has_access:
+                continue
+        if release_claim(job):
+            released += 1
+    if released:
+        db.flush()
+    return released
 
 
 def get_agent_job(db: Session, agent: BrowserAgent, job_id: str) -> PdfRetrievalJob:
+    """Look up a job for an agent-authenticated request.
+
+    Only establishes *authorization*; callers that mutate in-flight state
+    must additionally call :func:`require_active_claim`.
+    """
     job = db.get(PdfRetrievalJob, job_id)
     if job is None:
         raise NotFoundError("Retrieval job not found")
-    _require_live_claim(job, agent)
+    _require_agent_authorization(db, job, agent)
     return job
 
 
@@ -722,7 +831,7 @@ def apply_job_state_update(
     resolved_landing_url: str | None,
     resolved_pdf_url: str | None,
 ) -> PdfRetrievalJob:
-    _require_live_claim(job, agent)
+    require_active_claim(db, job, agent)
     try:
         target_status = RetrievalJobStatus(status)
     except ValueError as exc:
@@ -805,17 +914,13 @@ async def upload_job_pdf(
     source_url: str | None,
     landing_url: str | None,
 ) -> PdfRetrievalJob:
-    _require_live_claim(job, agent)
-    if job.batch.status != BatchStatus.RUNNING:
+    try:
+        require_active_claim(db, job, agent)
+    except Exception:
+        # Close the multipart stream before propagating, exactly as the
+        # pre-existing batch/status guards below did.
         await file.close()
-        raise ConflictError("This retrieval batch is not running")
-    if job.status not in {
-        RetrievalJobStatus.CLAIMED,
-        RetrievalJobStatus.RETRIEVING,
-        RetrievalJobStatus.UPLOADING,
-    }:
-        await file.close()
-        raise ConflictError("This retrieval job is not awaiting an upload")
+        raise
 
     if source_url:
         job.resolved_pdf_url = source_url[:2000]

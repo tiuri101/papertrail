@@ -58,4 +58,38 @@ describe('DangerZonePanel', () => {
     })
     expect(await screen.findByText('Projects list')).toBeInTheDocument()
   })
+
+  // Consumer update for Group C: a reset refused because a background handler
+  // is mid-write is a wait-and-retry, and the UI has to say what to wait for.
+  it('names the running background jobs when a reset is refused', async () => {
+    mockFetch((_input, init) => {
+      if (init?.method === 'POST') {
+        return jsonResponse(
+          {
+            error: {
+              code: 'project_jobs_running',
+              message: 'Wait for running background jobs to finish before resetting the project',
+              details: {
+                operation: 'reset',
+                runningJobCount: 2,
+                runningJobTypes: ['import.process', 'duplicate.detect'],
+              },
+            },
+          },
+          409,
+        )
+      }
+      return jsonResponse({})
+    })
+    renderPanel()
+
+    clickCardAction('Reset Project')
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Reset Project' }))
+
+    const alert = await screen.findByText(/background jobs are still running/)
+    expect(alert).toHaveTextContent('2 background jobs are still running')
+    expect(alert).toHaveTextContent('import process')
+    expect(alert).toHaveTextContent('duplicate detect')
+    expect(alert).toHaveTextContent('before resetting the project')
+  })
 })

@@ -1,12 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useRef, useState } from 'react'
-
-import { apiRequest } from '../../api/client'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { InfoBox } from '../../components/InfoBox'
 import { IconDownload } from '../../components/icons'
 import { Select } from '../../components/Select'
 import { FieldLabel } from '../../components/FieldLabel'
+import { LockableField, SettingsSaveBar } from './SettingsSaveBar'
+import { useStructuralSettingsForm } from './useStructuralSettingsForm'
 
 type TaskAllocationMode = 'pre_assigned' | 'claim'
 
@@ -32,85 +30,63 @@ const REQUIRED_REVIEWERS_LABELS: Record<number, { title: string; description: st
 }
 
 export function ExtractionSettingsPanel({ projectId }: { projectId: string }) {
-  const queryClient = useQueryClient()
-  const [allocationMode, setAllocationMode] = useState<TaskAllocationMode>('claim')
-  const [requiredReviewers, setRequiredReviewers] = useState<number>(1)
-  const seeded = useRef(false)
-  const config = useQuery({
-    queryKey: ['extraction-config', projectId],
-    queryFn: () => apiRequest<ExtractionConfig>(`/api/v1/projects/${projectId}/extraction-config`),
-    enabled: Boolean(projectId),
+  const form = useStructuralSettingsForm<ExtractionConfig, ExtractionConfig>({
+    projectId,
+    queryKey: 'extraction-config',
+    resource: 'extraction-config',
+    toDraft: (config) => ({
+      allocationMode: config.allocationMode ?? 'claim',
+      requiredReviewers: config.requiredReviewers ?? 1,
+    }),
   })
-
-  useEffect(() => {
-    if (!config.data || seeded.current) return
-    seeded.current = true
-    setAllocationMode(config.data.allocationMode ?? 'claim')
-    setRequiredReviewers(config.data.requiredReviewers ?? 1)
-  }, [config.data])
-
-  const save = useMutation({
-    mutationFn: (next: ExtractionConfig) => apiRequest(
-      `/api/v1/projects/${projectId}/extraction-config`,
-      { method: 'PUT', body: JSON.stringify(next) },
-    ),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['extraction-config', projectId] }),
-    onError: () => {
-      // Revert the optimistic local value if the change was rejected (e.g.
-      // extractors-per-publication can't change once work has begun) so the
-      // control doesn't keep showing a value the backend didn't accept.
-      if (config.data) {
-        setAllocationMode(config.data.allocationMode)
-        setRequiredReviewers(config.data.requiredReviewers)
-      }
-    },
-  })
-  const updateAllocationMode = (next: TaskAllocationMode) => {
-    setAllocationMode(next)
-    if (seeded.current) save.mutate({ allocationMode: next, requiredReviewers })
-  }
-  const updateRequiredReviewers = (next: number) => {
-    setRequiredReviewers(next)
-    if (seeded.current) save.mutate({ allocationMode, requiredReviewers: next })
-  }
+  const { draft, change, locks } = form
 
   return (
     <CollapsibleSection id="section-extraction-settings" title="Extraction Settings" icon={<IconDownload />}>
       <InfoBox icon={<IconDownload />}>
         <p>Configure how publications are handed out to reviewers for data extraction.</p>
       </InfoBox>
-      {config.error ? <p className="text-danger" role="alert">{config.error.message}</p> : null}
-      {config.isLoading ? <p>Loading…</p> : (
+      {form.loadError ? <p className="text-danger" role="alert">{form.loadError.message}</p> : null}
+      {form.isLoading || !draft ? <p>Loading…</p> : (
         <>
-          <FieldLabel>
-            Extractors per publication
-            <Select
-              value={requiredReviewers}
-              onChange={(event) => updateRequiredReviewers(Number(event.target.value))}
-            >
-              {[1, 2].map((value) => (
-                <option key={value} value={value}>{REQUIRED_REVIEWERS_LABELS[value].title}</option>
-              ))}
-            </Select>
-          </FieldLabel>
-          <p className="text-text-muted">{REQUIRED_REVIEWERS_LABELS[requiredReviewers]?.description}</p>
-          <FieldLabel>
-            Allocation
-            <Select
-              value={allocationMode}
-              onChange={(event) => updateAllocationMode(event.target.value as TaskAllocationMode)}
-            >
-              {(Object.keys(TASK_ALLOCATION_MODE_LABELS) as TaskAllocationMode[]).map((value) => (
-                <option key={value} value={value}>{TASK_ALLOCATION_MODE_LABELS[value]}</option>
-              ))}
-            </Select>
-          </FieldLabel>
+          <LockableField locked={locks.requiredReviewers}>
+            <FieldLabel>
+              Extractors per publication
+              <Select
+                value={draft.requiredReviewers}
+                disabled={Boolean(locks.requiredReviewers)}
+                onChange={(event) => change({ requiredReviewers: Number(event.target.value) })}
+              >
+                {[1, 2].map((value) => (
+                  <option key={value} value={value}>{REQUIRED_REVIEWERS_LABELS[value].title}</option>
+                ))}
+              </Select>
+            </FieldLabel>
+          </LockableField>
+          <p className="text-text-muted">{REQUIRED_REVIEWERS_LABELS[draft.requiredReviewers]?.description}</p>
+          <LockableField locked={locks.allocationMode}>
+            <FieldLabel>
+              Allocation
+              <Select
+                value={draft.allocationMode}
+                disabled={Boolean(locks.allocationMode)}
+                onChange={(event) => change({ allocationMode: event.target.value as TaskAllocationMode })}
+              >
+                {(Object.keys(TASK_ALLOCATION_MODE_LABELS) as TaskAllocationMode[]).map((value) => (
+                  <option key={value} value={value}>{TASK_ALLOCATION_MODE_LABELS[value]}</option>
+                ))}
+              </Select>
+            </FieldLabel>
+          </LockableField>
+          {form.saveError ? <p className="text-danger" role="alert">{form.saveError.message}</p> : null}
+          <SettingsSaveBar
+            status={form.status}
+            dirty={form.dirty}
+            onSave={form.submit}
+            onRevert={form.revert}
+          />
         </>
       )}
-      {save.error ? <p className="text-danger" role="alert">{save.error.message}</p> : null}
-      {save.isPending || save.isSuccess ? <p className="text-text-muted" aria-live="polite">
-        {save.isPending ? 'Saving…' : save.isSuccess ? 'Saved.' : ' '}
-      </p> : null}
     </CollapsibleSection>
   )
 }

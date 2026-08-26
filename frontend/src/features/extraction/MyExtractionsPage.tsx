@@ -14,6 +14,7 @@ import {
   reviewWorkListClass,
 } from '../../components/reviewWorkStyles'
 import { Select } from '../../components/Select'
+import { statusPillClass } from '../../components/statusPillStyles'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 import { type SortDirection, sortByValue } from '../../lib/sort'
 import { ReviewWorkRow } from '../reviews/ReviewWorkRow'
@@ -79,7 +80,7 @@ function ExtractionRow({ projectId, entry, highlightKeywords }: {
       publicationYear={publication.publicationYear}
       doi={publication.doi}
       submittedAt={entry.completedAt}
-      statusContent={<span className="status-pill">v{entry.version}</span>}
+      statusContent={<span className={statusPillClass()}>v{entry.version}</span>}
       editLabel="Edit Extraction"
       highlightKeywords={highlightKeywords}
       renderEditor={({ onDone }) => (
@@ -138,13 +139,13 @@ export function MyExtractionsPage() {
       {query.error ? <p className="text-danger" role="alert">{query.error.message}</p> : null}
       {query.isLoading ? <p>Loading…</p> : null}
       {query.data ? (
-        <>
+        <div>
           {query.data.length > 0 ? (
             <>
               <CountPill count={search ? filteredItems.length : query.data.length}>
                 {search ? `of ${query.data.length} extractions match your filters` : `extraction${query.data.length === 1 ? '' : 's'}`}
               </CountPill>
-              <div className={toolbarClass}>
+              <div className={toolbarClass + " mb-4"}>
                 <label className="grid min-w-[min(20rem,100%)] flex-1 gap-1 text-sm font-semibold text-text-secondary">
                   Search papers
                   <Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Title, author, DOI…" />
@@ -188,12 +189,12 @@ export function MyExtractionsPage() {
                 <PublicationListSortHeader label="Submitted" sortKey="submitted" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
                 <span className={reviewWorkActionsClass}>Actions</span>
               </div>
-              <ul className={reviewWorkListClass} aria-label="Submitted extractions">
+              <ul className={`${reviewWorkListClass} overflow-hidden rounded-md border border-border bg-surface`} aria-label="Submitted extractions">
                 {filteredItems.map((entry) => <ExtractionRow key={entry.id} projectId={projectId} entry={entry} highlightKeywords={highlightKeywords} />)}
               </ul>
             </>
           )}
-        </>
+        </div>
       ) : null}
     </Page>
   )

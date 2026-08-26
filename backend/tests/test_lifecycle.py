@@ -1,4 +1,5 @@
 import pytest
+from sqlalchemy import select
 
 from app.accounts.service import create_user
 from app.analysis.rq_jobs import RQ_SYNTHESIS_JOB
@@ -6,26 +7,36 @@ from app.audit.models import AuditEvent
 from app.conflicts.models import FinalDecision
 from app.conflicts.service import record_final_decision
 from app.core.config import get_settings
-from app.extraction.models import ExtractionStatus, ExtractionWorkItem, FinalExtraction
+from app.extraction.models import (
+    ExtractionStatus,
+    ExtractionWorkItem,
+    FinalExtraction,
+)
 from app.forms.models import FormKind
 from app.forms.service import create_form
 from app.fulltext.models import FullTextRetrieval, PublicationDocument, RetrievalStatus
-from app.jobs.models import BackgroundJob
+from app.imports.models import ImportBatch, ImportStatus
+from app.jobs.models import BackgroundJob, JobStatus
 from app.llm.models import (
     DocumentTextExtraction,
     ProcessingStatus,
     ProjectLlmSettings,
 )
 from app.llm.schema_service import project_settings
+from app.projects.job_safety import ProjectJobsRunningError
 from app.projects.lifecycle import (
+    MergeReversalStageError,
     evaluate_project_completion,
     move_project_back,
     project_integrity_issues,
     reconcile_workflow_integrity,
     reopen_project,
+    require_merge_reversal_allowed,
+    reset_project,
 )
 from app.projects.models import (
     Project,
+    ProjectMembership,
     ProjectStage,
     ResearchQuestion,
     ReviewType,
@@ -53,6 +64,9 @@ def create_included_project(db):
     )
     db.add(project)
     db.flush()
+    db.add(
+        ProjectMembership(project_id=project.id, user_id=admin.id, is_owner=True)
+    )
     publication = Publication(project_id=project.id, title="Included publication")
     db.add(publication)
     db.flush()
@@ -285,6 +299,163 @@ def test_move_project_back_rejects_a_later_or_equal_target_stage(db) -> None:
         move_project_back(db, project, ProjectStage.FULL_TEXT, admin.id)
 
 
+def test_completion_ignores_a_publication_removed_from_the_review(db) -> None:
+    """A deleted publication must not hold a project open forever.
+
+    Its extraction slot is retracted on removal, and it leaves the included
+    cohort -- so the project can complete on the publications that are
+    actually still under review."""
+    from app.publications.deletion import remove_publications_from_review
+
+    admin, project, publication = create_included_project(db)
+    complete_extraction_directly(db, project, publication, admin.id)
+    removed = Publication(project_id=project.id, title="Withdrawn paper")
+    db.add(removed)
+    db.flush()
+    record_final_decision(
+        db, removed.id, ScreeningStage.FULL_TEXT, "include", "agreement", None, None
+    )
+    db.flush()
+    # The full-text INCLUDE enrolled it in extraction; nobody has filled that
+    # slot in.
+    outstanding = db.scalar(
+        select(ExtractionWorkItem).where(
+            ExtractionWorkItem.publication_id == removed.id
+        )
+    )
+    assert outstanding is not None
+    assert outstanding.status != ExtractionStatus.COMPLETED
+
+    # While it is part of the review, its outstanding slot rightly blocks
+    # completion.
+    assert evaluate_project_completion(db, project) is False
+
+    remove_publications_from_review(db, project.id, [removed])
+    db.flush()
+
+    assert evaluate_project_completion(db, project) is True
+    assert project.stage == ProjectStage.COMPLETED
+
+
+def _job(project, job_type: str, status: JobStatus) -> BackgroundJob:
+    return BackgroundJob(
+        project_id=project.id, job_type=job_type, payload={}, status=status
+    )
+
+
+def test_reset_is_refused_while_an_import_job_is_running(db) -> None:
+    """A running handler commits into the project long after the request that
+    queued it returned, so wiping the project under it would resurrect state
+    the reset had just deleted."""
+    admin, project, publication = create_included_project(db)
+    running = _job(project, "parse_import", JobStatus.RUNNING)
+    db.add(running)
+    db.flush()
+
+    with pytest.raises(ProjectJobsRunningError) as raised:
+        reset_project(db, project, admin.id)
+
+    assert raised.value.status_code == 409
+    assert raised.value.code == "project_jobs_running"
+    assert raised.value.details == {
+        "operation": "reset",
+        "runningJobCount": 1,
+        "runningJobTypes": ["parse_import"],
+    }
+    # Nothing was touched: the project keeps its stage, its publications, and
+    # the running job's row (deleting it would not stop the handler).
+    assert project.stage == ProjectStage.EXTRACTION
+    assert db.get(Publication, publication.id) is not None
+    assert db.get(BackgroundJob, running.id).status == JobStatus.RUNNING
+
+
+def test_move_back_is_refused_while_an_llm_job_is_running(db) -> None:
+    admin, project, _publication = create_included_project(db)
+    running = _job(project, RQ_SYNTHESIS_JOB, JobStatus.RUNNING)
+    db.add(running)
+    db.flush()
+
+    with pytest.raises(ProjectJobsRunningError) as raised:
+        move_project_back(db, project, ProjectStage.TITLE_ABSTRACT, admin.id)
+
+    assert raised.value.details["operation"] == "move_back"
+    assert raised.value.details["runningJobTypes"] == [RQ_SYNTHESIS_JOB]
+    assert project.stage == ProjectStage.EXTRACTION
+    assert (
+        db.query(FinalDecision)
+        .filter(FinalDecision.stage == ScreeningStage.FULL_TEXT)
+        .count()
+        == 1
+    )
+
+
+def test_move_back_cancels_queued_jobs_and_leaves_finished_ones_alone(db) -> None:
+    admin, project, _publication = create_included_project(db)
+    queued = _job(project, "generate_export", JobStatus.QUEUED)
+    completed = _job(project, "parse_import", JobStatus.COMPLETED)
+    failed = _job(project, "enrich_publication", JobStatus.FAILED)
+    db.add_all([queued, completed, failed])
+    db.flush()
+
+    move_project_back(db, project, ProjectStage.TITLE_ABSTRACT, admin.id)
+    db.commit()
+
+    assert project.stage == ProjectStage.TITLE_ABSTRACT
+    # Queued work has not started, so cancelling it is safe -- and is the only
+    # way the rewind can proceed without the job later running against state
+    # that no longer exists.
+    assert db.get(BackgroundJob, queued.id).status == JobStatus.CANCELLED
+    assert db.get(BackgroundJob, completed.id).status == JobStatus.COMPLETED
+    assert db.get(BackgroundJob, failed.id).status == JobStatus.FAILED
+    moved_back = next(
+        event for event in db.query(AuditEvent) if event.action == "project.moved_back"
+    )
+    assert moved_back.event_metadata["cancelledQueuedJobs"] == 1
+
+
+def test_reset_proceeds_when_only_finished_jobs_exist(db) -> None:
+    admin, project, publication = create_included_project(db)
+    db.add_all(
+        [
+            _job(project, "parse_import", JobStatus.COMPLETED),
+            _job(project, "generate_export", JobStatus.CANCELLED),
+        ]
+    )
+    db.flush()
+
+    reset_project(db, project, admin.id)
+    db.commit()
+
+    assert project.stage == ProjectStage.DRAFT
+    assert db.get(Publication, publication.id) is None
+
+
+def test_merge_reversal_is_refused_once_the_project_left_duplicate_review(db) -> None:
+    _admin, project, _publication = create_included_project(db)
+
+    with pytest.raises(MergeReversalStageError) as raised:
+        require_merge_reversal_allowed(db, project)
+
+    assert raised.value.status_code == 409
+    assert raised.value.code == "merge_reversal_stage_locked"
+    assert raised.value.details == {
+        "projectStage": ProjectStage.EXTRACTION.value,
+        "requiredStage": ProjectStage.DUPLICATE_REVIEW.value,
+    }
+
+
+def test_merge_reversal_during_duplicate_review_still_checks_running_jobs(db) -> None:
+    _admin, project, _publication = create_included_project(db)
+    project.stage = ProjectStage.DUPLICATE_REVIEW
+    db.add(_job(project, "detect_duplicates", JobStatus.RUNNING))
+    db.flush()
+
+    with pytest.raises(ProjectJobsRunningError) as raised:
+        require_merge_reversal_allowed(db, project)
+
+    assert raised.value.details["operation"] == "undo_merge"
+
+
 def test_integrity_check_detects_missing_downstream_work(db) -> None:
     _, project, publication = create_included_project(db)
     issues = project_integrity_issues(db, project)
@@ -389,3 +560,176 @@ def test_reconcile_workflow_integrity_clears_stray_full_text_work(db) -> None:
     assert result["removedFullTextWorkItems"] == 1
     assert db.query(FullTextRetrieval).filter_by(publication_id=stray.id).count() == 0
     assert db.query(ScreeningWorkItem).filter_by(publication_id=stray.id).count() == 0
+
+
+def test_integrity_check_detects_zero_and_multiple_owners(db) -> None:
+    admin, project, publication = create_included_project(db)
+    create_form(db, "Extraction", FormKind.EXTRACTION, project_id=project.id)
+    db.commit()
+
+    # create_included_project already gave this project exactly one owner.
+    codes = {issue["code"] for issue in project_integrity_issues(db, project)}
+    assert "no_project_owner" not in codes
+    assert "multiple_project_owners" not in codes
+
+    owner_membership = db.scalar(
+        select(ProjectMembership).where(
+            ProjectMembership.project_id == project.id,
+            ProjectMembership.user_id == admin.id,
+        )
+    )
+    owner_membership.is_owner = False
+    db.commit()
+    assert "no_project_owner" in {
+        issue["code"] for issue in project_integrity_issues(db, project)
+    }
+    owner_membership.is_owner = True
+    db.commit()
+
+    # A second concurrent owner cannot actually be inserted here:
+    # uq_project_single_owner (the partial unique index the ownership
+    # migration added) enforces "at most one" at the database level, so this
+    # test DB -- built fresh from current models, not by replaying history --
+    # can never reach that state through an ordinary insert. The
+    # multiple_project_owners check and its repair exist for a database from
+    # before that index existed; verified directly against the detection
+    # logic's SQL by inserting the second owner with the index dropped.
+    from sqlalchemy import text
+
+    db.execute(text("DROP INDEX uq_project_single_owner"))
+    second = create_user(db, "second-owner", "Second", "secret-password")
+    db.add(
+        ProjectMembership(project_id=project.id, user_id=second.id, is_owner=True)
+    )
+    db.commit()
+    assert "multiple_project_owners" in {
+        issue["code"] for issue in project_integrity_issues(db, project)
+    }
+
+    reconcile_workflow_integrity(db, project, admin.id)
+    db.commit()
+
+    remaining_owners = list(
+        db.scalars(
+            select(ProjectMembership).where(
+                ProjectMembership.project_id == project.id,
+                ProjectMembership.is_owner.is_(True),
+            )
+        )
+    )
+    assert len(remaining_owners) == 1
+    # The earlier membership (admin's) is kept, matching the single-owner
+    # migration's own "keep earliest" policy.
+    assert remaining_owners[0].user_id == admin.id
+    assert "multiple_project_owners" not in {
+        issue["code"] for issue in project_integrity_issues(db, project)
+    }
+
+
+def test_integrity_check_detects_and_repairs_inactive_publication_in_cohort(
+    db,
+) -> None:
+    admin, project, publication = create_included_project(db)
+    create_form(db, "Extraction", FormKind.EXTRACTION, project_id=project.id)
+    db.commit()
+
+    # Simulate drift from before remove_publications_from_review existed: the
+    # publication was deactivated directly, without retracting its decision.
+    publication.is_active = False
+    db.commit()
+
+    issues = project_integrity_issues(db, project)
+    assert (
+        "inactive_publication_in_cohort",
+        publication.id,
+    ) in {(issue["code"], issue["entityId"]) for issue in issues}
+
+    result = reconcile_workflow_integrity(db, project, admin.id)
+    db.commit()
+
+    assert result["invalidatedStaleDecisions"] >= 1
+    remaining = db.scalar(
+        select(FinalDecision).where(
+            FinalDecision.publication_id == publication.id,
+            FinalDecision.is_valid.is_(True),
+        )
+    )
+    assert remaining is None
+    assert "inactive_publication_in_cohort" not in {
+        issue["code"] for issue in project_integrity_issues(db, project)
+    }
+
+
+def test_integrity_check_detects_and_repairs_disconnected_import_batch(db) -> None:
+    admin, project, _publication = create_included_project(db)
+    batch = ImportBatch(
+        project_id=project.id,
+        original_filename="refs.ris",
+        stored_path="/tmp/refs.ris",
+        file_type="ris",
+        status=ImportStatus.PROCESSING,
+        created_by_id=admin.id,
+    )
+    db.add(batch)
+    db.flush()
+    failed_job = BackgroundJob(
+        project_id=project.id,
+        job_type="parse_import",
+        payload={"import_batch_id": batch.id},
+        status=JobStatus.FAILED,
+    )
+    db.add(failed_job)
+    db.commit()
+
+    issues = project_integrity_issues(db, project)
+    assert (
+        "import_batch_status_disconnected_from_job",
+        batch.id,
+    ) in {(issue["code"], issue["entityId"]) for issue in issues}
+
+    result = reconcile_workflow_integrity(db, project, admin.id)
+    db.commit()
+
+    assert result["repairedImportBatches"] == 1
+    db.refresh(batch)
+    assert batch.status == ImportStatus.FAILED
+    assert "import_batch_status_disconnected_from_job" not in {
+        issue["code"] for issue in project_integrity_issues(db, project)
+    }
+
+
+def test_integrity_check_does_not_repair_a_batch_whose_job_is_still_running(
+    db,
+) -> None:
+    """A batch stuck Processing with an active (queued/running) job is not
+    disconnected -- it might just be slow. Only a terminally failed job with
+    no batch-status update is unambiguous."""
+    admin, project, _publication = create_included_project(db)
+    batch = ImportBatch(
+        project_id=project.id,
+        original_filename="refs.ris",
+        stored_path="/tmp/refs.ris",
+        file_type="ris",
+        status=ImportStatus.PROCESSING,
+        created_by_id=admin.id,
+    )
+    db.add(batch)
+    db.flush()
+    db.add(
+        BackgroundJob(
+            project_id=project.id,
+            job_type="parse_import",
+            payload={"import_batch_id": batch.id},
+            status=JobStatus.RUNNING,
+        )
+    )
+    db.commit()
+
+    assert "import_batch_status_disconnected_from_job" not in {
+        issue["code"] for issue in project_integrity_issues(db, project)
+    }
+
+    reconcile_workflow_integrity(db, project, admin.id)
+    db.commit()
+    db.refresh(batch)
+    assert batch.status == ImportStatus.PROCESSING

@@ -26,11 +26,14 @@ import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 import { formatSubmittedAtParts } from '../../lib/format'
 import { type SortDirection, sortByValue } from '../../lib/sort'
 import { LlmEvidence } from '../llm/LlmTaskComponents'
+import { llmValidationClass } from '../llm/llmStyles'
 import { StageEyebrow } from '../projects/StageEyebrow'
+import { statusPillClass } from '../../components/statusPillStyles'
 import type { ValidationResult } from './types'
 import { Input } from '../../components/Input'
 import { Select } from '../../components/Select'
 import { Button } from '../../components/Button'
+import { cardStyles } from '../../components/Card'
 import { Page } from '../../components/Page'
 
 interface ValidationReviewItem {
@@ -93,9 +96,9 @@ function statusLabel(item: ReviewItem) {
 }
 
 function statusClass(item: ReviewItem) {
-  if (item.state === 'failed') return 'status-pill status-pill--danger'
-  if (item.state === 'ready' && item.issues.length > 0) return 'status-pill status-pill--warning'
-  return 'status-pill'
+  if (item.state === 'failed') return statusPillClass('danger')
+  if (item.state === 'ready' && item.issues.length > 0) return statusPillClass('warning')
+  return statusPillClass()
 }
 
 function sortValue(item: ReviewItem, key: ValidationSortKey): string | number {
@@ -169,11 +172,14 @@ function ValidationRow({
       </div>
 
       {item.issues.length > 0 || item.error || item.fullTextAvailable || ['failed', 'awaiting_validation'].includes(item.state) ? (
-        <details className="validation-review-card__issues" open={item.issues.length > 0}>
+        <details
+          className="validation-review-card__issues mt-4 cursor-default border-t border-border pt-4 [&>summary]:w-fit [&>summary]:cursor-pointer [&>summary]:font-[650] [&>summary]:text-primary"
+          open={item.issues.length > 0}
+        >
           <summary>{item.issues.length > 0 ? `Validation findings (${item.issues.length})` : 'Validation details'}</summary>
-          {item.error ? <p className="error">{item.error}</p> : null}
+          {item.error ? <p className="text-danger">{item.error}</p> : null}
           {item.issues.map((result) => (
-            <section className={`llm-validation llm-validation--${result.assessment}`} key={result.fieldKey}>
+            <section className={llmValidationClass(result.assessment)} key={result.fieldKey}>
               <h3>{result.fieldLabel}</h3>
               <p>
                 <Tooltip text={ASSESSMENT_HELP[result.assessment]}>
@@ -190,7 +196,7 @@ function ValidationRow({
               ) : null}
             </section>
           ))}
-          <div className="toolbar">
+          <div className="toolbar flex flex-wrap items-center gap-3 my-5 max-[760px]:gap-2">
             {item.fullTextAvailable ? (
               <a href={`/api/v1/projects/${projectId}/publications/${item.publicationId}/full-text/content`} target="_blank" rel="noreferrer">
                 View PDF
@@ -252,7 +258,7 @@ export function ValidationReviewPage() {
   }
 
   if (review.isLoading) return <Page><p>Loading validation review…</p></Page>
-  if (review.isError || !review.data) return <Page><p className="error" role="alert">Validation review could not be loaded.</p></Page>
+  if (review.isError || !review.data) return <Page><p className="text-danger" role="alert">Validation review could not be loaded.</p></Page>
   if (!review.data.enabled) {
     return <Page><StageEyebrow stage="extraction_quality" /><h1>LLM Extraction Validation</h1><p>LLM extraction validation is not enabled for this project.</p></Page>
   }
@@ -261,7 +267,7 @@ export function ValidationReviewPage() {
     <Page>
       <StageEyebrow stage="extraction_quality" />
       <h1>Review LLM Extraction Validation</h1>
-      <section className="card">
+      <section className={cardStyles} data-ui="card">
         <h2>Validation progress</h2>
         <CountPill count={review.data.progress.completed}>
           of {review.data.progress.total} validated
@@ -269,21 +275,21 @@ export function ValidationReviewPage() {
           {review.data.progress.failed ? ` · ${review.data.progress.failed} failed` : ''}
           {review.data.progress.unavailable ? ` · ${review.data.progress.unavailable} unavailable` : ''}
         </CountPill>
-        <p className="muted">Human extraction values remain authoritative. Review flagged fields, then correct the extraction if needed.</p>
+        <p className="text-text">Human extraction values remain authoritative. Review flagged fields, then correct the extraction if needed.</p>
       </section>
 
-      {retry.error ? <p className="error" role="alert">{retry.error.message}</p> : null}
+      {retry.error ? <p className="text-danger" role="alert">{retry.error.message}</p> : null}
       {totalReviewItems > 0 ? (
         <>
           <CountPill count={search ? visibleItems.length : totalReviewItems}>
             {search ? `of ${totalReviewItems} publications match your filters` : `publication${totalReviewItems === 1 ? '' : 's'} need review`}
           </CountPill>
-          <div className="toolbar">
-            <label className="paper-search-field">
+          <div className="toolbar flex flex-wrap items-center gap-3 my-5 max-[760px]:gap-2">
+            <label className="paper-search-field flex-[0_1_32rem] w-[min(32rem,100%)]">
               Search papers
               <Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Title, author, DOI…" />
             </label>
-            <label className="review-work-mobile-sort">
+            <label className="review-work-mobile-sort hidden max-[900px]:grid">
               Sort by
               <Select value={`${sortKey}:${sortDirection}`} onChange={(event) => {
                 const [key, direction] = event.target.value.split(':') as [ValidationSortKey, SortDirection]
@@ -307,9 +313,9 @@ export function ValidationReviewPage() {
       ) : null}
 
       {totalReviewItems === 0 ? (
-        <section className="card"><p>No validation mismatches require review.</p></section>
+        <section className={cardStyles} data-ui="card"><p>No validation mismatches require review.</p></section>
       ) : visibleItems.length === 0 ? (
-        <p className="muted">No validation items match your filters.</p>
+        <p className="text-text">No validation items match your filters.</p>
       ) : (
         <>
           <div className={`${reviewWorkGridClass} mt-6 mb-2 px-4 text-[0.72rem] font-bold tracking-[0.04em] text-text-muted uppercase max-[520px]:hidden`}>
@@ -323,7 +329,7 @@ export function ValidationReviewPage() {
             <PublicationListSortHeader label="Submitted" sortKey="submitted" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
             <span className={reviewWorkActionsClass}>Actions</span>
           </div>
-          <ul className="card-list stacked publication-list">
+          <ul className="publication-list grid grid-cols-1 items-start gap-2 mb-6">
             {visibleItems.map((item) => (
               <ValidationRow key={item.workItemId} projectId={projectId} item={item} highlightKeywords={highlightKeywords} retry={(target) => retry.mutate(target)} />
             ))}

@@ -6,13 +6,19 @@ from pydantic import Field
 from app.api.schemas import ApiModel
 from app.forms.schemas import FieldResponse
 from app.projects.models import TaskAllocationMode
+from app.quality.models import QualityAggregation, QualityMode
 from app.screening.schemas import PublicationItem
 
 
 class QualityConfigUpdate(ApiModel):
+    """Typed rather than free-text on purpose: an unrecognized ``mode`` or
+    ``aggregation`` used to be stored verbatim and then silently reinterpreted
+    downstream (any unknown aggregation scored as a plain sum). Pydantic now
+    rejects it with a 422 before it reaches the database."""
+
     enabled: bool
-    mode: str = "both"
-    aggregation: str = "sum"
+    mode: QualityMode = QualityMode.BOTH
+    aggregation: QualityAggregation = QualityAggregation.SUM
     allocation_mode: TaskAllocationMode = Field(
         default=TaskAllocationMode.CLAIM, alias="allocationMode"
     )
@@ -20,8 +26,8 @@ class QualityConfigUpdate(ApiModel):
 
 class QualityConfigResponse(ApiModel):
     enabled: bool
-    mode: str
-    aggregation: str
+    mode: QualityMode
+    aggregation: QualityAggregation
     allocation_mode: TaskAllocationMode = Field(serialization_alias="allocationMode")
 
 

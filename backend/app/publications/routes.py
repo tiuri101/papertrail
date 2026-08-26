@@ -1,9 +1,9 @@
 from typing import Any
 
-from fastapi import APIRouter, Depends, File, UploadFile, status
+from fastapi import APIRouter, Depends, File, Query, UploadFile, status
 from fastapi.responses import FileResponse, Response
 from sqlalchemy import select
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session
 
 from app.accounts.dependencies import get_current_user
 from app.accounts.models import User
@@ -19,7 +19,6 @@ from app.extraction.service import (
 )
 from app.forms.models import FormField
 from app.fulltext.documents import active_document
-from app.fulltext.models import PublicationDocument
 from app.fulltext.storage import storage_path
 from app.imports.pdf_import import (
     create_pdf_only_batch,
@@ -30,6 +29,20 @@ from app.jobs.service import enqueue_job
 from app.projects.dependencies import require_project_member_csrf
 from app.projects.models import Criterion, ScreeningStage
 from app.projects.service import is_project_manager, require_project_access
+from app.publications.deletion import remove_publications_from_review
+from app.publications.listing import (
+    DEFAULT_PAGE_SIZE,
+    EAGER_LOAD_OPTIONS,
+    MAX_PAGE_SIZE,
+    PdfStatusFilterValue,
+    PublicationFilters,
+    PublicationPage,
+    PublicationSortKey,
+    ScreeningFilterValue,
+    SortDirection,
+    matching_publication_ids,
+    publications_page,
+)
 from app.publications.models import ConflictStatus, MetadataConflict, Publication
 from app.publications.schemas import (
     BulkDeleteRequest,
@@ -37,10 +50,13 @@ from app.publications.schemas import (
     ConflictResolve,
     ConflictResponse,
     PublicationCreate,
+    PublicationIdsResponse,
+    PublicationPageResponse,
     PublicationResponse,
     PublicationUpdate,
 )
 from app.publications.service import normalize_doi, sync_new_publications_with_stage
+from app.quality.models import QualityResponse, QualityWorkItem
 from app.reporting.bibtex import build_bibtex_for_publications
 from app.screening.service import current_decisions
 
@@ -198,31 +214,80 @@ def _extraction_review_details(
 
 
 @router.get(
-    "/projects/{project_id}/publications", response_model=list[PublicationResponse]
+    "/projects/{project_id}/publications", response_model=PublicationPageResponse
 )
 def list_publications(
     project_id: str,
+    search: str | None = None,
+    title_abstract: ScreeningFilterValue | None = Query(
+        default=None, alias="titleAbstract"
+    ),
+    full_text: ScreeningFilterValue | None = Query(default=None, alias="fullText"),
+    pdf_status: PdfStatusFilterValue | None = Query(default=None, alias="pdfStatus"),
+    sort: PublicationSortKey = "title",
+    direction: SortDirection = "asc",
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(
+        default=DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE, alias="pageSize"
+    ),
     user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
-) -> list[Publication]:
+) -> PublicationPage:
+    """One page of a project's publications, narrowed and ordered server-side.
+
+    This deliberately has no "give me everything" mode: the whole point is
+    that a project's publication list is unbounded, and a client that can ask
+    for all of it will. Bulk actions that need to span pages ask for ids
+    instead, through the sibling ``/publications/ids`` endpoint.
+    """
     require_project_access(db, project_id, user)
-    return list(
-        db.scalars(
-            select(Publication)
-            .options(
-                selectinload(Publication.documents).joinedload(
-                    PublicationDocument.uploaded_by
-                ),
-                selectinload(Publication.final_decisions),
-                selectinload(Publication.extraction_work_items),
-                selectinload(Publication.full_text_retrieval),
-            )
-            .where(
-                Publication.project_id == project_id, Publication.is_active.is_(True)
-            )
-            .order_by(Publication.title)
-        )
+    return publications_page(
+        db,
+        project_id,
+        filters=PublicationFilters(
+            search=search,
+            title_abstract=title_abstract,
+            full_text=full_text,
+            pdf_status=pdf_status,
+        ),
+        sort=sort,
+        direction=direction,
+        page=page,
+        page_size=page_size,
     )
+
+
+@router.get(
+    "/projects/{project_id}/publications/ids", response_model=PublicationIdsResponse
+)
+def list_publication_ids(
+    project_id: str,
+    search: str | None = None,
+    title_abstract: ScreeningFilterValue | None = Query(
+        default=None, alias="titleAbstract"
+    ),
+    full_text: ScreeningFilterValue | None = Query(default=None, alias="fullText"),
+    pdf_status: PdfStatusFilterValue | None = Query(default=None, alias="pdfStatus"),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """Every publication id matching the same filters the list accepts.
+
+    Registered ahead of ``/publications/{publication_id}`` so "ids" is read
+    as this route rather than as a publication id.
+    """
+    require_project_access(db, project_id, user)
+    ids = matching_publication_ids(
+        db,
+        project_id,
+        filters=PublicationFilters(
+            search=search,
+            title_abstract=title_abstract,
+            full_text=full_text,
+            pdf_status=pdf_status,
+        ),
+    )
+    return {"ids": ids, "total": len(ids)}
 
 
 @router.get(
@@ -238,19 +303,63 @@ def get_publication(
     require_project_access(db, project_id, user)
     publication = db.scalar(
         select(Publication)
-        .options(
-            selectinload(Publication.documents).joinedload(
-                PublicationDocument.uploaded_by
-            ),
-            selectinload(Publication.final_decisions),
-            selectinload(Publication.extraction_work_items),
-            selectinload(Publication.full_text_retrieval),
-        )
+        .options(*EAGER_LOAD_OPTIONS)
         .where(Publication.id == publication_id)
     )
     if publication is None or publication.project_id != project_id:
         raise NotFoundError("Publication not found")
     return publication
+
+
+def _quality_review_details(
+    db: Session, publication_id: str
+) -> dict[str, Any] | None:
+    item = db.scalar(
+        select(QualityWorkItem).where(
+            QualityWorkItem.publication_id == publication_id
+        )
+    )
+    if item is None:
+        return None
+    response = db.scalar(
+        select(QualityResponse)
+        .where(
+            QualityResponse.work_item_id == item.id,
+            QualityResponse.is_current.is_(True),
+        )
+        .order_by(QualityResponse.created_at.desc())
+    )
+    response_payload = None
+    if response is not None:
+        reviewer = db.get(User, response.reviewer_id)
+        fields = list(
+            db.scalars(
+                select(FormField)
+                .where(FormField.form_version_id == response.form_version_id)
+                .order_by(FormField.position)
+            )
+        )
+        response_payload = {
+            "reviewerName": reviewer.display_name if reviewer else None,
+            "answers": response.answers,
+            "totalScore": response.total_score,
+            "version": response.version,
+            "fields": [
+                {
+                    "stableKey": field.stable_key,
+                    "label": field.label,
+                    "fieldType": field.field_type.value,
+                    "required": field.required,
+                    "options": field.options,
+                }
+                for field in fields
+            ],
+        }
+    return {
+        "status": item.status.value,
+        "completedAt": item.completed_at,
+        "response": response_payload,
+    }
 
 
 @router.get("/projects/{project_id}/publications/{publication_id}/review-details")
@@ -276,6 +385,7 @@ def get_publication_review_details(
         "extraction": _extraction_review_details(
             db, publication_id, user.id, is_project_manager(db, project_id, user)
         ),
+        "quality": _quality_review_details(db, publication_id),
     }
 
 
@@ -375,7 +485,7 @@ def delete_publication(
         or not publication.is_active
     ):
         raise NotFoundError("Publication not found")
-    publication.is_active = False
+    remove_publications_from_review(db, project_id, [publication])
     record_audit(
         db,
         action="publication.deleted",
@@ -404,8 +514,8 @@ def bulk_delete_publications(
             )
         )
     )
+    remove_publications_from_review(db, project_id, publications)
     for publication in publications:
-        publication.is_active = False
         record_audit(
             db,
             action="publication.deleted",

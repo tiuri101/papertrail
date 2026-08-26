@@ -200,12 +200,145 @@ def test_admin_updates_and_removes_project_membership(client, db) -> None:
     assert memberships[0]["isOwner"] is True
 
 
+def _add_member(client, csrf: str, project_id: str, user_id: str) -> str:
+    return client.post(
+        f"/api/v1/projects/{project_id}/members",
+        json={
+            "userId": user_id,
+            "canTitleAbstractScreen": True,
+            "canFullTextScreen": False,
+            "canExtract": False,
+            "canAssessQuality": False,
+            "canAdjudicate": False,
+        },
+        headers={"X-CSRF-Token": csrf},
+    ).json()["id"]
+
+
+def _owner_user_ids(db, project_id: str) -> set[str]:
+    return set(
+        db.scalars(
+            select(ProjectMembership.user_id).where(
+                ProjectMembership.project_id == project_id,
+                ProjectMembership.is_owner.is_(True),
+            )
+        )
+    )
+
+
+def test_the_sole_owner_cannot_be_removed_from_their_own_project(client, db) -> None:
+    """A project with no owner has nobody who can manage it and no operation
+    that can give it an owner back, so removing the owner is refused outright
+    -- Transfer Ownership is the only way the role moves."""
+    owner = create_user(db, "owner", "Project Owner", "secret-password")
+    db.commit()
+    csrf = login(client, "owner", "secret-password")
+    project_id = client.post(
+        "/api/v1/projects",
+        json={"name": "Owned Review", "reviewType": "systematic_review"},
+        headers={"X-CSRF-Token": csrf},
+    ).json()["id"]
+    owner_membership_id = client.get(f"/api/v1/projects/{project_id}").json()[
+        "memberships"
+    ][0]["id"]
+
+    refused = client.delete(
+        f"/api/v1/projects/{project_id}/members/{owner_membership_id}",
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    assert refused.status_code == 409
+    error = refused.json()["error"]
+    assert error["code"] == "project_ownership_required"
+    assert "Transfer ownership" in error["message"]
+    db.expire_all()
+    assert _owner_user_ids(db, project_id) == {owner.id}
+    # A refused removal writes nothing at all -- no audit event, no
+    # "you were removed" email.
+    assert "membership.removed" not in {event.action for event in db.query(AuditEvent)}
+
+
+def test_transferring_ownership_leaves_exactly_one_owner(client, db) -> None:
+    owner = create_user(db, "owner", "Project Owner", "secret-password")
+    successor = create_user(db, "successor", "Successor", "successor-password")
+    db.commit()
+    csrf = login(client, "owner", "secret-password")
+    project_id = client.post(
+        "/api/v1/projects",
+        json={"name": "Owned Review", "reviewType": "systematic_review"},
+        headers={"X-CSRF-Token": csrf},
+    ).json()["id"]
+    _add_member(client, csrf, project_id, successor.id)
+
+    transferred = client.post(
+        f"/api/v1/projects/{project_id}/transfer-ownership",
+        json={"userId": successor.id},
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    assert transferred.status_code == 200
+    roles = {
+        membership["userId"]: membership["isOwner"]
+        for membership in transferred.json()["memberships"]
+    }
+    assert roles == {owner.id: False, successor.id: True}
+    db.expire_all()
+    assert _owner_user_ids(db, project_id) == {successor.id}
+    assert "project.ownership_transferred" in {
+        event.action for event in db.query(AuditEvent)
+    }
+
+    # The former owner is now an ordinary member and can be removed like one.
+    former_owner_membership_id = next(
+        membership["id"]
+        for membership in client.get(f"/api/v1/projects/{project_id}").json()[
+            "memberships"
+        ]
+        if membership["userId"] == owner.id
+    )
+    successor_csrf = login(client, "successor", "successor-password")
+    removed = client.delete(
+        f"/api/v1/projects/{project_id}/members/{former_owner_membership_id}",
+        headers={"X-CSRF-Token": successor_csrf},
+    )
+    assert removed.status_code == 204
+    db.expire_all()
+    assert _owner_user_ids(db, project_id) == {successor.id}
+
+
+def test_ownership_can_only_be_transferred_to_an_existing_member(client, db) -> None:
+    create_user(db, "owner", "Project Owner", "secret-password")
+    outsider = create_user(db, "outsider", "Outsider", "outsider-password")
+    db.commit()
+    csrf = login(client, "owner", "secret-password")
+    project_id = client.post(
+        "/api/v1/projects",
+        json={"name": "Owned Review", "reviewType": "systematic_review"},
+        headers={"X-CSRF-Token": csrf},
+    ).json()["id"]
+
+    rejected = client.post(
+        f"/api/v1/projects/{project_id}/transfer-ownership",
+        json={"userId": outsider.id},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert rejected.status_code == 404
+
+    self_transfer = client.post(
+        f"/api/v1/projects/{project_id}/transfer-ownership",
+        json={"userId": db.scalar(select(User.id).where(User.username == "owner"))},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert self_transfer.status_code == 409
+    assert self_transfer.json()["error"]["code"] == "project_ownership_required"
+
+
 def test_adding_a_reviewer_mid_stage_rebalances_the_backlog_onto_them(
     client, db
 ) -> None:
     admin = create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
-    reviewer1 = create_user(db, "reviewer1", "Reviewer 1", "password-1")
-    reviewer2 = create_user(db, "reviewer2", "Reviewer 2", "password-2")
+    reviewer1 = create_user(db, "reviewer1", "Reviewer 1", "long-password-1")
+    reviewer2 = create_user(db, "reviewer2", "Reviewer 2", "long-password-2")
     project = Project(
         name="Test",
         review_type=ReviewType.SYSTEMATIC_REVIEW,
@@ -457,7 +590,119 @@ def test_reset_project_clears_publications_but_keeps_configuration(client, db) -
     assert len(details["researchQuestions"]) == 1
 
     publications = client.get(f"/api/v1/projects/{project_id}/publications")
-    assert publications.json() == []
+    assert publications.json()["items"] == []
+
+
+def test_reset_project_removes_the_files_its_deleted_rows_pointed_at(
+    client, db, tmp_path, monkeypatch
+) -> None:
+    """Reset erases every publication, import and export a project has, so it
+    orphans exactly the files Delete Project does. Before the shared cleanup
+    ran here, the rows naming those paths were deleted and the files stayed on
+    disk with nothing left that knew about them."""
+    settings = get_settings()
+    monkeypatch.setattr(settings, "pdf_storage_path", tmp_path / "pdfs")
+    monkeypatch.setattr(settings, "import_dir", tmp_path / "imports")
+    monkeypatch.setattr(settings, "export_dir", tmp_path / "exports")
+    settings.ensure_directories()
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    db.commit()
+    csrf = login(client, "admin", "secret-password")
+    project_id = client.post(
+        "/api/v1/projects",
+        json={"name": "Recyclable Review", "reviewType": "scoping_review"},
+        headers={"X-CSRF-Token": csrf},
+    ).json()["id"]
+    publication = client.post(
+        f"/api/v1/projects/{project_id}/publications",
+        json={"title": "Some paper"},
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+
+    admin = db.scalar(select(User).where(User.username == "admin"))
+    import_directory = settings.import_dir / project_id
+    import_directory.mkdir(parents=True)
+    import_file = import_directory / "source.ris"
+    import_file.write_text("TY  - JOUR", encoding="utf-8")
+    batch = ImportBatch(
+        project_id=project_id,
+        original_filename="source.ris",
+        stored_path=str(import_file),
+        file_type="ris",
+        created_by_id=admin.id,
+    )
+    db.add(batch)
+    db.commit()
+
+    pdf_directory = (
+        settings.pdf_storage_path
+        / "projects"
+        / project_id
+        / "publications"
+        / publication["id"]
+    )
+    pdf_directory.mkdir(parents=True)
+    (pdf_directory / "paper.pdf").write_bytes(b"project PDF")
+    staging_directory = settings.pdf_storage_path / "staging" / "imports" / batch.id
+    staging_directory.mkdir(parents=True)
+    (staging_directory / "unmatched.pdf").write_bytes(b"staged PDF")
+    export_directory = settings.export_dir / project_id
+    export_directory.mkdir(parents=True)
+    (export_directory / "results.xlsx").write_bytes(b"export")
+    other_project_pdfs = settings.pdf_storage_path / "projects" / "another-project"
+    other_project_pdfs.mkdir(parents=True)
+    (other_project_pdfs / "keep.pdf").write_bytes(b"keep")
+
+    reset = client.post(
+        f"/api/v1/projects/{project_id}/reset", headers={"X-CSRF-Token": csrf}
+    )
+    assert reset.status_code == 200
+    assert reset.json()["stage"] == "draft"
+
+    assert not (settings.pdf_storage_path / "projects" / project_id).exists()
+    assert not staging_directory.exists()
+    assert not import_directory.exists()
+    assert not export_directory.exists()
+    # Another project's storage is untouched, and the project itself survives.
+    assert (other_project_pdfs / "keep.pdf").read_bytes() == b"keep"
+    assert client.get(f"/api/v1/projects/{project_id}").status_code == 200
+
+
+def test_reset_project_is_refused_while_a_job_is_running(client, db) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    db.commit()
+    csrf = login(client, "admin", "secret-password")
+    project_id = client.post(
+        "/api/v1/projects",
+        json={"name": "Busy Review", "reviewType": "scoping_review"},
+        headers={"X-CSRF-Token": csrf},
+    ).json()["id"]
+    client.post(
+        f"/api/v1/projects/{project_id}/publications",
+        json={"title": "Still being imported"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    db.add(
+        BackgroundJob(
+            project_id=project_id,
+            job_type="parse_import",
+            payload={},
+            status=JobStatus.RUNNING,
+        )
+    )
+    db.commit()
+
+    response = client.post(
+        f"/api/v1/projects/{project_id}/reset", headers={"X-CSRF-Token": csrf}
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "project_jobs_running"
+    assert response.json()["error"]["details"]["operation"] == "reset"
+    assert client.get(f"/api/v1/projects/{project_id}").json()["stage"] == "draft"
+    assert (
+        client.get(f"/api/v1/projects/{project_id}/publications").json()["total"] == 1
+    )
 
 
 def test_admin_sets_highlight_keywords_and_reviewer_can_read_them(client, db) -> None:
@@ -708,3 +953,63 @@ def test_delete_project_waits_for_running_jobs(client, db) -> None:
         "Wait for running background jobs to finish before deleting the project"
     )
     assert client.get(f"/api/v1/projects/{project_id}").status_code == 200
+
+
+def test_screening_config_endpoint_rejects_structural_change_after_work_items(
+    client, db
+) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    db.commit()
+    csrf = login(client, "admin", "secret-password")
+    project_id = client.post(
+        "/api/v1/projects",
+        json={"name": "Review", "reviewType": "systematic_review"},
+        headers={"X-CSRF-Token": csrf},
+    ).json()["id"]
+
+    endpoint = f"/api/v1/projects/{project_id}/screening-config/title_abstract"
+    payload = {
+        "requiredReviewers": 2,
+        "allocationMode": "independent",
+        "conflictResolution": "admin_consensus",
+        "uncertainResolution": "admin_consensus",
+    }
+    # Before any work exists the same change is perfectly legal.
+    assert client.put(endpoint, json=payload, headers={"X-CSRF-Token": csrf}).status_code == 200
+
+    publication = Publication(project_id=project_id, title="Paper")
+    db.add(publication)
+    db.flush()
+    db.add(
+        ScreeningWorkItem(
+            project_id=project_id,
+            publication_id=publication.id,
+            stage=ScreeningStage.TITLE_ABSTRACT,
+            slot_number=1,
+            random_rank="rank",
+        )
+    )
+    db.commit()
+
+    rejected = client.put(
+        endpoint,
+        json={**payload, "requiredReviewers": 1},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert rejected.status_code == 409
+    error = rejected.json()["error"]
+    # A distinct code plus the offending setting, so a client can freeze that
+    # one control rather than having to parse a generic message.
+    assert error["code"] == "structural_setting_locked"
+    assert error["details"] == {
+        "setting": "requiredReviewers",
+        "stage": "title_abstract",
+    }
+
+    accepted = client.put(
+        endpoint,
+        json={**payload, "conflictResolution": "majority"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert accepted.status_code == 200
+    assert accepted.json()["requiredReviewers"] == 2

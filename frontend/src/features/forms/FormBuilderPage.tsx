@@ -48,14 +48,14 @@ function TemplateCard({ template, isAdmin, onRemove, removing }: {
   })
 
   return (
-    <li className="form-template-card">
+    <li className="form-template-card grid grid-cols-[minmax(0,1fr)_auto] min-w-0 items-center gap-5 rounded-md border border-border bg-surface-raised p-5">
       <div>
-        <span className="form-template-card__kind">
+        <span className="form-template-card__kind text-[0.72rem] font-[750] tracking-[0.07em] text-primary uppercase">
           {template.kind === 'quality' ? 'Quality assessment' : 'Extraction'}
         </span>
-        <h3>{template.name}</h3>
+        <h3 className="my-2">{template.name}</h3>
       </div>
-      <div className="toolbar form-template-card__actions" data-template-actions>
+      <div className="toolbar form-template-card__actions flex flex-wrap items-center gap-3 justify-self-end m-0 max-[760px]:gap-2" data-template-actions>
         <Button
           type="button"
           variant="secondary"
@@ -76,9 +76,9 @@ function TemplateCard({ template, isAdmin, onRemove, removing }: {
         ) : null}
       </div>
       {expanded ? (
-        <div className="form-editor-existing-form">
+        <div className="form-editor-existing-form grid gap-3 [&>p]:m-0">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <span className="form-editor-selection-type">Reusable template</span>
+            <span className="form-editor-selection-type block text-base font-[750] tracking-[0.02em] text-primary">Reusable template</span>
             {isAdmin ? (
               renaming ? (
                 <form
@@ -103,10 +103,10 @@ function TemplateCard({ template, isAdmin, onRemove, removing }: {
                 </Button>
               )
             ) : (
-              <p className="muted">Templates are read-only unless you are an installation administrator.</p>
+              <p className="text-text">Templates are read-only unless you are an installation administrator.</p>
             )}
           </div>
-          {renameTemplate.error ? <p className="error" role="alert">{renameTemplate.error.message}</p> : null}
+          {renameTemplate.error ? <p className="text-danger" role="alert">{renameTemplate.error.message}</p> : null}
           <FormFieldsEditor
             formId={template.id}
             isQualityForm={template.kind === 'quality'}
@@ -145,7 +145,7 @@ export function FormBuilderPage() {
     return (
       <Page>
         <h1>Forms and Templates</h1>
-        <p className="error" role="alert">
+        <p className="text-danger" role="alert">
           Only the project owner or an administrator can manage forms and templates.
         </p>
       </Page>
@@ -156,30 +156,30 @@ export function FormBuilderPage() {
     <Page>
       <StageEyebrow stage="draft" />
       <h1>Forms and Templates</h1>
-      <p className="muted">
+      <p className="muted text-text">
         This project's extraction and (optional) quality assessment forms, shown to reviewers
         during screening and data extraction.
       </p>
       <FormKindSection projectId={projectId} kind="extraction" id="section-extraction-form" />
       <FormKindSection projectId={projectId} kind="quality" id="section-quality-form" />
       <Card as="section" id="section-manage-templates" className="form-template-manager">
-        <div className="form-template-manager__heading">
+        <div className="form-template-manager__heading mb-5 flex items-start justify-between gap-4">
           <div>
-            <h2>Manage Templates</h2>
+            <h2 className="mt-0">Manage Templates</h2>
           </div>
           <CountPill count={templateCatalog.length}>
             template{templateCatalog.length === 1 ? '' : 's'}
           </CountPill>
         </div>
-        {templates.error ? <p className="error" role="alert">{templates.error.message}</p> : null}
-        {templates.isLoading ? <p className="muted">Loading templates…</p> : null}
+        {templates.error ? <p className="text-danger" role="alert">{templates.error.message}</p> : null}
+        {templates.isLoading ? <p className="text-text">Loading templates…</p> : null}
         {templateCatalog.length === 0 ? (
-          <div className="empty-state form-template-manager__empty">
+          <div className="empty-state form-template-manager__empty grid justify-items-center rounded-md border border-dashed border-border-strong p-8 text-center">
             <h3>No reusable templates yet</h3>
             <p>Save an extraction or quality form above as a template to build your catalog.</p>
           </div>
         ) : (
-          <ul className="form-template-grid" aria-label="Form templates">
+          <ul className="form-template-grid grid grid-cols-1 gap-3 m-0 p-0 list-none" aria-label="Form templates">
             {templateCatalog.map((template) => (
               <TemplateCard
                 key={template.id}

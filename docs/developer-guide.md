@@ -42,6 +42,25 @@ python -m ruff check app tests
 python -m mypy app
 ```
 
+## Updating backend dependencies
+
+`backend/requirements.lock` pins every third-party backend dependency (transitive included) to an exact version with hashes. The production Docker image installs from this lock file with `pip install --require-hashes`, not from `pyproject.toml`'s open version ranges, so the same source revision resolves the same dependency versions until the lock is deliberately regenerated. `pyproject.toml` stays the human-maintained source of *declared* dependencies and their acceptable ranges.
+
+To deliberately update dependencies:
+
+1. Edit the version ranges in `backend/pyproject.toml` as needed.
+2. Regenerate the lock **inside a Linux container matching the production base image**, not on a Windows/macOS host — some dependencies (e.g. `uvloop`, a Unix-only dependency of `uvicorn[standard]`) resolve differently per platform, and a lock generated on the wrong platform silently omits them:
+
+   ```powershell
+   cd backend
+   docker run --rm -v ${PWD}:/work -w /work python:3.13-slim sh -c "pip install pip-tools && pip-compile --generate-hashes --allow-unsafe --output-file=requirements.lock pyproject.toml"
+   ```
+
+3. Run the full backend test suite (`python -m pytest`, `python -m mypy app`) against the newly locked versions.
+4. Commit `pyproject.toml` and `requirements.lock` together.
+
+Base images (`python:3.13-slim`, `node:22-alpine`, `nginx:1.29-alpine`) are pinned by tag with an explanatory comment rather than by digest, so that routine OS/security patches inside the same minor version keep flowing in automatically; pin by digest instead if your threat model requires it.
+
 ## Frontend checks
 
 ```powershell
