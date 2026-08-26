@@ -34,6 +34,7 @@ from app.pdf_acquisition.schemas import (
 )
 from app.projects.dependencies import require_full_text_reviewer_csrf
 from app.projects.service import get_project, require_project_access
+from app.publications.schemas import PublicationCreate, PublicationResponse
 
 user_router = APIRouter(prefix="/browser-agents", tags=["browser agents"])
 agent_router = APIRouter(prefix="/browser-agent", tags=["browser agent"])
@@ -288,6 +289,24 @@ def search_agent_publications(
     return results
 
 
+@agent_router.post(
+    "/projects/{project_id}/publications",
+    response_model=PublicationResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_agent_publication(
+    project_id: str,
+    payload: PublicationCreate,
+    agent: BrowserAgent = Depends(get_current_browser_agent),
+    db: Session = Depends(get_db),
+) -> Any:
+    publication = service.create_agent_publication(
+        db, agent, project_id, payload.model_dump(exclude_unset=True)
+    )
+    db.commit()
+    return publication
+
+
 @agent_router.post("/pdf-captures/detect", response_model=PdfDetectResponse)
 async def detect_pdf_capture(
     project_id: str = Form(...),
@@ -300,6 +319,8 @@ async def detect_pdf_capture(
     return {
         "detected_doi": result.detected_doi,
         "detected_title": result.detected_title,
+        "detected_authors": result.detected_authors,
+        "detected_year": result.detected_year,
         "ambiguous": result.ambiguous,
         "match": (
             {

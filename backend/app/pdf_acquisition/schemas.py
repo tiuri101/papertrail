@@ -170,6 +170,8 @@ class PublicationPickerResult(ApiModel):
 class PdfDetectResponse(ApiModel):
     detected_doi: str | None = Field(serialization_alias="detectedDoi")
     detected_title: str | None = Field(serialization_alias="detectedTitle")
+    detected_authors: str | None = Field(serialization_alias="detectedAuthors")
+    detected_year: int | None = Field(serialization_alias="detectedYear")
     match: PublicationPickerResult | None
     ambiguous: bool
 

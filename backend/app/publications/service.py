@@ -8,7 +8,9 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.audit.service import record_audit
 from app.imports.models import ImportBatch, ImportedRecord
+from app.integrations.metadata import LookupOutcome, metadata_providers
 from app.projects.models import Project, ProjectStage
 from app.publications.models import (
     ConflictStatus,
@@ -119,6 +121,39 @@ def sync_new_publications_with_stage(
         create_screening_work_items(
             db, project, ScreeningStage.TITLE_ABSTRACT, publication_ids=publication_ids
         )
+
+
+def create_publication(
+    db: Session,
+    project: Project,
+    values: dict[str, Any],
+    *,
+    actor_id: str | None,
+    audit_action: str = "publication.created_manually",
+) -> Publication:
+    """Add a single publication outside the import pipeline -- used by both
+    the web UI's "add publication" form and the browser extension's
+    create-while-capturing flow. `values` are the publication's own column
+    values (already validated field-by-field by the caller's request
+    schema); only `doi`, if present, gets normalized here, matching every
+    other write path onto `Publication.doi`."""
+    values = dict(values)
+    if values.get("doi"):
+        values["doi"] = normalize_doi(values["doi"])
+    publication = Publication(project_id=project.id, **values)
+    db.add(publication)
+    db.flush()
+    sync_new_publications_with_stage(db, project, [publication.id])
+    record_audit(
+        db,
+        action=audit_action,
+        entity_type="publication",
+        entity_id=publication.id,
+        project_id=project.id,
+        actor_id=actor_id,
+        summary="Added publication manually",
+    )
+    return publication
 
 
 def clean_text(value: Any) -> str | None:
@@ -272,3 +307,50 @@ def apply_enrichment(
                 conflicts += 1
     db.flush()
     return conflicts
+
+
+def overwrite_values_from_providers(values: dict[str, Any]) -> dict[str, Any]:
+    """Look up `values["doi"]` against the same metadata providers
+    `app.publications.jobs.enrich_publication_job` uses, and overwrite every
+    field a match returns -- unlike `apply_enrichment` above, which only
+    ever fills an *empty* field and opens a `MetadataConflict` rather than
+    clobbering one that already has a value.
+
+    Used only by the browser extension's create-while-capturing flow
+    (`app.pdf_acquisition.service.create_agent_publication`): there is no
+    existing publication yet to protect, so once an authoritative record is
+    found for the DOI it deliberately replaces whatever the reviewer typed
+    (or left blank), rather than requiring a follow-up review step. The
+    general "add a publication" path -- this module's `create_publication`,
+    which the web UI's manual-add form also calls -- never calls this; the
+    overwrite behavior is intentionally scoped to the flow that asked for
+    it, not the create path itself.
+
+    A missing/unrecognized DOI, or no provider having a record, leaves
+    `values` unchanged -- a lookup failure or a DOI nobody has heard of
+    never blocks creating the publication with whatever was typed.
+    """
+    doi = normalize_doi(values.get("doi"))
+    if not doi:
+        return values
+    for provider in metadata_providers():
+        result = provider.lookup_doi(doi)
+        if result.outcome is LookupOutcome.FOUND and result.data:
+            return _overwrite_values(values, result.data)
+    return values
+
+
+def _overwrite_values(values: dict[str, Any], data: dict[str, Any]) -> dict[str, Any]:
+    overwritten = dict(values)
+    for field, proposed in data.items():
+        if not hasattr(Publication, field) or proposed in (None, "", []):
+            continue
+        if field == "publication_year":
+            overwritten[field] = parse_year(proposed)
+        elif field == "doi":
+            overwritten[field] = normalize_doi(proposed)
+        elif field == "publisher_url":
+            overwritten[field] = clean_url(proposed)
+        else:
+            overwritten[field] = clean_text(proposed)
+    return overwritten

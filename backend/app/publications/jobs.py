@@ -2,20 +2,11 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from app.integrations.metadata import (
-    CrossrefClient,
-    LookupOutcome,
-    MetadataProvider,
-    SemanticScholarClient,
-)
+from app.integrations.metadata import LookupOutcome, metadata_providers
 from app.jobs.errors import TransientJobError
 from app.jobs.models import BackgroundJob
 from app.publications.models import Publication
 from app.publications.service import apply_enrichment
-
-
-def metadata_providers() -> list[MetadataProvider]:
-    return [CrossrefClient(), SemanticScholarClient()]
 
 
 def enrich_publication_job(db: Session, job: BackgroundJob) -> dict[str, Any]:

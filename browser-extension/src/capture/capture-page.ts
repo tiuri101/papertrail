@@ -113,6 +113,31 @@ function body(state: CaptureSnapshot): string {
               ? '<p class="muted">No matching publications found.</p>'
               : ''}
         </div>
+        <div class="toolbar">
+          <button id="show-create-publication" class="secondary">+ Create new publication</button>
+        </div>
+      `
+    case 'create_publication':
+      return `
+        <p class="muted">Not in Papertrail yet? Add it now and attach this PDF.</p>
+        <form id="create-publication-form">
+          <label for="new-title">Title
+            <input type="text" id="new-title" required autocomplete="off" value="${escapeHtml(state.detectedTitle ?? '')}" />
+          </label>
+          <label for="new-authors">Authors
+            <input type="text" id="new-authors" autocomplete="off" value="${escapeHtml(state.detectedAuthors ?? '')}" />
+          </label>
+          <label for="new-year">Year
+            <input type="text" id="new-year" inputmode="numeric" autocomplete="off" value="${state.detectedYear ?? ''}" />
+          </label>
+          <label for="new-doi">DOI
+            <input type="text" id="new-doi" autocomplete="off" value="${escapeHtml(state.detectedDoi ?? '')}" />
+          </label>
+          <div class="toolbar">
+            <button type="submit">Create &amp; attach</button>
+            <button type="button" id="back-to-search" class="secondary">Back to search</button>
+          </div>
+        </form>
       `
     case 'confirm_replace':
       return `
@@ -159,12 +184,33 @@ function wireListeners(): void {
   document.getElementById('back-to-search')?.addEventListener('click', () => {
     session?.backToSearch()
   })
+  document.getElementById('show-create-publication')?.addEventListener('click', () => {
+    session?.showCreatePublicationForm()
+  })
+  document.getElementById('create-publication-form')?.addEventListener('submit', (event) => {
+    event.preventDefault()
+    const title = (document.getElementById('new-title') as HTMLInputElement).value.trim()
+    if (!title) return
+    const authors = (document.getElementById('new-authors') as HTMLInputElement).value.trim()
+    const yearText = (document.getElementById('new-year') as HTMLInputElement).value.trim()
+    const doi = (document.getElementById('new-doi') as HTMLInputElement).value.trim()
+    const year = yearText ? Number.parseInt(yearText, 10) : NaN
+    void session?.createPublication({
+      title,
+      ...(authors ? { authors } : {}),
+      ...(Number.isFinite(year) ? { publicationYear: year } : {}),
+      ...(doi ? { doi } : {}),
+    })
+  })
 
   for (const button of document.querySelectorAll<HTMLButtonElement>('[data-publication-id]')) {
     button.addEventListener('click', () => {
       void session?.attach(button.dataset.publicationId!, button.dataset.publicationTitle!, false)
     })
   }
+
+  const newTitleInput = document.getElementById('new-title') as HTMLInputElement | null
+  newTitleInput?.focus()
 
   const searchInput = document.getElementById('search-input') as HTMLInputElement | null
   if (searchInput) {

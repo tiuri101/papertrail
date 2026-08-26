@@ -1,13 +1,17 @@
 import { PapertrailAuthError, PapertrailConflictError, type PapertrailClient } from '../papertrail/client'
-import type { PublicationPickerResult } from '../papertrail/types'
+import type { NewPublicationFields, PublicationPickerResult } from '../papertrail/types'
+import { resolverFor } from '../resolvers'
+import { tryPdfCandidates } from '../retrieval/candidate-fetch'
+import { filenameFromResponse } from '../retrieval/filename'
 import {
   hasPublisherAccess,
   PUBLISHER_ACCESS_ORIGIN,
   requestOriginPermission,
 } from '../retrieval/permission-manager'
-import { filenameFromResponse } from '../retrieval/filename'
 import { validatePdfResponse } from '../retrieval/pdf-validator'
 import { safeRedirectFetch } from '../retrieval/redirect-fetch'
+import { MAX_LANDING_PAGE_BYTES, readTextWithLimit } from '../retrieval/response-limits'
+import { looksLikeLoginOrPaywallPage } from '../retrieval/response-classifier'
 
 // A generous client-side cap on the streamed download -- only an early
 // rejection so a clearly-wrong response isn't read forever, mirroring the
@@ -29,6 +33,17 @@ export function resolveCapturableUrl(tabUrl: string): string {
     : tabUrl
 }
 
+// Several publishers (ScienceDirect/Elsevier notably) serve the PDF itself
+// from a short-lived, pre-signed CDN URL -- often valid for only a few
+// minutes. Chrome's PDF viewer only fetches it once to render the tab and
+// keeps showing those bytes indefinitely afterwards, so a tab can look
+// perfectly normal long after the link behind it has expired. A re-fetch of
+// that same URL then gets rejected by the CDN even though nothing is wrong
+// with the tab the user is looking at.
+const EXPIRED_LINK_HINT = 'Some publishers\' PDF links expire within minutes of the page '
+  + 'loading, even though the tab keeps displaying it -- try reloading the tab and capturing '
+  + 'again right away.'
+
 export type CapturePhase =
   | 'starting'
   | 'no_project'
@@ -36,6 +51,7 @@ export type CapturePhase =
   | 'not_pdf'
   | 'working'
   | 'search'
+  | 'create_publication'
   | 'confirm_replace'
   | 'success'
   | 'error'
@@ -47,6 +63,10 @@ export interface CaptureSnapshot {
   projectName: string | null
   searchQuery: string
   searchResults: PublicationPickerResult[]
+  detectedTitle: string | null
+  detectedAuthors: string | null
+  detectedYear: number | null
+  detectedDoi: string | null
   pendingPublicationId: string | null
   pendingPublicationTitle: string | null
   attachedTitle: string | null
@@ -80,6 +100,10 @@ export class CaptureSession {
       projectName,
       searchQuery: '',
       searchResults: [],
+      detectedTitle: null,
+      detectedAuthors: null,
+      detectedYear: null,
+      detectedDoi: null,
       pendingPublicationId: null,
       pendingPublicationTitle: null,
       attachedTitle: null,
@@ -128,28 +152,109 @@ export class CaptureSession {
   }
 
   private async fetchAndValidate(): Promise<void> {
-    this.set({ phase: 'working', message: 'Downloading the PDF from this tab…' })
-    let result: Awaited<ReturnType<typeof safeRedirectFetch>>
+    this.set({ phase: 'working', message: 'Loading this page…' })
+    let landing: Awaited<ReturnType<typeof safeRedirectFetch>>
     try {
-      result = await safeRedirectFetch(this.state.tabUrl)
+      landing = await safeRedirectFetch(this.state.tabUrl)
     } catch {
       this.set({
         phase: 'not_pdf',
-        message: 'Could not load the current tab as a PDF. Make sure a PDF is open in it.',
+        message: 'Could not load the current tab. Make sure a PDF or publication page is open in it.',
       })
       return
     }
-    const validation = await validatePdfResponse(result.response, MAX_CAPTURE_BYTES)
+    if (!landing.response.ok) {
+      this.set({
+        phase: 'not_pdf',
+        message: `The publisher rejected this request (HTTP ${landing.response.status}). ${EXPIRED_LINK_HINT}`,
+      })
+      return
+    }
+
+    let pdfResponse = landing.response
+    let pdfFinalUrl = landing.finalUrl
+    const contentType = landing.response.headers.get('Content-Type') ?? ''
+
+    // The tab may already be the PDF itself (Chrome's built-in viewer), or
+    // it may be a publication's landing/abstract page with a "Download PDF"
+    // button -- in which case the same resolver-based discovery the
+    // job-driven retrieval flow uses finds that link on the page.
+    if (!contentType.includes('application/pdf')) {
+      const discovered = await this.discoverPdfFromLandingPage(landing.response, landing.finalUrl)
+      if (!discovered) return
+      pdfResponse = discovered.response
+      pdfFinalUrl = discovered.finalUrl
+    }
+
+    const validation = await validatePdfResponse(pdfResponse, MAX_CAPTURE_BYTES)
     if (!validation.valid) {
       this.set({
         phase: 'not_pdf',
-        message: `The current tab doesn't look like a PDF (${validation.reason}).`,
+        message: `The current tab doesn't look like a PDF (${validation.reason}). ${EXPIRED_LINK_HINT}`,
       })
       return
     }
     this.pdfBlob = validation.blob
-    this.pdfFilename = filenameFromResponse(result.response, result.finalUrl, '')
+    this.pdfFilename = filenameFromResponse(pdfResponse, pdfFinalUrl, '')
     await this.detectAndAttach()
+  }
+
+  /** Looks for a "Download PDF"-style link on a publication's landing page
+   * and fetches it, using the same publisher-specific resolvers
+   * (src/resolvers/) the job-driven retrieval flow discovers PDFs with.
+   * Returns null (having already set a terminal not_pdf snapshot) when no
+   * PDF could be found this way. */
+  private async discoverPdfFromLandingPage(
+    response: Response,
+    landingUrl: string,
+  ): Promise<{ response: Response; finalUrl: string } | null> {
+    this.set({ message: 'Looking for a PDF link on this page…' })
+    let html: string
+    try {
+      html = await readTextWithLimit(response, MAX_LANDING_PAGE_BYTES)
+    } catch (error) {
+      this.set({
+        phase: 'not_pdf',
+        message: `Could not read this page (${error instanceof Error ? error.message : 'unknown error'}).`,
+      })
+      return null
+    }
+    if (looksLikeLoginOrPaywallPage(html)) {
+      this.set({
+        phase: 'not_pdf',
+        message: 'This page asked for institutional sign-in, so no PDF could be found.',
+      })
+      return null
+    }
+
+    const document = new DOMParser().parseFromString(html, 'text/html')
+    const resolver = resolverFor({ landingUrl, html, document })
+    const candidates = resolver.discover({ landingUrl, html, document })
+    if (candidates.length === 0) {
+      this.set({
+        phase: 'not_pdf',
+        message: 'No PDF link (e.g. a "Download PDF" button) was found on this page.',
+      })
+      return null
+    }
+
+    this.set({ message: 'Downloading the PDF…' })
+    const outcome = await tryPdfCandidates(candidates)
+    if (outcome.status === 'needs_authentication') {
+      this.set({
+        phase: 'not_pdf',
+        message: 'The PDF link on this page required institutional sign-in.',
+      })
+      return null
+    }
+    if (outcome.status === 'not_found') {
+      this.set({
+        phase: 'not_pdf',
+        message: `No accessible PDF link was found on this page. ${EXPIRED_LINK_HINT}`,
+      })
+      return null
+    }
+    return { response: outcome.response, finalUrl: outcome.finalUrl }
   }
 
   private async detectAndAttach(): Promise<void> {
@@ -157,6 +262,12 @@ export class CaptureSession {
     if (!this.pdfBlob || !this.projectId) return
     try {
       const detected = await this.client.detectPdfMatch(this.projectId, this.pdfBlob, this.pdfFilename)
+      this.set({
+        detectedTitle: detected.detectedTitle,
+        detectedAuthors: detected.detectedAuthors,
+        detectedYear: detected.detectedYear,
+        detectedDoi: detected.detectedDoi,
+      })
       if (detected.match) {
         await this.attach(detected.match.id, detected.match.title, false)
         return
@@ -181,6 +292,24 @@ export class CaptureSession {
       // started would otherwise clobber its results with stale ones.
       if (this.state.searchQuery !== query) return
       this.set({ searchResults: results })
+    } catch (error) {
+      this.handleClientError(error)
+    }
+  }
+
+  /** Switches to the create-publication form, prefilled with whatever was
+   * detected from the PDF itself -- the reviewer only needs to fill in
+   * what's missing or wrong, not start from a blank form. */
+  showCreatePublicationForm(): void {
+    this.set({ phase: 'create_publication' })
+  }
+
+  async createPublication(fields: NewPublicationFields): Promise<void> {
+    if (!this.projectId) return
+    this.set({ phase: 'working', message: `Creating "${fields.title}"…` })
+    try {
+      const created = await this.client.createPublication(this.projectId, fields)
+      await this.attach(created.id, created.title, false)
     } catch (error) {
       this.handleClientError(error)
     }

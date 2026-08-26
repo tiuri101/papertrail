@@ -155,4 +155,18 @@ describe('PapertrailClient', () => {
     const form = init.body as FormData
     expect(form.get('replace')).toBe('true')
   })
+
+  it('creates a publication as JSON with only the provided fields', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({
+      id: 'pub-2', title: 'New Paper',
+    }), { status: 201 }))
+    vi.stubGlobal('fetch', fetchMock)
+
+    const client = new PapertrailClient(connection)
+    await client.createPublication('project-1', { title: 'New Paper', doi: '10.1/x' })
+
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit]
+    expect(url).toBe('https://papertrail.example.org/api/v1/browser-agent/projects/project-1/publications')
+    expect(JSON.parse(String(init.body))).toEqual({ title: 'New Paper', doi: '10.1/x' })
+  })
 })

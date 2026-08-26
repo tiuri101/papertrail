@@ -16,6 +16,7 @@ from app.fulltext.models import (
     PublicationDocument,
     RetrievalStatus,
 )
+from app.integrations.metadata import LookupOutcome, MetadataLookup
 from app.pdf_acquisition.models import (
     BatchStatus,
     BrowserAgent,
@@ -1146,3 +1147,171 @@ def test_agent_token_still_cannot_reach_session_only_publication_endpoints(
         f"/api/v1/projects/{project.id}/publications", headers=agent_headers(token)
     )
     assert response.status_code == 403
+
+
+# --- Manual capture: create-publication-on-the-spot ---------------------------------
+
+
+def create_agent_publication(client, token: str, project_id: str, **fields):
+    return client.post(
+        f"/api/v1/browser-agent/projects/{project_id}/publications",
+        json=fields,
+        headers=agent_headers(token),
+    )
+
+
+def test_create_agent_publication_creates_and_enrolls_in_screening(client, db) -> None:
+    _admin, reviewer, _outsider, project, *_ = setup_project(db)
+    membership = db.scalar(
+        select(ProjectMembership).where(
+            ProjectMembership.project_id == project.id,
+            ProjectMembership.user_id == reviewer.id,
+        )
+    )
+    membership.can_title_abstract_screen = True
+    db.add(
+        ScreeningConfig(
+            project_id=project.id,
+            stage=ScreeningStage.TITLE_ABSTRACT,
+            required_reviewers=1,
+            allocation_mode=AllocationMode.CLAIM,
+        )
+    )
+    db.commit()
+    csrf = login(client, reviewer.username, "reviewer-password")
+    token = pair_agent(client, csrf)
+
+    response = create_agent_publication(
+        client,
+        token,
+        project.id,
+        title="A Freshly Captured Paper",
+        authors="Doe, Jane and Smith, John",
+        publicationYear=2026,
+        doi="https://doi.org/10.9999/Fresh.Paper",
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["title"] == "A Freshly Captured Paper"
+    assert body["doi"] == "10.9999/fresh.paper"
+
+    publication = db.get(Publication, body["id"])
+    assert publication is not None
+    assert publication.project_id == project.id
+    assert publication.authors == "Doe, Jane and Smith, John"
+    assert publication.publication_year == 2026
+
+    work_item = db.scalar(
+        select(ScreeningWorkItem).where(
+            ScreeningWorkItem.publication_id == publication.id,
+            ScreeningWorkItem.stage == ScreeningStage.TITLE_ABSTRACT,
+        )
+    )
+    assert work_item is not None
+
+    audit = db.scalar(
+        select(AuditEvent).where(
+            AuditEvent.action == "publication.created_browser_capture"
+        )
+    )
+    assert audit is not None
+    assert audit.entity_id == publication.id
+    assert audit.actor_id == reviewer.id
+
+
+def test_create_agent_publication_overwrites_with_provider_metadata(
+    client, db, monkeypatch
+) -> None:
+    """Unique to this endpoint: when a DOI is present, an authoritative
+    provider record overwrites whatever the reviewer typed -- see
+    app.publications.service.overwrite_values_from_providers."""
+    class StubProvider:
+        name = "crossref"
+
+        def lookup_doi(self, doi: str) -> MetadataLookup:
+            return MetadataLookup(
+                LookupOutcome.FOUND,
+                data={
+                    "title": "Authoritative Title From Crossref",
+                    "authors": "Doe, Jane",
+                    "publication_year": 2024,
+                },
+            )
+
+    monkeypatch.setattr(
+        "app.publications.service.metadata_providers", lambda: [StubProvider()]
+    )
+    _admin, reviewer, _outsider, project, *_ = setup_project(db)
+    csrf = login(client, reviewer.username, "reviewer-password")
+    token = pair_agent(client, csrf)
+
+    response = create_agent_publication(
+        client,
+        token,
+        project.id,
+        title="Whatever The Reviewer Typed",
+        doi="10.1234/known",
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["title"] == "Authoritative Title From Crossref"
+
+    publication = db.get(Publication, body["id"])
+    assert publication.authors == "Doe, Jane"
+    assert publication.publication_year == 2024
+
+
+def test_create_agent_publication_accepts_title_only(client, db) -> None:
+    _admin, reviewer, _outsider, project, *_ = setup_project(db)
+    csrf = login(client, reviewer.username, "reviewer-password")
+    token = pair_agent(client, csrf)
+
+    response = create_agent_publication(client, token, project.id, title="Bare Minimum")
+    assert response.status_code == 201
+    assert response.json()["title"] == "Bare Minimum"
+
+
+def test_create_agent_publication_requires_full_text_access(client, db) -> None:
+    _admin, _reviewer, outsider, project, *_ = setup_project(db)
+    csrf = login(client, outsider.username, "outsider-password")
+    token = pair_agent(client, csrf)
+
+    response = create_agent_publication(client, token, project.id, title="Should Fail")
+    assert response.status_code == 403
+    assert db.scalar(select(Publication).where(Publication.title == "Should Fail")) is None
+
+
+def test_create_then_attach_captured_pdf_to_new_publication(client, db) -> None:
+    """The end-to-end flow the extension drives when a capture doesn't match
+    any existing publication: create one on the spot, then attach the same
+    captured PDF to it."""
+    _admin, reviewer, _outsider, project, *_ = setup_project(db)
+    csrf = login(client, reviewer.username, "reviewer-password")
+    token = pair_agent(client, csrf)
+
+    created = create_agent_publication(
+        client, token, project.id, title="Newly Captured Paper"
+    )
+    publication_id = created.json()["id"]
+
+    content = pdf_bytes()
+    response = capture_upload(client, token, publication_id, content)
+    assert response.status_code == 200
+
+    document = db.scalar(select(PublicationDocument))
+    assert document is not None
+    assert document.publication_id == publication_id
+    assert document.source.value == "browser_manual_capture"
+
+    # A freshly created publication has no FullTextRetrieval row yet (that
+    # only appears once it's included at title/abstract screening and the
+    # project reaches full-text stage) -- the attached document just waits
+    # for the workflow to catch up to it, rather than forcing one into being.
+    assert (
+        db.scalar(
+            select(FullTextRetrieval).where(
+                FullTextRetrieval.publication_id == publication_id
+            )
+        )
+        is None
+    )
