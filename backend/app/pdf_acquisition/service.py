@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import secrets
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -18,7 +19,7 @@ from app.fulltext.documents import active_document, attach_staged_pdf
 from app.fulltext.models import DocumentSource, FullTextRetrieval, PublicationDocument
 from app.fulltext.models import RetrievalStatus as HumanRetrievalStatus
 from app.fulltext.service import CLAIMABLE_STATUSES, set_retrieval_status
-from app.fulltext.storage import discard_pdf, stage_pdf_upload
+from app.fulltext.storage import detect_pdf_upload, discard_pdf, stage_pdf_upload
 from app.instance_settings.service import effective_instance_settings
 from app.pdf_acquisition.models import (
     ACTIVE_JOB_STATUSES,
@@ -32,7 +33,11 @@ from app.pdf_acquisition.models import (
     RetrievalJobStatus,
 )
 from app.projects.models import Project, ProjectMembership
-from app.projects.service import is_project_manager
+from app.projects.service import get_project, is_project_manager
+from app.publications.listing import PublicationFilters, publications_page
+from app.publications.models import Publication
+from app.publications.service import create_publication as create_publication_record
+from app.publications.service import overwrite_values_from_providers
 
 ERROR_MESSAGE_MAX_LENGTH = 500
 
@@ -1033,3 +1038,235 @@ def job_summary_data(job: PdfRetrievalJob) -> dict[str, Any]:
         "error_message": job.error_message,
         "resolved_landing_url": job.resolved_landing_url,
     }
+
+
+# --- Manual capture (browser extension, ad-hoc tab capture) ------------------------
+#
+# A second, independent way to attach a PDF through the browser extension:
+# the reviewer is looking at a PDF right now and wants it attached, rather
+# than the backend having assigned a PdfRetrievalJob for it. There is no job
+# here, so authorization is re-derived per call from project membership
+# (_user_has_full_text_access) exactly as claim/upload do for job-driven
+# retrieval, and every write still goes through attach_staged_pdf -- nothing
+# below touches PublicationDocument directly.
+
+
+def list_accessible_projects(db: Session, agent: BrowserAgent) -> list[Project]:
+    """Projects this agent's user could manually attach a capture to, for
+    populating a project picker in the extension."""
+    user = db.get(User, agent.user_id)
+    if user is None:
+        return []
+    if user.is_admin:
+        candidate_ids = list(db.scalars(select(Project.id)))
+    else:
+        candidate_ids = list(
+            db.scalars(
+                select(ProjectMembership.project_id).where(
+                    ProjectMembership.user_id == user.id
+                )
+            )
+        )
+    projects: list[Project] = []
+    for project_id in candidate_ids:
+        if not _user_has_full_text_access(db, project_id, user.id):
+            continue
+        project = db.get(Project, project_id)
+        if project is not None:
+            projects.append(project)
+    projects.sort(key=lambda project: project.name.lower())
+    return projects
+
+
+def _require_agent_full_text_access(db: Session, agent: BrowserAgent, project_id: str) -> None:
+    if not _user_has_full_text_access(db, project_id, agent.user_id):
+        raise ForbiddenError(
+            "Full-text retrieval access for this project is not granted"
+        )
+
+
+@dataclass(frozen=True)
+class PdfMatchCandidate:
+    publication_id: str
+    title: str
+    authors: str | None
+    publication_year: int | None
+    doi: str | None
+
+
+@dataclass(frozen=True)
+class PdfDetectResult:
+    detected_doi: str | None
+    detected_title: str | None
+    detected_authors: str | None
+    detected_year: int | None
+    match: PdfMatchCandidate | None
+    ambiguous: bool
+
+
+def _match_candidate(publication: Publication) -> PdfMatchCandidate:
+    return PdfMatchCandidate(
+        publication_id=publication.id,
+        title=publication.title,
+        authors=publication.authors,
+        publication_year=publication.publication_year,
+        doi=publication.doi,
+    )
+
+
+async def detect_manual_capture(
+    db: Session,
+    agent: BrowserAgent,
+    project_id: str,
+    file: UploadFile,
+) -> PdfDetectResult:
+    """Read an uploaded PDF in memory (no disk write) and look for a single
+    exact-DOI match among the project's publications. 0 or >1 matches simply
+    mean "no auto-match" -- same ambiguity handling as import PDF matching
+    (app.imports.pdf_matching.match_pdf) -- and the extension falls back to
+    a manual publication picker."""
+    _require_agent_full_text_access(db, agent, project_id)
+    detected = await detect_pdf_upload(file, settings=effective_instance_settings(db))
+
+    match: PdfMatchCandidate | None = None
+    ambiguous = False
+    if detected.detected_doi:
+        matches = list(
+            db.scalars(
+                select(Publication).where(
+                    Publication.project_id == project_id,
+                    Publication.is_active.is_(True),
+                    Publication.doi == detected.detected_doi,
+                )
+            )
+        )
+        if len(matches) == 1:
+            match = _match_candidate(matches[0])
+        elif len(matches) > 1:
+            ambiguous = True
+
+    return PdfDetectResult(
+        detected_doi=detected.detected_doi,
+        detected_title=detected.detected_title,
+        detected_authors=detected.detected_authors,
+        detected_year=detected.detected_year,
+        match=match,
+        ambiguous=ambiguous,
+    )
+
+
+def search_publications_for_agent(
+    db: Session,
+    agent: BrowserAgent,
+    project_id: str,
+    query: str,
+    limit: int = 20,
+) -> list[Publication]:
+    """Backs the extension's manual publication picker. A thin, separately
+    authorized wrapper around the same search the Papertrail web UI's
+    publication list uses -- kept off the session-cookie-only publications
+    endpoints on purpose, since a BrowserAgent bearer token must never
+    authenticate anything outside app.pdf_acquisition's agent_router."""
+    _require_agent_full_text_access(db, agent, project_id)
+    page = publications_page(
+        db,
+        project_id,
+        filters=PublicationFilters(search=query),
+        page_size=max(1, min(limit, 20)),
+    )
+    return page.items
+
+
+def create_agent_publication(
+    db: Session,
+    agent: BrowserAgent,
+    project_id: str,
+    values: dict[str, Any],
+) -> Publication:
+    """Add a publication on the spot when a capture doesn't match anything
+    that already exists, rather than leaving the reviewer stuck searching
+    for a publication that was never imported. Delegates to the same
+    create_publication the web UI's "add publication" form uses -- same
+    validation, same screening-stage enrollment -- with a distinct audit
+    action so the two entry points stay distinguishable in the audit log.
+
+    Uniquely to this entry point: if a DOI is present (typed, or carried
+    over from what detect_manual_capture found in the PDF itself), an
+    authoritative record is looked up and overwrites whatever was typed --
+    see overwrite_values_from_providers for why that's safe only here and
+    not in the shared create_publication path."""
+    _require_agent_full_text_access(db, agent, project_id)
+    project = get_project(db, project_id)
+    values = overwrite_values_from_providers(values)
+    return create_publication_record(
+        db,
+        project,
+        values,
+        actor_id=agent.user_id,
+        audit_action="publication.created_browser_capture",
+    )
+
+
+async def upload_manual_capture(
+    db: Session,
+    agent: BrowserAgent,
+    publication_id: str,
+    file: UploadFile,
+    *,
+    replace: bool,
+) -> PublicationDocument:
+    """Attach a manually captured PDF to a publication chosen by the
+    reviewer (or matched by exact DOI). Mirrors upload_job_pdf's staging and
+    attach steps, minus the PdfRetrievalJob bookkeeping there is none of
+    here."""
+    publication = db.get(Publication, publication_id)
+    if publication is None or not publication.is_active:
+        await file.close()
+        raise NotFoundError("Publication not found")
+    try:
+        _require_agent_full_text_access(db, agent, publication.project_id)
+    except ForbiddenError:
+        await file.close()
+        raise
+
+    staged = await stage_pdf_upload(
+        file,
+        import_batch_id=f"browser-capture-{agent.id}-{secrets.token_hex(8)}",
+        settings=effective_instance_settings(db),
+    )
+
+    try:
+        document = attach_staged_pdf(
+            db,
+            project_id=publication.project_id,
+            publication_id=publication.id,
+            staged=staged,
+            user_id=agent.user_id,
+            source=DocumentSource.BROWSER_MANUAL_CAPTURE,
+            replace=replace,
+            audit_action="pdf.captured_browser_manual",
+        )
+    except ConflictError:
+        db.rollback()
+        discard_pdf(staged.storage_key)
+        raise
+    except Exception:
+        db.rollback()
+        discard_pdf(staged.storage_key)
+        raise
+
+    retrieval = db.scalar(
+        select(FullTextRetrieval).where(
+            FullTextRetrieval.publication_id == publication.id
+        )
+    )
+    if retrieval is not None and retrieval.status != HumanRetrievalStatus.AVAILABLE:
+        set_retrieval_status(
+            db,
+            retrieval,
+            HumanRetrievalStatus.AVAILABLE,
+            note=retrieval.note,
+            user_id=agent.user_id,
+        )
+    db.flush()
+    return document

@@ -1,9 +1,15 @@
 import { loadConnection } from '../papertrail/auth'
 import { PapertrailAuthError, PapertrailClient } from '../papertrail/client'
-import type { StoredConnection } from '../papertrail/types'
+import type { AgentProject, StoredConnection } from '../papertrail/types'
 import { escapeHtml, requireElement } from '../shared/dom'
-import { loadAutoRetrievalEnabled, setAutoRetrievalEnabled } from '../shared/storage'
+import {
+  loadAutoRetrievalEnabled,
+  loadLastCaptureProjectId,
+  saveLastCaptureProjectId,
+  setAutoRetrievalEnabled,
+} from '../shared/storage'
 import { openExtensionPopupWindow } from '../shared/window'
+import { resolveSelectedProjectId } from './project-selection'
 
 /** Cheap credential check so a revoked/rejected agent surfaces here, on the
  * page the user actually sees first, instead of only showing up once they
@@ -16,6 +22,16 @@ async function checkCredentials(connection: StoredConnection): Promise<string | 
     return null
   } catch (error) {
     return error instanceof PapertrailAuthError ? error.message : null
+  }
+}
+
+/** Best-effort: an empty list here just means the capture button gets
+ * disabled below, not a hard failure of the rest of the popup. */
+async function loadProjects(connection: StoredConnection): Promise<AgentProject[]> {
+  try {
+    return await new PapertrailClient(connection).listAccessibleProjects()
+  } catch {
+    return []
   }
 }
 
@@ -35,10 +51,16 @@ async function render(): Promise<void> {
     return
   }
 
-  const [autoRetrievalEnabled, authError] = await Promise.all([
+  const [autoRetrievalEnabled, authError, projects, rememberedProjectId] = await Promise.all([
     loadAutoRetrievalEnabled(),
     checkCredentials(connection),
+    loadProjects(connection),
+    loadLastCaptureProjectId(),
   ])
+  const selectedProjectId = resolveSelectedProjectId(projects, rememberedProjectId)
+  if (selectedProjectId && selectedProjectId !== rememberedProjectId) {
+    void saveLastCaptureProjectId(selectedProjectId)
+  }
 
   app.innerHTML = `
     <h1>Papertrail Browser Helper</h1>
@@ -59,6 +81,23 @@ async function render(): Promise<void> {
         <button id="open-retrieval">Open PDF retrieval</button>
         <button id="open-settings" class="secondary">Settings</button>
       </div>
+      ${projects.length > 1 ? `
+        <label for="project-select">Capture project
+          <select id="project-select">
+            ${projects.map((project) => `
+              <option value="${escapeHtml(project.id)}" ${project.id === selectedProjectId ? 'selected' : ''}>
+                ${escapeHtml(project.name)}
+              </option>
+            `).join('')}
+          </select>
+        </label>
+      ` : ''}
+      <div class="toolbar">
+        <button id="open-capture" class="secondary" ${selectedProjectId ? '' : 'disabled'}>Capture PDF from this tab</button>
+      </div>
+      ${selectedProjectId ? '' : `
+        <p class="muted">No project currently grants you full-text review access, so there's nothing to capture into.</p>
+      `}
       <label class="toggle-row">
         <input type="checkbox" id="auto-retrieval-toggle" ${autoRetrievalEnabled ? 'checked' : ''} />
         Automatic retrieval
@@ -86,11 +125,39 @@ async function render(): Promise<void> {
   requireElement<HTMLButtonElement>('open-retrieval').addEventListener('click', () => {
     void openExtensionPopupWindow('src/retrieval/retrieval.html', { width: 460, height: 640 })
   })
+  requireElement<HTMLButtonElement>('open-capture').addEventListener('click', () => {
+    const select = document.getElementById('project-select') as HTMLSelectElement | null
+    const project = projects.find((p) => p.id === (select?.value ?? selectedProjectId)) ?? null
+    void openCapture(project)
+  })
+  document.getElementById('project-select')?.addEventListener('change', (event) => {
+    void saveLastCaptureProjectId((event.target as HTMLSelectElement).value)
+  })
   requireElement<HTMLInputElement>('auto-retrieval-toggle').addEventListener('change', (event) => {
     void (async () => {
       await setAutoRetrievalEnabled((event.target as HTMLInputElement).checked)
       await render()
     })()
+  })
+}
+
+/** Reads the active tab's URL under the `activeTab` grant this click itself
+ * provides, then hands it (and the project already chosen in this popup) to
+ * the capture page as plain query parameters -- the capture page never
+ * touches chrome.tabs or asks which project again, so it doesn't depend on
+ * activeTab's per-tab grant surviving into a separately opened window, and
+ * project selection stays a single, always-visible control here rather than
+ * a one-off page in the middle of a capture. */
+async function openCapture(project: AgentProject | null): Promise<void> {
+  const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
+  const params = new URLSearchParams({ tabUrl: tab?.url ?? '' })
+  if (project) {
+    params.set('projectId', project.id)
+    params.set('projectName', project.name)
+  }
+  void openExtensionPopupWindow(`src/capture/capture.html?${params.toString()}`, {
+    width: 460,
+    height: 640,
   })
 }
 
