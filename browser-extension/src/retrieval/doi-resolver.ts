@@ -1,3 +1,4 @@
+import { fetchWithTimeout, MAX_JSON_BYTES, readTextWithLimit } from './response-limits'
 import { isSafePublisherUrl } from './url-safety'
 
 interface HandleValue {
@@ -26,7 +27,7 @@ interface HandleResponse {
 export async function resolveDoiUrl(doi: string): Promise<string | null> {
   let response: Response
   try {
-    response = await fetch(`https://doi.org/api/handles/${encodeURIComponent(doi)}`, {
+    response = await fetchWithTimeout(`https://doi.org/api/handles/${encodeURIComponent(doi)}`, {
       headers: { Accept: 'application/json' },
     })
   } catch {
@@ -36,7 +37,11 @@ export async function resolveDoiUrl(doi: string): Promise<string | null> {
 
   let data: HandleResponse
   try {
-    data = await response.json() as HandleResponse
+    // Bounded read rather than response.json(): the Handle API's answer is a
+    // few hundred bytes, and nothing about this response is under our
+    // control, so it is read with the same size/stall limits as any other
+    // remote body.
+    data = JSON.parse(await readTextWithLimit(response, MAX_JSON_BYTES)) as HandleResponse
   } catch {
     return null
   }

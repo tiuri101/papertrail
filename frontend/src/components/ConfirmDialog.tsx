@@ -37,7 +37,7 @@ export function ConfirmDialog({
 
   return (
     <div
-      className="modal-backdrop"
+      className="modal-backdrop fixed inset-0 z-[200] flex items-center justify-center bg-bg p-5"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onCancel()
       }}

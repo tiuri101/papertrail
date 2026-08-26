@@ -1,4 +1,4 @@
-import { toolbarClass } from '../../components/layoutStyles'
+import { tableBaseClass, toolbarClass } from '../../components/layoutStyles'
 import { useMemo, useState } from 'react'
 
 import { Button } from '../../components/Button'
@@ -357,7 +357,7 @@ export function EvidenceMatrixSection({ projectId }: { projectId: string }) {
       {data && data.items.length === 0 ? <p>No publications match your search and filters.</p> : null}
       {data && data.items.length > 0 ? (
         <div className="max-h-[70vh] overflow-auto rounded-md border border-border">
-          <table className="w-auto min-w-full [&_td]:whitespace-nowrap [&_th]:whitespace-nowrap [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-[2] [&_thead_th]:bg-bg-elevated">
+          <table className={`${tableBaseClass} w-auto! min-w-full [&_td]:whitespace-nowrap [&_th]:whitespace-nowrap [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-[2] [&_thead_th]:bg-bg-elevated`}>
             <thead>
               <tr>
                 <th scope="col" className="sticky left-0 z-[3]! min-w-56 max-w-[22rem] overflow-wrap-anywhere bg-bg-elevated whitespace-normal!">Publication</th>

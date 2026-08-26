@@ -34,13 +34,13 @@ export function TitleAbstractScreeningPage() {
       ) : null}
       <p><Link to={`/projects/${projectId}/screening/${STAGE}/my-decisions`}>Review or change my past decisions</Link></p>
       {!queue.previousItem && queue.lastCompletedItem ? (
-        <div className="toolbar">
+        <div className="toolbar flex flex-wrap items-center gap-3 my-5 max-[760px]:gap-2">
           <GoBackButton onClick={() => queue.goBack.mutate()} disabled={queue.goBack.isPending}>
             ← Go back to “{queue.lastCompletedItem.title}”
           </GoBackButton>
         </div>
       ) : null}
-      {queue.goBack.error ? <p className="error" role="alert">{queue.goBack.error.message}</p> : null}
+      {queue.goBack.error ? <p className="text-danger" role="alert">{queue.goBack.error.message}</p> : null}
       {queue.previousItem ? (
         <PreviousItemCard
           projectId={projectId}
@@ -62,7 +62,7 @@ export function TitleAbstractScreeningPage() {
             </>
           ) : null}
           {!queue.loadingNext && queue.nextError ? (
-            <p className="error" role="alert">{queue.nextError}</p>
+            <p className="text-danger" role="alert">{queue.nextError}</p>
           ) : null}
         </>
       ) : (

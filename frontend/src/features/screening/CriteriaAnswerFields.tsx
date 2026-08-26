@@ -4,6 +4,7 @@ import type { KeyboardEvent } from 'react'
 import { IconCheckCircle, IconXCircle } from '../../components/icons'
 import { formatHotkey, loadScreeningHotkeys, type ScreeningHotkeyAction } from '../../lib/screeningHotkeys'
 import { criterionNumbers, sortedByKind } from './criteriaNumbering'
+import { tableBaseClass } from '../../components/layoutStyles'
 import type { CriterionAnswer, ScreeningCriterion } from './useScreeningQueue'
 import {InfoBox} from "../../components/InfoBox";
 import { Textarea } from '../../components/Textarea'
@@ -89,7 +90,7 @@ export function CriteriaAnswerFields({
   return (
     <>
       <h3>Criteria</h3>
-      <table className="w-full [&_td]:text-center [&_td]:align-middle [&_th]:align-middle [&_th:not(:first-child)]:text-center">
+      <table className={`${tableBaseClass} w-full [&_td]:text-center! [&_td]:align-middle! [&_th]:align-middle! [&_th:not(:first-child)]:text-center!`}>
         <thead>
           <tr>
             <th scope="col">Criterion</th>
@@ -164,7 +165,7 @@ export function CriteriaAnswerFields({
           })}
         </tbody>
       </table>
-      <InfoBox icon={<IconCheckCircle />} className="hotkey-hint mb-4">
+      <InfoBox icon={<IconCheckCircle />} className="hotkey-hint mb-4 max-[760px]:hidden">
         <p>
           Click on a checkbox, then use the arrow keys to move between criteria and Left/Right keys to answer them. Use your
           personalized hotkeys to include/exclude the paper and submit.
@@ -207,7 +208,7 @@ export function CriteriaAnswerFields({
               >
                 {value === 'include' ? <IconCheckCircle /> : value === 'exclude' ? <IconXCircle /> : null}
                 {label}
-                {hotkey ? <kbd className={`absolute right-1.5 top-1/2 -translate-y-1/2 rounded px-1 py-0.5 text-[0.65rem] ${selected ? 'bg-white/15 text-current' : 'bg-surface-active text-text-muted'}`} aria-hidden="true">{hotkey}</kbd> : null}
+                {hotkey ? <kbd className={`absolute right-1.5 top-1/2 -translate-y-1/2 inline-flex h-[20px] min-w-[20px] items-center justify-center rounded border border-border-strong px-1 py-0.5 text-[0.65rem] leading-none font-bold opacity-[0.85] [font-family:inherit] ${selected ? 'bg-white/15 text-current' : 'bg-surface-active text-text-muted'}`} aria-hidden="true">{hotkey}</kbd> : null}
               </button>
             )
           })}

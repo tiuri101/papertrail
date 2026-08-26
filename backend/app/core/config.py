@@ -4,10 +4,33 @@ from functools import lru_cache
 from os import getenv
 from pathlib import Path
 from typing import Annotated
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 from pydantic import field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
+
+#: Passwords that ship in example files, tutorials, and the Compose defaults.
+#: A production installation that still uses one of these is not protected by a
+#: secret at all, so startup refuses it. Compared case-insensitively; the value
+#: itself is never echoed back in the error message.
+WELL_KNOWN_WEAK_PASSWORDS = frozenset(
+    {
+        "admin",
+        "change-me",
+        "change_me",
+        "changeme",
+        "example",
+        "papertrail",
+        "papertrail-dev",
+        "password",
+        "postgres",
+        "replace-with-a-generated-random-value",
+        "replace-with-a-long-random-password",
+        "root",
+        "secret",
+        "test",
+    }
+)
 
 
 class Settings(BaseSettings):
@@ -21,7 +44,21 @@ class Settings(BaseSettings):
     app_name: str = "Papertrail"
     app_version: str = "dev"
     api_prefix: str = "/api/v1"
+    # Documented, deliberately explicit escape hatch for the production
+    # hardening checks below (for example a throwaway staging stack that runs
+    # PAPERTRAIL_ENV=production behind plain HTTP on a private network). It is
+    # never set by docker-compose.yml's defaults: an operator has to opt in.
+    allow_insecure_production: bool = False
+    # ``None`` means "decide from the environment": interactive API docs stay on
+    # in development/test and are switched off in production.
+    api_docs_enabled: bool | None = None
     database_url: str = "sqlite+pysqlite:///./papertrail.db"
+    # Least-privilege runtime login provisioned by the migration container.
+    # Only the migration/bootstrap process ever sees these: it owns the schema
+    # and grants the runtime role DML-only access. The API and the workers
+    # connect with that role through PAPERTRAIL_DATABASE_URL instead.
+    runtime_database_role: str | None = None
+    runtime_database_password: str | None = None
     cors_origins: Annotated[list[str], NoDecode] = ["http://localhost:5173"]
     session_cookie_name: str = "papertrail_session"
     session_cookie_secure: bool = False
@@ -50,6 +87,11 @@ class Settings(BaseSettings):
     browser_agent_pairing_ttl_minutes: int = 10
     browser_retrieval_lease_seconds: int = 300
     email_enabled: bool = False
+    # High-entropy application secret used to encrypt credential-bearing email
+    # payloads (currently the password-reset link) before they are persisted in
+    # the notification queue. Supplied through the environment only: it must
+    # never be stored in PostgreSQL, returned by an API, or logged.
+    notification_encryption_key: str | None = None
     public_base_url: str = "http://localhost:5173"
     smtp_host: str | None = None
     smtp_port: int = 587
@@ -105,6 +147,49 @@ class Settings(BaseSettings):
         if value is None or not value.strip():
             return None
         return value.strip()
+
+    @field_validator("runtime_database_role", "runtime_database_password")
+    @classmethod
+    def normalize_optional_secret(cls, value: str | None) -> str | None:
+        """Treat an empty Compose passthrough (``VAR: ${VAR:-}``) as unset."""
+        if value is None or not value.strip():
+            return None
+        return value.strip()
+
+    @field_validator("api_docs_enabled", mode="before")
+    @classmethod
+    def normalize_api_docs_enabled(cls, value: object) -> object:
+        """Treat an empty Compose passthrough (``VAR: ${VAR:-}``) as unset."""
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+    @property
+    def is_production(self) -> bool:
+        return self.env.strip().lower() == "production"
+
+    @property
+    def docs_enabled(self) -> bool:
+        """Whether ``/docs``, ``/redoc``, and ``/openapi.json`` are served."""
+        if self.api_docs_enabled is not None:
+            return self.api_docs_enabled
+        return not self.is_production
+
+    @model_validator(mode="after")
+    def validate_production_hardening(self) -> Settings:
+        if not self.is_production or self.allow_insecure_production:
+            return self
+        problems = production_configuration_problems(self)
+        if problems:
+            raise ValueError(
+                "Refusing to start with PAPERTRAIL_ENV=production and an insecure "
+                "configuration:\n- "
+                + "\n- ".join(problems)
+                + "\nFix the settings above, or set "
+                "PAPERTRAIL_ALLOW_INSECURE_PRODUCTION=true to accept the risk "
+                "explicitly (never do this on an internet-facing installation)."
+            )
+        return self
 
     @model_validator(mode="after")
     def validate_external_service_configuration(self) -> Settings:
@@ -166,6 +251,95 @@ class Settings(BaseSettings):
         self.import_dir.mkdir(parents=True, exist_ok=True)
         self.export_dir.mkdir(parents=True, exist_ok=True)
         self.pdf_storage_path.mkdir(parents=True, exist_ok=True)
+
+
+def _is_well_known_weak(secret: str | None) -> bool:
+    return secret is not None and secret.strip().lower() in WELL_KNOWN_WEAK_PASSWORDS
+
+
+def _database_password(database_url: str) -> str | None:
+    try:
+        password = urlsplit(database_url).password
+    except ValueError:
+        return None
+    return unquote(password) if password else None
+
+
+def production_configuration_problems(settings: Settings) -> list[str]:
+    """Insecure production settings, as operator-readable messages.
+
+    Papertrail terminates TLS at a reverse proxy and the API container speaks
+    plain HTTP on the internal network -- that internal hop is expected and is
+    *not* what these checks look at. ``public_base_url`` is different: it is the
+    browser-facing origin baked into password-reset links and handed to the
+    Browser Helper as its upload target, so it has to be the HTTPS address the
+    proxy publishes.
+
+    Messages name the setting and never contain a secret value.
+    """
+    problems: list[str] = []
+
+    if not settings.session_cookie_secure:
+        problems.append(
+            "PAPERTRAIL_SESSION_COOKIE_SECURE is false, so the session cookie "
+            "would be sent over plain HTTP. Set it to true and terminate TLS at "
+            "the reverse proxy."
+        )
+
+    if urlsplit(settings.public_base_url).scheme != "https":
+        problems.append(
+            "PAPERTRAIL_PUBLIC_BASE_URL is not an https:// URL. It is the public "
+            "origin used for password-reset links and Browser Helper uploads, so "
+            "it must be the HTTPS address your reverse proxy publishes (the "
+            "internal http:// hop to the API container is unaffected)."
+        )
+
+    if any(origin.strip() == "*" for origin in settings.cors_origins):
+        problems.append(
+            "PAPERTRAIL_CORS_ORIGINS contains '*'. Papertrail sends credentialed "
+            "cross-origin requests, so a wildcard origin is never acceptable; "
+            "list the exact origins instead."
+        )
+
+    if not settings.cors_origins:
+        problems.append(
+            "PAPERTRAIL_CORS_ORIGINS is empty. List the exact browser origin(s) "
+            "that may call the API."
+        )
+
+    if any(host.strip() in {"*", "*.*"} for host in settings.allowed_hosts):
+        problems.append(
+            "PAPERTRAIL_ALLOWED_HOSTS contains '*', which disables Host-header "
+            "validation entirely. List the exact hostnames this installation "
+            "answers on (a '*.example.org' subdomain pattern is still allowed)."
+        )
+
+    if not settings.allowed_hosts:
+        problems.append(
+            "PAPERTRAIL_ALLOWED_HOSTS is empty. List the exact hostnames this "
+            "installation answers on."
+        )
+
+    if _is_well_known_weak(_database_password(settings.database_url)):
+        problems.append(
+            "PAPERTRAIL_DATABASE_URL still uses a well-known example password "
+            "(the value shipped in docker-compose.yml/.env.example). Generate a "
+            "unique PostgreSQL password and update POSTGRES_PASSWORD."
+        )
+
+    if _is_well_known_weak(settings.runtime_database_password):
+        problems.append(
+            "PAPERTRAIL_RUNTIME_DATABASE_PASSWORD is a well-known example "
+            "password. Generate a unique value."
+        )
+
+    if _is_well_known_weak(settings.notification_encryption_key):
+        problems.append(
+            "PAPERTRAIL_NOTIFICATION_ENCRYPTION_KEY is a well-known example "
+            "value. Generate a unique high-entropy key."
+        )
+
+    return problems
 
 
 @lru_cache

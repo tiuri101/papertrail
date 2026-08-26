@@ -1,4 +1,4 @@
-import { tableScrollClass } from '../../components/layoutStyles'
+import { tableBaseClass, tableScrollClass } from '../../components/layoutStyles'
 import { Fragment, useEffect, useState } from 'react'
 
 import { InfoTooltip } from '../../components/Tooltip'
@@ -56,7 +56,7 @@ function PairwiseTable({ pairs }: { pairs: PairwiseAgreement[] }) {
     return <p className="text-text-muted">No overlapping reviewer pairs yet.</p>
   }
   return (
-    <table className="min-w-[650px]">
+    <table className={`${tableBaseClass} min-w-[650px]`}>
       <thead>
         <tr>
           <th scope="col">Reviewer pair</th>
@@ -107,7 +107,7 @@ function PairwiseTable({ pairs }: { pairs: PairwiseAgreement[] }) {
 function ConfusionMatrixTable({ pair }: { pair: PairwiseAgreement }) {
   const { categories, rows } = pair.confusionMatrix
   return (
-    <table className="confusion-matrix min-w-0">
+    <table className={`${tableBaseClass} confusion-matrix min-w-0`}>
       <caption className="mb-2 text-left text-[0.8rem] text-text-muted">{pair.reviewerA} (rows) vs {pair.reviewerB} (columns)</caption>
       <thead>
         <tr>
@@ -132,7 +132,7 @@ function CriteriaTable({ criteria }: { criteria: CriterionAgreement[] }) {
     return <p className="text-text-muted">No active criteria with comparable decisions yet.</p>
   }
   return (
-    <table className="min-w-[650px]">
+    <table className={`${tableBaseClass} min-w-[650px]`}>
       <thead>
         <tr>
           <th scope="col">Criterion</th>
@@ -324,7 +324,7 @@ export function ReviewerAnalysisSection({
       {titleAbstractEnabled && fullTextEnabled && summary.length > 1 ? (
         <div className="mt-4 overflow-hidden rounded-md border border-border bg-surface p-4">
           <h3 className="mb-3 mt-0">Reviewer summary</h3>
-        <div className={`${tableScrollClass} p-0`}><table className="min-w-[650px]">
+        <div className={`${tableScrollClass} p-0`}><table className={`${tableBaseClass} min-w-[650px]`}>
           <thead>
             <tr>
               <th scope="col">Reviewer</th>

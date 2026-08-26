@@ -69,7 +69,7 @@ export function AddPublicationForm({ projectId }: { projectId: string }) {
     <>
       <BibtexPrefillPanel projectId={projectId} onPrefill={setDraft} />
       <Card as="section">
-        <p className="text-text-muted">Add a single record by hand, without importing an export file from a database.</p>
+        <p className="text-text-muted">Add a single record by hand, with an optional BibTeX import.</p>
         <Form onSubmit={(event) => { event.preventDefault(); create.mutate() }}>
           <PublicationFieldInputs draft={draft} setField={setField} />
           <FileDropZone

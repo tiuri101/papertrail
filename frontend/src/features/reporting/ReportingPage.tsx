@@ -190,7 +190,7 @@ export function ReportingPage() {
           ) : !prisma.isLoading ? <p className="text-text-muted">No count data is available yet.</p> : null}
           <details className="mt-auto border-t border-border pt-3">
             <summary className="cursor-pointer font-bold text-primary">View raw reporting data</summary>
-            <pre className="max-h-80 overflow-auto text-[0.78rem]">{JSON.stringify(prisma.data, null, 2)}</pre>
+            <pre className="max-h-80 overflow-auto rounded-md border border-border bg-bg-elevated p-4 text-[0.78rem] leading-[1.55] text-text-secondary">{JSON.stringify(prisma.data, null, 2)}</pre>
           </details>
         </Card>
       </div>

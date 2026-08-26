@@ -507,6 +507,9 @@ def test_resolve_retrieval_marks_available_and_submits_decision_in_one_call(
     retrieval = db.scalar(
         select(FullTextRetrieval).where(FullTextRetrieval.publication_id == included.id)
     )
+    # Resolving requires the caller to hold the queue claim, exactly as the
+    # reviewer UI does before showing the retrieval form.
+    claim_next_retrieval(db, project.id, reviewer.id)
 
     decision = resolve_retrieval(
         db,
@@ -539,6 +542,7 @@ def test_resolve_retrieval_without_decision_only_saves_status(db) -> None:
     retrieval = db.scalar(
         select(FullTextRetrieval).where(FullTextRetrieval.publication_id == included.id)
     )
+    claim_next_retrieval(db, project.id, reviewer.id)
 
     decision = resolve_retrieval(
         db,
@@ -568,6 +572,11 @@ def test_update_retrieval_endpoint_resolves_status_and_decision_together(
         "/api/v1/auth/login",
         json={"username": reviewer.username, "password": "reviewer-password"},
     ).json()["csrfToken"]
+    claimed = client.post(
+        f"/api/v1/projects/{project.id}/full-text/next",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert claimed.status_code == 200
     response = client.put(
         f"/api/v1/projects/{project.id}/full-text/{retrieval.id}",
         json={

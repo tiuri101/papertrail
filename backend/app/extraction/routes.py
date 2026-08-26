@@ -44,6 +44,7 @@ from app.extraction.service import (
     override_extraction,
     project_form,
     reassign_work_items_from_ineligible_reviewers,
+    release_extraction_item,
     save_draft,
     slot_responses_visible,
     submit_extraction,
@@ -271,11 +272,7 @@ def release_extraction(
     item = db.get(ExtractionWorkItem, item_id)
     if item is None or item.project_id != project_id:
         raise NotFoundError("Extraction work item not found")
-    if item.assigned_reviewer_id != session.user.id:
-        raise ForbiddenError("Extraction is assigned to another reviewer")
-    if item.status != ExtractionStatus.COMPLETED:
-        item.status = ExtractionStatus.AVAILABLE
-        item.reserved_until = None
+    release_extraction_item(db, item, session.user.id)
     db.commit()
     return {"status": "released"}
 
@@ -291,7 +288,7 @@ def update_extraction_draft(
     item = db.get(ExtractionWorkItem, item_id)
     if item is None or item.project_id != project_id:
         raise NotFoundError("Extraction work item not found")
-    save_draft(item, session.user.id, payload.draft)
+    save_draft(db, item, session.user.id, payload.draft)
     db.commit()
     return {"status": "saved"}
 

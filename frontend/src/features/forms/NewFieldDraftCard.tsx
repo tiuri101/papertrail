@@ -1,5 +1,7 @@
+import { Badge } from '../../components/Badge'
 import { Button } from '../../components/Button'
 import { IconCheckCircle } from '../../components/icons'
+import { cn } from '../../lib/cn'
 import { Input } from '../../components/Input'
 import { Select } from '../../components/Select'
 import { Textarea } from '../../components/Textarea'
@@ -11,6 +13,14 @@ import {
   fieldTypes,
   weightedFieldTypes,
 } from './fieldTypes'
+import {
+  llmSchemaContentClass,
+  llmSchemaFieldClass,
+  llmSchemaMappingClass,
+  llmSchemaPreviewClass,
+  llmSchemaSummaryClass,
+  llmSchemaTitleClass,
+} from '../llm/llmStyles'
 
 // The "add a new field" draft card shown inline in the field list while a
 // new field is being configured. Shared between FormBuilderPage and
@@ -74,20 +84,24 @@ export function NewFieldDraftCard({
   saving: boolean
 }) {
   return (
-    <div className="llm-schema-field form-editor-field form-editor-field--draft" data-ui="form-editor-field" data-draft="true">
-      <div className="llm-schema-field__summary">
-        <span className="llm-schema-field__title">
+    <div
+      className={cn(llmSchemaFieldClass({ draft: true }), 'form-editor-field form-editor-field--draft')}
+      data-ui="form-editor-field"
+      data-draft="true"
+    >
+      <div className={cn(llmSchemaSummaryClass, 'cursor-default')}>
+        <span className={llmSchemaTitleClass}>
           <strong>{fieldLabel.trim() || 'New field'}</strong>
-          <span className="status-badge">{fieldTypeLabels[fieldType] ?? fieldType}</span>
-          {required ? <span className="status-badge">Required</span> : null}
+          <Badge variant="plain">{fieldTypeLabels[fieldType] ?? fieldType}</Badge>
+          {required ? <Badge variant="plain">Required</Badge> : null}
         </span>
-        <span className="llm-schema-field__mapping">
+        <span className={llmSchemaMappingClass}>
           {required ? 'Reviewers must complete this field' : 'Optional for reviewers'}
         </span>
-        <span className="llm-schema-field__preview">Configure the new response field below.</span>
+        <span className={llmSchemaPreviewClass}>Configure the new response field below.</span>
       </div>
       <form
-        className="llm-schema-field__content form-editor-field__draft-form"
+        className={cn(llmSchemaContentClass, 'form-editor-field__draft-form grid-cols-1')}
         onSubmit={(event) => { event.preventDefault(); onSubmit() }}
       >
         <FieldLabel>
@@ -126,7 +140,7 @@ export function NewFieldDraftCard({
           </FieldLabel>
         ) : null}
         {showRatingScale ? (
-          <div className="form-editor-field__settings-row">
+          <div className="form-editor-field__settings-row grid grid-cols-2 gap-4 max-[560px]:grid-cols-1">
             <FieldLabel>
               Scale minimum
               <Input
@@ -154,7 +168,7 @@ export function NewFieldDraftCard({
         {isQualityForm && fieldType === 'single_select' ? (
           <Fieldset>
             <FieldLegend>Score per option</FieldLegend>
-            {options.length === 0 ? <p className="muted">Add options above first.</p> : null}
+            {options.length === 0 ? <p className="text-text">Add options above first.</p> : null}
             {options.map((option) => (
               <FieldLabel key={option}>
                 {option}
@@ -168,7 +182,7 @@ export function NewFieldDraftCard({
           </Fieldset>
         ) : null}
         {isQualityForm && fieldType === 'checkbox' ? (
-          <div className="form-editor-field__settings-row">
+          <div className="form-editor-field__settings-row grid grid-cols-2 gap-4 max-[560px]:grid-cols-1">
             <FieldLabel>
               Score if checked
               <Input type="number" value={trueScore} onChange={(event) => onTrueScoreChange(event.target.value)} />
@@ -179,7 +193,7 @@ export function NewFieldDraftCard({
             </FieldLabel>
           </div>
         ) : null}
-        <div className="toolbar">
+        <div className="toolbar flex flex-wrap items-center gap-3 my-5 max-[760px]:gap-2">
           <Button
             type="submit"
             variant="primary"

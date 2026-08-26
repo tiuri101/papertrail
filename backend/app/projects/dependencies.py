@@ -14,6 +14,10 @@ from app.projects.service import (
     is_project_manager,
     require_project_access,
 )
+from app.review_work.eligibility import (
+    ReviewCapability,
+    require_reviewer_capability,
+)
 
 
 def require_project_manager(
@@ -62,17 +66,9 @@ def require_full_text_reviewer_csrf(
     db: Session = Depends(get_db),
 ) -> User:
     require_project_access(db, project_id, session.user)
-    if session.user.is_admin or is_project_manager(db, project_id, session.user):
-        return session.user
-    membership = db.scalar(
-        select(ProjectMembership).where(
-            ProjectMembership.project_id == project_id,
-            ProjectMembership.user_id == session.user.id,
-        )
+    return require_reviewer_capability(
+        db, project_id, session.user, ReviewCapability.FULL_TEXT_SCREENING
     )
-    if membership is None or not membership.can_full_text_screen:
-        raise ForbiddenError("Full-text reviewer access required")
-    return session.user
 
 
 def _is_manager_or_adjudicator(db: Session, project_id: str, user: User) -> bool:

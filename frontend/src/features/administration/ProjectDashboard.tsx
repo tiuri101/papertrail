@@ -5,6 +5,7 @@ import { api } from '../../api/client'
 import { Badge } from '../../components/Badge'
 import { InfoBox } from '../../components/InfoBox'
 import { Card } from '../../components/Card'
+import { tableBaseClass, tableMobileScrollClass } from '../../components/layoutStyles'
 import {
   IconChart,
   IconCheckCircle,
@@ -50,7 +51,7 @@ function metaFor(key: string): MetricMeta {
 
 function MetricTable({ entries }: { entries: [string, number | string][] }) {
   return (
-    <table>
+    <table className={`${tableBaseClass} ${tableMobileScrollClass}`}>
       <thead>
         <tr>
           <th scope="col">Metric</th>

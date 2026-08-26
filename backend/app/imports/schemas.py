@@ -1,5 +1,4 @@
 from datetime import date, datetime
-from typing import Any
 
 from pydantic import Field
 
@@ -60,40 +59,8 @@ class PdfMatchResolve(ApiModel):
     action: str
 
 
-class JobResponse(ApiModel):
-    id: str
-    job_type: str = Field(serialization_alias="jobType")
-    status: str
-    progress_current: int = Field(serialization_alias="progressCurrent")
-    progress_total: int = Field(serialization_alias="progressTotal")
-    progress_message: str | None = Field(serialization_alias="progressMessage")
-    error_message: str | None = Field(serialization_alias="errorMessage")
-    result: dict[str, Any] | None
-    created_at: datetime = Field(serialization_alias="createdAt")
-    completed_at: datetime | None = Field(serialization_alias="completedAt")
-
-
 class JobStageSummary(ApiModel):
     stage: str
     completed: int
     total: int
     active: bool
-
-
-class JobErrorResponse(ApiModel):
-    job_id: str = Field(serialization_alias="jobId")
-    job_type: str = Field(serialization_alias="jobType")
-    job_label: str = Field(serialization_alias="jobLabel")
-    affected_stage: str = Field(serialization_alias="affectedStage")
-    project_id: str | None = Field(serialization_alias="projectId")
-    project_name: str | None = Field(serialization_alias="projectName")
-    project_stage: str | None = Field(serialization_alias="projectStage")
-    attempt: int
-    max_attempts: int = Field(serialization_alias="maxAttempts")
-    queued_at: datetime = Field(serialization_alias="queuedAt")
-    started_at: datetime | None = Field(serialization_alias="startedAt")
-    failed_at: datetime | None = Field(serialization_alias="failedAt")
-    context: dict[str, str | int | bool | None]
-    error_type: str | None = Field(serialization_alias="errorType")
-    error_message: str | None = Field(serialization_alias="errorMessage")
-    error_details: str | None = Field(serialization_alias="errorDetails")

@@ -97,12 +97,83 @@ describe('ProjectsPage', () => {
       </Routes>,
     )
 
-    await screen.findByRole('heading', { name: 'Projects' })
-
     fireEvent.click(
-        screen.getByRole('button', { name: 'New Project' }),
+        await screen.findByRole('button', { name: 'Get Started' }),
     )
 
     expect(await screen.findByText('Setup wizard placeholder')).toBeInTheDocument()
+  })
+
+  it('keeps the create-project affordance reachable with zero projects', async () => {
+    mockFetch(async () => jsonResponse([]))
+
+    renderWithProviders(<ProjectsPage />)
+
+    expect(await screen.findByRole('heading', { name: 'Create New Project' })).toBeVisible()
+    expect(screen.getByText('No projects yet. Create your first project to get started.')).toBeVisible()
+    expect(screen.getByRole('button', { name: 'Get Started' })).toBeVisible()
+    expect(screen.queryByRole('button', { name: 'New Project' })).not.toBeInTheDocument()
+  })
+
+  it('sorts the project list', async () => {
+    mockFetch(async () => jsonResponse([
+      {
+        id: 'p1',
+        name: 'Zebra review',
+        description: null,
+        reviewType: 'systematic_review',
+        stage: 'draft',
+        createdAt: '2026-08-01T10:00:00Z',
+        updatedAt: '2026-08-10T10:00:00Z',
+        owner: { id: 'u1', displayName: 'Ada Lovelace' },
+        myRole: 'owner',
+        openTaskCount: 0,
+        primaryLabel: 'Imported',
+        primaryCount: 0,
+        secondaryLabel: 'Screened',
+        secondaryCount: 0,
+        reviewerCount: 1,
+        percentComplete: 20,
+      },
+      {
+        id: 'p2',
+        name: 'Alpha review',
+        description: null,
+        reviewType: 'scoping_review',
+        stage: 'completed',
+        createdAt: '2026-07-15T10:00:00Z',
+        updatedAt: '2026-08-19T10:00:00Z',
+        owner: { id: 'u2', displayName: 'Grace Hopper' },
+        myRole: 'reviewer',
+        openTaskCount: 0,
+        primaryLabel: 'Included',
+        primaryCount: 89,
+        secondaryLabel: 'Screened',
+        secondaryCount: 143,
+        reviewerCount: 6,
+        percentComplete: 90,
+      },
+    ]))
+
+    renderWithProviders(<ProjectsPage />)
+
+    await screen.findByRole('link', { name: 'Alpha review' })
+    const list = screen.getByRole('list', { name: 'Projects' })
+    const projectNames = () =>
+      within(list)
+        .getAllByRole('heading', { level: 2 })
+        .map((heading) => heading.textContent)
+        .filter((name) => name !== 'Create New Project')
+
+    expect(projectNames()).toEqual(['Alpha review', 'Zebra review'])
+
+    fireEvent.change(screen.getByLabelText('Sort projects'), { target: { value: 'updated' } })
+    expect(projectNames()).toEqual(['Alpha review', 'Zebra review'])
+
+    fireEvent.change(screen.getByLabelText('Sort projects'), { target: { value: 'created' } })
+    expect(projectNames()).toEqual(['Zebra review', 'Alpha review'])
+
+    fireEvent.change(screen.getByLabelText('Sort projects'), { target: { value: 'completion' } })
+    expect(projectNames()).toEqual(['Alpha review', 'Zebra review'])
   })
 })

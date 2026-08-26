@@ -13,6 +13,7 @@ import {
   reviewWorkGridClass,
   reviewWorkListClass,
 } from '../../components/reviewWorkStyles'
+import { statusPillClass } from '../../components/statusPillStyles'
 import { Select } from '../../components/Select'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 import { type SortDirection, sortByValue } from '../../lib/sort'
@@ -81,7 +82,7 @@ function QualityRow({ projectId, entry, highlightKeywords }: {
       doi={publication.doi}
       submittedAt={entry.completedAt}
       statusContent={(
-        <span className="status-pill">
+        <span className={statusPillClass()}>
           {entry.totalScore === null ? `Version ${entry.version}` : `Total score ${entry.totalScore} · v${entry.version}`}
         </span>
       )}
@@ -193,7 +194,7 @@ export function MyQualityPage() {
                 <PublicationListSortHeader label="Submitted" sortKey="submitted" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
                 <span className={reviewWorkActionsClass}>Actions</span>
               </div>
-              <ul className={reviewWorkListClass} aria-label="Submitted quality assessments">
+              <ul className={`${reviewWorkListClass} overflow-hidden rounded-md border border-border bg-surface`} aria-label="Submitted quality assessments">
                 {filteredItems.map((entry) => <QualityRow key={entry.id} projectId={projectId} entry={entry} highlightKeywords={highlightKeywords} />)}
               </ul>
             </>

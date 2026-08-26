@@ -17,7 +17,9 @@ from app.api.errors import RateLimitError
 from app.audit.models import AuditEvent
 from app.core.config import Settings, get_settings
 from app.core.time import utcnow
+from app.notifications.encryption import decrypt_payload
 from app.notifications.models import EmailNotification
+from app.notifications.service import _payload_associated_data
 
 
 def test_admin_can_create_and_disable_reviewer(client, db) -> None:
@@ -89,7 +91,7 @@ def test_mutation_requires_csrf(client, db) -> None:
     assert response.status_code == 403
 
 
-def test_reviewer_can_list_but_not_manage_users(client, db) -> None:
+def test_reviewer_can_neither_list_nor_manage_users(client, db) -> None:
     create_user(db, "reviewer", "Reviewer", "reviewer-password", is_admin=False)
     db.commit()
     login = client.post(
@@ -99,10 +101,12 @@ def test_reviewer_can_list_but_not_manage_users(client, db) -> None:
     csrf = login.json()["csrfToken"]
     assert login.status_code == 200
 
-    # Any authenticated user can see the user directory (needed to add project
-    # members), but only an admin can create or update accounts.
+    # The installation-wide user directory is administrator-only: an ordinary
+    # reviewer must not be able to enumerate everyone on the instance. Project
+    # owners get the candidates they need from the project-scoped
+    # /projects/{id}/member-candidates endpoint instead.
     list_response = client.get("/api/v1/users")
-    assert list_response.status_code == 200
+    assert list_response.status_code == 403
 
     create_response = client.post(
         "/api/v1/users",
@@ -303,7 +307,16 @@ def test_forgot_password_emails_a_single_use_reset_link(client, db) -> None:
         assert notification is not None
         assert notification.template == "password_reset"
         assert notification.recipient_email == "reviewer@example.org"
-        reset_url = notification.context["reset_url"]
+        # The link is a credential, so it is never stored in the plain context
+        # JSON -- only the worker, holding the application key, can read it.
+        assert "reset_url" not in notification.context
+        assert notification.encrypted_context is not None
+        reset_url = decrypt_payload(
+            notification.encrypted_context,
+            associated_data=_payload_associated_data(
+                notification.template, notification.recipient_email
+            ),
+        )["reset_url"]
         token = reset_url.rsplit("token=", 1)[1]
 
         wrong_token = client.post(

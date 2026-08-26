@@ -33,6 +33,7 @@ def mark_project_ready(
     db: Session = Depends(get_db),
 ) -> dict[str, str]:
     from app.projects.checklist import project_checklist
+    from app.projects.lifecycle import set_project_stage
 
     project = get_project(db, project_id)
     if project.stage != ProjectStage.DRAFT:
@@ -48,7 +49,9 @@ def mark_project_ready(
     if incomplete:
         raise DomainError(f"Complete setup before continuing: {', '.join(incomplete)}")
     project.configuration_ready = True
-    project.stage = ProjectStage.DUPLICATE_REVIEW
+    set_project_stage(
+        project, ProjectStage.DUPLICATE_REVIEW, reason="project marked ready"
+    )
     job = enqueue_job(
         db,
         "detect_duplicates",
@@ -200,12 +203,17 @@ def undo_merge(
     admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ) -> dict[str, str]:
+    from app.projects.lifecycle import require_merge_reversal_allowed
+
     merge = db.get(PublicationMerge, merge_id)
     if merge is None or merge.project_id != project_id:
         raise NotFoundError("Merge not found")
     project = get_project(db, project_id)
-    if project.stage != ProjectStage.DUPLICATE_REVIEW:
-        project.stage = ProjectStage.DUPLICATE_REVIEW
+    # Deduplication never sets project.stage itself: a merge reversal is only
+    # coherent while the project is still in duplicate review, and getting
+    # back there from a later stage is the lifecycle layer's job (Move Back),
+    # not a silent stage reassignment from here.
+    require_merge_reversal_allowed(db, project)
     reverse_merge(db, merge, admin.id)
     record_audit(
         db,

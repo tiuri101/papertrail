@@ -1,4 +1,4 @@
-import { tableCompactClass, tableScrollClass } from '../../components/layoutStyles'
+import { tableBaseClass, tableCompactClass, tableScrollClass } from '../../components/layoutStyles'
 import { Fragment, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
@@ -134,7 +134,7 @@ function JobFailureDetails({ job }: { job: BackgroundJob }) {
     `Job ID: ${job.id}`,
     `Status: ${job.status}`,
   ]
-  const downloadText = [...reportContext, '', 'Traceback:', diagnosticText].join('\n')
+  const downloadText = [...reportContext, '', 'Diagnostics:', diagnosticText].join('\n')
 
   return (
     <div className="grid gap-2">
@@ -171,8 +171,11 @@ function JobFailureDetails({ job }: { job: BackgroundJob }) {
                 ))}
                 <dt>Error type</dt><dd>{report.data.errorType ?? 'Unknown'}</dd>
               </dl>
-              <strong>Traceback</strong>
-              <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-sm bg-bg-elevated p-3 text-xs">{diagnosticText}</pre>
+              {/* Managers and administrators get the raw traceback here; every
+                  other member gets the redacted summary the API returns
+                  instead, so the heading must not promise a traceback. */}
+              <strong>Diagnostics</strong>
+              <pre className="max-h-80 overflow-auto whitespace-pre-wrap rounded-sm border border-border bg-bg-elevated p-3 text-xs leading-[1.55] text-text-secondary">{diagnosticText}</pre>
               <a
                 download={`job-${job.id}-error.txt`}
                 href={`data:text/plain;charset=utf-8,${encodeURIComponent(downloadText)}`}
@@ -367,7 +370,7 @@ export function JobsPage() {
       ) : null}
       {sortedJobs.length ? (
         <div className={tableScrollClass}>
-          <table className={`${tableCompactClass} jobs-table`}>
+          <table className={`${tableBaseClass} ${tableCompactClass} jobs-table`}>
             <caption className="sr-only">Background jobs</caption>
             <thead>
               <tr>

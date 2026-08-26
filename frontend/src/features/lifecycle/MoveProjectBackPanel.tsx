@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { api } from '../../api/client'
+import { describeError } from '../../api/domainErrors'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { IconAlertTriangle, IconRestart } from '../../components/icons'
@@ -51,7 +52,7 @@ export function MoveProjectBackPanel({ projectId }: { projectId: string }) {
           (criteria, forms, members), are left untouched.
         </p>
       </InfoBox>
-      {moveBack.error ? <p className="text-danger" role="alert">{moveBack.error.message}</p> : null}
+      {moveBack.error ? <p className="text-danger" role="alert">{describeError(moveBack.error)}</p> : null}
       <FieldLabel>
         Move back to
         <Select

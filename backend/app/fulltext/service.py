@@ -132,19 +132,42 @@ def release_retrieval_claim(retrieval: FullTextRetrieval, user_id: str) -> None:
     retrieval.claimed_until = None
 
 
-def ensure_retrieval_claim(retrieval: FullTextRetrieval, user_id: str) -> None:
-    """Reject a status update from someone other than whoever actively holds
-    the claim. Unclaimed and expired-claim retrievals are left open -- e.g.
-    for a manager updating a record no one has picked up yet."""
-    if (
-        retrieval.claimed_by_id is not None
-        and retrieval.claimed_by_id != user_id
-        and retrieval.claimed_until is not None
-        and retrieval.claimed_until >= utcnow()
-    ):
-        raise ForbiddenError(
-            "This publication is currently claimed by another reviewer"
-        )
+def _claim_is_active(retrieval: FullTextRetrieval) -> bool:
+    if retrieval.claimed_by_id is None or retrieval.claimed_until is None:
+        return False
+    claimed_until = retrieval.claimed_until
+    # SQLite round-trips these naive; normalize before comparing to an aware now.
+    if claimed_until.tzinfo is None:
+        claimed_until = claimed_until.replace(tzinfo=UTC)
+    return claimed_until >= utcnow()
+
+
+def holds_active_retrieval_claim(retrieval: FullTextRetrieval, user_id: str) -> bool:
+    """Whether `user_id` currently holds this retrieval's queue reservation."""
+    return retrieval.claimed_by_id == user_id and _claim_is_active(retrieval)
+
+
+def ensure_retrieval_claim(
+    retrieval: FullTextRetrieval, user_id: str, *, is_manager: bool = False
+) -> None:
+    """Require the caller to actually hold this retrieval's claim.
+
+    Previously this only rejected a claim *held by somebody else*, which left
+    every unclaimed or expired retrieval directly mutable by any reviewer
+    generally eligible for full-text work -- the queue's one-reviewer-at-a-time
+    guarantee was enforced only by the UI walking reviewers through
+    `claim_next_retrieval` first. Being eligible for the stage is not the same
+    as having been handed this paper.
+
+    Project managers keep an explicit override: they administer the queue and
+    routinely correct records nobody has picked up, so they are allowed
+    through without a claim (the caller decides who counts as a manager).
+    """
+    if is_manager or holds_active_retrieval_claim(retrieval, user_id):
+        return
+    if retrieval.claimed_by_id != user_id and _claim_is_active(retrieval):
+        raise ForbiddenError("This publication is currently claimed by another reviewer")
+    raise ForbiddenError("Claim this publication for retrieval before updating it")
 
 
 def retrieval_progress(db: Session, project_id: str) -> dict[str, int]:
@@ -218,6 +241,7 @@ def resolve_retrieval(
     *,
     note: str | None = None,
     user_id: str,
+    is_manager: bool = False,
     decision_outcome: str | None = None,
     decision_criteria_answers: dict[str, bool] | None = None,
     decision_notes: str | None = None,
@@ -226,7 +250,7 @@ def resolve_retrieval(
     full-text screening decision if the report was just marked available.
     Returns None when no decision was submitted (status isn't available, or
     the current user has no screening work item for this publication)."""
-    ensure_retrieval_claim(retrieval, user_id)
+    ensure_retrieval_claim(retrieval, user_id, is_manager=is_manager)
     set_retrieval_status(db, retrieval, status, note=note, user_id=user_id)
     if decision_outcome is None:
         return None
@@ -317,11 +341,14 @@ def transition_if_full_text_complete(db: Session, project: Project) -> bool:
         return False
 
     from app.extraction.service import initialize_extraction, project_form
+    from app.projects.lifecycle import set_project_stage
 
     if project_form(db, project.id) is None:
         return False
 
-    project.stage = ProjectStage.EXTRACTION
+    set_project_stage(
+        project, ProjectStage.EXTRACTION, reason="full-text screening complete"
+    )
 
     initialize_extraction(db, project)
     try:

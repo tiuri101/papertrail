@@ -1963,7 +1963,7 @@ def test_validation_waits_for_dual_extraction_consensus_then_targets_it(db) -> N
     settings = project_settings(db, project.id)
     assert settings is not None
     settings.extraction_validation_enabled = True
-    second_reviewer = create_user(db, "llm-reviewer-2", "Reviewer 2", "password-2")
+    second_reviewer = create_user(db, "llm-reviewer-2", "Reviewer 2", "long-password-2")
     db.add(PM(project_id=project.id, user_id=second_reviewer.id, can_extract=True))
     db.add(ExtractionConfig(project_id=project.id, required_reviewers=2))
     include_title_abstract(db, publication)

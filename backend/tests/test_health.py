@@ -9,5 +9,7 @@ def test_health_endpoint() -> None:
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "ok"
-    assert "version" in body
+    # Unauthenticated -- must not hand an unauthenticated scanner the exact
+    # running application version. See tests/security/test_production_config.py.
+    assert "version" not in body
     assert response.headers["X-Request-ID"]

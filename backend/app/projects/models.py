@@ -9,10 +9,12 @@ from sqlalchemy import (
     Enum,
     Float,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -33,6 +35,29 @@ class ProjectStage(enum.StrEnum):
     FULL_TEXT = "full_text_screening"
     EXTRACTION = "extraction_quality"
     COMPLETED = "completed"
+
+
+#: The single canonical forward order of project stages. Every module that
+#: needs "is stage A before/after stage B" -- the project checklist, progress
+#: displays, the screening domain's stage-completed check, the lifecycle
+#: layer's move-back/reopen logic -- derives it from this tuple rather than
+#: keeping a second copy that can drift out of sync with the actual workflow.
+#: Lives next to the enum itself (not in app.projects.lifecycle, where the
+#: rest of the lifecycle machinery lives) so every domain module can import it
+#: without risking a circular import through lifecycle's own dependencies.
+STAGE_ORDER: tuple[ProjectStage, ...] = (
+    ProjectStage.DRAFT,
+    ProjectStage.DUPLICATE_REVIEW,
+    ProjectStage.TITLE_ABSTRACT,
+    ProjectStage.FULL_TEXT,
+    ProjectStage.EXTRACTION,
+    ProjectStage.COMPLETED,
+)
+
+
+def stage_index(stage: ProjectStage) -> int:
+    """This stage's position in :data:`STAGE_ORDER` (0 = earliest)."""
+    return STAGE_ORDER.index(stage)
 
 
 class CriterionKind(enum.StrEnum):
@@ -121,6 +146,21 @@ class ProjectMembership(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "project_memberships"
     __table_args__ = (
         UniqueConstraint("project_id", "user_id", name="uq_project_membership"),
+        # Exactly one owner per project. The application enforces the "at
+        # least one" half (a project is created with an owner, the owner
+        # cannot be removed, and ownership only ever moves by transfer); this
+        # partial index is the backstop for the "at most one" half, which no
+        # amount of application care can guarantee across concurrent
+        # transactions. Everything that reads ownership -- the project list's
+        # owner column, is_project_manager, owner notifications -- assumes a
+        # single answer.
+        Index(
+            "uq_project_single_owner",
+            "project_id",
+            unique=True,
+            postgresql_where=text("is_owner = true"),
+            sqlite_where=text("is_owner = 1"),
+        ),
     )
 
     project_id: Mapped[str] = mapped_column(

@@ -1,14 +1,23 @@
 name: papertrail
 
+# Shared, non-secret operational settings common to every backend process.
+# PAPERTRAIL_DATABASE_URL here uses the least-privilege runtime role (DML
+# only, no schema/DDL rights) -- this is what the API and the workers
+# actually run as. The `migrate` service below overrides it to the
+# schema-owning identity instead, and is the only service that also receives
+# PAPERTRAIL_ADMIN_PASSWORD and the raw runtime-role credentials needed to
+# provision that role in the first place. See docs/operations/security.md.
 x-backend-environment: &backend-environment
   PAPERTRAIL_ENV: ${PAPERTRAIL_ENV:-production}
-  PAPERTRAIL_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-papertrail}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/${POSTGRES_DB:-papertrail}
+  PAPERTRAIL_DATABASE_URL: postgresql+psycopg://${PAPERTRAIL_RUNTIME_DATABASE_ROLE:?PAPERTRAIL_RUNTIME_DATABASE_ROLE is required}:${PAPERTRAIL_RUNTIME_DATABASE_PASSWORD:?PAPERTRAIL_RUNTIME_DATABASE_PASSWORD is required}@postgres:5432/${POSTGRES_DB:-papertrail}
   PAPERTRAIL_IMPORT_DIR: /data/imports
   PAPERTRAIL_EXPORT_DIR: /data/exports
   PAPERTRAIL_PDF_STORAGE_PATH: /pdf-data
   PAPERTRAIL_MAX_PDF_SIZE_MB: ${PAPERTRAIL_MAX_PDF_SIZE_MB:-50}
   PAPERTRAIL_SESSION_COOKIE_SECURE: ${PAPERTRAIL_SESSION_COOKIE_SECURE:-false}
   PAPERTRAIL_ALLOWED_HOSTS: ${PAPERTRAIL_ALLOWED_HOSTS:-localhost,127.0.0.1}
+  PAPERTRAIL_ALLOW_INSECURE_PRODUCTION: ${PAPERTRAIL_ALLOW_INSECURE_PRODUCTION:-false}
+  PAPERTRAIL_API_DOCS_ENABLED: ${PAPERTRAIL_API_DOCS_ENABLED:-}
   PAPERTRAIL_PASSWORD_RESET_TTL_MINUTES: ${PAPERTRAIL_PASSWORD_RESET_TTL_MINUTES:-60}
   PAPERTRAIL_PASSWORD_RESET_MAX_ATTEMPTS: ${PAPERTRAIL_PASSWORD_RESET_MAX_ATTEMPTS:-5}
   PAPERTRAIL_CORS_ORIGINS: ${PAPERTRAIL_CORS_ORIGINS:-http://localhost}
@@ -19,6 +28,7 @@ x-backend-environment: &backend-environment
   PAPERTRAIL_BROWSER_RETRIEVAL_LEASE_SECONDS: ${PAPERTRAIL_BROWSER_RETRIEVAL_LEASE_SECONDS:-300}
   PAPERTRAIL_EMAIL_ENABLED: ${PAPERTRAIL_EMAIL_ENABLED:-false}
   PAPERTRAIL_PUBLIC_BASE_URL: ${PAPERTRAIL_PUBLIC_BASE_URL:-http://localhost}
+  PAPERTRAIL_NOTIFICATION_ENCRYPTION_KEY: ${PAPERTRAIL_NOTIFICATION_ENCRYPTION_KEY:-}
   PAPERTRAIL_SMTP_HOST: ${PAPERTRAIL_SMTP_HOST:-}
   PAPERTRAIL_SMTP_PORT: ${PAPERTRAIL_SMTP_PORT:-587}
   PAPERTRAIL_SMTP_USERNAME: ${PAPERTRAIL_SMTP_USERNAME:-}
@@ -36,14 +46,29 @@ x-backend-environment: &backend-environment
   PAPERTRAIL_LLM_CONTEXT_LENGTH: ${PAPERTRAIL_LLM_CONTEXT_LENGTH:-32768}
   PAPERTRAIL_LLM_MAX_EVIDENCE_ITEMS: ${PAPERTRAIL_LLM_MAX_EVIDENCE_ITEMS:-3}
   PAPERTRAIL_LLM_MAX_EVIDENCE_QUOTE_CHARS: ${PAPERTRAIL_LLM_MAX_EVIDENCE_QUOTE_CHARS:-500}
-  PAPERTRAIL_ADMIN_USERNAME: ${PAPERTRAIL_ADMIN_USERNAME:-admin}
-  PAPERTRAIL_ADMIN_DISPLAY_NAME: ${PAPERTRAIL_ADMIN_DISPLAY_NAME:-Papertrail Administrator}
-  PAPERTRAIL_ADMIN_PASSWORD: ${PAPERTRAIL_ADMIN_PASSWORD:?PAPERTRAIL_ADMIN_PASSWORD is required}
+
+x-backend-hardening: &backend-hardening
+  cap_drop: [ALL]
+  security_opt: ["no-new-privileges:true"]
+  pids_limit: 256
 
 services:
   postgres:
     image: postgres:18-alpine
     restart: unless-stopped
+    cap_drop: [ALL]
+    # The official entrypoint starts as root and drops to the postgres user
+    # itself (and, on first run, chowns the data directory) -- it needs these
+    # back even though nothing else does.
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 256
+    mem_limit: 1g
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /var/run/postgresql
+      - /dev/shm
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-papertrail}
       POSTGRES_USER: ${POSTGRES_USER:-papertrail}
@@ -58,9 +83,27 @@ services:
 
   migrate:
     image: tiuri101/papertrail-backend:${PAPERTRAIL_IMAGE_TAG:?PAPERTRAIL_IMAGE_TAG is required}
-    environment: *backend-environment
+    <<: *backend-hardening
+    mem_limit: 512m
+    read_only: true
+    tmpfs:
+      - /tmp
+    environment:
+      <<: *backend-environment
+      # The migration/bootstrap identity is the only one that ever sees the
+      # schema-owning credentials, the bootstrap admin password, or the raw
+      # runtime-role credentials it is about to provision -- see
+      # docs/operations/security.md for the full privilege-separation model.
+      PAPERTRAIL_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-papertrail}:${POSTGRES_PASSWORD:-change-me}@postgres:5432/${POSTGRES_DB:-papertrail}
+      PAPERTRAIL_ADMIN_USERNAME: ${PAPERTRAIL_ADMIN_USERNAME:-admin}
+      PAPERTRAIL_ADMIN_DISPLAY_NAME: ${PAPERTRAIL_ADMIN_DISPLAY_NAME:-Papertrail Administrator}
+      PAPERTRAIL_ADMIN_PASSWORD: ${PAPERTRAIL_ADMIN_PASSWORD:?PAPERTRAIL_ADMIN_PASSWORD is required}
+      PAPERTRAIL_RUNTIME_DB_ROLE: ${PAPERTRAIL_RUNTIME_DATABASE_ROLE:?PAPERTRAIL_RUNTIME_DATABASE_ROLE is required}
+      PAPERTRAIL_RUNTIME_DB_PASSWORD: ${PAPERTRAIL_RUNTIME_DATABASE_PASSWORD:?PAPERTRAIL_RUNTIME_DATABASE_PASSWORD is required}
     command: >-
-      sh -c 'alembic upgrade head && python -m app.cli create-admin'
+      sh -c 'alembic upgrade head &&
+             python -m app.cli ensure-runtime-role &&
+             python -m app.cli create-admin'
     volumes:
       - papertrail_files:/data
     depends_on:
@@ -71,6 +114,11 @@ services:
   api:
     image: tiuri101/papertrail-backend:${PAPERTRAIL_IMAGE_TAG:?PAPERTRAIL_IMAGE_TAG is required}
     restart: unless-stopped
+    <<: *backend-hardening
+    mem_limit: 1g
+    read_only: true
+    tmpfs:
+      - /tmp
     environment: *backend-environment
     command:
       - uvicorn
@@ -105,6 +153,11 @@ services:
   worker:
     image: tiuri101/papertrail-backend:${PAPERTRAIL_IMAGE_TAG:?PAPERTRAIL_IMAGE_TAG is required}
     restart: unless-stopped
+    <<: *backend-hardening
+    mem_limit: 1g
+    read_only: true
+    tmpfs:
+      - /tmp
     environment: *backend-environment
     command: python -m app.jobs.worker
     volumes:
@@ -119,6 +172,11 @@ services:
   llm-worker:
     image: tiuri101/papertrail-backend:${PAPERTRAIL_IMAGE_TAG:?PAPERTRAIL_IMAGE_TAG is required}
     restart: unless-stopped
+    <<: *backend-hardening
+    mem_limit: 1g
+    read_only: true
+    tmpfs:
+      - /tmp
     environment: *backend-environment
     command: python -m app.jobs.worker --llm
     depends_on:
@@ -130,6 +188,20 @@ services:
   frontend:
     image: tiuri101/papertrail-frontend:${PAPERTRAIL_IMAGE_TAG:?PAPERTRAIL_IMAGE_TAG is required}
     restart: unless-stopped
+    cap_drop: [ALL]
+    # nginx's master process starts as root and chowns its (tmpfs) cache
+    # directories to the unprivileged `nginx` user before forking workers
+    # that setuid/setgid down to it -- it needs these three back to do that,
+    # even with the image's default container user left untouched.
+    cap_add: [CHOWN, SETUID, SETGID]
+    security_opt: ["no-new-privileges:true"]
+    pids_limit: 128
+    mem_limit: 256m
+    read_only: true
+    tmpfs:
+      - /var/cache/nginx
+      - /var/run
+      - /tmp
     ports:
       # Bound to loopback by default — see the api service's port comment.
       - "${PAPERTRAIL_FRONTEND_BIND:-127.0.0.1}:${PAPERTRAIL_FRONTEND_PORT:-80}:80"

@@ -1,0 +1,31 @@
+TY  - CONF
+AU  - Muller, A.
+AU  - Garcia-Lopez, M.
+TI  - Immersive analytics for urban energy systems
+PY  - 2020
+T2  - Proceedings of the 2020 CHI Conference on Human Factors in Computing
+Systems
+C7  - 3313831
+SP  - 1
+EP  - 14
+DO  - 10.1145/3313831.3376234
+SN  - 9781450367080
+AB  - Urban energy systems generate high-dimensional spatio-temporal data. We
+present an immersive analytics workflow that combines a 3-D city model with
+linked 2-D statistical views, and evaluate it with twelve domain experts.
+KW  - immersive analytics
+KW  - urban data
+PB  - Association for Computing Machinery
+UR  - https://doi.org/10.1145/3313831.3376234
+ER  -
+
+TY  - JOUR
+AU  - Chen, W.
+TI  - A survey of visual analytics
+PY  - 2019
+JO  - IEEE Transactions on Visualization and Computer Graphics
+VL  - 25
+IS  - 1
+DO  - 10.1109/TVCG.2019.1234567
+SN  - 1077-2626
+ER  -

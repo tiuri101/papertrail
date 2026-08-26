@@ -18,11 +18,13 @@ export interface CardProps extends HTMLAttributes<HTMLElement> {
 export { cardShapeStyles, cardShellStyles, cardPaddingStyles, cardPageSiblingSpacingStyles, cardStyles }
 
 
-export function Card({ as: Component = 'div', className, ...props }: CardProps) {
+export function Card({ as: Component = 'div', className, id, ...props }: CardProps) {
   return (
     <Component
+      id={id}
       className={cn(
         cardStyles,
+        id?.startsWith('section-') && 'scroll-mt-[92px]',
         className,
       )}
       data-ui="card"

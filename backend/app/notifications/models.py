@@ -36,6 +36,11 @@ class EmailNotification(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     context: Mapped[dict[str, Any]] = mapped_column(
         JSONType, default=dict, nullable=False
     )
+    #: AES-GCM envelope for the credential-bearing part of the payload (today
+    #: only the password-reset link). Kept out of `context` on purpose: a read
+    #: of this table must not yield a usable credential. Cleared once the email
+    #: has been delivered.
+    encrypted_context: Mapped[str | None] = mapped_column(Text)
     status: Mapped[EmailDeliveryStatus] = mapped_column(
         String(20), default=EmailDeliveryStatus.QUEUED, index=True, nullable=False
     )

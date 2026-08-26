@@ -17,6 +17,7 @@ from app.projects.models import (
     ScreeningStage,
 )
 from app.publications.models import Publication
+from app.review_work.finalization import lock_publication_for_finalization
 from app.screening.models import ScreeningOutcome, ScreeningWorkItem, WorkItemStatus
 from app.screening.service import (
     current_decisions,
@@ -45,6 +46,7 @@ def invalidate_final_decisions(
     stage: ScreeningStage,
     reason: str = "Reviewer decision revised",
 ) -> int:
+    lock_publication_for_finalization(db, publication_id)
     decisions = list(
         db.scalars(
             select(FinalDecision).where(
@@ -95,6 +97,7 @@ def _initialize_downstream_work_for_late_inclusion(
         ProjectStage.COMPLETED,
     }:
         from app.fulltext.service import initialize_full_text_stage
+        from app.projects.lifecycle import set_project_stage
 
         if project.stage == ProjectStage.COMPLETED:
             record_audit(
@@ -113,7 +116,11 @@ def _initialize_downstream_work_for_late_inclusion(
                     "publicationId": publication.id,
                 },
             )
-            project.stage = ProjectStage.FULL_TEXT
+            set_project_stage(
+                project,
+                ProjectStage.FULL_TEXT,
+                reason="late title/abstract inclusion reopened a completed project",
+            )
             project.completed_at = None
         initialize_full_text_stage(db, project)
 
@@ -137,6 +144,7 @@ def _initialize_downstream_work_for_late_inclusion(
         ProjectStage.COMPLETED,
     }:
         from app.extraction.service import initialize_extraction
+        from app.projects.lifecycle import set_project_stage
         from app.quality.service import initialize_quality
 
         if project.stage == ProjectStage.COMPLETED:
@@ -156,7 +164,11 @@ def _initialize_downstream_work_for_late_inclusion(
                     "publicationId": publication.id,
                 },
             )
-            project.stage = ProjectStage.EXTRACTION
+            set_project_stage(
+                project,
+                ProjectStage.EXTRACTION,
+                reason="late full-text inclusion reopened a completed project",
+            )
             project.completed_at = None
         initialize_extraction(db, project)
         initialize_quality(db, project)
@@ -277,6 +289,11 @@ def record_final_decision(
     publication = db.get(Publication, publication_id)
     if publication is None:
         raise NotFoundError("Publication not found")
+    # Invalidate-then-insert only yields "exactly one valid final decision per
+    # (publication, stage)" if no other transaction can interleave between the
+    # two writes; the partial unique index uq_final_decision_current is the
+    # backstop, this lock is what keeps it from ever being hit.
+    lock_publication_for_finalization(db, publication_id)
     invalidate_final_decisions(
         db, publication_id, stage, "Replaced by a newer final decision"
     )
@@ -336,6 +353,12 @@ def refresh_automatic_final_decision(
     publication_id: str,
     stage: ScreeningStage,
 ) -> FinalDecision | None:
+    # Serialize before the quorum read, not after: whichever concurrent
+    # submission gets here second must observe the first one's committed
+    # decision, otherwise both conclude the publication is still waiting on
+    # the other reviewer and the publication is left with a full set of
+    # decisions and no final decision at all.
+    lock_publication_for_finalization(db, publication_id)
     if not decisions_visible(db, publication_id, stage):
         return None
     decisions = current_decisions(db, publication_id, stage)
@@ -381,13 +404,19 @@ def refresh_automatic_final_decision(
 def unresolved_publication_ids(
     db: Session, project_id: str, stage: ScreeningStage
 ) -> list[str]:
+    # Ordered by id because refresh_automatic_final_decision locks each
+    # publication row it visits and holds it until the transaction commits:
+    # two of these sweeps running concurrently must take those locks in the
+    # same order or they can deadlock against each other.
     publication_ids = list(
         db.scalars(
-            select(Publication.id).where(
+            select(Publication.id)
+            .where(
                 Publication.project_id == project_id,
                 Publication.is_active.is_(True),
                 Publication.merged_into_id.is_(None),
             )
+            .order_by(Publication.id)
         )
     )
     result = []
@@ -410,11 +439,13 @@ def conflicted_publication_ids(
     """
     publication_ids = list(
         db.scalars(
-            select(Publication.id).where(
+            select(Publication.id)
+            .where(
                 Publication.project_id == project_id,
                 Publication.is_active.is_(True),
                 Publication.merged_into_id.is_(None),
             )
+            .order_by(Publication.id)
         )
     )
     result = []
@@ -500,9 +531,14 @@ def transition_if_screening_complete(
         # project-wide unresolved check applies directly to this stage.
         if unresolved_publication_ids(db, project.id, stage):
             return False
-        project.stage = ProjectStage.FULL_TEXT
         from app.fulltext.service import initialize_full_text_stage
+        from app.projects.lifecycle import set_project_stage
 
+        set_project_stage(
+            project,
+            ProjectStage.FULL_TEXT,
+            reason="title/abstract screening complete",
+        )
         initialize_full_text_stage(db, project)
 
         from app.notifications.service import queue_project_stage_completed_emails

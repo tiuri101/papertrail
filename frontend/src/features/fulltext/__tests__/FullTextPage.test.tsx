@@ -39,12 +39,14 @@ function render({
   screeningProgress = { assigned: 0, completed: 0, remaining: 0, claimMode: false },
   screeningNext = [null],
   putResponses = [{}],
+  releaseFails = false,
 }: {
   fulltextNext: (unknown | null)[]
   progress?: { total: number; addressed: number }
   screeningProgress?: { assigned: number; completed: number; remaining: number; claimMode: boolean }
   screeningNext?: (unknown | null)[]
   putResponses?: unknown[]
+  releaseFails?: boolean
 }) {
   let fulltextNextCallCount = 0
   let screeningNextCallCount = 0
@@ -63,6 +65,12 @@ function render({
       return jsonResponse(screeningProgress)
     }
     if (path.includes('/full-text/') && path.endsWith('/release')) {
+      if (releaseFails) {
+        return jsonResponse(
+          { error: { code: 'conflict', message: 'This claim is no longer yours to release.' } },
+          409,
+        )
+      }
       return jsonResponse({ status: 'released' })
     }
     if (path.includes('/full-text/') && init?.method === 'PUT') {
@@ -122,6 +130,64 @@ describe('FullTextPage', () => {
 
     expect(await screen.findByRole('heading', { name: 'Second report' })).toBeInTheDocument()
     expect(fetchMock.mock.calls.some(([input]) => String(input).includes('excludedRetrievalId=retrieval-1'))).toBe(true)
+  })
+
+  // Regression: skipping used to hold the server-side claim until the
+  // component tore down, so a skipped paper stayed invisibly locked to the
+  // reviewer who passed on it and nobody else could pick it up.
+  it('releases the server-side claim before claiming the next paper when skipping', async () => {
+    const first = { id: 'retrieval-1', publicationId: 'publication-1', publication: publicationA, status: 'not_yet_sought', note: null }
+    const second = {
+      id: 'retrieval-2',
+      publicationId: 'publication-2',
+      publication: { ...publicationA, id: 'publication-2', title: 'Second report' },
+      status: 'not_yet_sought',
+      note: null,
+    }
+    const fetchMock = render({ fulltextNext: [first, second], progress: { total: 2, addressed: 0 } })
+
+    await screen.findByRole('heading', { name: 'Urban Data in VR' })
+    fireEvent.click(screen.getByRole('button', { name: 'Skip for now' }))
+    await screen.findByRole('heading', { name: 'Second report' })
+
+    const paths = fetchMock.mock.calls.map(([input, init]) => `${init?.method ?? 'GET'} ${String(input)}`)
+    const releaseIndex = paths.findIndex((entry) => entry === 'POST /api/v1/projects/p1/full-text/retrieval-1/release')
+    expect(releaseIndex).toBeGreaterThan(-1)
+    // The claim is handed back before the reviewer is given anything else,
+    // so they never hold two retrievals at once.
+    const secondClaimIndex = paths.findIndex((entry) => entry.includes('excludedRetrievalId=retrieval-1'))
+    expect(secondClaimIndex).toBeGreaterThan(releaseIndex)
+    // Exactly one release: the item is not released again on teardown.
+    expect(paths.filter((entry) => entry.endsWith('/retrieval-1/release'))).toHaveLength(1)
+  })
+
+  it('keeps the paper open and reports the failure when releasing a skipped claim fails', async () => {
+    const first = { id: 'retrieval-1', publicationId: 'publication-1', publication: publicationA, status: 'not_yet_sought', note: null }
+    const second = {
+      id: 'retrieval-2',
+      publicationId: 'publication-2',
+      publication: { ...publicationA, id: 'publication-2', title: 'Second report' },
+      status: 'not_yet_sought',
+      note: null,
+    }
+    const fetchMock = render({
+      fulltextNext: [first, second],
+      progress: { total: 2, addressed: 0 },
+      releaseFails: true,
+    })
+
+    await screen.findByRole('heading', { name: 'Urban Data in VR' })
+    fireEvent.click(screen.getByRole('button', { name: 'Skip for now' }))
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('This claim is no longer yours to release.')
+    // Still on the same paper -- no second claim was taken out behind a
+    // release the server never acknowledged.
+    expect(screen.getByRole('heading', { name: 'Urban Data in VR' })).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Second report' })).not.toBeInTheDocument()
+    const claimCalls = fetchMock.mock.calls.filter(([input, init]) => (
+      String(input).includes('/full-text/next') && init?.method === 'POST'
+    ))
+    expect(claimCalls).toHaveLength(1)
   })
 
   it('shows a message when no publications require full-text retrieval', async () => {

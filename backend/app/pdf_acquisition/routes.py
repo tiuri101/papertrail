@@ -7,12 +7,12 @@ from sqlalchemy.orm import Session
 
 from app.accounts.dependencies import require_csrf
 from app.accounts.models import User, UserSession
-from app.api.errors import DomainError
+from app.api.errors import ConflictError, DomainError
 from app.db.session import get_db
 from app.instance_settings.service import effective_instance_settings
 from app.pdf_acquisition import service
 from app.pdf_acquisition.dependencies import get_current_browser_agent
-from app.pdf_acquisition.models import BrowserAgent, PdfRetrievalBatch
+from app.pdf_acquisition.models import BatchStatus, BrowserAgent, PdfRetrievalBatch
 from app.pdf_acquisition.schemas import (
     AgentMeResponse,
     BatchCreatedResponse,
@@ -231,6 +231,9 @@ def retry_retrieval_job(
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
     job = service.get_agent_job(db, agent, job_id)
+    if job.batch.status == BatchStatus.CANCELLED:
+        # A manager cancelled this batch; a helper must not resurrect it.
+        raise ConflictError("This retrieval batch has been cancelled")
     retried = service.retry_failed_jobs(db, job.batch, agent.user_id, job_ids=[job.id])
     if retried == 0:
         raise DomainError("This retrieval job cannot be retried")

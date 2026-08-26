@@ -45,8 +45,8 @@ def set_pre_assigned(db, project) -> None:
 
 def setup_extraction(db):
     create_user(db, "admin", "Admin", "secret-password", is_admin=True)
-    r1 = create_user(db, "r1", "R1", "password-1")
-    r2 = create_user(db, "r2", "R2", "password-2")
+    r1 = create_user(db, "r1", "R1", "long-password-1")
+    r2 = create_user(db, "r2", "R2", "long-password-2")
     project = Project(
         name="Review",
         review_type=ReviewType.SYSTEMATIC_REVIEW,
@@ -154,6 +154,30 @@ def test_extraction_validates_required_fields_and_preserves_revisions(db) -> Non
     assert second.is_current is True
 
 
+def test_extraction_normalizes_missing_checkbox_and_multiselect(db) -> None:
+    project, form, required, _, _, r1, _ = setup_extraction(db)
+    randomized = add_field(db, form, "Randomized", "checkbox", required=False)
+    outcomes = add_field(
+        db,
+        form,
+        "Outcomes measured",
+        "multiple_select",
+        required=False,
+        options=["mortality", "quality_of_life"],
+    )
+    initialize_extraction(db, project)
+    db.commit()
+    item = claim_next_extraction(db, project.id, r1.id)
+    assert item is not None
+    # The reviewer never touches the checkbox or the multi-select -- their
+    # stable keys are absent from the submitted answers entirely, exactly
+    # like the DynamicForm UI never firing an onChange for them.
+    response = submit_extraction(db, item, r1.id, {required.stable_key: "Finding"})
+    db.commit()
+    assert response.answers[randomized.stable_key] is False
+    assert response.answers[outcomes.stable_key] == []
+
+
 def test_owner_can_view_and_override_extraction_with_audit_history(client, db) -> None:
     project, _, required, optional, _, r1, _ = setup_extraction(db)
     initialize_extraction(db, project)
@@ -219,18 +243,18 @@ def test_save_draft_persists_in_progress_answers(db) -> None:
     item = claim_next_extraction(db, project.id, r1.id)
     assert item is not None
 
-    save_draft(item, r1.id, {required.stable_key: "Draft finding"})
+    save_draft(db, item, r1.id, {required.stable_key: "Draft finding"})
     db.commit()
     db.refresh(item)
     assert item.draft == {required.stable_key: "Draft finding"}
 
     with pytest.raises(ForbiddenError):
-        save_draft(item, r2.id, {required.stable_key: "Not my item"})
+        save_draft(db, item, r2.id, {required.stable_key: "Not my item"})
 
     submit_extraction(db, item, r1.id, {required.stable_key: "Final finding"})
     db.commit()
     with pytest.raises(ForbiddenError):
-        save_draft(item, r1.id, {required.stable_key: "Too late"})
+        save_draft(db, item, r1.id, {required.stable_key: "Too late"})
 
 
 def test_claim_next_extraction_resumes_reviewers_existing_reservation(db) -> None:
@@ -397,7 +421,7 @@ def test_next_extraction_endpoint_returns_the_publication_and_active_fields(
     )
     db.commit()
     csrf = client.post(
-        "/api/v1/auth/login", json={"username": "r1", "password": "password-1"}
+        "/api/v1/auth/login", json={"username": "r1", "password": "long-password-1"}
     ).json()["csrfToken"]
 
     response = client.post(
@@ -427,7 +451,7 @@ def test_progress_endpoint_reports_assigned_and_completed_counts(client, db) -> 
     initialize_extraction(db, project)
     db.commit()
     csrf = client.post(
-        "/api/v1/auth/login", json={"username": "r1", "password": "password-1"}
+        "/api/v1/auth/login", json={"username": "r1", "password": "long-password-1"}
     ).json()["csrfToken"]
 
     before = client.get(
@@ -464,7 +488,7 @@ def test_progress_endpoint_reports_remaining_in_claim_mode(client, db) -> None:
     initialize_extraction(db, project)
     db.commit()
     csrf = client.post(
-        "/api/v1/auth/login", json={"username": "r1", "password": "password-1"}
+        "/api/v1/auth/login", json={"username": "r1", "password": "long-password-1"}
     ).json()["csrfToken"]
 
     before = client.get(
@@ -505,7 +529,7 @@ def test_mine_endpoint_lists_only_the_callers_completed_extractions(client, db) 
     db.commit()
 
     csrf = client.post(
-        "/api/v1/auth/login", json={"username": "r1", "password": "password-1"}
+        "/api/v1/auth/login", json={"username": "r1", "password": "long-password-1"}
     ).json()["csrfToken"]
     mine = client.get(
         f"/api/v1/projects/{project.id}/extraction/mine",
@@ -518,7 +542,7 @@ def test_mine_endpoint_lists_only_the_callers_completed_extractions(client, db) 
     assert body[0]["version"] == 1
 
     other_csrf = client.post(
-        "/api/v1/auth/login", json={"username": "r2", "password": "password-2"}
+        "/api/v1/auth/login", json={"username": "r2", "password": "long-password-2"}
     ).json()["csrfToken"]
     other_mine = client.get(
         f"/api/v1/projects/{project.id}/extraction/mine",
@@ -537,7 +561,7 @@ def test_completed_extraction_can_be_revisited_and_resubmitted(client, db) -> No
     db.commit()
 
     csrf = client.post(
-        "/api/v1/auth/login", json={"username": "r1", "password": "password-1"}
+        "/api/v1/auth/login", json={"username": "r1", "password": "long-password-1"}
     ).json()["csrfToken"]
     fetched = client.get(
         f"/api/v1/projects/{project.id}/extraction/{item.id}",
@@ -557,7 +581,7 @@ def test_completed_extraction_can_be_revisited_and_resubmitted(client, db) -> No
     assert corrected.json()["version"] == 2
 
     other_csrf = client.post(
-        "/api/v1/auth/login", json={"username": "r2", "password": "password-2"}
+        "/api/v1/auth/login", json={"username": "r2", "password": "long-password-2"}
     ).json()["csrfToken"]
     forbidden = client.get(
         f"/api/v1/projects/{project.id}/extraction/{item.id}",

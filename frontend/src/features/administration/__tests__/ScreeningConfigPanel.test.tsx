@@ -72,4 +72,44 @@ describe('ScreeningConfigPanel', () => {
       expect(within(refreshedForm).getByLabelText('Reviewers required per publication')).toHaveValue(3)
     })
   })
+  // Consumer update for Group B: once a stage has work items the backend
+  // refuses structural changes with a 409 naming the setting, so the control
+  // freezes rather than inviting the same rejection again.
+  it('freezes the locked setting for the stage the backend rejected, and only that stage', async () => {
+    mockFetch(async (input, init) => {
+      const path = String(input)
+      if (path.endsWith('/screening-config/title_abstract') && init?.method === 'PUT') {
+        return jsonResponse(
+          {
+            error: {
+              code: 'structural_setting_locked',
+              message: 'Cannot change the required reviewer count for title_abstract screening after work items exist for this stage',
+              details: { setting: 'requiredReviewers', stage: 'title_abstract' },
+            },
+          },
+          409,
+        )
+      }
+      return jsonResponse({ id: 'project-1', screeningConfigs: baseConfigs })
+    })
+    renderWithProviders(<ScreeningConfigPanel projectId="project-1" />)
+
+    const titleAbstractForm = (await screen.findByText('Title/Abstract Screening')).closest('form') as HTMLElement
+    fireEvent.change(within(titleAbstractForm).getByLabelText('Reviewers required per publication'), {
+      target: { value: '3' },
+    })
+    fireEvent.click(within(titleAbstractForm).getByRole('button', { name: /Save Title\/Abstract Screening Settings/ }))
+
+    expect(await within(titleAbstractForm).findByText(/Cannot be changed after work has started/)).toBeInTheDocument()
+    await waitFor(() => {
+      expect(within(titleAbstractForm).getByLabelText('Reviewers required per publication')).toBeDisabled()
+    })
+    // Allocation is structural too, but this rejection named only the
+    // reviewer count -- do not freeze more than the backend refused.
+    expect(within(titleAbstractForm).getByLabelText('Allocation')).not.toBeDisabled()
+
+    // A lock is per stage: the other stage's identical control stays editable.
+    const fullTextForm = screen.getByText('Full-Text Screening').closest('form') as HTMLElement
+    expect(within(fullTextForm).getByLabelText('Reviewers required per publication')).not.toBeDisabled()
+  })
 })

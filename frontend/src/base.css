@@ -1,0 +1,200 @@
+/*
+ * Global and browser-level base styling that remains after the Tailwind
+ * migration. Lives in the `papertrail` layer (declared in index.css) so it
+ * sits above Preflight but below component and utility classes, keeping
+ * local Tailwind styling authoritative.
+ */
+@layer papertrail {
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  min-height: 100%;
+  background: var(--color-bg);
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+  background:
+    radial-gradient(circle at 8% -8%, var(--color-primary-container), transparent 33rem),
+    var(--color-bg);
+  color: var(--color-text);
+  transition: background-color 180ms ease, color 180ms ease;
+}
+
+#root {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+::selection {
+  background: var(--color-primary);
+  color: var(--color-primary-contrast);
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Pointer semantics only; visual button styling is scoped below. */
+button:not(:disabled) {
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid var(--color-focus);
+  outline-offset: 2px;
+}
+
+h1,
+h2,
+h3,
+p {
+  overflow-wrap: anywhere;
+}
+
+h1,
+h2,
+h3 {
+  color: var(--color-text);
+  line-height: 1.2;
+}
+
+h1 {
+  margin: 0 0 var(--space-6);
+  font-size: clamp(1.85rem, 3vw, 2.5rem);
+  font-weight: 720;
+  letter-spacing: -0.035em;
+}
+
+h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 680;
+  letter-spacing: -0.018em;
+}
+
+h3 {
+  margin: 0;
+  color: var(--color-text);
+  font-size: 1rem;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+p {
+  margin: 0;
+  line-height: 1.65;
+}
+
+ul,
+ol {
+  line-height: 1.6;
+}
+
+/* Only classless anchors receive the legacy link treatment. */
+a:not([class]) {
+  color: var(--color-primary);
+  font-weight: 560;
+  text-decoration: none;
+  text-underline-offset: 3px;
+}
+
+a:not([class]):hover {
+  color: var(--color-primary-strong);
+  text-decoration: underline;
+}
+
+mark {
+  border-radius: 4px;
+  background: var(--kw-0-bg);
+  padding: 0.05em 0.2em;
+  color: var(--kw-0-fg);
+  font-weight: 650;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.mark-kw-0 {
+  background: var(--kw-0-bg);
+  color: var(--kw-0-fg);
+}
+
+.mark-kw-1 {
+  background: var(--kw-1-bg);
+  color: var(--kw-1-fg);
+}
+
+.mark-kw-2 {
+  background: var(--kw-2-bg);
+  color: var(--kw-2-fg);
+}
+
+.mark-kw-3 {
+  background: var(--kw-3-bg);
+  color: var(--kw-3-fg);
+}
+
+.mark-kw-4 {
+  background: var(--kw-4-bg);
+  color: var(--kw-4-fg);
+}
+
+.mark-kw-5 {
+  background: var(--kw-5-bg);
+  color: var(--kw-5-fg);
+}
+
+.mark-kw-6 {
+  background: var(--kw-6-bg);
+  color: var(--kw-6-fg);
+}
+
+.mark-kw-7 {
+  background: var(--kw-7-bg);
+  color: var(--kw-7-fg);
+}
+
+@media (max-width: 480px) {
+  h1 {
+    margin-bottom: var(--space-5);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
+
+}

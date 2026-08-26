@@ -25,7 +25,7 @@ from sqlalchemy.orm import Session
 from app.analysis.jobs import STAGE_ANALYSIS_JOB, generate_stage_analysis_job
 from app.analysis.rq_jobs import RQ_SYNTHESIS_JOB, generate_rq_synthesis_job
 from app.deduplication.jobs import detect_duplicates_job
-from app.imports.service import process_import_job
+from app.imports.service import mark_import_permanently_failed, process_import_job
 from app.jobs.models import BackgroundJob
 from app.llm.models import LlmTaskType
 from app.llm.service import LLM_JOB_TYPE_BY_TASK, TEXT_JOB
@@ -41,6 +41,14 @@ from app.publications.jobs import enrich_publication_job
 from app.reporting.jobs import generate_export_job
 
 Handler = Callable[[Session, BackgroundJob], dict[str, Any]]
+# Called once, by the worker, when a job reaches a terminal FAILED state --
+# either because it raised on its last allowed attempt or because it was
+# abandoned by a worker that died with no retries left. Lets the owning domain
+# keep its own state in step with job state (an ImportBatch must not sit in
+# PROCESSING after its parse job has permanently given up). Runs inside a
+# SAVEPOINT in the worker's failure transaction, so it may write but must not
+# commit or roll back.
+PermanentFailureHook = Callable[[Session, BackgroundJob, str], None]
 
 
 class WorkerPool(enum.StrEnum):
@@ -62,6 +70,7 @@ class JobDefinition:
     worker_pool: WorkerPool
     label: str
     stage: str
+    on_permanent_failure: PermanentFailureHook | None = None
 
 
 # Human-readable stage per LLM task type -- shared between this registry
@@ -95,6 +104,7 @@ JOB_DEFINITIONS: dict[str, JobDefinition] = {
         worker_pool=WorkerPool.GENERAL,
         label="Parse publication import",
         stage="Publication import",
+        on_permanent_failure=mark_import_permanently_failed,
     ),
     "enrich_publication": JobDefinition(
         handler=enrich_publication_job,
@@ -165,4 +175,9 @@ JOB_LABELS: dict[str, str] = {
 }
 JOB_STAGES: dict[str, str] = {
     job_type: definition.stage for job_type, definition in JOB_DEFINITIONS.items()
+}
+PERMANENT_FAILURE_HOOKS: dict[str, PermanentFailureHook] = {
+    job_type: definition.on_permanent_failure
+    for job_type, definition in JOB_DEFINITIONS.items()
+    if definition.on_permanent_failure is not None
 }

@@ -3,13 +3,21 @@ from __future__ import annotations
 import argparse
 import getpass
 import os
+from urllib.parse import urlsplit
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.accounts.models import User
+from app.accounts.password_policy import (
+    PASSWORD_REQUIREMENTS_TEXT,
+    password_policy_violation,
+)
 from app.accounts.service import create_user
+from app.core.config import get_settings
+from app.db.runtime_role import ensure_runtime_role
 from app.db.session import SessionFactory
+from app.db.session import engine as db_engine
 
 
 def bootstrap_admin(
@@ -51,16 +59,45 @@ def build_parser() -> argparse.ArgumentParser:
     create_admin.add_argument(
         "--password", default=os.getenv("PAPERTRAIL_ADMIN_PASSWORD")
     )
+    subparsers.add_parser(
+        "ensure-runtime-role",
+        help=(
+            "Create/update the least-privilege runtime database role and grant "
+            "it DML-only access (no-op on SQLite). Reads "
+            "PAPERTRAIL_RUNTIME_DB_ROLE/PAPERTRAIL_RUNTIME_DB_PASSWORD from the "
+            "environment, never from an argument, so the password never "
+            "appears in a process listing."
+        ),
+    )
     return parser
+
+
+def _ensure_runtime_role() -> int:
+    role = os.getenv("PAPERTRAIL_RUNTIME_DB_ROLE")
+    password = os.getenv("PAPERTRAIL_RUNTIME_DB_PASSWORD")
+    if not role or not password:
+        raise SystemExit(
+            "PAPERTRAIL_RUNTIME_DB_ROLE and PAPERTRAIL_RUNTIME_DB_PASSWORD are "
+            "both required for 'ensure-runtime-role'"
+        )
+    database = urlsplit(get_settings().database_url).path.lstrip("/")
+    ensure_runtime_role(db_engine, role=role, password=password, database=database)
+    print("Runtime database role ensured.")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    if args.command == "ensure-runtime-role":
+        return _ensure_runtime_role()
     if args.command != "create-admin":
         return 2
     password = args.password or getpass.getpass("Administrator password: ")
-    if len(password) < 12:
-        raise SystemExit("Administrator password must contain at least 12 characters")
+    # The same policy the API enforces -- imported, never restated, so the
+    # bootstrap account can never be weaker than an account created in the UI.
+    violation = password_policy_violation(password)
+    if violation is not None:
+        raise SystemExit(f"{violation}. {PASSWORD_REQUIREMENTS_TEXT}")
     with SessionFactory() as db:
         user = bootstrap_admin(db, args.username, args.display_name, password)
         db.commit()
