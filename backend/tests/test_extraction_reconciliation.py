@@ -20,6 +20,7 @@ from app.extraction.reconciliation import (
 from app.extraction.service import (
     claim_next_extraction,
     extraction_required_reviewers,
+    extraction_work_started,
     initialize_extraction,
     override_extraction,
     slot_responses_visible,
@@ -37,6 +38,7 @@ from app.projects.models import (
     TaskAllocationMode,
 )
 from app.publications.models import Publication
+from app.review_work.structural_config import StructuralSettingLockedError
 
 
 def make_field(field_type: FieldType, *, stable_key: str = "f") -> FormField:
@@ -285,7 +287,7 @@ def test_update_extraction_config_blocks_change_after_responses_exist(db):
         agreeing_answers(fields),
         agreeing_answers(fields),
     )
-    with pytest.raises(DomainError):
+    with pytest.raises(StructuralSettingLockedError):
         update_extraction_config(
             db,
             project.id,
@@ -294,12 +296,96 @@ def test_update_extraction_config_blocks_change_after_responses_exist(db):
         )
 
 
-def test_update_extraction_config_allows_change_before_any_response(db):
+def test_update_extraction_config_allows_change_before_any_work_item(db):
     project, _form, _fields, _publications, _reviewers = setup_dual_extraction(db)
+    assert extraction_work_started(db, project.id) is False
     config = update_extraction_config(
         db, project.id, allocation_mode=TaskAllocationMode.CLAIM, required_reviewers=1
     )
     assert config.required_reviewers == 1
+    assert config.allocation_mode == TaskAllocationMode.CLAIM
+
+
+def test_extractor_count_is_frozen_once_work_items_exist_even_unstarted(db):
+    """The freeze is on work-item existence, not on submitted responses: an
+    empty second slot is exactly the slot a change to one extractor would
+    orphan, and a slot count raised after generation is never backfilled."""
+    project, _form, _fields, _publications, _reviewers = setup_dual_extraction(db)
+    initialize_extraction(db, project)
+    db.commit()
+    assert extraction_work_started(db, project.id) is True
+
+    with pytest.raises(StructuralSettingLockedError) as excinfo:
+        update_extraction_config(
+            db,
+            project.id,
+            allocation_mode=TaskAllocationMode.CLAIM,
+            required_reviewers=1,
+        )
+
+    assert excinfo.value.code == "structural_setting_locked"
+    assert excinfo.value.status_code == 409
+    assert excinfo.value.details == {
+        "setting": "requiredReviewers",
+        "stage": "extraction",
+    }
+    db.expire_all()
+    assert extraction_required_reviewers(db, project.id) == 2
+
+
+def test_extraction_allocation_mode_is_frozen_once_work_items_exist(db):
+    project, _form, _fields, _publications, _reviewers = setup_dual_extraction(db)
+    config = update_extraction_config(
+        db,
+        project.id,
+        allocation_mode=TaskAllocationMode.PRE_ASSIGNED,
+        required_reviewers=2,
+    )
+    assert config.allocation_mode == TaskAllocationMode.PRE_ASSIGNED
+    initialize_extraction(db, project)
+    db.commit()
+
+    with pytest.raises(StructuralSettingLockedError) as excinfo:
+        update_extraction_config(
+            db,
+            project.id,
+            allocation_mode=TaskAllocationMode.CLAIM,
+            required_reviewers=2,
+        )
+
+    assert excinfo.value.details == {
+        "setting": "allocationMode",
+        "stage": "extraction",
+    }
+    # Switching to claim mode would have stranded these pre-assigned slots: the
+    # claim query only ever offers unassigned work.
+    db.expire_all()
+    assigned = list(
+        db.scalars(
+            select(ExtractionWorkItem.assigned_reviewer_id).where(
+                ExtractionWorkItem.project_id == project.id
+            )
+        )
+    )
+    assert assigned and None not in assigned
+
+
+def test_reapplying_the_same_extraction_config_is_allowed_after_work_started(db):
+    """An idempotent PUT of the unchanged configuration is not a structural
+    change and must not be rejected -- clients re-send the whole object."""
+    project, _form, _fields, _publications, _reviewers = setup_dual_extraction(db)
+    initialize_extraction(db, project)
+    db.commit()
+
+    config = update_extraction_config(
+        db,
+        project.id,
+        allocation_mode=TaskAllocationMode.CLAIM,
+        required_reviewers=2,
+    )
+
+    assert config.required_reviewers == 2
+    assert config.allocation_mode == TaskAllocationMode.CLAIM
 
 
 # --- dual init ---------------------------------------------------------
@@ -790,3 +876,57 @@ def test_single_reviewer_mode_is_immediately_authoritative_never_reconciles(db):
     assert final is not None
     assert final.resolution_method == "single_reviewer"
     assert reconciliation_queue(db, project.id) == []
+
+
+def test_integrity_check_detects_and_repairs_extraction_complete_without_final(
+    db,
+) -> None:
+    """The lost-finalization race Issue 3 fixes going forward may already
+    have happened to older data: all slots complete, no current
+    FinalExtraction. The integrity checker must surface it, and the repair
+    must be able to re-derive the same outcome attempt_auto_finalize would
+    have produced at submission time."""
+    from app.projects.lifecycle import project_integrity_issues, reconcile_workflow_integrity
+
+    project, _form, fields, publications, reviewers = setup_dual_extraction(db)
+    admin = db.scalar(select(User).where(User.username == "admin"))
+    db.add(ProjectMembership(project_id=project.id, user_id=admin.id, is_owner=True))
+    r1, r2 = reviewers[0], reviewers[1]
+    initialize_extraction(db, project)
+    db.commit()
+    submit_both_slots(
+        db,
+        project,
+        publications[0],
+        fields,
+        r1,
+        r2,
+        agreeing_answers(fields),
+        agreeing_answers(fields),
+    )
+    final = get_current_final_extraction(db, publications[0].id)
+    assert final is not None
+
+    # Simulate the race: the finalization that should have happened at
+    # submission time was lost, leaving both slots completed with nothing
+    # authoritative recorded.
+    final.is_valid = False
+    db.commit()
+    assert get_current_final_extraction(db, publications[0].id) is None
+
+    issues = project_integrity_issues(db, project)
+    assert (
+        "extraction_complete_without_final",
+        publications[0].id,
+    ) in {(issue["code"], issue["entityId"]) for issue in issues}
+
+    result = reconcile_workflow_integrity(db, project, admin.id)
+    db.commit()
+
+    assert result["reattemptedFinalizations"] == 1
+    repaired = get_current_final_extraction(db, publications[0].id)
+    assert repaired is not None
+    assert repaired.resolution_method == "agreement"
+    assert "extraction_complete_without_final" not in {
+        issue["code"] for issue in project_integrity_issues(db, project)
+    }

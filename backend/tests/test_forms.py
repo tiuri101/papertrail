@@ -637,14 +637,16 @@ def test_field_update_api_saves_options_scoring_and_order(client, db) -> None:
     ).json()["id"]
     form_id = client.post(
         f"/api/v1/projects/{project_id}/forms",
-        json={"name": "Extraction", "kind": "extraction"},
+        json={"name": "Quality", "kind": "quality"},
         headers={"X-CSRF-Token": csrf},
     ).json()["id"]
+    # single_select rather than multiple_select: a weight is scoring
+    # configuration, and only a scorable field type may carry it.
     first_key = client.post(
         f"/api/v1/forms/{form_id}/fields",
         json={
             "label": "Study design",
-            "fieldType": "multiple_select",
+            "fieldType": "single_select",
             "options": ["Experimental", "Observational"],
         },
         headers={"X-CSRF-Token": csrf},

@@ -13,11 +13,15 @@ from app.accounts.models import User
 from app.api.errors import DomainError, ForbiddenError, NotFoundError
 from app.core.time import utcnow
 from app.projects.models import (
+    STAGE_ORDER as _PROJECT_STAGE_ORDER,
+)
+from app.projects.models import (
     AllocationMode,
     Criterion,
     Project,
     ProjectMembership,
     ProjectStage,
+    ResolutionMethod,
     ScreeningConfig,
     ScreeningStage,
 )
@@ -26,6 +30,11 @@ from app.publications.models import Publication
 from app.review_work.eligibility import (
     capability_for_stage,
     require_reviewer_capability_by_id,
+)
+from app.review_work.finalization import lock_publication_for_finalization
+from app.review_work.structural_config import (
+    StructuralSettingLockedError,
+    work_items_exist,
 )
 from app.screening.models import (
     ScreeningDecision,
@@ -73,6 +82,71 @@ def get_screening_config(
             ScreeningConfig.stage == stage,
         )
     )
+
+
+def screening_work_started(
+    db: Session, project_id: str, stage: ScreeningStage
+) -> bool:
+    """Whether this project stage has generated any screening work item yet.
+
+    The moment the first slot exists, the stage's shape is fixed: slot count
+    and assignment mode are baked into rows nothing revisits, so
+    :func:`update_screening_config` freezes the structural settings from here
+    on. Existence, not submission, is the line -- an unsubmitted slot is just
+    as stranded by a mode switch as a submitted one.
+    """
+    return work_items_exist(
+        db,
+        ScreeningWorkItem.id,
+        ScreeningWorkItem.project_id == project_id,
+        ScreeningWorkItem.stage == stage,
+    )
+
+
+def update_screening_config(
+    db: Session,
+    project_id: str,
+    stage: ScreeningStage,
+    *,
+    required_reviewers: int,
+    allocation_mode: AllocationMode,
+    conflict_resolution: ResolutionMethod,
+    uncertain_resolution: ResolutionMethod,
+) -> ScreeningConfig:
+    """Apply a stage's screening configuration, refusing structural changes
+    once the stage has work items (see app.review_work.structural_config).
+
+    The resolution policies are deliberately *not* frozen: they only decide
+    how already-collected decisions are interpreted, so changing them mid-way
+    reinterprets existing decisions rather than orphaning existing work.
+    """
+    config = get_screening_config(db, project_id, stage)
+    if config is None:
+        raise NotFoundError("Screening configuration not found")
+
+    structural_changes = {
+        "requiredReviewers": config.required_reviewers != required_reviewers,
+        "allocationMode": config.allocation_mode != allocation_mode,
+    }
+    changed = [setting for setting, differs in structural_changes.items() if differs]
+    if changed and screening_work_started(db, project_id, stage):
+        labels = {
+            "requiredReviewers": "the required reviewer count",
+            "allocationMode": "the allocation mode",
+        }
+        raise StructuralSettingLockedError(
+            f"Cannot change {labels[changed[0]]} for {stage.value} screening "
+            "after work items exist for this stage",
+            setting=changed[0],
+            stage=stage.value,
+        )
+
+    config.required_reviewers = required_reviewers
+    config.allocation_mode = allocation_mode
+    config.conflict_resolution = conflict_resolution
+    config.uncertain_resolution = uncertain_resolution
+    db.flush()
+    return config
 
 
 def create_screening_work_items(
@@ -508,6 +582,13 @@ def submit_decision(
     )
     if item.assigned_reviewer_id != reviewer_id:
         raise ForbiddenError("This work item is assigned to another reviewer")
+    # Everything from here to the caller's commit -- writing this reviewer's
+    # decision, and the refresh_automatic_final_decision that reads every
+    # reviewer's decision back to see whether quorum is now reached -- has to
+    # be serialized per publication, or two reviewers submitting the last two
+    # slots concurrently each see only their own decision and neither
+    # finalizes.
+    lock_publication_for_finalization(db, item.publication_id)
     required = required_criterion_ids(db, item.project_id)
     if set(criteria_answers) != required or any(
         not isinstance(value, bool) for value in criteria_answers.values()
@@ -557,6 +638,7 @@ def override_decision(
     criteria_answers: dict[str, bool],
     notes: str | None,
 ) -> tuple[ScreeningDecision, ScreeningDecision]:
+    lock_publication_for_finalization(db, item.publication_id)
     current = db.scalar(
         select(ScreeningDecision).where(
             ScreeningDecision.work_item_id == item.id,
@@ -635,15 +717,6 @@ def current_decisions(
         )
     )
 
-
-_PROJECT_STAGE_ORDER = [
-    ProjectStage.DRAFT,
-    ProjectStage.DUPLICATE_REVIEW,
-    ProjectStage.TITLE_ABSTRACT,
-    ProjectStage.FULL_TEXT,
-    ProjectStage.EXTRACTION,
-    ProjectStage.COMPLETED,
-]
 
 _PROJECT_STAGE_FOR_SCREENING_STAGE = {
     ScreeningStage.TITLE_ABSTRACT: ProjectStage.TITLE_ABSTRACT,

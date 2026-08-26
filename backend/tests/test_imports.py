@@ -473,6 +473,78 @@ def test_deleting_a_search_removes_its_exclusive_papers_but_keeps_shared_ones(
     assert db.get(ImportBatch, batch_b_id) is not None
 
 
+def test_deleting_a_search_removes_its_import_files_and_staged_pdfs(
+    client, db, tmp_path, monkeypatch
+) -> None:
+    """The uploaded source file and the batch's staging directory are the only
+    things that knew about those bytes, so deleting the rows without deleting
+    the files leaves orphans nothing can ever find again. They are removed
+    after the commit, never before it."""
+    settings = get_settings()
+    monkeypatch.setattr(settings, "import_dir", tmp_path / "imports")
+    settings.import_dir.mkdir(parents=True, exist_ok=True)
+    admin = create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    db.commit()
+    csrf = login(client)
+    project_id = create_project(client, csrf)
+
+    search = client.post(
+        f"/api/v1/projects/{project_id}/searches",
+        json={
+            "sourceName": "Scopus",
+            "query": "urban vr",
+            "searchDate": "2026-08-01",
+            "exportedResultCount": 1,
+        },
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+
+    project_import_dir = settings.import_dir / project_id
+    project_import_dir.mkdir(parents=True)
+    source_file = project_import_dir / "scopus.csv"
+    source_file.write_text("Title\nA paper\n", encoding="utf-8")
+    kept_file = project_import_dir / "another-search.csv"
+    kept_file.write_text("Title\nOther\n", encoding="utf-8")
+    batch = ImportBatch(
+        project_id=project_id,
+        search_source_id=search["id"],
+        original_filename="scopus.csv",
+        stored_path=str(source_file),
+        file_type="csv",
+        status="completed",
+        created_by_id=admin.id,
+    )
+    db.add(batch)
+    db.commit()
+    staging_directory = settings.pdf_storage_path / "staging" / "imports" / batch.id
+    staging_directory.mkdir(parents=True)
+    (staging_directory / "unresolved.pdf").write_bytes(b"staged PDF")
+
+    # A preview (force omitted) deletes nothing at all, files included.
+    preview = client.delete(
+        f"/api/v1/projects/{project_id}/searches/{search['id']}",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert preview.json()["deleted"] is False
+    assert source_file.exists()
+    assert staging_directory.exists()
+
+    deleted = client.delete(
+        f"/api/v1/projects/{project_id}/searches/{search['id']}",
+        params={"force": "true"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert deleted.status_code == 200
+    assert deleted.json()["deleted"] is True
+
+    assert not source_file.exists()
+    assert not staging_directory.exists()
+    # Only this search's files go: the project's own import directory and
+    # another search's upload stay.
+    assert kept_file.exists()
+    assert project_import_dir.exists()
+
+
 def test_deleting_a_search_with_screened_papers_requires_confirmation(
     client, db, tmp_path
 ) -> None:

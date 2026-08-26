@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { describeError } from '../../api/domainErrors'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { IconAlertTriangle, IconRestart, IconTrash } from '../../components/icons'
@@ -41,7 +42,10 @@ export function DangerZonePanel({ projectId }: { projectId: string }) {
             cannot be undone.
           </p>
         </InfoBox>
-        {reset.error ? <p className="text-danger" role="alert">{reset.error.message}</p> : null}
+        {/* A reset refused because a handler is mid-write (409
+            `project_jobs_running`) is a wait-and-retry, not a failure --
+            say which jobs, rather than surfacing a bare conflict. */}
+        {reset.error ? <p className="text-danger" role="alert">{describeError(reset.error)}</p> : null}
         {reset.isSuccess ? <p>Project has been reset to draft.</p> : null}
         <div className={toolbarClass}>
           <ConfirmButton
@@ -62,7 +66,7 @@ export function DangerZonePanel({ projectId }: { projectId: string }) {
             stored PDFs, import files, and generated exports. This cannot be undone.
           </p>
         </InfoBox>
-        {deleteProject.error ? <p className="text-danger" role="alert">{deleteProject.error.message}</p> : null}
+        {deleteProject.error ? <p className="text-danger" role="alert">{describeError(deleteProject.error)}</p> : null}
         <div className={toolbarClass}>
           <ConfirmButton
             label="Delete Project"

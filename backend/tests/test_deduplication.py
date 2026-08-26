@@ -1,8 +1,11 @@
+import random
+
 from sqlalchemy import select
 
 from app.accounts.service import create_user
-from app.deduplication.models import DuplicateCandidate
+from app.deduplication.models import DuplicateCandidate, PublicationMerge
 from app.deduplication.service import (
+    candidate_pairs,
     detect_duplicates,
     mark_not_duplicate,
     merge_publications,
@@ -11,7 +14,13 @@ from app.deduplication.service import (
 )
 from app.imports.models import ImportBatch, ImportedRecord, ImportStatus
 from app.jobs.models import BackgroundJob, JobStatus
-from app.projects.models import Project, ProjectMembership, ProjectStage, ReviewType
+from app.projects.models import (
+    Project,
+    ProjectMembership,
+    ProjectStage,
+    ReviewType,
+    ScreeningStage,
+)
 from app.publications.models import MetadataConflict, Publication, PublicationSource
 
 
@@ -579,3 +588,294 @@ def test_duplicate_review_only_transitions_when_all_candidates_resolved(db) -> N
     mark_not_duplicate(candidate)
     assert transition_if_duplicate_review_complete(db, project) is True
     assert project.stage == ProjectStage.TITLE_ABSTRACT
+
+
+def _merged_pair(db):
+    """A project in duplicate review with one merge already applied, plus a
+    second unresolved candidate so the merge does not itself finish the
+    stage."""
+    project, publications = setup_records(db)
+    third = Publication(
+        project_id=project.id, title="An unrelated paper", doi="10.1000/other"
+    )
+    db.add(third)
+    db.flush()
+    candidate = DuplicateCandidate(
+        project_id=project.id,
+        publication_a_id=publications[0].id,
+        publication_b_id=publications[1].id,
+        match_reasons=["exact_doi"],
+        confidence=1.0,
+    )
+    still_open = DuplicateCandidate(
+        project_id=project.id,
+        publication_a_id=publications[0].id,
+        publication_b_id=third.id,
+        match_reasons=["similar_title"],
+        confidence=0.8,
+    )
+    db.add_all([candidate, still_open])
+    db.flush()
+    merge = merge_publications(db, candidate, publications[0].id)
+    db.commit()
+    return project, publications, merge
+
+
+def test_undo_merge_during_duplicate_review_restores_the_duplicate(client, db) -> None:
+    project, publications, merge = _merged_pair(db)
+    csrf = login(client)
+
+    response = client.post(
+        f"/api/v1/projects/{project.id}/merges/{merge.id}/reverse",
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    assert response.status_code == 200
+    db.expire_all()
+    assert db.get(Publication, publications[1].id).is_active is True
+    assert db.get(Project, project.id).stage == ProjectStage.DUPLICATE_REVIEW
+    assert db.get(DuplicateCandidate, merge.candidate_id).status == "unresolved"
+
+
+def test_undo_merge_is_refused_once_the_project_left_duplicate_review(
+    client, db
+) -> None:
+    """Reversing a merge re-activates a publication that has no downstream
+    work, while the canonical record it was folded into already carries the
+    screening work built on the merged metadata. The old behavior silently
+    reassigned project.stage back to duplicate review and left all of that in
+    place; now the caller is sent to Move Back instead."""
+    project, publications, merge = _merged_pair(db)
+    project.stage = ProjectStage.TITLE_ABSTRACT
+    db.commit()
+    csrf = login(client)
+
+    response = client.post(
+        f"/api/v1/projects/{project.id}/merges/{merge.id}/reverse",
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    assert response.status_code == 409
+    error = response.json()["error"]
+    assert error["code"] == "merge_reversal_stage_locked"
+    assert error["details"] == {
+        "projectStage": "title_abstract_screening",
+        "requiredStage": "duplicate_review",
+    }
+    db.expire_all()
+    # Neither the stage nor the merge moved.
+    assert db.get(Project, project.id).stage == ProjectStage.TITLE_ABSTRACT
+    assert db.get(PublicationMerge, merge.id).reversed_at is None
+    assert db.get(Publication, publications[1].id).is_active is False
+
+
+def test_undo_merge_is_refused_while_duplicate_detection_is_running(client, db) -> None:
+    project, _publications, merge = _merged_pair(db)
+    db.add(
+        BackgroundJob(
+            project_id=project.id,
+            job_type="detect_duplicates",
+            payload={},
+            status=JobStatus.RUNNING,
+        )
+    )
+    db.commit()
+    csrf = login(client)
+
+    response = client.post(
+        f"/api/v1/projects/{project.id}/merges/{merge.id}/reverse",
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "project_jobs_running"
+    db.expire_all()
+    assert db.get(PublicationMerge, merge.id).reversed_at is None
+
+
+def test_moving_back_to_duplicate_review_is_how_a_later_merge_is_undone(db) -> None:
+    """The escape hatch the rejection points at: Move Back reverses every
+    merge, clears the downstream work built on them, and re-runs detection as
+    one lifecycle operation, so the project never holds a merge-reversal and
+    post-merge screening work at the same time."""
+    from app.projects.lifecycle import move_project_back
+    from app.screening.models import ScreeningWorkItem
+
+    project, publications, _merge = _merged_pair(db)
+    project.stage = ProjectStage.TITLE_ABSTRACT
+    db.add(
+        ScreeningWorkItem(
+            project_id=project.id,
+            publication_id=publications[0].id,
+            stage=ScreeningStage.TITLE_ABSTRACT,
+            slot_number=1,
+            random_rank="rank",
+        )
+    )
+    db.commit()
+
+    move_project_back(db, project, ProjectStage.DUPLICATE_REVIEW, None)
+    db.commit()
+
+    db.expire_all()
+    assert project.stage == ProjectStage.DUPLICATE_REVIEW
+    assert db.get(Publication, publications[1].id).is_active is True
+    assert (
+        db.query(ScreeningWorkItem).filter_by(project_id=project.id).count() == 0
+    )
+
+
+def test_candidate_pairs_scale_far_below_full_combinatorial_count(db) -> None:
+    """Blocking must not degrade into the same O(n^2) comparison space it
+    replaces, even though it must still surface a genuine near-duplicate.
+
+    Publications are given titles built from a large, disjoint word pool so
+    that (aside from the deliberately planted pair) essentially no two share
+    a blocking key -- this isolates candidate_pairs' scaling behavior from
+    _duplicate_assessment's actual scoring, which other tests already cover.
+    """
+    project = Project(
+        name="Large review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.DUPLICATE_REVIEW,
+    )
+    db.add(project)
+    db.flush()
+
+    vocabulary = [f"term{index}" for index in range(2000)]
+    rng = random.Random("dedup-scale-test")
+    publications: list[Publication] = []
+    for _index in range(500):
+        words = rng.sample(vocabulary, 4)
+        publications.append(
+            Publication(
+                project_id=project.id,
+                title=" ".join(words),
+                publication_year=2000 + rng.randrange(24),
+            )
+        )
+    db.add_all(publications)
+    db.flush()
+
+    # A genuine near-duplicate: same distinctive vocabulary, reordered --
+    # blocking must still put this pair together.
+    shared_words = rng.sample(vocabulary, 4)
+    dup_a = Publication(
+        project_id=project.id,
+        title=" ".join(shared_words),
+        publication_year=2021,
+    )
+    dup_b = Publication(
+        project_id=project.id,
+        title=" ".join(reversed(shared_words)),
+        publication_year=2021,
+    )
+    publications.extend([dup_a, dup_b])
+    db.add_all([dup_a, dup_b])
+    db.commit()
+
+    n = len(publications)
+    full_scan = n * (n - 1) // 2
+    pairs = candidate_pairs(publications)
+
+    assert len(pairs) < full_scan // 20, (
+        f"blocking produced {len(pairs)} candidate pairs out of a possible "
+        f"{full_scan} for {n} publications -- expected at least a 20x "
+        "reduction"
+    )
+    assert (dup_a.id, dup_b.id) in pairs or (dup_b.id, dup_a.id) in pairs, (
+        "a genuine near-duplicate pair must still be a blocking candidate"
+    )
+
+
+def test_detect_duplicates_finds_planted_pair_within_a_large_project(db) -> None:
+    """End-to-end: detect_duplicates still surfaces a real duplicate that
+    shares no exact identifier, planted among many unrelated publications
+    that share no blocking key with it or each other."""
+    project = Project(
+        name="Large review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.DUPLICATE_REVIEW,
+    )
+    db.add(project)
+    db.flush()
+
+    vocabulary = [f"noise{index}" for index in range(2000)]
+    rng = random.Random("dedup-e2e-test")
+    for _index in range(150):
+        words = rng.sample(vocabulary, 4)
+        db.add(
+            Publication(
+                project_id=project.id,
+                title=" ".join(words),
+                publication_year=2000 + rng.randrange(20),
+            )
+        )
+    dup_a = Publication(
+        project_id=project.id,
+        title="A systematic review of adversarial robustness in deep neural networks",
+        publication_year=2021,
+    )
+    dup_b = Publication(
+        project_id=project.id,
+        title="A systematic review on adversarial robustness for deep neural networks",
+        publication_year=2021,
+    )
+    db.add_all([dup_a, dup_b])
+    db.commit()
+
+    created = detect_duplicates(db, project.id)
+
+    assert created == 1
+    candidate = db.scalar(
+        select(DuplicateCandidate).where(DuplicateCandidate.project_id == project.id)
+    )
+    assert candidate is not None
+    assert {candidate.publication_a_id, candidate.publication_b_id} == {
+        dup_a.id,
+        dup_b.id,
+    }
+
+
+def test_detect_duplicates_still_reassesses_a_previously_recorded_pair(
+    db, monkeypatch
+) -> None:
+    """A candidate the DB already knows about must be re-evaluated even on a
+    run where blocking finds nothing new -- confirms detect_duplicates unions
+    in existing_candidates rather than relying on candidate_pairs alone."""
+    project = Project(
+        name="Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.DUPLICATE_REVIEW,
+    )
+    db.add(project)
+    db.flush()
+    pub_a = Publication(
+        project_id=project.id, title="Distinctive wording alpha", doi="10.1/shared"
+    )
+    pub_b = Publication(
+        project_id=project.id, title="Completely different wording beta", doi="10.1/shared"
+    )
+    db.add_all([pub_a, pub_b])
+    db.commit()
+    assert detect_duplicates(db, project.id) == 1
+
+    # Simulate a run where blocking (correctly) finds no *new* candidate
+    # pairs at all -- the still-shared DOI means the existing candidate must
+    # come from the existing_candidates union, not from a fresh block.
+    import app.deduplication.service as dedup_service
+
+    monkeypatch.setattr(dedup_service, "candidate_pairs", lambda publications: set())
+
+    assert dedup_service.detect_duplicates(db, project.id) == 0
+    candidate = db.scalar(
+        select(DuplicateCandidate).where(DuplicateCandidate.project_id == project.id)
+    )
+    assert candidate is not None and candidate.status == "unresolved", (
+        "an already-recorded candidate must still be re-evaluated (and kept, "
+        "since its match reason still holds) even when blocking alone finds "
+        "no new pairs"
+    )

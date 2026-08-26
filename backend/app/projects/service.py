@@ -210,6 +210,7 @@ def project_progress_stats(
     from app.deduplication.models import DuplicateCandidate
     from app.extraction.models import ExtractionStatus, ExtractionWorkItem
     from app.publications.models import Publication
+    from app.screening.cohorts import on_active_publication
     from app.screening.models import ScreeningOutcome
 
     if not projects:
@@ -217,10 +218,16 @@ def project_progress_stats(
 
     project_ids = [project.id for project in projects]
 
+    # Publications removed from the review (deleted, or merged away into a
+    # canonical record) are not part of the project any more, so they must
+    # not inflate the "Imported" figure or the denominators derived from it.
     imported_counts: dict[str, int] = dict(
         db.execute(
             select(Publication.project_id, func.count())
-            .where(Publication.project_id.in_(project_ids))
+            .where(
+                Publication.project_id.in_(project_ids),
+                Publication.is_active.is_(True),
+            )
             .group_by(Publication.project_id)
         )
         .tuples()
@@ -293,6 +300,7 @@ def project_progress_stats(
         .where(
             FinalDecision.project_id.in_(project_ids),
             FinalDecision.is_valid.is_(True),
+            on_active_publication(),
         )
         .group_by(FinalDecision.project_id, FinalDecision.stage, FinalDecision.outcome)
     ).all():
@@ -418,7 +426,93 @@ def update_membership(
     return membership
 
 
+class ProjectOwnershipError(ConflictError):
+    """An operation would have left a project with no owner, or two.
+
+    409 rather than 400: the request is well-formed and only conflicts with
+    the project's current ownership. The distinct code lets a client offer
+    Transfer Ownership instead of showing a generic error.
+    """
+
+    code = "project_ownership_required"
+
+
+def project_owner_membership(
+    db: Session, project_id: str, *, lock: bool = False
+) -> ProjectMembership | None:
+    """The project's single owner membership, if it has one.
+
+    ``lock`` takes ``SELECT ... FOR UPDATE`` on the row so a transfer can
+    read the current owner and reassign ownership without a concurrent
+    transfer interleaving between the two writes. Lock ordering: this is the
+    project's own membership row, taken before any publication-level lock.
+    """
+    query = select(ProjectMembership).where(
+        ProjectMembership.project_id == project_id,
+        ProjectMembership.is_owner.is_(True),
+    )
+    if lock and db.bind is not None and db.bind.dialect.name == "postgresql":
+        query = query.with_for_update()
+    return db.scalar(query)
+
+
+def transfer_project_ownership(
+    db: Session, project: Project, new_owner_user_id: str
+) -> ProjectMembership:
+    """Move ownership of a project to another of its members, atomically.
+
+    A project has exactly one owner, which is why demoting the current owner
+    and promoting a replacement cannot be two separate operations: between
+    them the project would be ownerless, and ``uq_project_single_owner``
+    would reject the promotion if they ran in the other order. Both writes
+    happen here, in one transaction, so the project is never observed with
+    zero or two owners.
+
+    The new owner must already be a member: ownership is a role over an
+    existing membership (with its own reviewer eligibility and workload
+    weight), not a way to add someone to a project.
+    """
+    current = project_owner_membership(db, project.id, lock=True)
+    target = db.scalar(
+        select(ProjectMembership).where(
+            ProjectMembership.project_id == project.id,
+            ProjectMembership.user_id == new_owner_user_id,
+        )
+    )
+    if target is None:
+        raise NotFoundError(
+            "Add that user to the project before transferring ownership to them"
+        )
+    if current is not None and current.id == target.id:
+        raise ProjectOwnershipError("That member already owns this project")
+    user = db.get(User, new_owner_user_id)
+    if user is None or not user.is_active:
+        raise ProjectOwnershipError(
+            "Ownership cannot be transferred to a deactivated user"
+        )
+    if current is not None:
+        current.is_owner = False
+    # Flushed before the promotion so the single-owner index sees the
+    # demotion first; both are still one transaction.
+    db.flush()
+    target.is_owner = True
+    db.flush()
+    return target
+
+
 def remove_membership(db: Session, membership: ProjectMembership) -> None:
+    """Remove a reviewer from a project.
+
+    Refuses to remove the owner: a project with no owner has no one who can
+    manage it, transfer it, or be notified about it, and nothing else in the
+    application can put ownership back. Transfer ownership first, then the
+    former owner can be removed like any other member.
+    """
+    if membership.is_owner:
+        raise ProjectOwnershipError(
+            "Transfer ownership to another member before removing the "
+            "project owner"
+        )
     db.delete(membership)
     db.flush()
 

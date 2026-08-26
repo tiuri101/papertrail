@@ -22,7 +22,12 @@ const publication = {
   arxivId: null,
   fullText: { available: true, document: { pageCount: 12 } },
   screeningStatus: { titleAbstract: 'include', fullText: null },
-  extractionStatus: null,
+  extractionStatus: 'not_started',
+}
+
+// The audit endpoint pages: `{items, total, hasMore, nextCursor}`.
+function auditPage(items: unknown[]) {
+  return { items, total: items.length, hasMore: false, nextCursor: null }
 }
 
 function defaultFetch(input: RequestInfo | URL, init?: RequestInit) {
@@ -31,12 +36,16 @@ function defaultFetch(input: RequestInfo | URL, init?: RequestInit) {
     return jsonResponse({ user: { id: 'u1', username: 'owner', displayName: 'Owner', isAdmin: false, isActive: true }, csrfToken: 'csrf' })
   }
   if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
-  if (url.endsWith('/publications')) return jsonResponse([publication])
+  // The detail page asks for this publication by id. It used to fetch the
+  // project's whole list and find the record in it, which stopped being
+  // possible once the list started paging.
+  if (url.endsWith('/publications/publication-1')) return jsonResponse(publication)
+  if (url.endsWith('/publications/missing')) return jsonResponse({ error: { message: 'Publication not found' } }, 404)
   if (url.endsWith('/extraction/publications/publication-1/final')) return jsonResponse(null)
   if (url.endsWith('/review-details')) {
     return jsonResponse({ screening: { titleAbstract: null, fullText: null } })
   }
-  if (url.endsWith('/audit')) return jsonResponse([])
+  if (url.includes('/audit')) return jsonResponse(auditPage([]))
   if (init?.method === 'DELETE') return emptyResponse(204)
   return undefined
 }
@@ -103,10 +112,10 @@ describe('PublicationDetailPage', () => {
     mockFetch((input, init) => {
       const url = String(input)
       if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: false, canManagePublications: true })
-      if (url.endsWith('/audit')) {
-        return jsonResponse([
+      if (url.includes('/audit')) {
+        return jsonResponse(auditPage([
           { id: 'e1', createdAt: '2026-01-01T00:00:00Z', actorUsername: 'owner', action: 'publication.updated', entityType: 'publication', entityId: 'publication-1', summary: 'Updated title', metadata: {} },
-        ])
+        ]))
       }
       return defaultFetch(input, init) ?? jsonResponse(null)
     })
@@ -146,11 +155,15 @@ describe('PublicationDetailPage', () => {
           },
         })
       }
-      if (url.endsWith('/audit')) {
-        return jsonResponse([
+      if (url.includes('/audit')) {
+        // The page asks for this publication's events specifically, so the
+        // project-level event is filtered out server-side rather than here.
+        const params = new URLSearchParams(url.split('?')[1] ?? '')
+        expect(params.get('entityType')).toBe('publication')
+        expect(params.get('entityId')).toBe('publication-1')
+        return jsonResponse(auditPage([
           { id: 'e1', createdAt: '2026-01-01T00:00:00Z', actorUsername: 'owner', action: 'publication.updated', entityType: 'publication', entityId: 'publication-1', summary: 'Updated title', metadata: {} },
-          { id: 'e2', createdAt: '2026-01-02T00:00:00Z', actorUsername: 'owner', action: 'project.created', entityType: 'project', entityId: 'p1', summary: 'Created project', metadata: {} },
-        ])
+        ]))
       }
       return defaultFetch(input, init) ?? jsonResponse(null)
     })
@@ -169,9 +182,9 @@ describe('PublicationDetailPage', () => {
     let auditRequests = 0
     mockFetch((input, init) => {
       const url = String(input)
-      if (url.endsWith('/audit')) {
+      if (url.includes('/audit')) {
         auditRequests += 1
-        return jsonResponse(metadataUpdated ? [{
+        return jsonResponse(auditPage(metadataUpdated ? [{
           id: 'metadata-update',
           createdAt: '2026-01-04T00:00:00Z',
           actorUsername: 'owner',
@@ -180,7 +193,7 @@ describe('PublicationDetailPage', () => {
           entityId: 'publication-1',
           summary: 'Updated publication metadata',
           metadata: { fields: ['title'] },
-        }] : [])
+        }] : []))
       }
       if (url.includes('/publications/publication-1') && init?.method === 'PATCH') {
         metadataUpdated = true

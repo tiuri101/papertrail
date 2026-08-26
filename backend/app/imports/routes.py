@@ -44,6 +44,7 @@ from app.imports.schemas import (
 from app.imports.service import preview_or_delete_search, resolve_project_search_source
 from app.jobs.service import enqueue_job
 from app.projects.dependencies import require_project_member_csrf
+from app.projects.file_cleanup import ProjectFileCleanup
 from app.projects.service import get_project, require_project_access
 from app.publications.models import PublicationSource
 
@@ -153,6 +154,11 @@ def delete_search(
     if search is None or search.project_id != project_id:
         raise NotFoundError("Search not found")
     source_name = search.source_name
+    # Collected before the ImportBatch rows naming these files are deleted;
+    # removed only after the commit (app.projects.file_cleanup).
+    file_cleanup = ProjectFileCleanup.for_import_batches(
+        db, project_id, [batch.id for batch in search.import_batches]
+    )
     result = preview_or_delete_search(db, search, force=force)
     if result["deleted"]:
         record_audit(
@@ -169,6 +175,8 @@ def delete_search(
             metadata={"screenedPublicationCount": result["screenedPublicationCount"]},
         )
     db.commit()
+    if result["deleted"]:
+        file_cleanup.remove()
     return result
 
 

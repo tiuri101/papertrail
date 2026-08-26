@@ -20,6 +20,7 @@ from app.extraction.models import (
 from app.forms.models import FieldType, FormField, FormKind, ReviewForm
 from app.forms.service import active_fields as forms_active_fields
 from app.forms.service import project_form_by_kind
+from app.forms.validation import validate_answers as validate_form_answers
 from app.projects.models import (
     Project,
     ProjectMembership,
@@ -31,10 +32,15 @@ from app.review_work.eligibility import (
     ReviewCapability,
     require_reviewer_capability_by_id,
 )
+from app.review_work.finalization import lock_publication_for_finalization
 from app.review_work.progress import (
     completed_items_with_response,
     remaining_claimable_items,
     reviewer_progress,
+)
+from app.review_work.structural_config import (
+    StructuralSettingLockedError,
+    work_items_exist,
 )
 from app.screening.cohorts import full_text_included_ids
 
@@ -88,6 +94,21 @@ def extraction_required_reviewers(db: Session, project_id: str) -> int:
     return config.required_reviewers if config else 1
 
 
+def extraction_work_started(db: Session, project_id: str) -> bool:
+    """Whether this project has generated any extraction work item yet.
+
+    The extraction counterpart of ``screening_work_started``: once a single
+    slot exists, the number of slots per publication and how they are handed
+    out are baked into rows nothing revisits, so both settings freeze. This is
+    stricter than the previous "has anyone submitted a response" test -- an
+    empty pre-assigned slot is stranded by a switch to claim mode just as
+    surely as a completed one.
+    """
+    return work_items_exist(
+        db, ExtractionWorkItem.id, ExtractionWorkItem.project_id == project_id
+    )
+
+
 def update_extraction_config(
     db: Session,
     project_id: str,
@@ -95,23 +116,33 @@ def update_extraction_config(
     allocation_mode: TaskAllocationMode,
     required_reviewers: int,
 ) -> ExtractionConfig:
+    """Apply the project's extraction configuration, refusing structural
+    changes once extraction work items exist (see
+    app.review_work.structural_config)."""
     if not 1 <= required_reviewers <= MAX_REQUIRED_REVIEWERS:
         raise DomainError(
             f"Extractors per publication must be between 1 and "
             f"{MAX_REQUIRED_REVIEWERS}"
         )
     existing = get_extraction_config(db, project_id)
-    if existing is not None and existing.required_reviewers != required_reviewers:
-        has_responses = db.scalar(
-            select(ExtractionResponse.id)
-            .join(ExtractionWorkItem)
-            .where(ExtractionWorkItem.project_id == project_id)
-            .limit(1)
-        )
-        if has_responses:
-            raise DomainError(
-                "Cannot change extractors per publication after extraction work "
-                "has begun"
+    if existing is not None:
+        structural_changes = {
+            "requiredReviewers": existing.required_reviewers != required_reviewers,
+            "allocationMode": existing.allocation_mode != allocation_mode,
+        }
+        changed = [
+            setting for setting, differs in structural_changes.items() if differs
+        ]
+        if changed and extraction_work_started(db, project_id):
+            labels = {
+                "requiredReviewers": "extractors per publication",
+                "allocationMode": "the allocation mode",
+            }
+            raise StructuralSettingLockedError(
+                f"Cannot change {labels[changed[0]]} after extraction work items "
+                "exist for this project",
+                setting=changed[0],
+                stage="extraction",
             )
     config = existing
     if config is None:
@@ -495,36 +526,14 @@ def normalize_answers(
 
 
 def validate_answers(fields: list[FormField], answers: dict[str, Any]) -> None:
-    known = {field.stable_key: field for field in fields}
-    unknown = set(answers) - set(known)
-    if unknown:
-        raise DomainError(f"Unknown form fields: {', '.join(sorted(unknown))}")
-    for key, field in known.items():
-        value = answers.get(key)
-        if field.required and value in (None, "", []):
-            raise DomainError(f"Required field is missing: {field.label}")
-        if value is None:
-            continue
-        if field.field_type == FieldType.NUMBER and not isinstance(value, (int, float)):
-            raise DomainError(f"Expected a number for: {field.label}")
-        if field.field_type == FieldType.CHECKBOX and not isinstance(value, bool):
-            raise DomainError(f"Expected a boolean for: {field.label}")
-        if field.field_type == FieldType.MULTIPLE_SELECT and not isinstance(
-            value, list
-        ):
-            raise DomainError(f"Expected a list for: {field.label}")
-        if (
-            field.field_type == FieldType.SINGLE_SELECT
-            and field.options
-            and value not in field.options
-        ):
-            raise DomainError(f"Invalid option for: {field.label}")
-        if (
-            field.field_type == FieldType.MULTIPLE_SELECT
-            and field.options
-            and any(item not in field.options for item in value)
-        ):
-            raise DomainError(f"Invalid option for: {field.label}")
+    """Validate submitted extraction answers.
+
+    A thin alias for the shared, FieldType-aware rule set in
+    ``app.forms.validation`` -- extraction and quality must never diverge on
+    what counts as a valid value for a field type, so neither of them owns
+    the rules.
+    """
+    validate_form_answers(fields, answers)
 
 
 def submit_extraction(
@@ -540,6 +549,13 @@ def submit_extraction(
     )
     if item.assigned_reviewer_id != reviewer_id:
         raise ForbiddenError("Extraction is assigned to another reviewer")
+    # Serialize this publication's finalization for the rest of the
+    # transaction: attempt_auto_finalize below reads *both* slots back, and
+    # two extractors completing their slots concurrently would otherwise each
+    # see only their own completed slot, each decide the publication is still
+    # waiting on the other, and leave it with both slots done and neither a
+    # FinalExtraction nor a recorded reconciliation-required state.
+    lock_publication_for_finalization(db, item.publication_id)
     form = project_form(db, item.project_id)
     if form is None or not form.active_version_id:
         raise NotFoundError("Extraction form not found")
@@ -605,6 +621,7 @@ def override_extraction(
     version, and as the new authoritative FinalExtraction for the
     publication (superseding whatever was previously authoritative,
     including a reconciled or agreed result)."""
+    lock_publication_for_finalization(db, item.publication_id)
     current = db.scalar(
         select(ExtractionResponse).where(
             ExtractionResponse.work_item_id == item.id,

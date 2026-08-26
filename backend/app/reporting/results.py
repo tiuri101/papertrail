@@ -7,13 +7,13 @@ from sqlalchemy.orm import Session
 
 from app.accounts.models import User
 from app.extraction.final import get_current_final_extractions
-from app.extraction.models import (
-    ExtractionResponse,
-    ExtractionStatus,
-    ExtractionWorkItem,
-)
+from app.extraction.models import ExtractionResponse
 from app.extraction.service import active_fields as extraction_active_fields
 from app.extraction.service import project_form
+from app.extraction.status import (
+    PublicationExtractionStatus,
+    publication_extraction_statuses,
+)
 from app.forms.models import FormField
 from app.publications.models import Publication
 from app.quality.models import QualityConfig, QualityResponse, QualityWorkItem
@@ -55,16 +55,11 @@ def build_final_results(db: Session, project_id: str) -> dict[str, Any]:
     extraction_fields = (
         extraction_active_fields(db, extraction_form) if extraction_form else []
     )
-    # Per-publication slot statuses, used only to represent progress while no
-    # authoritative final exists yet -- the authoritative *value* always
-    # comes from FinalExtraction, never an individual slot's response.
-    extraction_slots_by_publication: dict[str, list[ExtractionStatus]] = {}
-    for pub_id, status in db.execute(
-        select(ExtractionWorkItem.publication_id, ExtractionWorkItem.status).where(
-            ExtractionWorkItem.project_id == project_id
-        )
-    ):
-        extraction_slots_by_publication.setdefault(pub_id, []).append(status)
+    # Progress while no authoritative final exists yet -- the authoritative
+    # *value* always comes from FinalExtraction, never an individual slot's
+    # response. Derived by app.extraction.status so this export and the
+    # publication list report the same vocabulary for the same state.
+    extraction_statuses = publication_extraction_statuses(db, list(publication_ids))
     final_extractions = get_current_final_extractions(db, list(publication_ids))
     contributing_response_ids = {
         response_id
@@ -136,22 +131,15 @@ def build_final_results(db: Session, project_id: str) -> dict[str, Any]:
                 "answers": final.answers,
             }
         else:
-            slots = extraction_slots_by_publication.get(publication.id)
-            if slots:
-                # No authoritative result yet. Never surface an individual,
-                # unresolved response as though it were final -- report a
-                # progress status instead: the raw per-slot status in
-                # single-reviewer mode (unchanged from before), or, once
-                # every slot is done but they disagree, an explicit
-                # "reconciliation_pending" state distinct from "completed".
-                if all(status == ExtractionStatus.COMPLETED for status in slots):
-                    status_value = "reconciliation_pending"
-                elif any(status == ExtractionStatus.RESERVED for status in slots):
-                    status_value = ExtractionStatus.RESERVED.value
-                else:
-                    status_value = ExtractionStatus.AVAILABLE.value
+            # No authoritative result yet. Never surface an individual,
+            # unresolved response as though it were final -- report the
+            # publication's derived progress state instead.
+            derived = extraction_statuses.get(
+                publication.id, PublicationExtractionStatus.NOT_STARTED
+            )
+            if derived != PublicationExtractionStatus.NOT_STARTED:
                 extraction_payload = {
-                    "status": status_value,
+                    "status": derived.value,
                     "resolutionMethod": None,
                     "completedAt": None,
                     "reviewerName": None,

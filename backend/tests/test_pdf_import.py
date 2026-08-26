@@ -79,9 +79,16 @@ def setup_batch(db):
 def add_batch_publication(
     db, batch, title, *, doi=None, authors="Doe, Jane", year=2026
 ):
+    # Distinct source rows: an import batch holds at most one record per
+    # source row of the uploaded file (uq_imported_records_batch_source_row).
+    existing_rows = db.scalar(
+        select(func.count())
+        .select_from(ImportedRecord)
+        .where(ImportedRecord.import_batch_id == batch.id)
+    )
     record = ImportedRecord(
         import_batch_id=batch.id,
-        source_row=1,
+        source_row=int(existing_rows or 0) + 2,
         raw_data={"title": title},
         parsed_data={"title": title},
     )

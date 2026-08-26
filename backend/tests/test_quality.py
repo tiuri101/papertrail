@@ -16,6 +16,7 @@ from app.projects.models import (
 )
 from app.publications.models import Publication
 from app.quality.models import (
+    QualityAggregation,
     QualityConfig,
     QualityResponse,
     QualityStatus,
@@ -26,6 +27,7 @@ from app.quality.service import (
     initialize_quality,
     reassign_work_items_from_ineligible_reviewers,
     save_draft,
+    score_response,
     submit_quality,
 )
 
@@ -318,6 +320,155 @@ def test_quality_config_endpoint_reads_defaults_then_the_written_settings(
         "aggregation": "weighted_average",
         "allocationMode": "pre_assigned",
     }
+
+
+def test_quality_config_endpoint_rejects_unrecognized_mode_and_aggregation(
+    client, db
+) -> None:
+    create_user(db, "admin", "Admin", "secret-password", is_admin=True)
+    project = Project(
+        name="Review", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed"
+    )
+    db.add(project)
+    db.commit()
+    csrf = login(client, "admin", "secret-password")
+    base = {"enabled": True, "mode": "both", "aggregation": "sum", "allocationMode": "claim"}
+    endpoint = f"/api/v1/projects/{project.id}/quality-config"
+
+    bad_mode = client.put(
+        endpoint, json={**base, "mode": "quantitative"}, headers={"X-CSRF-Token": csrf}
+    )
+    assert bad_mode.status_code == 422
+
+    bad_aggregation = client.put(
+        endpoint,
+        json={**base, "aggregation": "mean"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert bad_aggregation.status_code == 422
+
+    # A recognized value on both fields still works.
+    assert client.put(endpoint, json=base, headers={"X-CSRF-Token": csrf}).status_code == 200
+
+
+def test_quality_config_endpoint_rejects_allocation_mode_change_after_work_items(
+    client, db
+) -> None:
+    create_user(db, "admin", "Admin", "secret-password", is_admin=True)
+    project = Project(
+        name="Review", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed"
+    )
+    db.add(project)
+    db.commit()
+    csrf = login(client, "admin", "secret-password")
+    endpoint = f"/api/v1/projects/{project.id}/quality-config"
+    payload = {
+        "enabled": True,
+        "mode": "both",
+        "aggregation": "sum",
+        "allocationMode": "claim",
+    }
+    # Before any quality work exists the setting is freely editable.
+    assert client.put(endpoint, json=payload, headers={"X-CSRF-Token": csrf}).status_code == 200
+
+    publication = Publication(project_id=project.id, title="Paper")
+    db.add(publication)
+    db.flush()
+    db.add(
+        QualityWorkItem(
+            project_id=project.id,
+            publication_id=publication.id,
+            random_rank="rank",
+        )
+    )
+    db.commit()
+
+    rejected = client.put(
+        endpoint,
+        json={**payload, "allocationMode": "pre_assigned"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert rejected.status_code == 409
+    error = rejected.json()["error"]
+    assert error["code"] == "structural_setting_locked"
+    assert error["details"] == {"setting": "allocationMode", "stage": "quality"}
+
+    # A non-structural change (enabled) is still accepted once work exists.
+    accepted = client.put(
+        endpoint,
+        json={**payload, "enabled": False},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert accepted.status_code == 200
+    assert accepted.json()["allocation_mode"] == "claim"
+
+
+def test_quality_config_endpoint_rejects_mode_and_aggregation_change_after_responses(
+    client, db
+) -> None:
+    project, _, design, reporting, reviewer, _ = setup_quality(db)
+    assert initialize_quality(db, project) == 1
+    db.commit()
+    item = claim_next_quality(db, project.id, reviewer.id)
+    submit_quality(
+        db, item, reviewer.id, {design.stable_key: "strong", reporting.stable_key: 4}
+    )
+    db.commit()
+
+    csrf = login(client, "admin", "secret-password")
+    endpoint = f"/api/v1/projects/{project.id}/quality-config"
+    current = client.get(endpoint, headers={"X-CSRF-Token": csrf}).json()
+
+    rejected = client.put(
+        endpoint,
+        json={**current, "mode": "qualitative"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert rejected.status_code == 409
+    error = rejected.json()["error"]
+    assert error["code"] == "structural_setting_locked"
+    assert error["details"] == {"setting": "mode", "stage": "quality"}
+
+    rejected_aggregation = client.put(
+        endpoint,
+        json={**current, "aggregation": "average"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert rejected_aggregation.status_code == 409
+    assert rejected_aggregation.json()["error"]["details"] == {
+        "setting": "aggregation",
+        "stage": "quality",
+    }
+
+    # Resubmitting the unchanged configuration is not a "change" and stays legal.
+    assert client.put(endpoint, json=current, headers={"X-CSRF-Token": csrf}).status_code == 200
+
+
+def test_score_response_never_scores_a_boolean_as_a_number(db) -> None:
+    """``isinstance(True, int)`` is True in Python: a NUMBER field (or a
+    misconfigured weight/option score) that somehow receives ``True`` must be
+    excluded from scoring, not silently counted as 1."""
+    project, form, design, reporting, _reviewer, _publication = setup_quality(db)
+    amount = add_field(
+        db, form, "Sample size", "number", required=False, scoring={"weight": 1}
+    )
+    fields = [design, reporting, amount]
+
+    # A real answer set, plus a boolean sneaking into the NUMBER field's slot.
+    answers = {
+        design.stable_key: "strong",
+        reporting.stable_key: 4,
+        amount.stable_key: True,
+    }
+    score = score_response(fields, answers, QualityAggregation.SUM)
+    # design(2*2) + reporting(4*1); the boolean contributes nothing.
+    assert score == pytest.approx(2 * 2 + 4 * 1)
+
+    # And an explicit False is excluded the same way, not counted as 0
+    # differently than "no answer" would already be.
+    answers[amount.stable_key] = False
+    score_false = score_response(fields, answers, QualityAggregation.SUM)
+    assert score_false == pytest.approx(2 * 2 + 4 * 1)
 
 
 def test_next_quality_endpoint_returns_the_publication_and_active_fields(

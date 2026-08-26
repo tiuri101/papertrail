@@ -1,4 +1,6 @@
+import pytest
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from app.accounts.service import create_user
 from app.audit.models import AuditEvent
@@ -32,7 +34,7 @@ from app.projects.models import (
 )
 from app.publications.models import Publication
 from app.publications.service import sync_new_publications_with_stage
-from app.screening.models import ScreeningWorkItem
+from app.screening.models import ScreeningOutcome, ScreeningWorkItem
 from app.screening.service import (
     claim_next_work_item,
     create_screening_work_items,
@@ -778,3 +780,77 @@ def test_list_conflicts_excludes_publications_still_awaiting_decisions(
 
     assert response.status_code == 200
     assert response.json() == []
+
+
+def test_database_rejects_a_second_valid_final_decision_for_a_stage(db) -> None:
+    """Defense-in-depth behind the publication-level finalization lock: even a
+    write path that forgot to invalidate the previous verdict cannot leave two
+    rows claiming to be *the* current decision for a (publication, stage)."""
+    admin, _project, publication, *_ = setup_conflict(db)
+    record_final_decision(
+        db,
+        publication.id,
+        ScreeningStage.TITLE_ABSTRACT,
+        "include",
+        "admin_consensus",
+        admin.id,
+        "Agreed",
+    )
+    db.commit()
+
+    db.add(
+        FinalDecision(
+            project_id=publication.project_id,
+            publication_id=publication.id,
+            stage=ScreeningStage.TITLE_ABSTRACT,
+            outcome=ScreeningOutcome.EXCLUDE,
+            resolution_method="admin_consensus",
+            resolved_by_id=admin.id,
+            note="Concurrently recorded second verdict",
+            is_valid=True,
+        )
+    )
+    with pytest.raises(IntegrityError):
+        db.flush()
+    db.rollback()
+
+
+def test_the_other_stage_and_superseded_history_are_unaffected_by_the_index(db) -> None:
+    """The uniqueness is scoped to *valid* rows of one stage: history rows and
+    the other screening stage's verdict must still coexist."""
+    admin, _project, publication, *_ = setup_conflict(db)
+    for outcome in ("include", "exclude", "include"):
+        record_final_decision(
+            db,
+            publication.id,
+            ScreeningStage.TITLE_ABSTRACT,
+            outcome,
+            "admin_consensus",
+            admin.id,
+            None,
+        )
+    record_final_decision(
+        db,
+        publication.id,
+        ScreeningStage.FULL_TEXT,
+        "include",
+        "admin_consensus",
+        admin.id,
+        None,
+    )
+    db.commit()
+
+    rows = list(
+        db.scalars(
+            select(FinalDecision).where(
+                FinalDecision.publication_id == publication.id
+            )
+        )
+    )
+    assert len(rows) == 4, "superseded verdicts are kept as history, not deleted"
+    valid = [row for row in rows if row.is_valid]
+    assert {row.stage for row in valid} == {
+        ScreeningStage.TITLE_ABSTRACT,
+        ScreeningStage.FULL_TEXT,
+    }
+    assert len(valid) == 2

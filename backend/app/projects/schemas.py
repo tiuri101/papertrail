@@ -88,6 +88,12 @@ class MembershipUpdate(ApiModel):
     workload_weight: float = Field(default=1.0, alias="workloadWeight", gt=0, le=100)
 
 
+class OwnershipTransfer(ApiModel):
+    """Hand the project's single owner role to another existing member."""
+
+    user_id: str = Field(alias="userId")
+
+
 class MembershipResponse(ApiModel):
     id: str
     user_id: str = Field(serialization_alias="userId")

@@ -2,10 +2,11 @@ import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import { PublicationsPage } from '../PublicationsPage'
+import type { Publication } from '../publicationShared'
 import { emptyResponse, jsonResponse, mockFetch } from '../../../test/http'
 import { renderWithProviders } from '../../../test/render'
 
-const publications = [
+const publications: Publication[] = [
   {
     id: 'publication-1',
     title: 'Urban Data in VR',
@@ -42,7 +43,7 @@ const publications = [
     arxivId: null,
     fullText: { available: false },
     screeningStatus: { titleAbstract: null, fullText: null },
-    extractionStatus: null,
+    extractionStatus: 'not_started',
   },
 ]
 
@@ -56,9 +57,90 @@ function pdfRetrievalDefault(url: string) {
   return undefined
 }
 
+type TestPublication = Publication
+
+function searchable(publication: TestPublication): string {
+  return [
+    publication.title,
+    publication.authors,
+    publication.abstract,
+    publication.publicationYear,
+    publication.venue,
+    publication.publicationType,
+    publication.doi,
+    publication.publisherUrl,
+    publication.keywords,
+    publication.isbn,
+    publication.issn,
+    publication.pubmedId,
+    publication.arxivId,
+  ].filter((value) => value !== null && value !== undefined).join(' ').toLowerCase()
+}
+
+function matching(query: URLSearchParams, all: TestPublication[]): TestPublication[] {
+  const search = (query.get('search') ?? '').toLowerCase()
+  const titleAbstract = query.get('titleAbstract')
+  const fullText = query.get('fullText')
+  const pdfStatus = query.get('pdfStatus')
+  const matches = all.filter((publication) => {
+    if (search && !searchable(publication).includes(search)) return false
+    if (titleAbstract && (publication.screeningStatus?.titleAbstract ?? 'pending') !== titleAbstract) return false
+    if (fullText && (publication.screeningStatus?.fullText ?? 'pending') !== fullText) return false
+    if (pdfStatus === 'available' && !publication.fullText?.available) return false
+    if (pdfStatus === 'unavailable' && publication.fullText?.available) return false
+    return true
+  })
+  const sort = query.get('sort') ?? 'title'
+  const direction = query.get('direction') ?? 'asc'
+  const sortValue = (publication: TestPublication): string | number => {
+    if (sort === 'authors') return (publication.authors ?? '').toLowerCase()
+    if (sort === 'year') return publication.publicationYear ?? -Infinity
+    if (sort === 'source') return (publication.venue ?? '').toLowerCase()
+    if (sort === 'pdf') return publication.fullText?.available ? 1 : 0
+    if (sort === 'stage') return publication.screeningStatus?.titleAbstract ? 1 : 0
+    return publication.title.toLowerCase()
+  }
+  return [...matches].sort((left, right) => {
+    const leftValue = sortValue(left)
+    const rightValue = sortValue(right)
+    const comparison = typeof leftValue === 'number' && typeof rightValue === 'number'
+      ? leftValue - rightValue
+      : String(leftValue).localeCompare(String(rightValue))
+    return direction === 'asc' ? comparison : -comparison
+  })
+}
+
+/**
+ * Stands in for `backend/app/publications/listing.py`.
+ *
+ * The page no longer holds the project's publications: search, the three
+ * filters, the six sort keys and paging are all request parameters now, so a
+ * test that wants to exercise them has to be answered the way the server
+ * answers them.
+ */
+function servePublications(url: string, all: TestPublication[] = publications) {
+  const query = new URL(url, 'http://localhost').searchParams
+  const matches = matching(query, all)
+  if (new URL(url, 'http://localhost').pathname.endsWith('/publications/ids')) {
+    return jsonResponse({ ids: matches.map((item) => item.id), total: matches.length })
+  }
+  const pageSize = Number(query.get('pageSize') ?? 50)
+  const page = Number(query.get('page') ?? 1)
+  return jsonResponse({
+    items: matches.slice((page - 1) * pageSize, page * pageSize),
+    total: matches.length,
+    projectTotal: all.length,
+    missingPdfCount: all.filter((item) => !item.fullText?.available).length,
+    page,
+    pageSize,
+    pageCount: Math.max(1, Math.ceil(matches.length / pageSize)),
+    hasMore: page * pageSize < matches.length,
+  })
+}
+
 describe('PublicationsPage', () => {
   it('renders normalized bibliographic metadata as a table row and links to the detail page', async () => {
-    mockFetch((input) => pdfRetrievalDefault(String(input)) ?? jsonResponse(publications))
+    mockFetch((input) => pdfRetrievalDefault(String(input)) ?? servePublications(String(input)))
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
 
     expect(await screen.findByText('Urban Data in VR')).toBeInTheDocument()
@@ -89,7 +171,7 @@ describe('PublicationsPage', () => {
       if (pdfRetrieval) return pdfRetrieval
       if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: false, canManagePublications: true })
       if (url.endsWith('/metadata-conflicts')) return jsonResponse([])
-      return jsonResponse(publications)
+      return servePublications(url)
     })
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
 
@@ -111,7 +193,7 @@ describe('PublicationsPage', () => {
       const pdfRetrieval = pdfRetrievalDefault(url)
       if (pdfRetrieval) return pdfRetrieval
       if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: false, canManagePublications: false })
-      return jsonResponse(publications)
+      return servePublications(url)
     })
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
 
@@ -130,7 +212,7 @@ describe('PublicationsPage', () => {
       if (url.endsWith('/publications') && init?.method === 'POST') {
         return jsonResponse({ id: 'publication-3', title: 'A Manually Added Paper' }, 201)
       }
-      return jsonResponse(publications)
+      return servePublications(url)
     })
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
 
@@ -149,7 +231,7 @@ describe('PublicationsPage', () => {
   })
 
   it('shows singular count for a single publication', async () => {
-    mockFetch((input) => pdfRetrievalDefault(String(input)) ?? jsonResponse([publications[0]]))
+    mockFetch((input) => pdfRetrievalDefault(String(input)) ?? servePublications(String(input), [publications[0]]))
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
 
     expect(await screen.findByText('1 publication in this project')).toBeInTheDocument()
@@ -157,7 +239,7 @@ describe('PublicationsPage', () => {
   })
 
   it('shows when every publication has an attached PDF', async () => {
-    mockFetch((input) => pdfRetrievalDefault(String(input)) ?? jsonResponse([
+    mockFetch((input) => pdfRetrievalDefault(String(input)) ?? servePublications(String(input), [
       { ...publications[0], fullText: { available: true } },
     ]))
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
@@ -172,7 +254,7 @@ describe('PublicationsPage', () => {
       if (pdfRetrieval) return pdfRetrieval
       if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
       if (init?.method === 'DELETE') return emptyResponse(204)
-      return jsonResponse(publications)
+      return servePublications(url)
     })
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
 
@@ -201,7 +283,7 @@ describe('PublicationsPage', () => {
         return jsonResponse({ jobId: 'job-1' }, 202)
       }
       if (url.endsWith('/metadata-conflicts')) return jsonResponse([])
-      return jsonResponse(publications)
+      return servePublications(url)
     })
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
 
@@ -231,7 +313,7 @@ describe('PublicationsPage', () => {
         return jsonResponse({ jobIds: ['job-1'] }, 202)
       }
       if (url.endsWith('/metadata-conflicts')) return jsonResponse([])
-      return jsonResponse(publications)
+      return servePublications(url)
     })
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
 
@@ -282,7 +364,7 @@ describe('PublicationsPage', () => {
       if (url.endsWith('/metadata-conflicts/conflict-1/resolve') && init?.method === 'POST') {
         return jsonResponse({ ...conflicts[0], status: 'accept_proposed' })
       }
-      return jsonResponse(publications)
+      return servePublications(url)
     })
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
 
@@ -325,7 +407,7 @@ describe('PublicationsPage', () => {
       if (pdfRetrieval) return pdfRetrieval
       if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
       if (url.endsWith('/metadata-conflicts')) return jsonResponse(conflicts)
-      return jsonResponse(publications)
+      return servePublications(url)
     })
     renderWithProviders(<PublicationsPage />, {
       route: '/projects/p1/publications?tab=metadata#metadata-conflicts',
@@ -338,7 +420,7 @@ describe('PublicationsPage', () => {
   })
 
   it('shows a single at-a-glance stage badge for each publication and filters by underlying screening status', async () => {
-    mockFetch((input) => pdfRetrievalDefault(String(input)) ?? jsonResponse(publications))
+    mockFetch((input) => pdfRetrievalDefault(String(input)) ?? servePublications(String(input)))
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
 
     // publications[0]: titleAbstract include, fullText exclude -> Excluded
@@ -352,9 +434,35 @@ describe('PublicationsPage', () => {
     expect(screen.getByText('2 publications in this project')).toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('Title/Abstract stage'), { target: { value: 'include' } })
+    await waitFor(() => {
+      expect(screen.queryByText('Paper without DOI')).not.toBeInTheDocument()
+    })
     expect(screen.getByText('Urban Data in VR')).toBeInTheDocument()
-    expect(screen.queryByText('Paper without DOI')).not.toBeInTheDocument()
+    // The "of N" total counts the project, not the page, so it survives the
+    // list itself being narrowed.
     expect(screen.getByText('1 of 2 publications match your filters')).toBeInTheDocument()
+  })
+
+  it('sends the filter as a query parameter rather than narrowing a full list', async () => {
+    const fetchMock = mockFetch((input) => pdfRetrievalDefault(String(input)) ?? servePublications(String(input)))
+    renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
+
+    await screen.findByText('Urban Data in VR')
+    const firstListCall = fetchMock.mock.calls
+      .map(([input]) => String(input))
+      .find((url) => url.includes('/publications?'))
+    expect(firstListCall).toContain('sort=title')
+    expect(firstListCall).toContain('direction=asc')
+    expect(firstListCall).toContain('page=1')
+    expect(firstListCall).toContain('pageSize=50')
+
+    fireEvent.change(screen.getByLabelText('Title/Abstract stage'), { target: { value: 'include' } })
+    fireEvent.change(screen.getByLabelText('PDF status'), { target: { value: 'unavailable' } })
+
+    await waitFor(() => {
+      const urls = fetchMock.mock.calls.map(([input]) => String(input))
+      expect(urls.some((url) => url.includes('titleAbstract=include') && url.includes('pdfStatus=unavailable'))).toBe(true)
+    })
   })
 
   it('shows the retrieval failure reason as the stage badge when full text could not be retrieved', async () => {
@@ -365,7 +473,7 @@ describe('PublicationsPage', () => {
       fullText: { available: false, retrievalStatus: 'not_found' },
       screeningStatus: { titleAbstract: 'include', fullText: null },
     }
-    mockFetch((input) => pdfRetrievalDefault(String(input)) ?? jsonResponse([unretrievable]))
+    mockFetch((input) => pdfRetrievalDefault(String(input)) ?? servePublications(String(input), [unretrievable]))
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
 
     const card = await screen.findByText('Unreachable Paper').then((el) => el.closest('li') as HTMLElement)
@@ -373,19 +481,44 @@ describe('PublicationsPage', () => {
   })
 
   it('searches across publication metadata', async () => {
-    mockFetch((input) => pdfRetrievalDefault(String(input)) ?? jsonResponse(publications))
+    mockFetch((input) => pdfRetrievalDefault(String(input)) ?? servePublications(String(input)))
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
 
     await screen.findByText('Urban Data in VR')
     fireEvent.change(screen.getByLabelText('Search publications'), { target: { value: '10.1000/urban-vr' } })
 
+    await waitFor(() => {
+      expect(screen.queryByText('Paper without DOI')).not.toBeInTheDocument()
+    })
     expect(screen.getByText('Urban Data in VR')).toBeInTheDocument()
-    expect(screen.queryByText('Paper without DOI')).not.toBeInTheDocument()
     expect(screen.getByText('1 of 2 publications match your filters')).toBeInTheDocument()
   })
 
+  it('debounces the search box into one request per pause in typing', async () => {
+    const fetchMock = mockFetch((input) => pdfRetrievalDefault(String(input)) ?? servePublications(String(input)))
+    renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
+
+    await screen.findByText('Urban Data in VR')
+    const searchRequests = () => fetchMock.mock.calls
+      .map(([input]) => String(input))
+      .filter((url) => url.includes('search='))
+
+    const box = screen.getByLabelText('Search publications')
+    for (const value of ['u', 'ur', 'urb', 'urba', 'urban']) {
+      fireEvent.change(box, { target: { value } })
+    }
+    // Nothing has been asked of the server yet: the intermediate prefixes
+    // never become requests.
+    expect(searchRequests()).toHaveLength(0)
+
+    await waitFor(() => {
+      expect(searchRequests()).toHaveLength(1)
+    })
+    expect(searchRequests()[0]).toContain('search=urban')
+  })
+
   it('filters publications by PDF status', async () => {
-    mockFetch((input) => pdfRetrievalDefault(String(input)) ?? jsonResponse([
+    mockFetch((input) => pdfRetrievalDefault(String(input)) ?? servePublications(String(input), [
       { ...publications[0], fullText: { available: true } },
       { ...publications[1], fullText: { available: false } },
     ]))
@@ -401,26 +534,38 @@ describe('PublicationsPage', () => {
     fireEvent.click(missingPdfButton)
     expect(pdfStatus).toHaveValue('unavailable')
     expect(missingPdfButton).toHaveAttribute('aria-pressed', 'true')
-    expect(screen.queryByText('Urban Data in VR')).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.queryByText('Urban Data in VR')).not.toBeInTheDocument()
+    })
     expect(screen.getByText('Paper without DOI')).toBeInTheDocument()
+    // The shortcut keeps counting the project's gap, not the filtered page.
+    expect(missingPdfButton).toHaveTextContent('1 paper missing a PDF')
 
     fireEvent.click(missingPdfButton)
     expect(pdfStatus).toHaveValue('')
     expect(missingPdfButton).toHaveAttribute('aria-pressed', 'false')
-    expect(screen.getByText('Urban Data in VR')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByText('Urban Data in VR')).toBeInTheDocument()
+    })
     expect(screen.getByText('Paper without DOI')).toBeInTheDocument()
 
     fireEvent.change(pdfStatus, { target: { value: 'available' } })
+    await waitFor(() => {
+      expect(screen.queryByText('Paper without DOI')).not.toBeInTheDocument()
+    })
     expect(screen.getByText('Urban Data in VR')).toBeInTheDocument()
-    expect(screen.queryByText('Paper without DOI')).not.toBeInTheDocument()
     expect(screen.getByText('1 of 2 publications match your filters')).toBeInTheDocument()
 
     fireEvent.change(pdfStatus, { target: { value: 'unavailable' } })
-    expect(screen.queryByText('Urban Data in VR')).not.toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.queryByText('Urban Data in VR')).not.toBeInTheDocument()
+    })
     expect(screen.getByText('Paper without DOI')).toBeInTheDocument()
 
     fireEvent.change(pdfStatus, { target: { value: '' } })
-    expect(screen.getByText('Urban Data in VR')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByText('Urban Data in VR')).toBeInTheDocument()
+    })
     expect(screen.getByText('Paper without DOI')).toBeInTheDocument()
   })
 
@@ -434,7 +579,7 @@ describe('PublicationsPage', () => {
       if (url.endsWith('/publications/delete') && init?.method === 'POST') {
         return jsonResponse({ deletedCount: 1 })
       }
-      return jsonResponse(publications)
+      return servePublications(url)
     })
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
 
@@ -454,14 +599,14 @@ describe('PublicationsPage', () => {
     })
   })
 
-  it('selects and deselects all filtered publications with Select All', async () => {
+  it('selects and deselects the publications on the current page with Select All', async () => {
     mockFetch((input) => {
       const url = String(input)
       const pdfRetrieval = pdfRetrievalDefault(url)
       if (pdfRetrieval) return pdfRetrieval
       if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
       if (url.endsWith('/metadata-conflicts')) return jsonResponse([])
-      return jsonResponse(publications)
+      return servePublications(url)
     })
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
 
@@ -479,8 +624,81 @@ describe('PublicationsPage', () => {
     expect(screen.queryByRole('button', { name: /Enrich Selected Metadata/ })).not.toBeInTheDocument()
 
     fireEvent.change(screen.getByLabelText('Title/Abstract stage'), { target: { value: 'include' } })
+    await waitFor(() => {
+      expect(screen.getByLabelText('Select All (1)')).toBeInTheDocument()
+    })
     fireEvent.click(screen.getByLabelText('Select All (1)'))
     expect(screen.getByLabelText('Select Urban Data in VR')).toBeChecked()
+  })
+
+  it('keeps a selection while paging and can select every match beyond the page', async () => {
+    const many = Array.from({ length: 3 }, (_, index) => ({
+      ...publications[1],
+      id: `publication-${index + 10}`,
+      title: `Paper ${index}`,
+    }))
+    const fetchMock = mockFetch((input) => {
+      const url = String(input)
+      const pdfRetrieval = pdfRetrievalDefault(url)
+      if (pdfRetrieval) return pdfRetrieval
+      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
+      if (url.endsWith('/metadata-conflicts')) return jsonResponse([])
+      // Force one publication per page so paging is observable.
+      const paged = new URL(url, 'http://localhost')
+      if (paged.searchParams.has('pageSize')) paged.searchParams.set('pageSize', '1')
+      return servePublications(paged.toString(), many)
+    })
+    renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
+
+    await screen.findByText('Paper 0')
+    expect(screen.getByText('Page 1 of 3 (3 publications)')).toBeInTheDocument()
+
+    fireEvent.click(screen.getByLabelText('Select Paper 0'))
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+
+    await screen.findByText('Paper 1')
+    // The selection is by id, so it outlives the page it was made on.
+    expect(screen.getByText('1 selected')).toBeInTheDocument()
+
+    // "Select all N matching" fetches just the ids -- never the records.
+    fireEvent.click(screen.getByRole('button', { name: 'Select all 3 matching' }))
+    await waitFor(() => {
+      expect(screen.getByText('3 selected')).toBeInTheDocument()
+    })
+    expect(fetchMock.mock.calls.some(([input]) => String(input).includes('/publications/ids'))).toBe(true)
+
+    fireEvent.click(screen.getByRole('button', { name: 'Clear selection' }))
+    expect(screen.queryByText(/selected/)).not.toBeInTheDocument()
+  })
+
+  it('returns to the first page when the filters or the sort order change', async () => {
+    const many = Array.from({ length: 3 }, (_, index) => ({
+      ...publications[1],
+      id: `publication-${index + 10}`,
+      title: `Paper ${index}`,
+    }))
+    const fetchMock = mockFetch((input) => {
+      const url = String(input)
+      const pdfRetrieval = pdfRetrievalDefault(url)
+      if (pdfRetrieval) return pdfRetrieval
+      const paged = new URL(url, 'http://localhost')
+      if (paged.searchParams.has('pageSize')) paged.searchParams.set('pageSize', '1')
+      return servePublications(paged.toString(), many)
+    })
+    renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
+
+    await screen.findByText('Paper 0')
+    fireEvent.click(screen.getByRole('button', { name: 'Next' }))
+    await screen.findByText('Paper 1')
+    expect(screen.getByText('Page 2 of 3 (3 publications)')).toBeInTheDocument()
+
+    // Page 3 of a narrowed result may not exist; staying there would show an
+    // empty list over a non-empty match.
+    fireEvent.change(screen.getByLabelText('Sort by'), { target: { value: 'title:desc' } })
+    await waitFor(() => {
+      expect(screen.getByText('Page 1 of 3 (3 publications)')).toBeInTheDocument()
+    })
+    expect(fetchMock.mock.calls.some(([input]) => String(input).includes('direction=desc') && String(input).includes('page=1'))).toBe(true)
   })
 
   it('bulk-uploads and auto-matches PDFs against the whole project without any selection', async () => {
@@ -504,7 +722,7 @@ describe('PublicationsPage', () => {
           publications: [],
         })
       }
-      return jsonResponse(publications)
+      return servePublications(url)
     })
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
 
@@ -538,7 +756,7 @@ describe('PublicationsPage', () => {
       if (pdfRetrieval) return pdfRetrieval
       if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
       if (url.endsWith('/metadata-conflicts')) return jsonResponse([])
-      return jsonResponse([
+      return servePublications(url, [
         { ...publications[0], fullText: { available: true, document: { pageCount: 12 } } },
         publications[1],
       ])
@@ -593,7 +811,7 @@ describe('PublicationsPage', () => {
           },
         ])
       }
-      return jsonResponse(publications)
+      return servePublications(url)
     })
     const { queryClient } = renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
 
@@ -629,7 +847,7 @@ describe('PublicationsPage', () => {
         return jsonResponse({ available: true, document: { id: 'doc-1', originalFilename: 'paper.pdf', fileSize: 1024, uploadedAt: '2026-08-08T10:00:00Z', uploadedBy: null, isActive: true, removedAt: null } }, 201)
       }
       if (url.endsWith('/publications/publication-1/full-text')) return jsonResponse({ available: false, document: null })
-      return jsonResponse(publications)
+      return servePublications(url)
     })
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
 
@@ -651,7 +869,7 @@ describe('PublicationsPage', () => {
   })
 
   it('sorts publication cards with a dropdown and does not show column headers', async () => {
-    mockFetch((input) => pdfRetrievalDefault(String(input)) ?? jsonResponse(publications))
+    mockFetch((input) => pdfRetrievalDefault(String(input)) ?? servePublications(String(input)))
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
 
     await screen.findByText('Urban Data in VR')
@@ -664,14 +882,36 @@ describe('PublicationsPage', () => {
 
     expect(document.querySelector('.publication-list__header')).not.toBeInTheDocument()
 
+    // The order comes back from the server now, so each change is a request.
     fireEvent.change(screen.getByLabelText('Sort by'), { target: { value: 'title:desc' } })
-    expect(titles()).toEqual(['Urban Data in VR', 'Paper without DOI'])
+    await waitFor(() => {
+      expect(titles()).toEqual(['Urban Data in VR', 'Paper without DOI'])
+    })
 
     fireEvent.change(screen.getByLabelText('Sort by'), { target: { value: 'year:asc' } })
     // Ascending by year: missing years sort first (publication-2 has none).
-    expect(titles()).toEqual(['Paper without DOI', 'Urban Data in VR'])
+    await waitFor(() => {
+      expect(titles()).toEqual(['Paper without DOI', 'Urban Data in VR'])
+    })
 
     fireEvent.change(screen.getByLabelText('Sort by'), { target: { value: 'year:desc' } })
-    expect(titles()).toEqual(['Urban Data in VR', 'Paper without DOI'])
+    await waitFor(() => {
+      expect(titles()).toEqual(['Urban Data in VR', 'Paper without DOI'])
+    })
+  })
+
+  it('asks the server for each sort key the list offers', async () => {
+    const fetchMock = mockFetch((input) => pdfRetrievalDefault(String(input)) ?? servePublications(String(input)))
+    renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
+
+    await screen.findByText('Urban Data in VR')
+    for (const key of ['authors', 'year', 'source', 'stage', 'pdf'] as const) {
+      fireEvent.change(screen.getByLabelText('Sort by'), {
+        target: { value: `${key}:${key === 'year' || key === 'pdf' ? 'desc' : 'asc'}` },
+      })
+      await waitFor(() => {
+        expect(fetchMock.mock.calls.some(([input]) => String(input).includes(`sort=${key}`))).toBe(true)
+      })
+    }
   })
 })

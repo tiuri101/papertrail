@@ -6,7 +6,12 @@ from app.analysis.models import ResearchQuestionAnalysisRun
 from app.analysis.rq_jobs import RQ_SYNTHESIS_JOB, generate_rq_synthesis_job
 from app.jobs.diagnostics import JOB_LABELS, JOB_STAGES, build_job_diagnostics
 from app.jobs.models import BackgroundJob, JobStatus
-from app.jobs.registry import JOB_DEFINITIONS, LLM_JOB_TYPES, WorkerPool
+from app.jobs.registry import (
+    JOB_DEFINITIONS,
+    LLM_JOB_TYPES,
+    PERMANENT_FAILURE_HOOKS,
+    WorkerPool,
+)
 from app.jobs.service import claim_job, enqueue_job
 from app.jobs.worker import HANDLERS, execute_next_job
 from app.llm.models import LlmExtractionRun, LlmTaskType, ProcessingStatus
@@ -474,6 +479,81 @@ def test_job_registry_is_the_single_source_for_handlers_pools_and_labels() -> No
         assert JOB_LABELS[job_type] == definition.label
         assert JOB_STAGES[job_type] == definition.stage
         assert (definition.worker_pool == WorkerPool.LLM) == (job_type in LLM_JOB_TYPES)
+
+
+def test_permanent_failure_hooks_are_derived_from_the_registry() -> None:
+    """JOB_DEFINITIONS stays the single source of truth for the hook too."""
+    assert set(PERMANENT_FAILURE_HOOKS) <= set(JOB_DEFINITIONS)
+    for job_type, definition in JOB_DEFINITIONS.items():
+        assert (job_type in PERMANENT_FAILURE_HOOKS) == (
+            definition.on_permanent_failure is not None
+        )
+        if definition.on_permanent_failure is not None:
+            assert PERMANENT_FAILURE_HOOKS[job_type] is definition.on_permanent_failure
+    # parse_import owns workflow state (the ImportBatch) that has to follow the
+    # job into a terminal state, so it must have a hook.
+    assert "parse_import" in PERMANENT_FAILURE_HOOKS
+
+
+# Every retryable job handler, and why executing it a second time after it
+# committed part of its work is safe. Keeping this in a test rather than a
+# comment means a newly registered job type fails the suite until someone has
+# actually answered the question for it.
+RETRY_SAFETY_REVIEW: dict[str, str] = {
+    "parse_import": (
+        "checkpointed-restartable: rows already committed for a source row are "
+        "skipped, counters are recomputed from stored rows, and "
+        "uq_imported_records_batch_source_row enforces it in the database"
+    ),
+    "enrich_publication": (
+        "naturally idempotent: enrichment only fills fields that are still "
+        "empty and will not reopen an identical metadata conflict"
+    ),
+    "detect_duplicates": (
+        "owned by the deduplication domain: re-detection reuses the existing "
+        "candidate rows for a project"
+    ),
+    "generate_export": (
+        "naturally idempotent: returns the ExportArtifact already produced for "
+        "this job id instead of building a second one"
+    ),
+    "extract_document_text": (
+        "transactionally atomic: a completed extraction returns immediately, "
+        "and a restart deletes the extraction's page rows before re-inserting"
+    ),
+    "generate_stage_analysis": (
+        "naturally idempotent: one StageAnalysis row per project and stage is "
+        "overwritten in place"
+    ),
+    "generate_rq_synthesis": (
+        "naturally idempotent: a completed run returns early and a run whose "
+        "input fingerprint moved on is marked stale instead of rerun"
+    ),
+    "send_email": (
+        "naturally idempotent for the queue: an already-SENT notification "
+        "returns early. A crash between handing the message to SMTP and "
+        "committing can resend it -- a duplicate email is the accepted "
+        "trade-off against dropping one"
+    ),
+    "check_llm_stage_email": (
+        "naturally idempotent: notifications are queued under a stable "
+        "deduplication key per bulk run and owner"
+    ),
+}
+
+
+def test_every_registered_job_handler_has_a_documented_retry_story() -> None:
+    llm_task_reason = (
+        "naturally idempotent: a COMPLETED run returns early and a run whose "
+        "input fingerprint moved on is marked stale instead of rerun"
+    )
+    expected = dict(RETRY_SAFETY_REVIEW)
+    for job_type in LLM_JOB_TYPE_BY_TASK.values():
+        expected[job_type] = llm_task_reason
+    assert set(expected) == set(JOB_DEFINITIONS), (
+        "a job type was added or removed without reviewing what happens when "
+        "it runs again after committing half its work"
+    )
 
 
 def test_stage_analysis_job_is_classified_as_llm_pool() -> None:

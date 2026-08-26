@@ -341,11 +341,14 @@ def transition_if_full_text_complete(db: Session, project: Project) -> bool:
         return False
 
     from app.extraction.service import initialize_extraction, project_form
+    from app.projects.lifecycle import set_project_stage
 
     if project_form(db, project.id) is None:
         return False
 
-    project.stage = ProjectStage.EXTRACTION
+    set_project_stage(
+        project, ProjectStage.EXTRACTION, reason="full-text screening complete"
+    )
 
     initialize_extraction(db, project)
     try:

@@ -1,5 +1,5 @@
 import { toolbarClass } from '../../components/layoutStyles'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 
@@ -49,12 +49,42 @@ import { FieldLabel } from '../../components/FieldLabel'
 import { Form } from '../../components/Form'
 import {
   primaryStage,
-  sortPublications,
   type Publication,
   type PublicationSortKey,
   type SortDirection,
 } from './publicationShared'
 import {InfoBox} from "../../components/InfoBox";
+
+/** One server-rendered page of publications (backend/app/publications/listing.py). */
+interface PublicationPage {
+  items: Publication[]
+  /** Matching the current filters, across every page. */
+  total: number
+  /** Active publications in the project, ignoring the filters. */
+  projectTotal: number
+  /** Publications with no attached PDF, project-wide and unfiltered. */
+  missingPdfCount: number
+  page: number
+  pageSize: number
+  pageCount: number
+  hasMore: boolean
+}
+
+const PAGE_SIZE = 50
+const SEARCH_DEBOUNCE_MS = 300
+
+/**
+ * Trails `value` by `delayMs`, so a search box drives one request per pause
+ * in typing rather than one per keystroke.
+ */
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delayMs)
+    return () => clearTimeout(timer)
+  }, [value, delayMs])
+  return debounced
+}
 
 const dangerRowActionItemClass = actionListItemClass({ danger: true })
 
@@ -73,16 +103,6 @@ const PDF_STATUS_FILTER_OPTIONS = [
   { value: 'available', label: 'PDF available' },
   { value: 'unavailable', label: 'No PDF' },
 ]
-
-function matchesScreeningFilter(outcome: string | null | undefined, filter: string): boolean {
-  if (!filter) return true
-  return (outcome ?? 'pending') === filter
-}
-
-function matchesPdfStatusFilter(available: boolean, filter: string): boolean {
-  if (!filter) return true
-  return filter === 'available' ? available : !available
-}
 
 function toDraft(publication: Publication): PublicationDraft {
   return {
@@ -509,42 +529,58 @@ export function PublicationsPage() {
   const [search, setSearch] = useState('')
   const [sortKey, setSortKey] = useState<PublicationSortKey>('title')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
+  const [page, setPage] = useState(1)
+  const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS)
+
+  // Search, the three filters and the six sort keys are all applied by the
+  // server now (backend/app/publications/listing.py). The project's whole
+  // publication list is unbounded, so it is never fetched: what used to be
+  // `useMemo` over everything is a request for one page of what matches.
+  const filterParams = useMemo(() => {
+    const params = new URLSearchParams()
+    const trimmed = debouncedSearch.trim()
+    if (trimmed) params.set('search', trimmed)
+    if (titleAbstractFilter) params.set('titleAbstract', titleAbstractFilter)
+    if (fullTextFilter) params.set('fullText', fullTextFilter)
+    if (pdfStatusFilter) params.set('pdfStatus', pdfStatusFilter)
+    return params.toString()
+  }, [debouncedSearch, titleAbstractFilter, fullTextFilter, pdfStatusFilter])
+
+  const listParams = useMemo(() => {
+    const params = new URLSearchParams(filterParams)
+    params.set('sort', sortKey)
+    params.set('direction', sortDirection)
+    params.set('page', String(page))
+    params.set('pageSize', String(PAGE_SIZE))
+    return params.toString()
+  }, [filterParams, sortKey, sortDirection, page])
+
   const query = useQuery({
-    queryKey: ['publications', projectId],
-    queryFn: () => apiRequest<Publication[]>(
-      `/api/v1/projects/${projectId}/publications`,
+    // Nested under ['publications', projectId] so every existing invalidation
+    // of that prefix -- imports, merges, PDF attachment, deletion -- still
+    // refreshes whichever page is on screen.
+    queryKey: ['publications', projectId, 'page', listParams],
+    queryFn: () => apiRequest<PublicationPage>(
+      `/api/v1/projects/${projectId}/publications?${listParams}`,
     ),
+    // Keep the current page visible while the next one loads, so paging and
+    // filtering don't blank the list on every keystroke.
+    placeholderData: keepPreviousData,
   })
 
-  const filteredPublications = useMemo(() => {
-    const normalizedSearch = search.trim().toLocaleLowerCase()
-    return (query.data ?? []).filter((publication) => {
-      const searchableMetadata = [
-        publication.title,
-        publication.authors,
-        publication.abstract,
-        publication.publicationYear,
-        publication.venue,
-        publication.publicationType,
-        publication.doi,
-        publication.publisherUrl,
-        publication.keywords,
-        publication.isbn,
-        publication.issn,
-        publication.pubmedId,
-        publication.arxivId,
-      ].filter((value) => value !== null && value !== undefined).join(' ').toLocaleLowerCase()
-      return (!normalizedSearch || searchableMetadata.includes(normalizedSearch))
-        && matchesScreeningFilter(publication.screeningStatus?.titleAbstract, titleAbstractFilter)
-        && matchesScreeningFilter(publication.screeningStatus?.fullText, fullTextFilter)
-        && matchesPdfStatusFilter(Boolean(publication.fullText?.available), pdfStatusFilter)
-    })
-  }, [query.data, search, titleAbstractFilter, fullTextFilter, pdfStatusFilter])
+  const publications = query.data?.items ?? []
+  const total = query.data?.total ?? 0
+  const projectTotal = query.data?.projectTotal ?? 0
+  const missingPdfCount = query.data?.missingPdfCount ?? 0
+  const pageCount = query.data?.pageCount ?? 1
+  const filtersActive = Boolean(search || titleAbstractFilter || fullTextFilter || pdfStatusFilter)
 
-  const sortedPublications = useMemo(
-    () => sortPublications(filteredPublications, sortKey, sortDirection),
-    [filteredPublications, sortKey, sortDirection],
-  )
+  // Any change to what matches invalidates the page number that was showing:
+  // page 4 of a 200-record list is nowhere in a 3-record one.
+  const narrow = <T,>(apply: (value: T) => void) => (value: T) => {
+    apply(value)
+    setPage(1)
+  }
 
   const toggleSort = (key: PublicationSortKey) => {
     if (key === sortKey) setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
@@ -552,6 +588,7 @@ export function PublicationsPage() {
       setSortKey(key)
       setSortDirection('asc')
     }
+    setPage(1)
   }
 
   const bulkEnrich = useMutation({
@@ -617,20 +654,31 @@ export function PublicationsPage() {
     return next
   })
 
-  const allFilteredSelected = filteredPublications.length > 0
-    && filteredPublications.every((publication) => selectedIds.has(publication.id))
-  const missingPdfCount = query.data?.filter(
-    (publication) => !publication.fullText.available,
-  ).length ?? 0
+  // Selection is by id and survives paging, so a reviewer can gather records
+  // from several pages before acting on them.
+  const allPageSelected = publications.length > 0
+    && publications.every((publication) => selectedIds.has(publication.id))
 
-  const toggleSelectAll = () => setSelectedIds((current) => {
+  const toggleSelectPage = () => setSelectedIds((current) => {
     const next = new Set(current)
-    if (allFilteredSelected) {
-      filteredPublications.forEach((publication) => next.delete(publication.id))
+    if (allPageSelected) {
+      publications.forEach((publication) => next.delete(publication.id))
     } else {
-      filteredPublications.forEach((publication) => next.add(publication.id))
+      publications.forEach((publication) => next.add(publication.id))
     }
     return next
+  })
+
+  // "Select every publication matching the current filter" is a real
+  // capability -- it is how a whole cohort gets queued for metadata
+  // enrichment or exported -- and paging must not quietly reduce it to
+  // "select the fifty rows on screen". The ids alone are cheap to fetch; the
+  // hydrated records they stand for are exactly what paging exists to avoid.
+  const selectAllMatching = useMutation({
+    mutationFn: () => apiRequest<{ ids: string[]; total: number }>(
+      `/api/v1/projects/${projectId}/publications/ids${filterParams ? `?${filterParams}` : ''}`,
+    ),
+    onSuccess: (result) => setSelectedIds(new Set(result.ids)),
   })
 
   const visibleTabs = publicationsTabs.filter((tab) => tab.id !== 'metadata' || canManage)
@@ -655,13 +703,13 @@ export function PublicationsPage() {
           // doubling every gap in this tab. Wrapping in a block lets each child's own margin
           // collapse normally with its neighbors instead.
           <div>
-            {query.data && (search || titleAbstractFilter || fullTextFilter || pdfStatusFilter) ? (
-              <CountPill count={filteredPublications.length}>
-                of {query.data.length} publications match your filters
+            {query.data && filtersActive ? (
+              <CountPill count={total}>
+                of {projectTotal} publications match your filters
               </CountPill>
             ) : query.data ? (
-              <CountPill count={query.data.length}>
-                publication{query.data.length === 1 ? '' : 's'} in this project
+              <CountPill count={projectTotal}>
+                publication{projectTotal === 1 ? '' : 's'} in this project
               </CountPill>
             ) : null}
             <InfoBox icon={<IconHelpCircle />} className="mb-4">
@@ -677,13 +725,13 @@ export function PublicationsPage() {
                   <Input
                     type="search"
                     value={search}
-                    onChange={(event) => setSearch(event.target.value)}
+                    onChange={(event) => narrow(setSearch)(event.target.value)}
                     placeholder="Title, author, DOI, keyword…"
                   />
                 </label>
                 <FieldLabel>
                   Title/Abstract stage
-                  <Select value={titleAbstractFilter} onChange={(event) => setTitleAbstractFilter(event.target.value)}>
+                  <Select value={titleAbstractFilter} onChange={(event) => narrow(setTitleAbstractFilter)(event.target.value)}>
                     {SCREENING_FILTER_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>{option.label}</option>
                     ))}
@@ -691,7 +739,7 @@ export function PublicationsPage() {
                 </FieldLabel>
                 <FieldLabel>
                   Full-text stage
-                  <Select value={fullTextFilter} onChange={(event) => setFullTextFilter(event.target.value)}>
+                  <Select value={fullTextFilter} onChange={(event) => narrow(setFullTextFilter)(event.target.value)}>
                     {SCREENING_FILTER_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>{option.label}</option>
                     ))}
@@ -699,7 +747,7 @@ export function PublicationsPage() {
                 </FieldLabel>
                 <FieldLabel>
                   PDF status
-                  <Select value={pdfStatusFilter} onChange={(event) => setPdfStatusFilter(event.target.value)}>
+                  <Select value={pdfStatusFilter} onChange={(event) => narrow(setPdfStatusFilter)(event.target.value)}>
                     {PDF_STATUS_FILTER_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>{option.label}</option>
                     ))}
@@ -716,9 +764,9 @@ export function PublicationsPage() {
                   )}
                   aria-pressed={pdfStatusFilter === 'unavailable'}
                   disabled={missingPdfCount === 0}
-                  onClick={() => setPdfStatusFilter((current) => (
-                    current === 'unavailable' ? '' : 'unavailable'
-                  ))}
+                  onClick={() => narrow(setPdfStatusFilter)(
+                    pdfStatusFilter === 'unavailable' ? '' : 'unavailable',
+                  )}
                 >
                   <IconUpload />
                   {missingPdfCount
@@ -733,6 +781,7 @@ export function PublicationsPage() {
                       const [key, direction] = event.target.value.split(':') as [PublicationSortKey, SortDirection]
                       setSortKey(key)
                       setSortDirection(direction)
+                      setPage(1)
                     }}
                   >
                     <option value="title:asc">Title A–Z</option>
@@ -751,19 +800,38 @@ export function PublicationsPage() {
                 </label>
               </div>
             ) : null}
-            {canManage && filteredPublications.length > 0 ? (
+            {canManage && publications.length > 0 ? (
               <div className={`${toolbarClass} publication-list__bulk-actions`}>
                 <FieldLabel inline>
                   <Input
                     type="checkbox"
-                    checked={allFilteredSelected}
-                    onChange={toggleSelectAll}
+                    checked={allPageSelected}
+                    onChange={toggleSelectPage}
                   />
-                  {' '}Select All ({filteredPublications.length})
+                  {' '}Select All ({publications.length})
                 </FieldLabel>
+                {total > publications.length ? (
+                  <Button
+                    type="button"
+                    variant="text"
+                    size="sm"
+                    disabled={selectAllMatching.isPending}
+                    onClick={() => selectAllMatching.mutate()}
+                  >
+                    Select all {total} matching
+                  </Button>
+                ) : null}
                 {selectedIds.size > 0 ? (
                   <>
                     <span className="text-text-muted">{selectedIds.size} selected</span>
+                    <Button
+                      type="button"
+                      variant="text"
+                      size="sm"
+                      onClick={() => setSelectedIds(new Set())}
+                    >
+                      Clear selection
+                    </Button>
                     <Button
                       type="button"
                       variant="secondary"
@@ -797,6 +865,7 @@ export function PublicationsPage() {
                 ) : null}
               </div>
             ) : null}
+            {selectAllMatching.error ? <p className="text-danger" role="alert">{selectAllMatching.error.message}</p> : null}
             {bulkEnrich.error ? <p className="text-danger" role="alert">{bulkEnrich.error.message}</p> : null}
             {bulkEnrich.isSuccess ? <p>Enrichment queued for {bulkEnrich.data.jobIds.length} publication{bulkEnrich.data.jobIds.length === 1 ? '' : 's'}.</p> : null}
             {bulkDelete.error ? <p className="text-danger" role="alert">{bulkDelete.error.message}</p> : null}
@@ -830,7 +899,7 @@ export function PublicationsPage() {
               <span aria-hidden="true" />
             </div>
             <ul className="m-0 grid list-none gap-2 p-0">
-              {sortedPublications.map((publication) => (
+              {publications.map((publication) => (
                 <PublicationRow
                   key={publication.id}
                   publication={publication}
@@ -842,6 +911,38 @@ export function PublicationsPage() {
                 />
               ))}
             </ul>
+            {query.data && publications.length === 0 ? (
+              <p className="text-text-muted">
+                {filtersActive
+                  ? 'No publications match your filters.'
+                  : 'No publications yet.'}
+              </p>
+            ) : null}
+            {pageCount > 1 ? (
+              <nav className={cn(toolbarClass, 'mt-4 items-center')} aria-label="Publication pages">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={page <= 1}
+                  onClick={() => setPage((current) => Math.max(1, current - 1))}
+                >
+                  Previous
+                </Button>
+                <span className="text-text-muted" role="status">
+                  Page {page} of {pageCount} ({total} publication{total === 1 ? '' : 's'})
+                </span>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  disabled={page >= pageCount}
+                  onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
+                >
+                  Next
+                </Button>
+              </nav>
+            ) : null}
           </div>
         ) : null}
         {activeTab === 'add' ? (

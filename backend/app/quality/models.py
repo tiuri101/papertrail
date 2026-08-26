@@ -6,7 +6,9 @@ from typing import Any
 
 from sqlalchemy import (
     Boolean,
+    CheckConstraint,
     DateTime,
+    Enum,
     Float,
     ForeignKey,
     Integer,
@@ -26,16 +28,83 @@ class QualityStatus(enum.StrEnum):
     COMPLETED = "completed"
 
 
+class QualityMode(enum.StrEnum):
+    """What a project's quality assessment produces.
+
+    ``QUALITATIVE`` records the reviewer's answers only; ``NUMERIC`` and
+    ``BOTH`` additionally compute and store a ``total_score`` per response.
+    """
+
+    QUALITATIVE = "qualitative"
+    NUMERIC = "numeric"
+    BOTH = "both"
+
+
+class QualityAggregation(enum.StrEnum):
+    """How per-field scores combine into a response's ``total_score``.
+
+    Closed on purpose: an unrecognized value used to fall through to
+    ``SUM``, so a typo produced plausible-looking but wrong scores instead
+    of an error.
+    """
+
+    SUM = "sum"
+    AVERAGE = "average"
+    WEIGHTED_AVERAGE = "weighted_average"
+
+
+def _enum_values(enum_class: type[enum.Enum]) -> list[str]:
+    return [str(member.value) for member in enum_class]
+
+
+# Stored as their lowercase values in a plain VARCHAR (not a PostgreSQL
+# native enum), matching the columns these two replaced; the enum type is
+# what makes an unrecognized value fail loudly on read and write instead of
+# silently selecting a default.
+#
+# ``create_constraint=False`` with an explicit CheckConstraint below rather
+# than SQLAlchemy's built-in one: a type-bound constraint is invisible to
+# Alembic's metadata comparison but *is* reflected from the database, so every
+# future autogenerate run would propose dropping it. Declared by hand, it
+# round-trips.
+def _quality_enum(enum_class: type[enum.Enum], name: str) -> Enum:
+    return Enum(
+        enum_class,
+        name=name,
+        native_enum=False,
+        length=30,
+        create_constraint=False,
+        values_callable=_enum_values,
+    )
+
+
+def _value_check(column: str, enum_class: type[enum.Enum], name: str) -> CheckConstraint:
+    allowed = ", ".join(f"'{value}'" for value in _enum_values(enum_class))
+    return CheckConstraint(f"{column} IN ({allowed})", name=name)
+
+
 class QualityConfig(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     __tablename__ = "quality_configs"
-    __table_args__ = (UniqueConstraint("project_id", name="uq_quality_config_project"),)
+    __table_args__ = (
+        UniqueConstraint("project_id", name="uq_quality_config_project"),
+        _value_check("mode", QualityMode, "qualitymode"),
+        _value_check("aggregation", QualityAggregation, "qualityaggregation"),
+    )
 
     project_id: Mapped[str] = mapped_column(
         ForeignKey("projects.id", ondelete="CASCADE"), index=True
     )
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
-    mode: Mapped[str] = mapped_column(String(30), default="both", nullable=False)
-    aggregation: Mapped[str] = mapped_column(String(30), default="sum", nullable=False)
+    mode: Mapped[QualityMode] = mapped_column(
+        _quality_enum(QualityMode, "qualitymode"),
+        default=QualityMode.BOTH,
+        nullable=False,
+    )
+    aggregation: Mapped[QualityAggregation] = mapped_column(
+        _quality_enum(QualityAggregation, "qualityaggregation"),
+        default=QualityAggregation.SUM,
+        nullable=False,
+    )
     allocation_mode: Mapped[TaskAllocationMode] = mapped_column(
         default=TaskAllocationMode.CLAIM, nullable=False
     )

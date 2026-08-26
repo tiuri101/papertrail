@@ -11,6 +11,7 @@ import { Page } from '../../components/Page'
 import { Select } from '../../components/Select'
 import { SortableColumnHeader } from '../../components/SortableColumnHeader'
 import { StageEyebrow } from '../projects/StageEyebrow'
+import { extractionStatusLabel } from '../extraction/extractionStatus'
 
 interface FieldMeta {
   stableKey: string
@@ -76,9 +77,11 @@ function formatDate(value: string | null): string {
   return value ? new Date(value).toLocaleDateString() : '—'
 }
 
+// Quality work items still carry a single-slot status, so a plain
+// sentence-case of the raw value is right for them.
 function statusLabel(status: string | undefined): string {
   if (!status) return 'Not started'
-  return status.charAt(0).toUpperCase() + status.slice(1)
+  return status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ')
 }
 
 function buildColumns(data: FinalResultsResponse): Column[] {
@@ -102,7 +105,9 @@ function buildColumns(data: FinalResultsResponse): Column[] {
     {
       key: 'extraction_status',
       label: 'Extraction Status',
-      getValue: (item) => statusLabel(item.extraction?.status),
+      // The publication-level derived status (six values, including the two
+      // dual-extraction "awaiting ..." states), not a slot status.
+      getValue: (item) => extractionStatusLabel(item.extraction?.status),
     },
     {
       key: 'extraction_reviewer',

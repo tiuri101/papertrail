@@ -616,16 +616,18 @@ def test_email_job_retries_and_records_terminal_failure(
 
 
 def test_project_owner_users_returns_only_owners(db) -> None:
+    """A project has exactly one owner (uq_project_single_owner), and owner
+    notifications must reach that member and no other."""
     from app.notifications.service import _project_owner_users
 
     owner = create_user(db, "owner", "Project Owner", "secret-password")
-    second_owner = create_user(db, "co-owner", "Co Owner", "secret-password")
     reviewer = create_user(db, "reviewer", "Reviewer", "secret-password")
+    other_project_owner = create_user(db, "other", "Other Owner", "secret-password")
     project = create_project(
         db, "Evidence Review", None, ReviewType.SYSTEMATIC_REVIEW, owner
     )
-    db.add(
-        ProjectMembership(project_id=project.id, user_id=second_owner.id, is_owner=True)
+    create_project(
+        db, "Unrelated Review", None, ReviewType.SYSTEMATIC_REVIEW, other_project_owner
     )
     db.add(
         ProjectMembership(project_id=project.id, user_id=reviewer.id, can_extract=True)
@@ -634,8 +636,7 @@ def test_project_owner_users_returns_only_owners(db) -> None:
 
     owners = _project_owner_users(db, project.id)
 
-    assert {user.id for user in owners} == {owner.id, second_owner.id}
-    assert reviewer.id not in {user.id for user in owners}
+    assert {user.id for user in owners} == {owner.id}
 
 
 def test_owner_notified_once_when_entire_llm_bulk_finishes(db, monkeypatch) -> None:

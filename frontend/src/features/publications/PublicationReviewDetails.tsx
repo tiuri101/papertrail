@@ -13,6 +13,7 @@ import { Select } from '../../components/Select'
 import { Textarea } from '../../components/Textarea'
 import { DynamicForm, type DynamicFormField } from '../forms/DynamicForm'
 import { FieldLabel } from '../../components/FieldLabel'
+import { extractionStatusLabel, type ExtractionStatus } from '../extraction/extractionStatus'
 
 interface FinalDecision {
   outcome: string
@@ -221,10 +222,15 @@ export function PublicationReviewDetails({
   projectId,
   publicationId,
   canManage,
+  extractionStatus,
 }: {
   projectId: string
   publicationId: string
   canManage: boolean
+  // The publication's server-derived extraction status. Used verbatim to say
+  // *why* there is no final result yet; this component must not infer that
+  // from the slot rows it happens to be holding.
+  extractionStatus?: ExtractionStatus
 }) {
   const queryClient = useQueryClient()
   const [responseOverride, setResponseOverride] = useState<{
@@ -410,7 +416,9 @@ export function PublicationReviewDetails({
                 ) : null}
               </section>
             ) : extraction && extraction.slots.length > 0 ? (
-              <p className="text-text-muted">Data extraction is in progress; no final result yet.</p>
+              <p className="text-text-muted">
+                {extractionStatusLabel(extractionStatus)}; no final result yet.
+              </p>
             ) : extraction ? (
               <p className="text-text-muted">No completed data extraction is available.</p>
             ) : null}
