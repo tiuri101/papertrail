@@ -3,6 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useEffect, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
+import { describeError } from '../../api/domainErrors'
+import { Badge } from '../../components/Badge'
 import { Button } from '../../components/Button'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { ConfirmButton } from '../../components/ConfirmButton'
@@ -28,6 +30,10 @@ interface Membership extends Record<RoleKey, boolean> {
   id: string
   userId: string
   workloadWeight: number
+  // Exactly one membership per project carries this. The backend refuses to
+  // remove it (409 `project_ownership_required`) -- a project is never
+  // ownerless -- so the owner's row offers a transfer instead of a removal.
+  isOwner: boolean
 }
 
 type ProjectMembers = ProjectMembersOf<Membership>
@@ -60,6 +66,7 @@ function MemberRow({
   membership,
   onSave,
   onDelete,
+  onTransferOwnership,
   pending,
   onDirtyChange,
 }: {
@@ -67,6 +74,8 @@ function MemberRow({
   membership: Membership
   onSave: (roles: Record<RoleKey, boolean>, workloadWeight: number) => void
   onDelete: () => void
+  /** Only offered on the owner's row; `null` when there is nobody to hand it to. */
+  onTransferOwnership: (() => void) | null
   pending: boolean
   onDirtyChange?: (dirty: boolean) => void
 }) {
@@ -147,7 +156,10 @@ function MemberRow({
 
   return (
     <tr>
-      <td>{label}</td>
+      <td>
+        {label}
+        {membership.isOwner ? <> <Badge variant="primary">Owner</Badge></> : null}
+      </td>
       <td>
         {activeRoles.length > 0 ? activeRoles.join(', ') : 'No roles assigned'}
         <span className="text-text-muted">. Weight: {membership.workloadWeight}.</span>
@@ -155,17 +167,84 @@ function MemberRow({
       <td>
         <div className={toolbarClass}>
           <Button type="button" onClick={() => setEditing(true)} disabled={pending}>Edit</Button>
-          <ConfirmButton
-            label="Remove"
-            warning="Remove this reviewer from the project? This cannot be undone."
-            onConfirm={onDelete}
-            disabled={pending}
-            variant="danger"
-            icon={<IconTrash />}
-          />
+          {membership.isOwner ? (
+            // Never a bare Remove: the backend refuses it, so the only
+            // coherent action on the owner is to hand the role over first.
+            onTransferOwnership ? (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={onTransferOwnership}
+                disabled={pending}
+                startIcon={<IconUsers />}
+              >
+                Transfer Ownership
+              </Button>
+            ) : (
+              <span className="text-text-muted">
+                Add another member to transfer ownership.
+              </span>
+            )
+          ) : (
+            <ConfirmButton
+              label="Remove"
+              warning="Remove this reviewer from the project? This cannot be undone."
+              onConfirm={onDelete}
+              disabled={pending}
+              variant="danger"
+              icon={<IconTrash />}
+            />
+          )}
         </div>
       </td>
     </tr>
+  )
+}
+
+function TransferOwnershipForm({
+  candidates,
+  pending,
+  onCancel,
+  onConfirm,
+}: {
+  candidates: Array<{ userId: string; label: string }>
+  pending: boolean
+  onCancel: () => void
+  onConfirm: (userId: string) => void
+}) {
+  const [userId, setUserId] = useState('')
+
+  return (
+    <Form
+      onSubmit={(event) => {
+        event.preventDefault()
+        if (userId) onConfirm(userId)
+      }}
+    >
+      <Fieldset>
+        <legend className="mb-3 text-base font-semibold leading-[1.2] text-text">
+          Transfer project ownership
+        </legend>
+        <p className="text-text-muted mt-0">
+          The new owner takes over full control of this project. You stay a member with your
+          current roles, and can then be removed like anyone else. A project always has exactly
+          one owner, so this cannot be left unset.
+        </p>
+        <FieldLabel>
+          New owner
+          <Select value={userId} onChange={(event) => setUserId(event.target.value)} required>
+            <option value="" disabled>Select a member…</option>
+            {candidates.map((candidate) => (
+              <option key={candidate.userId} value={candidate.userId}>{candidate.label}</option>
+            ))}
+          </Select>
+        </FieldLabel>
+        <div className={toolbarClass}>
+          <Button type="submit" disabled={pending || !userId}><IconCheckCircle />Confirm Transfer</Button>
+          <Button type="button" variant="secondary" onClick={onCancel} disabled={pending}>Cancel</Button>
+        </div>
+      </Fieldset>
+    </Form>
   )
 }
 
@@ -192,6 +271,7 @@ export function MembersPanel({
   const [roles, setRoles] = useState<Record<RoleKey, boolean>>(emptyRoles)
   const [newWeight, setNewWeight] = useState('1')
   const [dirtyRows, setDirtyRows] = useState<Record<string, boolean>>({})
+  const [transferring, setTransferring] = useState(false)
 
   useEffect(() => {
     onDirtyChange?.(selectedUserId !== '' || Object.values(dirtyRows).some(Boolean))
@@ -231,6 +311,18 @@ export function MembersPanel({
     onSuccess: refresh,
   })
 
+  const transferOwnership = useMutation({
+    mutationFn: (userId: string) =>
+      apiRequest(`/api/v1/projects/${projectId}/transfer-ownership`, {
+        method: 'POST',
+        body: JSON.stringify({ userId }),
+      }),
+    onSuccess: () => {
+      setTransferring(false)
+      refresh()
+    },
+  })
+
   if (project.isLoading) return <p>Loading project members…</p>
   if (project.isError || !project.data) {
     return <p className="text-danger" role="alert">Project members could not be loaded.</p>
@@ -241,8 +333,18 @@ export function MembersPanel({
   const availableUsers = (users.data ?? []).filter(
     (user) => !memberIds.has(user.id) && user.isActive,
   )
-  const memberPending = updateMember.isPending || removeMember.isPending
+  const memberPending = updateMember.isPending || removeMember.isPending || transferOwnership.isPending
   const mutationError = addMember.error ?? updateMember.error ?? removeMember.error
+    ?? transferOwnership.error
+  const transferCandidates = project.data.memberships
+    .filter((membership) => !membership.isOwner)
+    .map((membership) => {
+      const user = usersById.get(membership.userId)
+      return {
+        userId: membership.userId,
+        label: user ? `${user.displayName} (${user.username})` : membership.userId,
+      }
+    })
 
   return (
     <CollapsibleSection id="section-project-members" title="Project Members" icon={<IconUsers />}>
@@ -256,7 +358,9 @@ export function MembersPanel({
         </p>
       </InfoBox>
       {users.error ? <p className="text-danger" role="alert">{users.error.message}</p> : null}
-      {mutationError ? <p className="text-danger" role="alert">{mutationError.message}</p> : null}
+      {/* A stale tab can still attempt to remove the owner; say why it was
+          refused rather than showing a bare conflict. */}
+      {mutationError ? <p className="text-danger" role="alert">{describeError(mutationError)}</p> : null}
       <CountPill count={project.data.memberships.length}>
         project member{project.data.memberships.length === 1 ? '' : 's'}
       </CountPill>
@@ -287,6 +391,11 @@ export function MembersPanel({
                   id: membership.id, roles: nextRoles, workloadWeight,
                 })}
                 onDelete={() => removeMember.mutate(membership.id)}
+                onTransferOwnership={
+                  membership.isOwner && transferCandidates.length
+                    ? () => setTransferring(true)
+                    : null
+                }
                 onDirtyChange={(rowDirty) => setDirtyRows((current) => (
                   current[membership.id] === rowDirty ? current : { ...current, [membership.id]: rowDirty }
                 ))}
@@ -295,6 +404,14 @@ export function MembersPanel({
           })}
         </tbody>
       </table>
+      {transferring ? (
+        <TransferOwnershipForm
+          candidates={transferCandidates}
+          pending={transferOwnership.isPending}
+          onCancel={() => { transferOwnership.reset(); setTransferring(false) }}
+          onConfirm={(userId) => transferOwnership.mutate(userId)}
+        />
+      ) : null}
       <Form onSubmit={(event) => { event.preventDefault(); addMember.mutate() }}>
         <FieldLabel>
           Reviewer

@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 
 from app.core.time import utcnow
 from app.extraction.models import FinalExtraction
+from app.review_work.finalization import lock_publication_for_finalization
 
 
 def get_current_final_extraction(
@@ -79,7 +80,13 @@ def create_or_replace_final_extraction(
     currently authoritative for this publication (if anything), then insert
     the new one, in one transaction. Reused by auto-finalization on
     agreement, reconciliation submission, revision-triggered recompute, and
-    manager override."""
+    manager override.
+
+    The invalidate-then-insert pair only produces "exactly one valid final
+    extraction" if nothing interleaves between the two writes, so this
+    serializes on the publication row first; the uq_final_extraction_current
+    partial index is the backstop behind that lock, not the mechanism."""
+    lock_publication_for_finalization(db, publication_id)
     invalidate_current_final_extraction(db, publication_id, invalidation_reason)
     final = FinalExtraction(
         project_id=project_id,

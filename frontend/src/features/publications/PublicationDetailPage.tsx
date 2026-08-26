@@ -23,7 +23,7 @@ import { OutcomeBadge } from '../../components/OutcomeBadge'
 import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
 import { PublisherLinkPill } from '../../components/PublisherLinkPill'
 import { useSession } from '../auth/sessionQuery'
-import type { AuditEvent } from '../audit/types'
+import type { AuditEventPage } from '../audit/types'
 import { FullTextDocumentPanel } from '../fulltext/FullTextDocumentPanel'
 import { AdministrationEyebrow } from '../projects/StageEyebrow'
 import { useCanManageProject, useCanManagePublications } from '../../hooks/useCanManageProject'
@@ -139,12 +139,25 @@ export function PublicationDetailPage() {
   const [activeTab, setActiveTab] = useState<DetailTabId>('overview')
   const [editing, setEditing] = useState(() => searchParams.get('edit') === '1')
 
-  const publications = useQuery({
-    queryKey: ['publications', projectId],
-    queryFn: () => apiRequest<Publication[]>(`/api/v1/projects/${projectId}/publications`),
-    enabled: Boolean(projectId),
+  // Ask for this publication, not for the project's whole list. The list is
+  // paged server-side now, so "fetch everything and find it here" would have
+  // meant reading page after page to display one record. The key stays under
+  // ['publications', projectId] so every existing invalidation of that prefix
+  // still refreshes this page.
+  const publicationQuery = useQuery({
+    queryKey: ['publications', projectId, publicationId],
+    queryFn: () => apiRequest<Publication>(
+      `/api/v1/projects/${projectId}/publications/${publicationId}`,
+    ),
+    enabled: Boolean(projectId && publicationId),
+    retry: false,
   })
-  const publication = publications.data?.find((item) => item.id === publicationId)
+  // A deleted publication is still readable by id (its history is preserved),
+  // but it is no longer part of the review -- the same "not found" the list
+  // used to give by simply omitting it.
+  const publication = publicationQuery.data?.isActive === false
+    ? undefined
+    : publicationQuery.data
 
   const finalExtraction = useQuery({
     queryKey: ['extraction-final', projectId, publicationId],
@@ -162,9 +175,15 @@ export function PublicationDetailPage() {
     enabled: Boolean(projectId && publicationId),
   })
 
+  // Ask for this publication's events specifically. Fetching the project's
+  // whole log and filtering it here missed anything past the first page --
+  // which, on a busy project, is most of a publication's history.
   const audit = useQuery({
-    queryKey: ['audit', projectId],
-    queryFn: () => apiRequest<AuditEvent[]>(`/api/v1/projects/${projectId}/audit`),
+    queryKey: ['audit', projectId, 'publication', publicationId],
+    queryFn: () => apiRequest<AuditEventPage>(
+      `/api/v1/projects/${projectId}/audit`
+      + `?entityType=publication&entityId=${encodeURIComponent(publicationId)}&limit=200`,
+    ),
     enabled: Boolean(projectId) && canOverride && activeTab === 'history',
   })
 
@@ -182,8 +201,7 @@ export function PublicationDetailPage() {
   })
 
   const publicationHistory = useMemo<PublicationActivityEntry[]>(() => {
-    const auditEntries = (audit.data ?? [])
-      .filter((event) => event.entityType === 'publication' && event.entityId === publicationId)
+    const auditEntries = (audit.data?.items ?? [])
       .map((event) => ({
         id: event.id,
         createdAt: event.createdAt,
@@ -219,9 +237,9 @@ export function PublicationDetailPage() {
 
     return [...auditEntries, ...decisionEntries]
       .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
-  }, [audit.data, publicationId, reviewDetails.data])
+  }, [audit.data, reviewDetails.data])
 
-  if (publications.isLoading) {
+  if (publicationQuery.isLoading) {
     return <main className={pageStyles}><p>Loading…</p></main>
   }
   if (!publication) {
@@ -388,6 +406,7 @@ export function PublicationDetailPage() {
                     projectId={projectId}
                     publicationId={publicationId}
                     canManage={canOverride}
+                    extractionStatus={publication.extractionStatus}
                   />
                 </section>
                 <section>

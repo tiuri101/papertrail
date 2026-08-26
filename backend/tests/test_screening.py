@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import func, select
 
 from app.accounts.service import create_user
 from app.api.errors import DomainError
@@ -12,21 +12,26 @@ from app.projects.models import (
     Project,
     ProjectMembership,
     ProjectStage,
+    ResolutionMethod,
     ReviewType,
     ScreeningConfig,
     ScreeningStage,
 )
 from app.publications.models import Publication
+from app.review_work.structural_config import StructuralSettingLockedError
 from app.screening.models import ScreeningDecision, ScreeningWorkItem, WorkItemStatus
 from app.screening.service import (
     claim_next_work_item,
     create_screening_work_items,
     decisions_visible,
+    get_screening_config,
     my_submitted_work_items,
     reassign_work_items_from_ineligible_reviewers,
     rebalance_pending_work_items,
+    screening_work_started,
     stage_completed,
     submit_decision,
+    update_screening_config,
 )
 
 
@@ -1241,3 +1246,103 @@ def test_reviewer_can_revise_decision_via_http_and_gets_flagged_after_completion
     ]
     db.refresh(project)
     assert project.stage == ProjectStage.FULL_TEXT
+
+
+# ---------------------------------------------------------------------------
+# Structural allocation settings freeze once a stage has work items
+# ---------------------------------------------------------------------------
+
+
+def _update_config(db, project, **overrides):
+    settings = {
+        "required_reviewers": 2,
+        "allocation_mode": AllocationMode.INDEPENDENT,
+        "conflict_resolution": ResolutionMethod.ADMIN_CONSENSUS,
+        "uncertain_resolution": ResolutionMethod.ADMIN_CONSENSUS,
+    }
+    settings.update(overrides)
+    return update_screening_config(
+        db, project.id, ScreeningStage.TITLE_ABSTRACT, **settings
+    )
+
+
+def test_structural_screening_settings_are_editable_before_work_items_exist(db) -> None:
+    project, _publication, _r1, _r2, _criteria = setup_screening(db)
+    assert screening_work_started(db, project.id, ScreeningStage.TITLE_ABSTRACT) is False
+
+    config = _update_config(
+        db, project, required_reviewers=1, allocation_mode=AllocationMode.CLAIM
+    )
+
+    assert config.required_reviewers == 1
+    assert config.allocation_mode == AllocationMode.CLAIM
+
+
+def test_required_reviewer_count_is_frozen_once_work_items_exist(db) -> None:
+    project, _publication, _r1, _r2, _criteria = setup_screening(db)
+    create_screening_work_items(db, project, ScreeningStage.TITLE_ABSTRACT)
+    db.commit()
+    assert screening_work_started(db, project.id, ScreeningStage.TITLE_ABSTRACT) is True
+
+    with pytest.raises(StructuralSettingLockedError) as excinfo:
+        _update_config(db, project, required_reviewers=1)
+
+    assert excinfo.value.code == "structural_setting_locked"
+    assert excinfo.value.status_code == 409
+    assert excinfo.value.details == {
+        "setting": "requiredReviewers",
+        "stage": "title_abstract",
+    }
+    # Raising the count would have left every existing publication one slot
+    # short forever, so the stored configuration must be untouched.
+    db.expire_all()
+    config = get_screening_config(db, project.id, ScreeningStage.TITLE_ABSTRACT)
+    assert config is not None
+    assert config.required_reviewers == 2
+
+
+def test_allocation_mode_is_frozen_once_work_items_exist(db) -> None:
+    project, _publication, _r1, _r2, _criteria = setup_screening(db)
+    create_screening_work_items(db, project, ScreeningStage.TITLE_ABSTRACT)
+    db.commit()
+
+    with pytest.raises(StructuralSettingLockedError) as excinfo:
+        _update_config(db, project, allocation_mode=AllocationMode.CLAIM)
+
+    assert excinfo.value.details == {
+        "setting": "allocationMode",
+        "stage": "title_abstract",
+    }
+    db.expire_all()
+    config = get_screening_config(db, project.id, ScreeningStage.TITLE_ABSTRACT)
+    assert config is not None
+    assert config.allocation_mode == AllocationMode.INDEPENDENT
+    # The existing, already pre-assigned items are left exactly as they were --
+    # a claim-mode reinterpretation would have made them invisible to everyone.
+    assert (
+        db.scalar(
+            select(func.count())
+            .select_from(ScreeningWorkItem)
+            .where(ScreeningWorkItem.assigned_reviewer_id.is_(None))
+        )
+        == 0
+    )
+
+
+def test_resolution_policies_stay_editable_after_work_items_exist(db) -> None:
+    project, _publication, _r1, _r2, _criteria = setup_screening(db)
+    create_screening_work_items(db, project, ScreeningStage.TITLE_ABSTRACT)
+    db.commit()
+
+    # Not structural: these only govern how already-collected decisions are
+    # interpreted, so they never orphan an existing work item.
+    config = _update_config(
+        db,
+        project,
+        conflict_resolution=ResolutionMethod.MAJORITY,
+        uncertain_resolution=ResolutionMethod.MAJORITY,
+    )
+
+    assert config.conflict_resolution == ResolutionMethod.MAJORITY
+    assert config.uncertain_resolution == ResolutionMethod.MAJORITY
+    assert config.required_reviewers == 2

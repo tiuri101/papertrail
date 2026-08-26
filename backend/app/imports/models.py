@@ -13,6 +13,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -98,7 +99,24 @@ class ImportBatch(UUIDPrimaryKeyMixin, TimestampMixin, Base):
 
 
 class ImportedRecord(UUIDPrimaryKeyMixin, TimestampMixin, Base):
+    """One immutable row of an uploaded bibliographic file.
+
+    ``source_row`` is the row's position in the parsed file, and parsing is
+    deterministic, so it is a stable identity for a logical source row across
+    every attempt at the same import. The unique constraint turns that into a
+    database-enforced invariant -- one logical source row can produce at most
+    one ``ImportedRecord``, no matter how often the parse job is retried or
+    how many workers end up running it at once after a lease expiry.
+    """
+
     __tablename__ = "imported_records"
+    __table_args__ = (
+        UniqueConstraint(
+            "import_batch_id",
+            "source_row",
+            name="uq_imported_records_batch_source_row",
+        ),
+    )
 
     import_batch_id: Mapped[str] = mapped_column(
         ForeignKey("import_batches.id", ondelete="CASCADE"), index=True

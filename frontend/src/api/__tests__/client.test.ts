@@ -47,6 +47,38 @@ describe('apiRequest', () => {
     )
   })
 
+  // Regression: `code` and `details` used to be dropped at this boundary, so
+  // every domain error a caller has to *react* to -- rather than just print
+  // -- arrived indistinguishable from a generic failure.
+  it('carries the error code and details through to the caller', async () => {
+    mockFetch(() => jsonResponse(
+      {
+        error: {
+          code: 'project_jobs_running',
+          message: 'Wait for running background jobs to finish before resetting the project',
+          details: { operation: 'reset', runningJobCount: 2, runningJobTypes: ['import.process'] },
+        },
+      },
+      409,
+    ))
+
+    await expect(apiRequest('/api/v1/projects/p1/reset', { method: 'POST' })).rejects.toEqual(
+      expect.objectContaining({
+        status: 409,
+        code: 'project_jobs_running',
+        details: { operation: 'reset', runningJobCount: 2, runningJobTypes: ['import.process'] },
+      }),
+    )
+  })
+
+  it('leaves the code and details null when the response carries none', async () => {
+    mockFetch(() => new Response('not json', { status: 500, statusText: 'Server Error' }))
+
+    await expect(apiRequest('/api/v1/example')).rejects.toEqual(
+      expect.objectContaining({ status: 500, code: null, details: null }),
+    )
+  })
+
   it('prefixes application API paths', async () => {
     const fetchMock = mockFetch(() => jsonResponse([]))
     await api('/projects')

@@ -12,6 +12,9 @@ import { Select } from '../../components/Select'
 import { InfoTooltip } from '../../components/Tooltip'
 import { Form } from '../../components/Form'
 import { Fieldset } from '../../components/Fieldset'
+import { structuralLockFrom } from '../../api/domainErrors'
+import { LockableField } from './SettingsSaveBar'
+import type { StructuralLocks } from './useStructuralSettingsForm'
 
 type AllocationMode = 'independent' | 'divided' | 'claim'
 type ResolutionMethod =
@@ -76,6 +79,7 @@ function StageConfigForm({
   onSave,
   pending,
   error,
+  locks,
   onDirtyChange,
 }: {
   config: ScreeningConfig
@@ -83,6 +87,7 @@ function StageConfigForm({
   onSave: (draft: Draft) => void
   pending: boolean
   error: Error | null
+  locks: StructuralLocks
   onDirtyChange?: (dirty: boolean) => void
 }) {
   const [draft, setDraft] = useState<Draft>(() => draftFrom(config))
@@ -112,34 +117,40 @@ function StageConfigForm({
       <Fieldset>
         <legend className="mb-3 text-base font-semibold leading-[1.2] text-text">{label}</legend>
         <div className="grid grid-cols-2 gap-4 max-[560px]:grid-cols-1">
-          <FormField label="Reviewers required per publication">
-            <Input
-              type="number"
-              min={1}
-              max={10}
-              className="max-w-[6rem]"
-              value={draft.requiredReviewers}
-              onChange={(event) => setDraft({ ...draft, requiredReviewers: event.target.value })}
-              required
-            />
-          </FormField>
-          <FormField
-            label="Allocation"
-            htmlFor={`${fieldId}-allocation`}
-            accessory={(
-              <InfoTooltip text="Independent: every reviewer screens every publication, and any disagreement becomes a conflict to resolve. Divided: publications are pre-assigned round-robin so each one is seen by only the required number of reviewers, which reduces workload but means fewer people double-check each decision. Claim: publications are left unassigned and reviewers pick them up themselves as they work, rather than being pre-assigned." />
-            )}
-          >
-            <Select
-              id={`${fieldId}-allocation`}
-              value={draft.allocationMode}
-              onChange={(event) => setDraft({ ...draft, allocationMode: event.target.value as AllocationMode })}
+          <LockableField locked={locks.requiredReviewers}>
+            <FormField label="Reviewers required per publication">
+              <Input
+                type="number"
+                min={1}
+                max={10}
+                className="max-w-[6rem]"
+                value={draft.requiredReviewers}
+                disabled={Boolean(locks.requiredReviewers)}
+                onChange={(event) => setDraft({ ...draft, requiredReviewers: event.target.value })}
+                required
+              />
+            </FormField>
+          </LockableField>
+          <LockableField locked={locks.allocationMode}>
+            <FormField
+              label="Allocation"
+              htmlFor={`${fieldId}-allocation`}
+              accessory={(
+                <InfoTooltip text="Independent: every reviewer screens every publication, and any disagreement becomes a conflict to resolve. Divided: publications are pre-assigned round-robin so each one is seen by only the required number of reviewers, which reduces workload but means fewer people double-check each decision. Claim: publications are left unassigned and reviewers pick them up themselves as they work, rather than being pre-assigned." />
+              )}
             >
-              {(Object.keys(ALLOCATION_MODE_LABELS) as AllocationMode[]).map((mode) => (
-                <option key={mode} value={mode}>{ALLOCATION_MODE_LABELS[mode]}</option>
-              ))}
-            </Select>
-          </FormField>
+              <Select
+                id={`${fieldId}-allocation`}
+                value={draft.allocationMode}
+                disabled={Boolean(locks.allocationMode)}
+                onChange={(event) => setDraft({ ...draft, allocationMode: event.target.value as AllocationMode })}
+              >
+                {(Object.keys(ALLOCATION_MODE_LABELS) as AllocationMode[]).map((mode) => (
+                  <option key={mode} value={mode}>{ALLOCATION_MODE_LABELS[mode]}</option>
+                ))}
+              </Select>
+            </FormField>
+          </LockableField>
           <FormField
             label="When reviewers disagree"
             htmlFor={`${fieldId}-conflict`}
@@ -198,6 +209,12 @@ export function ScreeningConfigPanel({
 }) {
   const queryClient = useQueryClient()
   const [dirtyStages, setDirtyStages] = useState<Record<string, boolean>>({})
+  // Which structural settings the backend has refused as locked, per stage.
+  // The GET does not publish lock state, so a rejection is what the UI learns
+  // from -- and the answer cannot revert while the stage's work items exist.
+  const [locks, setLocks] = useState<Record<string, StructuralLocks>>({})
+  useEffect(() => setLocks({}), [projectId])
+
   const project = useQuery({
     queryKey: ['project', projectId],
     queryFn: () => apiRequest<ProjectScreeningConfigs>(`/api/v1/projects/${projectId}`),
@@ -216,6 +233,14 @@ export function ScreeningConfigPanel({
         }),
       }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['project', projectId] }),
+    onError: (error, variables) => {
+      const lock = structuralLockFrom(error)
+      if (!lock) return
+      setLocks((current) => ({
+        ...current,
+        [variables.stage]: { ...current[variables.stage], [lock.setting]: lock.message },
+      }))
+    },
   })
 
   const anyStageDirty = Object.values(dirtyStages).some(Boolean)
@@ -254,6 +279,7 @@ export function ScreeningConfigPanel({
               label={label}
               pending={save.isPending && save.variables?.stage === value}
               error={save.error && save.variables?.stage === value ? save.error : null}
+              locks={locks[value] ?? {}}
               onSave={(draft) => save.mutate({ stage: value, draft })}
               onDirtyChange={(stageDirty) => setDirtyStages((current) => (
                 current[value] === stageDirty ? current : { ...current, [value]: stageDirty }

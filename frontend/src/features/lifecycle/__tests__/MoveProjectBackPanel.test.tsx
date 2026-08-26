@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import { MoveProjectBackPanel } from '../MoveProjectBackPanel'
@@ -24,5 +24,39 @@ describe('MoveProjectBackPanel', () => {
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalled())
     expect(screen.queryByRole('heading', { name: 'Move Project Back' })).not.toBeInTheDocument()
+  })
+
+  it('says which running jobs blocked the move instead of a generic failure', async () => {
+    mockFetch((_input, init) => {
+      if (init?.method === 'POST') {
+        return jsonResponse(
+          {
+            error: {
+              code: 'project_jobs_running',
+              message: 'Wait for running background jobs to finish before moving the project back',
+              details: {
+                operation: 'move_back',
+                runningJobCount: 1,
+                runningJobTypes: ['export.generate'],
+              },
+            },
+          },
+          409,
+        )
+      }
+      return jsonResponse({ stage: 'full_text_screening' })
+    })
+    renderWithProviders(<MoveProjectBackPanel projectId="p1" />)
+
+    await screen.findByRole('heading', { name: 'Move Project Back' })
+    // The section header is itself a button; the action is the one that isn't.
+    fireEvent.click(screen.getAllByRole('button', { name: 'Move Project Back' })
+      .find((candidate) => !candidate.hasAttribute('aria-expanded'))!)
+    fireEvent.click(within(screen.getByRole('alertdialog')).getByRole('button', { name: 'Move Back' }))
+
+    const alert = await screen.findByText(/background job is still running/)
+    expect(alert).toHaveTextContent('1 background job is still running')
+    expect(alert).toHaveTextContent('export generate')
+    expect(alert).toHaveTextContent('before moving the project back')
   })
 })

@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.accounts.dependencies import get_current_user, require_csrf
 from app.accounts.models import User, UserSession
 from app.accounts.service import get_user_or_raise
-from app.api.errors import ConflictError, DomainError, NotFoundError
+from app.api.errors import DomainError, NotFoundError
 from app.audit.service import record_audit
 from app.db.session import get_db
 from app.imports.schemas import JobRestartRequest, JobStageSummary
@@ -43,6 +43,7 @@ from app.projects.schemas import (
     MembershipResponse,
     MembershipUpdate,
     OrderedTextCreate,
+    OwnershipTransfer,
     ProjectChecklist,
     ProjectCreate,
     ProjectDetail,
@@ -69,10 +70,12 @@ from app.projects.service import (
     next_position,
     open_task_counts_for_user,
     parse_highlight_keywords,
+    project_owner_membership,
     project_progress_stats,
     remove_membership,
     require_project_access,
     serialize_highlight_keywords,
+    transfer_project_ownership,
     update_membership,
 )
 
@@ -399,6 +402,44 @@ def update_project_member(
     return membership
 
 
+@router.post("/{project_id}/transfer-ownership", response_model=ProjectDetail)
+def transfer_ownership(
+    project_id: str,
+    payload: OwnershipTransfer,
+    admin: User = Depends(require_project_manager_csrf),
+    db: Session = Depends(get_db),
+) -> ProjectDetail:
+    """Hand the owner role to another member of this project.
+
+    The only way ownership ever moves. Callable by the current owner or a
+    global administrator (``require_project_manager_csrf``); the target must
+    already be an active member, and the demotion and promotion happen in one
+    transaction so the project is never ownerless.
+    """
+    project = get_project(db, project_id)
+    previous_owner = project_owner_membership(db, project_id)
+    membership = transfer_project_ownership(db, project, payload.user_id)
+    new_owner = get_user_or_raise(db, membership.user_id)
+    record_audit(
+        db,
+        action="project.ownership_transferred",
+        entity_type="project",
+        entity_id=project.id,
+        project_id=project.id,
+        actor_id=admin.id,
+        summary=f"Transferred project ownership to {new_owner.display_name}",
+        metadata={
+            "previousOwnerUserId": (
+                previous_owner.user_id if previous_owner else None
+            ),
+            "newOwnerUserId": membership.user_id,
+        },
+    )
+    db.commit()
+    db.refresh(project)
+    return _serialize_project_detail(db, project, admin)
+
+
 @router.delete(
     "/{project_id}/members/{member_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -412,11 +453,16 @@ def delete_project_member(
     project = get_project(db, project_id)
     membership = get_membership(db, project_id, member_id)
     user = get_user_or_raise(db, membership.user_id)
+    membership_id = membership.id
+    # Rejects removing the owner before anything is written, so a refused
+    # removal never leaves an audit event or a queued "you were removed"
+    # email behind.
+    remove_membership(db, membership)
     record_audit(
         db,
         action="membership.removed",
         entity_type="project_membership",
-        entity_id=membership.id,
+        entity_id=membership_id,
         project_id=project_id,
         actor_id=admin.id,
         summary="Removed reviewer from project",
@@ -424,7 +470,6 @@ def delete_project_member(
     queue_membership_email(
         db, membership=membership, project=project, user=user, added=False
     )
-    remove_membership(db, membership)
     _reconcile_work_assignments(db, project_id)
     db.commit()
 
@@ -617,17 +662,18 @@ def set_screening_config(
     admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ) -> ScreeningConfig:
+    from app.screening.service import update_screening_config
+
     get_project(db, project_id)
-    config = db.scalar(
-        select(ScreeningConfig).where(
-            ScreeningConfig.project_id == project_id, ScreeningConfig.stage == stage
-        )
+    config = update_screening_config(
+        db,
+        project_id,
+        stage,
+        required_reviewers=payload.required_reviewers,
+        allocation_mode=payload.allocation_mode,
+        conflict_resolution=payload.conflict_resolution,
+        uncertain_resolution=payload.uncertain_resolution,
     )
-    assert config is not None
-    config.required_reviewers = payload.required_reviewers
-    config.allocation_mode = payload.allocation_mode
-    config.conflict_resolution = payload.conflict_resolution
-    config.uncertain_resolution = payload.uncertain_resolution
     record_audit(
         db,
         action="screening_config.updated",
@@ -928,11 +974,17 @@ def reset_project_endpoint(
     admin: User = Depends(require_project_manager_csrf),
     db: Session = Depends(get_db),
 ) -> Project:
+    from app.projects.file_cleanup import ProjectFileCleanup
     from app.projects.lifecycle import reset_project
 
     project = get_project(db, project_id)
+    # Reset erases every publication, import and export the project has, so
+    # it orphans exactly the same files a delete does. Collect their paths
+    # while the rows naming them still exist; remove them after the commit.
+    file_cleanup = ProjectFileCleanup.collect(db, project_id)
     reset_project(db, project, admin.id)
     db.commit()
+    file_cleanup.remove()
     return project
 
 
@@ -946,17 +998,8 @@ def delete_project_endpoint(
     from app.projects.lifecycle import delete_project
 
     project = get_project(db, project_id)
-    project_jobs = list(
-        db.scalars(
-            select(BackgroundJob)
-            .where(BackgroundJob.project_id == project_id)
-            .with_for_update()
-        )
-    )
-    if any(job.status == JobStatus.RUNNING for job in project_jobs):
-        raise ConflictError(
-            "Wait for running background jobs to finish before deleting the project"
-        )
+    # Collected before the rows that name these paths are deleted, removed
+    # only after the delete has been committed -- see ProjectFileCleanup.
     file_cleanup = ProjectFileCleanup.collect(db, project_id)
     delete_project(db, project)
     db.commit()

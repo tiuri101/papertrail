@@ -1,4 +1,8 @@
 import type { BadgeVariant } from '../../components/Badge'
+import {
+  isExtractionInFlight,
+  type ExtractionStatus,
+} from '../extraction/extractionStatus'
 
 export interface ScreeningStatus {
   titleAbstract: string | null
@@ -20,13 +24,19 @@ export interface Publication {
   issn: string | null
   pubmedId: string | null
   arxivId: string | null
+  // Present on the full publication payloads; a deleted publication stays
+  // readable by id with `isActive: false` and is excluded from every listing.
+  isActive?: boolean
   fullText: {
     available: boolean
     retrievalStatus?: string | null
     document?: { pageCount: number | null } | null
   }
   screeningStatus?: ScreeningStatus
-  extractionStatus?: string | null
+  // Always sent by the API and never null (backend/app/extraction/status.py).
+  // Optional here only because a handful of narrower list endpoints project a
+  // subset of publication fields.
+  extractionStatus?: ExtractionStatus
 }
 
 const SCREENING_OUTCOME_LABELS: Record<string, string> = {
@@ -75,7 +85,11 @@ export function primaryStage(publication: Publication): StagePill {
   if (fullText === 'uncertain') return { label: 'Uncertain', variant: 'warning' }
   if (fullText === 'duplicate') return { label: 'Duplicate', variant: 'neutral' }
   if (fullText === 'include') {
-    if (publication.extractionStatus && publication.extractionStatus !== 'completed') {
+    // "Extraction" means extraction has started and has not reached an
+    // authoritative result -- which now correctly covers a publication whose
+    // reviewers have all submitted but disagree. `not_started` falls through
+    // to "Included": nothing is pending on it.
+    if (isExtractionInFlight(publication.extractionStatus)) {
       return { label: 'Extraction', variant: 'warning' }
     }
     return { label: 'Included', variant: 'success' }
@@ -97,57 +111,16 @@ export function activeScreeningStage(publication: Publication): 'title_abstract'
   return null
 }
 
+// The keys the publications list can be ordered by. Ordering itself is the
+// server's job (backend/app/publications/listing.py): the list is paged, so
+// only the database ever sees every publication that a sort has to arrange,
+// and these names are the wire values it accepts. Sorting a page in the
+// browser would only ever have reordered the page.
+//
+// `stage` orders by where a publication stands in the workflow -- the label
+// `primaryStage` below produces, ranked New, Screened, Full-Text, Extraction,
+// Included, Uncertain, Duplicate, Excluded, then the two retrieval failures.
+// That ranking is reproduced as a SQL expression in `listing._stage_rank`;
+// the two definitions must change together.
 export type PublicationSortKey = 'title' | 'authors' | 'year' | 'source' | 'stage' | 'pdf'
 export type SortDirection = 'asc' | 'desc'
-
-// Roughly the order a reviewer moves a publication through the workflow, so
-// sorting by stage reads as progress rather than an arbitrary alphabetical
-// jumble. Anything not listed here (a future stage label) sorts last.
-const STAGE_SORT_RANK: Record<string, number> = {
-  New: 0,
-  Screened: 1,
-  'Full-Text': 2,
-  Extraction: 3,
-  Included: 4,
-  Uncertain: 5,
-  Duplicate: 6,
-  Excluded: 7,
-  'Not found': 8,
-  Inaccessible: 8,
-}
-
-function publicationSortValue(publication: Publication, key: PublicationSortKey): string | number {
-  switch (key) {
-    case 'title':
-      return (publication.title ?? '').toLocaleLowerCase()
-    case 'authors':
-      return (publication.authors ?? '').toLocaleLowerCase()
-    case 'year':
-      return publication.publicationYear ?? -Infinity
-    case 'source':
-      return (publication.venue ?? '').toLocaleLowerCase()
-    case 'stage':
-      return STAGE_SORT_RANK[primaryStage(publication).label] ?? 99
-    case 'pdf':
-      return publication.fullText?.available ? 1 : 0
-    default:
-      return ''
-  }
-}
-
-export function sortPublications<T extends Publication>(
-  publications: T[],
-  key: PublicationSortKey,
-  direction: SortDirection,
-): T[] {
-  const sorted = [...publications]
-  sorted.sort((left, right) => {
-    const leftValue = publicationSortValue(left, key)
-    const rightValue = publicationSortValue(right, key)
-    const comparison = typeof leftValue === 'number' && typeof rightValue === 'number'
-      ? leftValue - rightValue
-      : String(leftValue).localeCompare(String(rightValue), undefined, { sensitivity: 'base' })
-    return direction === 'asc' ? comparison : -comparison
-  })
-  return sorted
-}

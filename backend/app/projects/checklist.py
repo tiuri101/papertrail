@@ -12,6 +12,7 @@ from app.fulltext.models import FullTextRetrieval, RetrievalStatus
 from app.jobs.models import BackgroundJob, JobStatus
 from app.llm.models import ProjectLlmSettings
 from app.projects.models import (
+    STAGE_ORDER,
     CriterionKind,
     Project,
     ProjectMembership,
@@ -22,15 +23,9 @@ from app.publications.models import Publication
 from app.quality.models import QualityConfig, QualityStatus, QualityWorkItem
 from app.screening.models import ScreeningWorkItem, WorkItemStatus
 
-STAGE_ORDER = [
-    ProjectStage.DRAFT,
-    ProjectStage.DUPLICATE_REVIEW,
-    ProjectStage.TITLE_ABSTRACT,
-    ProjectStage.FULL_TEXT,
-    ProjectStage.EXTRACTION,
-    ProjectStage.COMPLETED,
-]
-
+#: Checklist section headings -- distinct from the generic stage order/labels
+#: in app.projects.lifecycle, which other consumers use for a plain "what
+#: stage is this" display rather than this page's task-oriented wording.
 STAGE_LABELS = {
     ProjectStage.DRAFT: "Set Up the Project",
     ProjectStage.DUPLICATE_REVIEW: "Resolve Duplicates",

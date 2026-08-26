@@ -656,5 +656,5 @@ def test_final_results_use_reconciled_value_not_an_arbitrary_response(db) -> Non
     }
 
     still_pending = by_title["Still disagreeing paper"]
-    assert still_pending["extraction"]["status"] == "reconciliation_pending"
+    assert still_pending["extraction"]["status"] == "awaiting_reconciliation"
     assert still_pending["extraction"]["answers"] == {}

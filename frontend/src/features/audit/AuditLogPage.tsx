@@ -1,9 +1,10 @@
-import { tableBaseClass, tableScrollClass } from '../../components/layoutStyles'
-import { useMemo, useState } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { tableBaseClass, tableScrollClass, toolbarClass } from '../../components/layoutStyles'
+import { useEffect, useMemo, useState } from 'react'
+import { useInfiniteQuery, useQuery } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
 import { Page } from '../../components/Page'
 import { CountPill } from '../../components/CountPill'
 import { Input } from '../../components/Input'
@@ -11,10 +12,19 @@ import { Select } from '../../components/Select'
 import { SortableColumnHeader } from '../../components/SortableColumnHeader'
 import { InfoTooltip } from '../../components/Tooltip'
 import { useProjectManageState } from '../../hooks/useCanManageProject'
-import type { AuditEvent } from './types'
+import {
+  auditQueryString,
+  EMPTY_AUDIT_FILTERS,
+  type AuditEvent,
+  type AuditEventPage,
+  type AuditFilterOptions,
+  type AuditQueryFilters,
+} from './types'
 
 type SortKey = 'createdAt' | 'actorUsername' | 'action' | 'entityType' | 'summary'
 type SortDirection = 'asc' | 'desc'
+
+const PAGE_SIZE = 100
 
 const COLUMNS: Array<{ key: SortKey; label: string }> = [
   { key: 'createdAt', label: 'Timestamp' },
@@ -39,43 +49,55 @@ function sortValue(event: AuditEvent, key: SortKey): string | number {
 export function AuditLogPage() {
   const { projectId = '' } = useParams()
   const { canManage, isLoading: canManageLoading } = useProjectManageState(projectId)
-  const events = useQuery({
-    queryKey: ['audit', projectId],
-    queryFn: () => apiRequest<AuditEvent[]>(
-      `/api/v1/projects/${projectId}/audit`,
+
+  // The dropdowns describe the whole log, not the loaded page.
+  const filterOptions = useQuery({
+    queryKey: ['audit-filters', projectId],
+    queryFn: () => apiRequest<AuditFilterOptions>(`/api/v1/projects/${projectId}/audit/filters`),
+    enabled: Boolean(projectId) && canManage,
+  })
+
+  const [filters, setFilters] = useState<AuditQueryFilters>(EMPTY_AUDIT_FILTERS)
+  const [searchInput, setSearchInput] = useState('')
+
+  // Free-text search runs server-side over the whole history, so it goes over
+  // the wire; a short settle keeps it to one request per pause in typing
+  // rather than one per keystroke.
+  useEffect(() => {
+    const timer = setTimeout(
+      () => setFilters((current) => (
+        current.search === searchInput ? current : { ...current, search: searchInput }
+      )),
+      250,
+    )
+    return () => clearTimeout(timer)
+  }, [searchInput])
+
+  // Filters are part of the query key, so changing one starts a fresh first
+  // page instead of appending to results gathered under the previous filter.
+  const events = useInfiniteQuery({
+    queryKey: ['audit', projectId, filters],
+    queryFn: ({ pageParam }) => apiRequest<AuditEventPage>(
+      `/api/v1/projects/${projectId}/audit?${auditQueryString(filters, PAGE_SIZE, pageParam)}`,
     ),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
     enabled: Boolean(projectId) && canManage,
   })
 
   const [sortKey, setSortKey] = useState<SortKey>('createdAt')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
-  const [actionFilter, setActionFilter] = useState('')
-  const [entityTypeFilter, setEntityTypeFilter] = useState('')
-  const [actorFilter, setActorFilter] = useState('')
-  const [searchText, setSearchText] = useState('')
 
-  const actionOptions = useMemo(() => (
-    Array.from(new Set((events.data ?? []).map((event) => event.action))).sort()
-  ), [events.data])
-  const entityTypeOptions = useMemo(() => (
-    Array.from(new Set((events.data ?? []).map((event) => event.entityType))).sort()
-  ), [events.data])
-  const actorOptions = useMemo(() => (
-    Array.from(new Set((events.data ?? []).map((event) => event.actorUsername ?? 'System'))).sort()
-  ), [events.data])
-
-  const filteredEvents = useMemo(() => {
-    const search = searchText.trim().toLowerCase()
-    return (events.data ?? []).filter((event) => (
-      (!actionFilter || event.action === actionFilter)
-      && (!entityTypeFilter || event.entityType === entityTypeFilter)
-      && (!actorFilter || (event.actorUsername ?? 'System') === actorFilter)
-      && (!search || event.summary.toLowerCase().includes(search))
-    ))
-  }, [events.data, actionFilter, entityTypeFilter, actorFilter, searchText])
+  const loadedEvents = useMemo(
+    () => (events.data?.pages ?? []).flatMap((page) => page.items),
+    [events.data],
+  )
+  const total = events.data?.pages[0]?.total ?? 0
+  const filtered = filters.action !== '' || filters.entityType !== ''
+    || filters.actorId !== '' || filters.search.trim() !== ''
 
   const sortedEvents = useMemo(() => {
-    const result = [...filteredEvents]
+    const result = [...loadedEvents]
     result.sort((left, right) => {
       const leftValue = sortValue(left, sortKey)
       const rightValue = sortValue(right, sortKey)
@@ -85,7 +107,7 @@ export function AuditLogPage() {
       return sortDirection === 'asc' ? comparison : -comparison
     })
     return result
-  }, [filteredEvents, sortDirection, sortKey])
+  }, [loadedEvents, sortDirection, sortKey])
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -94,6 +116,10 @@ export function AuditLogPage() {
       setSortKey(key)
       setSortDirection(key === 'createdAt' ? 'desc' : 'asc')
     }
+  }
+
+  const updateFilter = (patch: Partial<AuditQueryFilters>) => {
+    setFilters((current) => ({ ...current, ...patch }))
   }
 
   if (canManageLoading) {
@@ -110,39 +136,41 @@ export function AuditLogPage() {
     )
   }
 
+  const hasAnyEvents = total > 0 || loadedEvents.length > 0 || filtered
+
   return (
     <Page>
       <h1>Audit Log</h1>
       <p className="text-text-muted">A record of significant actions taken on this project, most recent first.</p>
       {events.error ? <p className="text-danger" role="alert">{events.error.message}</p> : null}
       {events.isLoading ? <p>Loading…</p> : null}
-      {events.data && events.data.length === 0 ? <p>No audit events recorded yet.</p> : null}
-      {events.data && events.data.length > 0 ? (
+      {events.isSuccess && !hasAnyEvents ? <p>No audit events recorded yet.</p> : null}
+      {hasAnyEvents ? (
         <div className="flex flex-wrap items-end gap-3">
           <label className="grid gap-1 text-sm font-semibold text-text-secondary">
             Action
-            <Select value={actionFilter} onChange={(event) => setActionFilter(event.target.value)}>
+            <Select value={filters.action} onChange={(event) => updateFilter({ action: event.target.value })}>
               <option value="">All</option>
-              {actionOptions.map((action) => (
+              {(filterOptions.data?.actions ?? []).map((action) => (
                 <option key={action} value={action}>{action}</option>
               ))}
             </Select>
           </label>
           <label className="grid gap-1 text-sm font-semibold text-text-secondary">
             Entity
-            <Select value={entityTypeFilter} onChange={(event) => setEntityTypeFilter(event.target.value)}>
+            <Select value={filters.entityType} onChange={(event) => updateFilter({ entityType: event.target.value })}>
               <option value="">All</option>
-              {entityTypeOptions.map((entityType) => (
+              {(filterOptions.data?.entityTypes ?? []).map((entityType) => (
                 <option key={entityType} value={entityType}>{entityType}</option>
               ))}
             </Select>
           </label>
           <label className="grid gap-1 text-sm font-semibold text-text-secondary">
             User
-            <Select value={actorFilter} onChange={(event) => setActorFilter(event.target.value)}>
+            <Select value={filters.actorId} onChange={(event) => updateFilter({ actorId: event.target.value })}>
               <option value="">All</option>
-              {actorOptions.map((actor) => (
-                <option key={actor} value={actor}>{actor}</option>
+              {(filterOptions.data?.actors ?? []).map((actor) => (
+                <option key={actor.id} value={actor.id}>{actor.name}</option>
               ))}
             </Select>
           </label>
@@ -150,18 +178,18 @@ export function AuditLogPage() {
             Search
             <Input
               type="search"
-              value={searchText}
-              onChange={(event) => setSearchText(event.target.value)}
+              value={searchInput}
+              onChange={(event) => setSearchInput(event.target.value)}
               placeholder="Filter by summary"
             />
           </label>
         </div>
       ) : null}
-      {events.data && events.data.length > 0 ? (
-        <CountPill count={sortedEvents.length}>
-          {sortedEvents.length === events.data.length
-            ? `audit event${events.data.length === 1 ? '' : 's'}`
-            : `of ${events.data.length} audit events match your filters`}
+      {hasAnyEvents && !events.isLoading ? (
+        <CountPill count={loadedEvents.length}>
+          {loadedEvents.length === total
+            ? `${filtered ? 'matching ' : ''}audit event${total === 1 ? '' : 's'}`
+            : `of ${total} ${filtered ? 'matching ' : ''}audit events loaded`}
         </CountPill>
       ) : null}
       {sortedEvents.length ? (
@@ -198,7 +226,24 @@ export function AuditLogPage() {
           </table>
         </div>
       ) : null}
-      {events.data && events.data.length > 0 && sortedEvents.length === 0 ? (
+      {events.hasNextPage ? (
+        <div className={toolbarClass}>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => events.fetchNextPage()}
+            disabled={events.isFetchingNextPage}
+          >
+            {events.isFetchingNextPage ? 'Loading…' : 'Load More Events'}
+          </Button>
+          {/* Column sorting can only ever reorder what has been loaded, so
+              say so while more of the history is still unread. */}
+          <p className="text-text-muted m-0">
+            Showing the {loadedEvents.length} most recent of {total} events. Sorting applies to these.
+          </p>
+        </div>
+      ) : null}
+      {events.isSuccess && hasAnyEvents && sortedEvents.length === 0 ? (
         <p className="text-text-muted">No audit events match your filters.</p>
       ) : null}
     </Page>

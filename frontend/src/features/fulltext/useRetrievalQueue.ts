@@ -42,8 +42,12 @@ export function useRetrievalQueue(projectId: string) {
   const [item, setItem] = useState<Retrieval | null>(null)
   const [loadingNext, setLoadingNext] = useState(true)
   const [nextError, setNextError] = useState<string | null>(null)
+  // Purely local memory of "I've already passed on these" -- the server-side
+  // claims for them were released the moment they were skipped, so these ids
+  // exist only to keep the queue from immediately handing the same paper
+  // back. Cleared when the queue runs dry, so a skipped paper does come round
+  // again once everything else has been dealt with.
   const skippedRetrievalIds = useRef<Set<string>>(new Set())
-  const deferredClaimIds = useRef<Set<string>>(new Set())
 
   const nextUrl = () => {
     const params = new URLSearchParams()
@@ -63,7 +67,6 @@ export function useRetrievalQueue(projectId: string) {
         next.mutate()
         return
       }
-      if (result) deferredClaimIds.current.delete(result.id)
       setItem(result)
       setLoadingNext(false)
     },
@@ -73,17 +76,32 @@ export function useRetrievalQueue(projectId: string) {
     },
   })
 
+  // Skipping releases the claim *now* rather than deferring it to component
+  // teardown. A deferred release meant a reviewer who skipped five papers was
+  // still holding five server-side claims -- invisible to everyone else --
+  // until they navigated away, and anything that ended the session without a
+  // clean unmount (a crash, a closed tab) stranded them until the lease
+  // expired. Only once the release is acknowledged is the next item claimed,
+  // so a failed release can never leave one reviewer holding two items.
   const skip = useMutation({
-    mutationFn: () => {
-      if (!item) throw new Error('No retrieval is open')
-      return Promise.resolve(item.id)
+    mutationFn: async () => {
+      const current = item
+      if (!current) throw new Error('No retrieval is open')
+      await apiRequest(
+        `/api/v1/projects/${projectId}/full-text/${current.id}/release`,
+        { method: 'POST' },
+      )
+      return current.id
     },
     onSuccess: (retrievalId) => {
       skippedRetrievalIds.current.add(retrievalId)
-      deferredClaimIds.current.add(retrievalId)
       setItem(null)
       fetchNext()
     },
+    // No onError handler on purpose: the mutation's error is rendered on the
+    // card and `item` is left in place, so the reviewer sees what failed and
+    // can retry the same paper instead of silently moving on while the
+    // server still believes they hold it.
   })
 
   const fetchNext = () => {
@@ -115,19 +133,15 @@ export function useRetrievalQueue(projectId: string) {
     activeItemRef.current = item
   }, [item])
 
-  useEffect(() => {
-    const deferredIds = deferredClaimIds.current
-    return () => {
-      const abandoned = activeItemRef.current
-      const abandonedIds = new Set(deferredIds)
-      if (abandoned) abandonedIds.add(abandoned.id)
-      abandonedIds.forEach((retrievalId) => {
-        apiRequest(
-          `/api/v1/projects/${projectId}/full-text/${retrievalId}/release`,
-          { method: 'POST' },
-        ).catch(() => {})
-      })
-    }
+  // Only the one item still open on teardown needs releasing; skipped items
+  // were released as they were skipped.
+  useEffect(() => () => {
+    const abandoned = activeItemRef.current
+    if (!abandoned) return
+    apiRequest(
+      `/api/v1/projects/${projectId}/full-text/${abandoned.id}/release`,
+      { method: 'POST' },
+    ).catch(() => {})
   }, [projectId])
 
   return {

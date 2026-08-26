@@ -9,6 +9,7 @@ from app.accounts.service import create_user
 from app.audit.models import AuditEvent
 from app.conflicts.service import record_final_decision
 from app.core.config import get_settings
+from app.extraction.final import create_or_replace_final_extraction
 from app.extraction.models import ExtractionStatus, ExtractionWorkItem
 from app.forms.models import FormKind
 from app.forms.service import add_field, create_form
@@ -93,7 +94,8 @@ def test_delete_publication_soft_deletes_and_hides_it_from_the_list(client, db) 
     assert deleted.status_code == 204
 
     listing = client.get(f"/api/v1/projects/{project.id}/publications")
-    assert listing.json() == []
+    assert listing.json()["items"] == []
+    assert listing.json()["total"] == 0
     assert (
         client.get(
             f"/api/v1/projects/{project.id}/publications/{publication_id}"
@@ -106,6 +108,142 @@ def test_delete_publication_soft_deletes_and_hides_it_from_the_list(client, db) 
         headers={"X-CSRF-Token": csrf},
     )
     assert again.status_code == 404
+
+
+def test_deleting_an_included_publication_removes_it_from_the_whole_review(
+    client, db
+) -> None:
+    """Deleting a publication means removing it from the active review.
+
+    Before this was enforced, deletion only hid the record from the
+    Publications list: its full-text INCLUDE decision stayed valid, so the
+    canonical cohorts kept returning it and extraction, quality, reporting and
+    project completion all went on treating a publication no reviewer could
+    see as included evidence.
+    """
+    from app.conflicts.models import FinalDecision
+    from app.extraction.service import included_publication_ids
+    from app.reporting.results import build_final_results
+    from app.screening.cohorts import (
+        full_text_included_ids,
+        has_final_outcome,
+        title_abstract_included_ids,
+    )
+
+    admin = create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    project = Project(
+        name="Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.EXTRACTION,
+    )
+    db.add(project)
+    db.flush()
+    db.add(ProjectMembership(project_id=project.id, user_id=admin.id, is_owner=True))
+    kept = Publication(project_id=project.id, title="Kept paper")
+    removed = Publication(project_id=project.id, title="Paper to remove")
+    db.add_all([kept, removed])
+    db.flush()
+    for publication in (kept, removed):
+        for stage in (ScreeningStage.TITLE_ABSTRACT, ScreeningStage.FULL_TEXT):
+            record_final_decision(
+                db, publication.id, stage, "include", "agreement", None, None
+            )
+    # Downstream work generated while the publication was still included:
+    # an unclaimed extraction slot, plus the FullTextRetrieval row that the
+    # title/abstract INCLUDE created for it.
+    open_item = ExtractionWorkItem(
+        project_id=project.id,
+        publication_id=removed.id,
+        assigned_reviewer_id=admin.id,
+        random_rank="rank",
+    )
+    db.add(open_item)
+    db.commit()
+    retrieval = db.scalar(
+        select(FullTextRetrieval).where(
+            FullTextRetrieval.publication_id == removed.id
+        )
+    )
+    assert retrieval is not None
+    open_item_id, retrieval_id = open_item.id, retrieval.id
+
+    assert set(full_text_included_ids(db, project.id)) == {kept.id, removed.id}
+
+    csrf = login(client)
+    deleted = client.delete(
+        f"/api/v1/projects/{project.id}/publications/{removed.id}",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert deleted.status_code == 204
+
+    db.expunge_all()
+    # 1. Every canonical cohort excludes it, so everything derived from them
+    #    agrees without repeating the check.
+    assert title_abstract_included_ids(db, project.id) == [kept.id]
+    assert full_text_included_ids(db, project.id) == [kept.id]
+    assert included_publication_ids(db, project.id) == [kept.id]
+    assert has_final_outcome(
+        db, removed.id, ScreeningStage.FULL_TEXT, ScreeningOutcome.INCLUDE
+    ) is False
+    # 2. Reporting no longer lists it as included evidence.
+    results = build_final_results(db, project.id)
+    assert [item["publication"]["id"] for item in results["items"]] == [kept.id]
+    # 3. Work nobody had acted on is retracted rather than left in a queue.
+    assert db.get(ExtractionWorkItem, open_item_id) is None
+    assert db.get(FullTextRetrieval, retrieval_id) is None
+    # 4. The decision itself is preserved as history -- the record of a
+    #    judgement someone made is not rewritten, it simply leaves the cohort.
+    assert (
+        db.query(FinalDecision)
+        .filter(
+            FinalDecision.publication_id == removed.id,
+            FinalDecision.is_valid.is_(True),
+        )
+        .count()
+        == 2
+    )
+
+
+def test_deleting_the_last_unscreened_publication_lets_the_stage_finish(
+    client, db
+) -> None:
+    """Stage transitions are driven by reviewer submissions, and a removal is
+    not one -- so without this the project would sit in title/abstract
+    screening with nothing left to screen and no way out."""
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    project = Project(
+        name="Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.TITLE_ABSTRACT,
+    )
+    db.add(project)
+    db.flush()
+    screened = Publication(project_id=project.id, title="Screened paper")
+    unscreened = Publication(project_id=project.id, title="Out of scope entirely")
+    db.add_all([screened, unscreened])
+    db.flush()
+    record_final_decision(
+        db,
+        screened.id,
+        ScreeningStage.TITLE_ABSTRACT,
+        "exclude",
+        "agreement",
+        None,
+        None,
+    )
+    db.commit()
+
+    csrf = login(client)
+    deleted = client.delete(
+        f"/api/v1/projects/{project.id}/publications/{unscreened.id}",
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    assert deleted.status_code == 204
+    db.expire_all()
+    assert db.get(Project, project.id).stage == ProjectStage.FULL_TEXT
 
 
 def test_bulk_delete_removes_only_the_selected_publications(client, db) -> None:
@@ -142,7 +280,7 @@ def test_bulk_delete_removes_only_the_selected_publications(client, db) -> None:
     assert response.json() == {"deletedCount": 2}
 
     listing = client.get(f"/api/v1/projects/{project.id}/publications").json()
-    assert [publication["id"] for publication in listing] == [kept["id"]]
+    assert [publication["id"] for publication in listing["items"]] == [kept["id"]]
 
 
 def test_regular_project_member_can_manage_publications_like_an_owner(
@@ -311,7 +449,7 @@ def test_full_text_exposes_the_retrieval_status_when_a_document_could_not_be_ret
     }
 
     listing = client.get(f"/api/v1/projects/{project.id}/publications").json()
-    assert listing[0]["fullText"]["retrievalStatus"] == "not_found"
+    assert listing["items"][0]["fullText"]["retrievalStatus"] == "not_found"
 
 
 def test_export_bib_returns_a_single_citation_named_by_its_key(client, db) -> None:
@@ -738,6 +876,24 @@ def test_publication_response_includes_screening_status_per_stage(client, db) ->
             status=ExtractionStatus.COMPLETED,
         )
     )
+    # "completed" is the existence of an authoritative FinalExtraction, not a
+    # completed reviewer slot -- so the fixture has to record one.
+    extraction_form = create_form(
+        db, "Extraction", FormKind.EXTRACTION, project_id=project.id
+    )
+    db.flush()
+    create_or_replace_final_extraction(
+        db,
+        project_id=project.id,
+        publication_id=publication.id,
+        form_version_id=extraction_form.active_version_id or "",
+        answers={},
+        resolution_method="single_reviewer",
+        resolved_by_id=None,
+        note=None,
+        field_provenance={},
+        contributing_response_ids=[],
+    )
     db.commit()
     csrf = login(client)
 
@@ -757,7 +913,7 @@ def test_publication_response_includes_screening_status_per_stage(client, db) ->
 
     listing = client.get(f"/api/v1/projects/{project.id}/publications")
     assert listing.status_code == 200
-    by_title = {item["title"]: item for item in listing.json()}
+    by_title = {item["title"]: item for item in listing.json()["items"]}
     assert by_title["Reviewed paper"]["screeningStatus"] == {
         "titleAbstract": "include",
         "fullText": "exclude",
@@ -767,7 +923,7 @@ def test_publication_response_includes_screening_status_per_stage(client, db) ->
         "titleAbstract": None,
         "fullText": None,
     }
-    assert by_title["Untouched paper"]["extractionStatus"] is None
+    assert by_title["Untouched paper"]["extractionStatus"] == "not_started"
 
     detail = client.get(f"/api/v1/projects/{project.id}/publications/{publication.id}")
     assert detail.json()["screeningStatus"] == {
