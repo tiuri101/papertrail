@@ -1,6 +1,6 @@
 import { toolbarClass } from '../../components/layoutStyles'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
@@ -559,6 +559,14 @@ export function PublicationsPage() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [page, setPage] = useState(1)
   const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS)
+  const tableTopRef = useRef<HTMLUListElement>(null)
+
+  // Only paging to a different page should jump the view -- not the initial
+  // load or a filter/search/sort change resetting back to page 1.
+  const goToPage = (updater: (current: number) => number) => {
+    setPage(updater)
+    tableTopRef.current?.scrollIntoView({ block: 'start' })
+  }
 
   // Search, the three filters and the six sort keys are all applied by the
   // server now (backend/app/publications/listing.py). The project's whole
@@ -926,7 +934,7 @@ export function PublicationsPage() {
               <PublicationListSortHeader label="PDF" sortKey="pdf" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
               <span aria-hidden="true" />
             </div>
-            <ul className="m-0 grid list-none gap-2 p-0">
+            <ul ref={tableTopRef} className="m-0 grid list-none gap-2 p-0">
               {publications.map((publication) => (
                 <PublicationRow
                   key={publication.id}
@@ -953,7 +961,7 @@ export function PublicationsPage() {
                   variant="secondary"
                   size="sm"
                   disabled={page <= 1}
-                  onClick={() => setPage((current) => Math.max(1, current - 1))}
+                  onClick={() => goToPage((current) => Math.max(1, current - 1))}
                 >
                   Previous
                 </Button>
@@ -965,7 +973,7 @@ export function PublicationsPage() {
                   variant="secondary"
                   size="sm"
                   disabled={page >= pageCount}
-                  onClick={() => setPage((current) => Math.min(pageCount, current + 1))}
+                  onClick={() => goToPage((current) => Math.min(pageCount, current + 1))}
                 >
                   Next
                 </Button>
