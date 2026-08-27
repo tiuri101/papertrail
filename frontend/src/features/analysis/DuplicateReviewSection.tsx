@@ -1,4 +1,5 @@
 import { Card } from '../../components/Card'
+import { humanizeMatchReason } from '../duplicates/matchReasons'
 import { CompletionBar } from './CompletionBar'
 import { FieldBarChart } from './FieldBarChart'
 import { StageNarrativePanel } from './StageNarrativePanel'
@@ -30,7 +31,7 @@ export function DuplicateReviewSection({ projectId }: { projectId: string }) {
               <FieldBarChart
                 orientation="horizontal"
                 data={stats.matchReasonCounts.map((item) => ({
-                  label: item.label,
+                  label: humanizeMatchReason(item.label),
                   count: item.count,
                 }))}
               />

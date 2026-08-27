@@ -10,6 +10,17 @@ import {
   useReviewerAnalysis,
 } from './useReviewerAnalysis'
 
+const OUTCOME_LABELS: Record<string, string> = {
+  include: 'Include',
+  exclude: 'Exclude',
+  uncertain: 'Uncertain',
+  duplicate: 'Duplicate',
+}
+
+function humanizeOutcome(outcome: string): string {
+  return OUTCOME_LABELS[outcome] ?? outcome.replace(/_/g, ' ')
+}
+
 function formatPercent(value: number | null): string {
   return value === null ? 'N/A' : `${Math.round(value * 100)}%`
 }
@@ -112,13 +123,13 @@ function ConfusionMatrixTable({ pair }: { pair: PairwiseAgreement }) {
       <thead>
         <tr>
           <th scope="col" />
-          {categories.map((category) => <th scope="col" key={category}>{category}</th>)}
+          {categories.map((category) => <th scope="col" key={category}>{humanizeOutcome(category)}</th>)}
         </tr>
       </thead>
       <tbody>
         {rows.map((row) => (
           <tr key={row.actual}>
-            <th scope="row">{row.actual}</th>
+            <th scope="row">{humanizeOutcome(row.actual)}</th>
             {categories.map((category) => <td key={category}>{row.counts[category] ?? 0}</td>)}
           </tr>
         ))}
