@@ -37,7 +37,7 @@ from app.notifications.service import (
     check_llm_stage_email_job,
     send_email_job,
 )
-from app.publications.jobs import enrich_publication_job
+from app.publications.jobs import enrich_publication_job, resolve_merge_conflicts_job
 from app.reporting.jobs import generate_export_job
 
 Handler = Callable[[Session, BackgroundJob], dict[str, Any]]
@@ -111,6 +111,12 @@ JOB_DEFINITIONS: dict[str, JobDefinition] = {
         worker_pool=WorkerPool.GENERAL,
         label="Enrich publication metadata",
         stage="Publication metadata",
+    ),
+    "resolve_merge_conflicts": JobDefinition(
+        handler=resolve_merge_conflicts_job,
+        worker_pool=WorkerPool.GENERAL,
+        label="Resolve merge metadata conflicts via provider",
+        stage="Duplicate review",
     ),
     "detect_duplicates": JobDefinition(
         handler=detect_duplicates_job,

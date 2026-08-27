@@ -22,7 +22,7 @@ from app.publications.models import (
     Publication,
     PublicationSource,
 )
-from app.publications.service import IMPORTANT_FIELDS
+from app.publications.service import IMPORTANT_FIELDS, values_conflict
 
 UNIQUE_IDENTIFIER_FIELDS = ("pubmed_id", "arxiv_id")
 CONTEXT_IDENTIFIER_FIELDS = ("isbn", "issn")
@@ -358,7 +358,7 @@ def merge_publications(
             field in IMPORTANT_FIELDS
             and canonical_value not in (None, "", {})
             and duplicate_value not in (None, "", {})
-            and str(canonical_value).strip() != str(duplicate_value).strip()
+            and values_conflict(field, canonical_value, duplicate_value)
         ):
             already = db.scalar(
                 select(MetadataConflict.id).where(
@@ -433,6 +433,17 @@ def merge_publications(
         moved_document_states=moved_document_states,
     )
     db.add(merge)
+    if conflicts_created:
+        # Give an external metadata provider a chance to break the tie
+        # before asking a reviewer: runs in the worker, not this request/job
+        # thread, since it's a live external HTTP call.
+        enqueue_job(
+            db,
+            "resolve_merge_conflicts",
+            {"publication_id": canonical.id},
+            project_id=candidate.project_id,
+            created_by_id=merged_by_id,
+        )
     db.flush()
     db.refresh(canonical, ["sources"])
     return merge

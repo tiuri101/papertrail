@@ -509,6 +509,11 @@ RETRY_SAFETY_REVIEW: dict[str, str] = {
         "naturally idempotent: enrichment only fills fields that are still "
         "empty and will not reopen an identical metadata conflict"
     ),
+    "resolve_merge_conflicts": (
+        "naturally idempotent: only acts on conflicts still OPEN, so a "
+        "conflict a previous run (or a reviewer) already resolved is left "
+        "untouched on retry"
+    ),
     "detect_duplicates": (
         "owned by the deduplication domain: re-detection reuses the existing "
         "candidate rows for a project"

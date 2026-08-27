@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import { DuplicateReviewPage } from '../DuplicateReviewPage'
@@ -187,5 +187,53 @@ describe('DuplicateReviewPage', () => {
     expect(await screen.findByText('Auto-merged')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Not a Duplicate' })).not.toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Keep This One' })).not.toBeInTheDocument()
+  })
+
+  it('sorts unresolved candidates first by default and filters by status', async () => {
+    const mergedCandidate = {
+      ...candidate,
+      id: 'candidate-merged',
+      publicationA: { ...candidate.publicationA, title: 'Merged Paper' },
+      status: 'merged',
+      autoResolved: true,
+    }
+    const notDuplicateCandidate = {
+      ...candidate,
+      id: 'candidate-not-duplicate',
+      publicationA: { ...candidate.publicationA, title: 'Not Duplicate Paper' },
+      status: 'not_duplicate',
+    }
+    const unresolvedCandidate = {
+      ...candidate,
+      id: 'candidate-unresolved',
+      publicationA: { ...candidate.publicationA, title: 'Unresolved Paper' },
+      status: 'unresolved',
+    }
+    mockFetch(async (input) => {
+      const path = String(input)
+      if (path.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
+      // Deliberately not returned in unresolved-first order, so the default
+      // sort has to actually reorder them.
+      return jsonResponse([mergedCandidate, notDuplicateCandidate, unresolvedCandidate])
+    })
+    renderWithProviders(<DuplicateReviewPage />, { route: '/projects/p1/duplicates', path: '/projects/:projectId/duplicates' })
+
+    const list = await screen.findByRole('list', { name: 'Duplicate candidates' })
+    const candidateRows = () => Array.from(list.querySelectorAll<HTMLLIElement>(':scope > li'))
+    await waitFor(() => expect(candidateRows()).toHaveLength(3))
+    const titlesInOrder = () => candidateRows().map((item) => item.textContent)
+
+    expect(titlesInOrder()[0]).toContain('Unresolved Paper')
+    expect(titlesInOrder()[1]).toContain('Merged Paper')
+    expect(titlesInOrder()[2]).toContain('Not Duplicate Paper')
+
+    fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'merged' } })
+    await waitFor(() => expect(candidateRows()).toHaveLength(1))
+    expect(within(list).getByText('Merged Paper')).toBeInTheDocument()
+
+    fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'all' } })
+    fireEvent.change(screen.getByLabelText('Sort by'), { target: { value: 'status_resolved_first' } })
+    await waitFor(() => expect(titlesInOrder()[2]).toContain('Unresolved Paper'))
+    expect(titlesInOrder()[0]).not.toContain('Unresolved Paper')
   })
 })

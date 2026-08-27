@@ -1,4 +1,4 @@
-import { useMemo, useState, type ReactNode } from 'react'
+import { useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
@@ -193,6 +193,14 @@ export function FinalResultsPage() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(25)
+  const tableTopRef = useRef<HTMLTableSectionElement>(null)
+
+  // Only paging to a different page should jump the view -- not a
+  // search/sort/page-size change resetting back to page 1.
+  const goToPage = (updater: (current: number) => number) => {
+    setPage(updater)
+    tableTopRef.current?.scrollIntoView({ block: 'start' })
+  }
 
   const query = useQuery({
     queryKey: ['final-results', projectId],
@@ -291,7 +299,7 @@ export function FinalResultsPage() {
           ) : (
             <div className="overflow-x-auto">
               <table className={tableBaseClass}>
-                <thead>
+                <thead ref={tableTopRef}>
                   <tr>
                     {columns.map((column) => (
                       <SortableColumnHeader
@@ -318,11 +326,11 @@ export function FinalResultsPage() {
           )}
           {pageCount > 1 ? (
             <div className={toolbarClass}>
-              <Button type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={currentPage <= 1}>
+              <Button type="button" onClick={() => goToPage((current) => Math.max(1, current - 1))} disabled={currentPage <= 1}>
                 Previous
               </Button>
               <span>Page {currentPage} of {pageCount}</span>
-              <Button type="button" onClick={() => setPage((current) => Math.min(pageCount, current + 1))} disabled={currentPage >= pageCount}>
+              <Button type="button" onClick={() => goToPage((current) => Math.min(pageCount, current + 1))} disabled={currentPage >= pageCount}>
                 Next
               </Button>
             </div>
