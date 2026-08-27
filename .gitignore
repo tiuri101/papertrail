@@ -15,6 +15,7 @@ dist/
 *.tsbuildinfo
 *.tmp
 .DS_Store
+.idea/
 backend/data/
 frontend/coverage/
 backend/papertrail.db
