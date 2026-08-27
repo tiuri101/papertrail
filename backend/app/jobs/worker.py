@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from threading import Event, Thread
 from typing import Any
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.audit.service import record_audit
@@ -48,6 +49,21 @@ def maintain_lease(
                     return
         except Exception:
             logger.exception("Could not renew lease for background job %s", job_id)
+
+
+def job_cancelled_meanwhile(db: Session, job_id: str) -> bool:
+    """Has this job's row been set to CANCELLED by someone else while we ran?
+
+    A project manager's "cancel all jobs" action flips RUNNING rows straight
+    to CANCELLED (see ``cancel_project_jobs``). The worker cannot interrupt a
+    handler that is already executing, so it re-reads the row's committed
+    status once the handler returns and honours a cancellation it finds --
+    the equivalent of the LLM path's ``was_cancelled`` check.
+    """
+    status = db.execute(
+        select(BackgroundJob.status).where(BackgroundJob.id == job_id)
+    ).scalar_one_or_none()
+    return status == JobStatus.CANCELLED
 
 
 def run_permanent_failure_hook(db: Session, job: BackgroundJob, error: str) -> None:
@@ -153,6 +169,16 @@ def execute_next_job(
                 logger.info("Starting background job %s (%s)", job_id, job_type)
                 handler = HANDLERS[job.job_type]
                 result = handler(db, job)
+                db.flush()
+                if job_cancelled_meanwhile(db, job_id):
+                    db.rollback()
+                    logger.info(
+                        "Background job %s (%s) was cancelled while running; "
+                        "discarding its result",
+                        job_id,
+                        job_type,
+                    )
+                    return True
                 job.status = JobStatus.COMPLETED
                 job.completed_at = datetime.now(UTC)
                 job.lease_until = None
@@ -199,6 +225,14 @@ def execute_next_job(
                 db.rollback()
                 job = db.get(BackgroundJob, job_id)
                 assert job is not None
+                if job.status == JobStatus.CANCELLED:
+                    logger.info(
+                        "Background job %s (%s) was cancelled while running; "
+                        "not recording its failure or retrying it",
+                        job_id,
+                        job_type,
+                    )
+                    return True
                 job.status = (
                     JobStatus.QUEUED
                     if job.attempts < job.max_attempts
