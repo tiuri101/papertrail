@@ -8,7 +8,7 @@ import { InfoBox } from '../../components/InfoBox'
 import { toolbarClass } from '../../components/layoutStyles'
 import { DuplicateComparisonCard } from './DuplicateComparisonCard'
 import { DuplicateDecisionButtons } from './DuplicateDecisionButtons'
-import { type Candidate, currentChoice } from './types'
+import { type Candidate, currentChoice, recommendedChoice } from './types'
 
 interface ReviseBody {
   resolution: 'merge' | 'not_duplicate'
@@ -63,6 +63,7 @@ export function DuplicateDecisionEditor({
           publicationAId={current.publicationA.id}
           publicationBId={current.publicationB.id}
           current={currentChoice(current)}
+          recommended={recommendedChoice(current)}
           headline="Change this decision"
           hint="Pick a different record to keep, or mark the pair as distinct. Changing a merge undoes it first."
           disabled={revise.isPending}

@@ -11,8 +11,8 @@ import { StageEyebrow } from '../projects/StageEyebrow'
 import { DuplicateComparisonCard } from './DuplicateComparisonCard'
 import { DuplicateDecisionButtons } from './DuplicateDecisionButtons'
 import { DuplicateDecisionEditor } from './DuplicateDecisionEditor'
-import { DuplicateDetectionAction } from './DuplicateDetectionAction'
-import { statusLabel } from './types'
+import { DuplicateAssessmentAction, DuplicateDetectionAction } from './DuplicateDetectionAction'
+import { recommendedChoice, statusLabel } from './types'
 import { type DuplicateQueue, useDuplicateQueue } from './useDuplicateQueue'
 
 interface ProjectAccess {
@@ -39,6 +39,7 @@ function ActiveDuplicateCard({ queue }: { queue: DuplicateQueue }) {
       <DuplicateDecisionButtons
         publicationAId={candidate.publicationA.id}
         publicationBId={candidate.publicationB.id}
+        recommended={recommendedChoice(candidate)}
         disabled={pending}
         onMerge={(canonicalPublicationId) => queue.merge.mutate(canonicalPublicationId)}
         onNotDuplicate={() => queue.notDuplicate.mutate()}
@@ -110,7 +111,10 @@ export function DuplicateQueuePage() {
         <Link to={`/projects/${projectId}/duplicates/decisions`}>Review or change past decisions</Link>
       </p>
       {project.data?.canManage && project.data.stage === 'duplicate_review' ? (
-        <DuplicateDetectionAction projectId={projectId} />
+        <div className="mb-5 flex flex-wrap items-center gap-x-6 gap-y-3">
+          <DuplicateDetectionAction projectId={projectId} compact />
+          <DuplicateAssessmentAction projectId={projectId} />
+        </div>
       ) : null}
       {!queue.previousCandidate && queue.lastCompletedItem ? (
         <div className="my-5 flex flex-wrap items-center gap-3">

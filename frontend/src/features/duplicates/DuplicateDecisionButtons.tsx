@@ -17,6 +17,7 @@ export function DuplicateDecisionButtons({
   publicationBId,
   disabled = false,
   current,
+  recommended,
   headline = 'Your Decision',
   hint = 'Select the record to keep, or confirm that these publications are distinct.',
 }: {
@@ -26,11 +27,28 @@ export function DuplicateDecisionButtons({
   publicationBId: string
   disabled?: boolean
   current?: DuplicateChoice
+  /** Provider-suggested choice — marked with a "Suggested" hint, but only when
+   * it is not already the choice on record. */
+  recommended?: DuplicateChoice
   headline?: string
   hint?: string
 }) {
-  const edge = (choice: DuplicateChoice, hover: string) =>
-    `${BASE_BUTTON} ${hover} ${current === choice ? 'border-primary bg-primary-container' : 'border-border'}`
+  const edge = (choice: DuplicateChoice, hover: string) => {
+    const state =
+      current === choice
+        ? 'border-primary bg-primary-container'
+        : recommended === choice
+          ? 'border-primary/60 ring-1 ring-primary/30'
+          : 'border-border'
+    return `${BASE_BUTTON} ${hover} ${state}`
+  }
+
+  const SuggestedTag = ({ choice }: { choice: DuplicateChoice }) =>
+    recommended === choice && current !== choice ? (
+      <span className="ml-auto shrink-0 rounded-full bg-primary-container px-2 py-0.5 text-[0.68rem] font-bold uppercase tracking-[0.04em] text-primary">
+        Suggested
+      </span>
+    ) : null
 
   return (
     <section className="border-t border-border bg-surface-raised/50 p-4 min-[681px]:p-5" aria-label="Duplicate decision">
@@ -52,6 +70,7 @@ export function DuplicateDecisionButtons({
             <strong className="text-text">Keep Record A</strong>
             <small className="text-[0.78rem] font-medium text-text-muted">Merge Record B into A</small>
           </span>
+          <SuggestedTag choice="a" />
         </button>
         <button
           type="button"
@@ -66,6 +85,7 @@ export function DuplicateDecisionButtons({
             <strong className="text-text">Keep Record B</strong>
             <small className="text-[0.78rem] font-medium text-text-muted">Merge Record A into B</small>
           </span>
+          <SuggestedTag choice="b" />
         </button>
         <button
           type="button"
@@ -80,6 +100,7 @@ export function DuplicateDecisionButtons({
             <strong className="text-text">Not a Duplicate</strong>
             <small className="text-[0.78rem] font-medium text-text-muted">Keep both records separate</small>
           </span>
+          <SuggestedTag choice="not_duplicate" />
         </button>
       </div>
     </section>

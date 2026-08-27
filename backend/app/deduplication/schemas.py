@@ -6,6 +6,14 @@ from pydantic import Field
 from app.api.schemas import ApiModel
 
 
+class UrlCheckOut(ApiModel):
+    kind: str
+    url: str
+    reachable: bool | None
+    status_code: int | None = Field(serialization_alias="statusCode")
+    checked_at: datetime = Field(serialization_alias="checkedAt")
+
+
 class CandidatePublication(ApiModel):
     id: str
     title: str
@@ -13,6 +21,11 @@ class CandidatePublication(ApiModel):
     publication_year: int | None = Field(serialization_alias="publicationYear")
     venue: str | None
     doi: str | None
+    #: publisher_url + DOI-URL reachability, written by the
+    #: ``assess_duplicate_candidates`` job; empty until it has run.
+    url_checks: list[UrlCheckOut] = Field(
+        default_factory=list, serialization_alias="urlChecks"
+    )
 
 
 class CandidateResponse(ApiModel):
@@ -39,6 +52,21 @@ class CandidateResponse(ApiModel):
     )
     resolution_note: str | None = Field(
         default=None, serialization_alias="resolutionNote"
+    )
+    # Non-binding external-provider assist for an unresolved pair (see
+    # DuplicateCandidate.provider_recommendation). "merge" points at
+    # providerRecommendedCanonicalId; "distinct"/"uncertain" do not.
+    provider_recommendation: str | None = Field(
+        default=None, serialization_alias="providerRecommendation"
+    )
+    provider_recommended_canonical_id: str | None = Field(
+        default=None, serialization_alias="providerRecommendedCanonicalId"
+    )
+    provider_recommendation_reason: str | None = Field(
+        default=None, serialization_alias="providerRecommendationReason"
+    )
+    provider_recommendation_source: str | None = Field(
+        default=None, serialization_alias="providerRecommendationSource"
     )
     # For a currently-merged candidate: which record was kept, and the active
     # (non-reversed) PublicationMerge that a revision would undo.

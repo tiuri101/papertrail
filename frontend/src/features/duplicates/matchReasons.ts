@@ -8,6 +8,7 @@ const MATCH_REASON_LABELS: Record<string, string> = {
   similar_title_year: 'Similar title & year',
   shared_isbn: 'Shared ISBN',
   shared_issn: 'Shared ISSN',
+  provider_confirmed: 'Confirmed by Crossref / Semantic Scholar',
 }
 
 export function humanizeMatchReason(reason: string): string {
