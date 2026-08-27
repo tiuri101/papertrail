@@ -19,6 +19,13 @@ function NumericSummary({ stats }: { stats: NumericStats }) {
   )
 }
 
+function optionLabel(option: string, fieldType: string): string {
+  if (fieldType !== 'checkbox') return option
+  if (option === 'True') return 'Yes'
+  if (option === 'False') return 'No'
+  return option
+}
+
 function FieldBreakdown({ field }: { field: FieldStats }) {
   return (
     <>
@@ -28,7 +35,10 @@ function FieldBreakdown({ field }: { field: FieldStats }) {
       {field.optionCounts ? (
         <FieldBarChart
           orientation="horizontal"
-          data={field.optionCounts.map((item) => ({ label: item.option, count: item.count }))}
+          data={field.optionCounts.map((item) => ({
+            label: optionLabel(item.option, field.fieldType),
+            count: item.count,
+          }))}
         />
       ) : null}
       {field.numericStats ? (

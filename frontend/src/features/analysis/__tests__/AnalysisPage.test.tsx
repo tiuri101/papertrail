@@ -10,7 +10,10 @@ const duplicateReviewResponse = {
     recordsIdentified: 12,
     duplicatesRemoved: 3,
     uniqueRecordsRemaining: 9,
-    matchReasonCounts: [{ label: 'title_match', count: 2 }],
+    matchReasonCounts: [
+      { label: 'exact_doi', count: 2 },
+      { label: 'similar_title_authors', count: 1 },
+    ],
   },
   narrative: null,
   isStale: true,
@@ -227,6 +230,12 @@ describe('AnalysisPage', () => {
 
     expect(withinReviewer.getByText('Reviewer A')).toBeInTheDocument()
     expect(withinReviewer.getByText('Reviewer B')).toBeInTheDocument()
+
+    const confusionTable = withinReviewer.getByText('Reviewer A (rows) vs Reviewer B (columns)').closest('table') as HTMLElement
+    expect(within(confusionTable).getAllByText('Include').length).toBeGreaterThan(0)
+    expect(within(confusionTable).getAllByText('Exclude').length).toBeGreaterThan(0)
+    expect(within(confusionTable).queryByText('include')).not.toBeInTheDocument()
+    expect(within(confusionTable).queryByText('exclude')).not.toBeInTheDocument()
     expect(withinReviewer.queryByRole('heading', { name: 'Multi-reviewer agreement' })).not.toBeInTheDocument()
     expect(withinReviewer.queryByRole('heading', { name: 'Criterion-level agreement' })).not.toBeInTheDocument()
     expect(withinReviewer.queryByRole('heading', { name: 'Disagreement over time' })).not.toBeInTheDocument()
