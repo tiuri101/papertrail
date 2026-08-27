@@ -371,6 +371,14 @@ function MetadataConflictsPanel({ projectId }: { projectId: string }) {
     },
   })
 
+  const bulkResolveViaProvider = useMutation({
+    mutationFn: () => apiRequest<{ queuedCount: number }>(
+      `/api/v1/projects/${projectId}/metadata-conflicts/resolve-via-provider`,
+      { method: 'POST' },
+    ),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['jobs', projectId] }),
+  })
+
   useEffect(() => {
     if (!conflicts.data?.length || window.location.hash !== '#metadata-conflicts') return
     document.getElementById('metadata-conflicts')?.scrollIntoView({ block: 'start' })
@@ -378,10 +386,38 @@ function MetadataConflictsPanel({ projectId }: { projectId: string }) {
 
   if (!conflicts.error && (!conflicts.data || conflicts.data.length === 0)) return null
 
+  const mergeConflictCount = conflicts.data?.filter((conflict) => conflict.sourceName === 'merge').length ?? 0
+
   return (
     <section className={cardStyles} data-ui="card" id="metadata-conflicts">
       <h2>Metadata Conflicts</h2>
       <p className="text-text-muted">Enrichment or a duplicate merge proposed a different value for a field that already had one. Review each side by side and choose which value to keep.</p>
+      {mergeConflictCount > 0 ? (
+        <div className="mb-5 flex flex-wrap items-center gap-3 rounded-md border border-border bg-surface-raised/50 p-4">
+          <div className="min-w-0 grow">
+            <strong className="text-text">Try automatic resolution</strong>
+            <p className="mb-0 mt-0.5 text-[0.86rem] text-text-muted">
+              Ask Crossref/Semantic Scholar to break the tie on {mergeConflictCount} merge conflict{mergeConflictCount === 1 ? '' : 's'} — a provider value that agrees with either side resolves it automatically; anything it can&apos;t confirm stays here for you.
+            </p>
+          </div>
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={() => bulkResolveViaProvider.mutate()}
+            loading={bulkResolveViaProvider.isPending}
+          >
+            Resolve via Provider
+          </Button>
+        </div>
+      ) : null}
+      {bulkResolveViaProvider.isSuccess ? (
+        <p className="text-success" role="status">
+          {bulkResolveViaProvider.data.queuedCount > 0
+            ? `Queued ${bulkResolveViaProvider.data.queuedCount} publication${bulkResolveViaProvider.data.queuedCount === 1 ? '' : 's'} for provider resolution. Check back shortly.`
+            : 'No eligible conflicts to resolve — the remaining ones have no DOI to look up.'}
+        </p>
+      ) : null}
+      {bulkResolveViaProvider.error ? <p className="text-danger" role="alert">{bulkResolveViaProvider.error.message}</p> : null}
       {conflicts.error ? <p className="text-danger" role="alert">{conflicts.error.message}</p> : null}
       {resolve.error ? <p className="text-danger" role="alert">{resolve.error.message}</p> : null}
       <ul className="mt-5 grid list-none gap-6 p-0">

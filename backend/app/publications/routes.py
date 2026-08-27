@@ -620,6 +620,59 @@ def resolve_conflict(
 
 
 @router.post(
+    "/projects/{project_id}/metadata-conflicts/resolve-via-provider",
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def bulk_resolve_conflicts_via_provider(
+    project_id: str,
+    admin: User = Depends(require_project_member_csrf),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """Queue the provider tiebreak (`resolve_merge_conflicts`) for every
+    publication in this project with an open, merge-sourced conflict.
+
+    Covers merges that happened before that automatic tiebreak existed --
+    merge_publications only queues the job for merges made from now on, so a
+    project deduplicated earlier needs this manual sweep to give the
+    already-open conflicts it left behind the same chance at resolution.
+    """
+    publication_ids = list(
+        db.scalars(
+            select(MetadataConflict.publication_id)
+            .join(Publication, Publication.id == MetadataConflict.publication_id)
+            .where(
+                Publication.project_id == project_id,
+                Publication.doi.is_not(None),
+                MetadataConflict.status == ConflictStatus.OPEN,
+                MetadataConflict.source_name == "merge",
+            )
+            .distinct()
+        )
+    )
+    jobs = [
+        enqueue_job(
+            db,
+            "resolve_merge_conflicts",
+            {"publication_id": publication_id},
+            project_id=project_id,
+            created_by_id=admin.id,
+        )
+        for publication_id in publication_ids
+    ]
+    record_audit(
+        db,
+        action="metadata_conflict.bulk_resolve_queued",
+        entity_type="project",
+        entity_id=project_id,
+        project_id=project_id,
+        actor_id=admin.id,
+        summary=f"Queued provider tiebreak for {len(jobs)} publications with open merge conflicts",
+    )
+    db.commit()
+    return {"jobIds": [job.id for job in jobs], "queuedCount": len(jobs)}
+
+
+@router.post(
     "/projects/{project_id}/publications",
     response_model=PublicationResponse,
     status_code=status.HTTP_201_CREATED,

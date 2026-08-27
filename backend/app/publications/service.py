@@ -196,6 +196,44 @@ def parse_year(value: Any) -> int | None:
     return int(match.group()) if match else None
 
 
+def _typed_value(field: str, value: Any) -> Any:
+    """Coerce a raw value from an import row or a metadata provider into the
+    type/normalization Publication.<field> expects."""
+    if field == "publication_year":
+        return parse_year(value)
+    if field == "doi":
+        return normalize_doi(value)
+    if field == "publisher_url":
+        return clean_url(value)
+    return clean_text(value)
+
+
+_CONFLICT_KEY_NOISE = re.compile(r"[^\w]+", re.UNICODE)
+
+
+def _conflict_key(field: str, value: Any) -> str:
+    """Normalize a field value for conflict-equivalence comparison: two
+    values that only differ in case, punctuation, or whitespace describe the
+    same fact and should not be flagged as a real conflict."""
+    if value in (None, ""):
+        return ""
+    if field == "doi":
+        return normalize_doi(value) or ""
+    if field == "publication_year":
+        return str(value)
+    return _CONFLICT_KEY_NOISE.sub(" ", str(value).casefold()).strip()
+
+
+def values_conflict(field: str, current: Any, proposed: Any) -> bool:
+    """Whether two values for the same important field actually disagree,
+    once formatting noise (case, punctuation, whitespace) is normalized
+    away. Used to decide whether a difference is worth raising as a
+    MetadataConflict at all -- see merge_publications and apply_enrichment,
+    which both used to compare raw stripped strings and so flagged almost
+    any formatting difference as a conflict."""
+    return _conflict_key(field, current) != _conflict_key(field, proposed)
+
+
 def publication_values(parsed: dict[str, Any]) -> dict[str, Any]:
     return {
         "title": clean_text(parsed.get("title")) or "Untitled record",
@@ -266,26 +304,11 @@ def apply_enrichment(
     for field, proposed in data.items():
         if not hasattr(publication, field) or proposed in (None, "", []):
             continue
-        proposed_value = (
-            parse_year(proposed)
-            if field == "publication_year"
-            else (
-                normalize_doi(proposed)
-                if field == "doi"
-                else (
-                    clean_url(proposed)
-                    if field == "publisher_url"
-                    else clean_text(proposed)
-                )
-            )
-        )
+        proposed_value = _typed_value(field, proposed)
         current = getattr(publication, field)
         if current in (None, ""):
             setattr(publication, field, proposed_value)
-        elif (
-            str(current).strip() != str(proposed_value).strip()
-            and field in IMPORTANT_FIELDS
-        ):
+        elif field in IMPORTANT_FIELDS and values_conflict(field, current, proposed_value):
             already = db.scalar(
                 select(MetadataConflict).where(
                     MetadataConflict.publication_id == publication.id,
@@ -345,12 +368,91 @@ def _overwrite_values(values: dict[str, Any], data: dict[str, Any]) -> dict[str,
     for field, proposed in data.items():
         if not hasattr(Publication, field) or proposed in (None, "", []):
             continue
-        if field == "publication_year":
-            overwritten[field] = parse_year(proposed)
-        elif field == "doi":
-            overwritten[field] = normalize_doi(proposed)
-        elif field == "publisher_url":
-            overwritten[field] = clean_url(proposed)
-        else:
-            overwritten[field] = clean_text(proposed)
+        overwritten[field] = _typed_value(field, proposed)
     return overwritten
+
+
+def resolve_conflicts_via_providers(db: Session, publication: Publication) -> dict[str, Any]:
+    """Ask the same metadata providers apply_enrichment draws on to break a
+    tie on a publication's still-open merge conflicts: normalize a
+    provider's value for a conflicted field the same way apply_enrichment
+    does, then compare it to the conflict's current_value and
+    proposed_value with the same normalized equality values_conflict
+    already uses. A match resolves the conflict exactly as a reviewer
+    accepting/keeping it would (including updating the publication field for
+    an accepted proposal); a provider value that confirms neither side --
+    or no provider having an answer at all -- leaves the conflict open for a
+    reviewer, same as before this existed.
+
+    Only merge-sourced conflicts are eligible: a conflict enrichment already
+    raised against a specific provider's own data has already been checked
+    against that same provider and would gain nothing from asking again.
+    """
+    open_conflicts = list(
+        db.scalars(
+            select(MetadataConflict).where(
+                MetadataConflict.publication_id == publication.id,
+                MetadataConflict.status == ConflictStatus.OPEN,
+                MetadataConflict.source_name == "merge",
+            )
+        )
+    )
+    doi = normalize_doi(publication.doi)
+    if not doi or not open_conflicts:
+        return {"queried": [], "resolved": 0, "transientFailure": False}
+
+    queried: list[str] = []
+    transient_failure = False
+    resolved = 0
+    for provider in metadata_providers():
+        if not open_conflicts:
+            break
+        result = provider.lookup_doi(doi)
+        if result.outcome is not LookupOutcome.FOUND or result.data is None:
+            transient_failure = transient_failure or result.is_transient_failure
+            continue
+        queried.append(provider.name)
+        still_open = []
+        for conflict in open_conflicts:
+            if conflict.field_name not in result.data:
+                still_open.append(conflict)
+                continue
+            provider_value = _typed_value(conflict.field_name, result.data[conflict.field_name])
+            if provider_value in (None, "", []):
+                still_open.append(conflict)
+                continue
+            if not values_conflict(conflict.field_name, conflict.current_value, provider_value):
+                conflict.status = ConflictStatus.KEEP_CURRENT
+                resolved += 1
+            elif not values_conflict(conflict.field_name, conflict.proposed_value, provider_value):
+                value: Any = conflict.proposed_value
+                if conflict.field_name == "publication_year":
+                    value = int(conflict.proposed_value) if conflict.proposed_value else None
+                setattr(publication, conflict.field_name, value)
+                conflict.status = ConflictStatus.ACCEPT_PROPOSED
+                resolved += 1
+            else:
+                # The provider has an opinion, but it matches neither side --
+                # still a genuine disagreement for a reviewer to settle.
+                still_open.append(conflict)
+        open_conflicts = still_open
+
+    if resolved:
+        record_audit(
+            db,
+            action="metadata_conflict.auto_resolved",
+            entity_type="publication",
+            entity_id=publication.id,
+            project_id=publication.project_id,
+            summary=(
+                f"Automatically resolved {resolved} metadata conflict(s) "
+                "using external metadata providers"
+            ),
+            metadata={"providers": queried, "resolved": resolved},
+        )
+    db.flush()
+    return {
+        "queried": queried,
+        "resolved": resolved,
+        "transientFailure": transient_failure and not queried,
+    }
