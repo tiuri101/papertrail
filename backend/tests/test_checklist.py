@@ -266,6 +266,131 @@ def test_title_abstract_checklist_shows_reviewer_specific_and_overall_open_count
     assert detail_b == "1 awaiting your decision (3 open in total)"
 
 
+def test_checklist_builds_items_only_for_the_current_stage(db) -> None:
+    project = Project(
+        name="Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.FULL_TEXT,
+    )
+    db.add(project)
+    db.flush()
+    publication = Publication(project_id=project.id, title="A Study")
+    db.add(publication)
+    db.flush()
+    db.add(
+        FullTextRetrieval(
+            project_id=project.id,
+            publication_id=publication.id,
+            status=RetrievalStatus.NOT_FOUND,
+        )
+    )
+    db.commit()
+
+    project = get_project(db, project.id)
+    checklist = project_checklist(db, project)
+
+    by_stage = {stage["stage"]: stage for stage in checklist["stages"]}
+    assert by_stage[ProjectStage.FULL_TEXT]["is_current"] is True
+    assert by_stage[ProjectStage.FULL_TEXT]["items"] != []
+    # Every other stage (past or future) carries no computed items -- only
+    # the current stage's list is ever rendered.
+    for stage_value, stage in by_stage.items():
+        if stage_value != ProjectStage.FULL_TEXT:
+            assert stage["items"] == []
+    assert by_stage[ProjectStage.DRAFT]["is_complete"] is True
+    assert by_stage[ProjectStage.EXTRACTION]["is_complete"] is False
+
+
+def test_title_abstract_open_count_excludes_finalized_publications(db) -> None:
+    from app.conflicts.service import record_final_decision
+    from app.projects.models import ScreeningStage
+
+    project = Project(
+        name="Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.TITLE_ABSTRACT,
+    )
+    db.add(project)
+    db.flush()
+    decided = Publication(project_id=project.id, title="Decided")
+    pending = Publication(project_id=project.id, title="Pending")
+    db.add_all([decided, pending])
+    db.flush()
+    record_final_decision(
+        db, decided.id, ScreeningStage.TITLE_ABSTRACT, "include", "agreement", None, None
+    )
+    db.commit()
+
+    project = get_project(db, project.id)
+    stage = next(
+        s
+        for s in project_checklist(db, project)["stages"]
+        if s["stage"] == ProjectStage.TITLE_ABSTRACT
+    )
+    item = next(i for i in stage["items"] if i["key"] == "title_abstract_decisions")
+    assert item["done"] is False
+    assert item["detail"] == "0 awaiting your decision (1 open in total)"
+
+
+def test_full_text_decisions_counts_finalized_available_publications(db) -> None:
+    from app.conflicts.service import record_final_decision
+    from app.projects.models import ScreeningStage
+
+    project = Project(
+        name="Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.FULL_TEXT,
+    )
+    db.add(project)
+    db.flush()
+    pub_a = Publication(project_id=project.id, title="Study A")
+    pub_b = Publication(project_id=project.id, title="Study B")
+    db.add_all([pub_a, pub_b])
+    db.flush()
+    db.add_all(
+        [
+            FullTextRetrieval(
+                project_id=project.id,
+                publication_id=pub_a.id,
+                status=RetrievalStatus.AVAILABLE,
+            ),
+            FullTextRetrieval(
+                project_id=project.id,
+                publication_id=pub_b.id,
+                status=RetrievalStatus.AVAILABLE,
+            ),
+        ]
+    )
+    record_final_decision(
+        db, pub_a.id, ScreeningStage.FULL_TEXT, "include", "agreement", None, None
+    )
+    db.commit()
+
+    project = get_project(db, project.id)
+
+    def full_text_decisions() -> dict:
+        stage = next(
+            s
+            for s in project_checklist(db, project)["stages"]
+            if s["stage"] == ProjectStage.FULL_TEXT
+        )
+        return next(i for i in stage["items"] if i["key"] == "full_text_decisions")
+
+    item = full_text_decisions()
+    assert item["done"] is False
+    assert item["detail"] == "0 awaiting your decision (1 open in total)"
+
+    record_final_decision(
+        db, pub_b.id, ScreeningStage.FULL_TEXT, "exclude", "agreement", None, None
+    )
+    db.commit()
+    project = get_project(db, project.id)
+    assert full_text_decisions()["done"] is True
+
+
 def test_checklist_endpoint_is_reachable_over_http(client, db) -> None:
     create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
     db.commit()

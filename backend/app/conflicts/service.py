@@ -433,6 +433,44 @@ def _stage_has_unfinalized_publication(
     )
 
 
+def count_unfinalized_publications(
+    db: Session, project_id: str, stage: ScreeningStage
+) -> int:
+    """How many active, non-merged publications still lack a valid final
+    decision for this stage.
+
+    A read-only, set-based counterpart to ``unresolved_publication_ids``: it
+    takes no row locks, re-derives no automatic decisions, and does not
+    flush, so it is safe on a GET request path (the project checklist) where
+    that sweep's per-publication locking and writes were pure overhead --
+    every quorum that should produce a final decision already does so
+    synchronously when the last reviewer submits (see the screening submit
+    routes). Shares its anti-join with ``_stage_has_unfinalized_publication``.
+    """
+    valid_final_exists = (
+        select(FinalDecision.id)
+        .where(
+            FinalDecision.publication_id == Publication.id,
+            FinalDecision.stage == stage,
+            FinalDecision.is_valid.is_(True),
+        )
+        .exists()
+    )
+    return (
+        db.scalar(
+            select(func.count())
+            .select_from(Publication)
+            .where(
+                Publication.project_id == project_id,
+                Publication.is_active.is_(True),
+                Publication.merged_into_id.is_(None),
+                ~valid_final_exists,
+            )
+        )
+        or 0
+    )
+
+
 def unresolved_publication_ids(
     db: Session, project_id: str, stage: ScreeningStage
 ) -> list[str]:

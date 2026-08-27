@@ -5,7 +5,8 @@ from typing import Any
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.conflicts.service import unresolved_publication_ids, valid_final_decision
+from app.conflicts.models import FinalDecision
+from app.conflicts.service import count_unfinalized_publications
 from app.deduplication.models import DuplicateCandidate
 from app.extraction.models import ExtractionStatus, ExtractionWorkItem
 from app.fulltext.models import FullTextRetrieval, RetrievalStatus
@@ -190,8 +191,8 @@ def _my_open_work_item_count(
 def _title_abstract_items(
     db: Session, project: Project, user_id: str | None
 ) -> list[dict[str, Any]]:
-    unresolved = len(
-        unresolved_publication_ids(db, project.id, ScreeningStage.TITLE_ABSTRACT)
+    unresolved = count_unfinalized_publications(
+        db, project.id, ScreeningStage.TITLE_ABSTRACT
     )
     my_open = _my_open_work_item_count(
         db,
@@ -227,17 +228,26 @@ def _full_text_items(
         if retrieval.status
         not in {RetrievalStatus.NOT_YET_SOUGHT, RetrievalStatus.REQUESTED}
     )
-    available = [
-        retrieval
+    available_ids = [
+        retrieval.publication_id
         for retrieval in retrievals
         if retrieval.status == RetrievalStatus.AVAILABLE
     ]
-    decided = sum(
-        1
-        for retrieval in available
-        if valid_final_decision(db, retrieval.publication_id, ScreeningStage.FULL_TEXT)
-        is not None
-    )
+    # One grouped count rather than a valid_final_decision() query per
+    # available publication -- the old loop was O(included publications) on
+    # every checklist poll.
+    decided = 0
+    if available_ids:
+        decided = (
+            db.scalar(
+                select(func.count(func.distinct(FinalDecision.publication_id))).where(
+                    FinalDecision.publication_id.in_(available_ids),
+                    FinalDecision.stage == ScreeningStage.FULL_TEXT,
+                    FinalDecision.is_valid.is_(True),
+                )
+            )
+            or 0
+        )
     has_extraction_form = project_form(db, project.id) is not None
     my_open = _my_open_work_item_count(
         db,
@@ -256,8 +266,8 @@ def _full_text_items(
         _item(
             "full_text_decisions",
             "Screen every retrieved full text",
-            decided == len(available),
-            f"{my_open} awaiting your decision ({len(available) - decided} open in total)",
+            decided == len(available_ids),
+            f"{my_open} awaiting your decision ({len(available_ids) - decided} open in total)",
         ),
         _item(
             "extraction_form",
@@ -368,7 +378,12 @@ def project_checklist(
     stages = []
     for index, stage in enumerate(STAGE_ORDER):
         builder = STAGE_BUILDERS.get(stage)
-        items = builder(db, project, user_id) if builder else []
+        # Only the current stage's item list is ever rendered (the panel
+        # keys off is_current); some builders are O(publications) with
+        # per-publication queries, so building the other four just to
+        # discard them made this endpoint scale badly on large projects.
+        # Past/future stages still report is_complete from stage order.
+        items = builder(db, project, user_id) if builder and stage == project.stage else []
         is_complete = index < current_index or (
             stage == ProjectStage.COMPLETED and project.stage == ProjectStage.COMPLETED
         )
