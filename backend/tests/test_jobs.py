@@ -12,7 +12,7 @@ from app.jobs.registry import (
     PERMANENT_FAILURE_HOOKS,
     WorkerPool,
 )
-from app.jobs.service import claim_job, enqueue_job
+from app.jobs.service import cancel_project_jobs, claim_job, enqueue_job
 from app.jobs.worker import HANDLERS, execute_next_job
 from app.llm.models import LlmExtractionRun, LlmTaskType, ProcessingStatus
 from app.llm.service import LLM_JOB_TYPE_BY_TASK
@@ -304,6 +304,108 @@ def test_jobs_summary_excludes_jobs_from_other_projects(client, db) -> None:
     ]
 
 
+def _seed_job_page_fixture(db) -> tuple[Project, list[BackgroundJob]]:
+    project = Project(
+        name="Review", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed"
+    )
+    other = Project(
+        name="Other", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed2"
+    )
+    db.add_all([project, other])
+    db.commit()
+
+    made: list[BackgroundJob] = []
+    for index in range(5):
+        job = enqueue_job(
+            db, "generate_export", {}, project_id=project.id, created_by_id=None
+        )
+        job.created_at = datetime(2026, 7, 30, 10, index, tzinfo=UTC)
+        job.progress_current = index
+        job.progress_total = 10
+        made.append(job)
+    made[0].status = JobStatus.FAILED
+    made[1].status = JobStatus.FAILED
+    made[2].status = JobStatus.RUNNING
+    dup = enqueue_job(
+        db, "detect_duplicates", {}, project_id=project.id, created_by_id=None
+    )
+    dup.created_at = datetime(2026, 7, 30, 9, 0, tzinfo=UTC)
+    made.append(dup)
+    enqueue_job(db, "generate_export", {}, project_id=other.id, created_by_id=None)
+    db.commit()
+    return project, made
+
+
+def test_jobs_page_paginates_orders_newest_first_and_aggregates(client, db) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    project, made = _seed_job_page_fixture(db)
+    login(client)
+
+    page1 = client.get(
+        f"/api/v1/projects/{project.id}/jobs/page?page=1&pageSize=3"
+    ).json()
+    assert page1["total"] == 6
+    assert page1["projectTotal"] == 6
+    assert page1["page"] == 1
+    assert page1["pageSize"] == 3
+    assert page1["pageCount"] == 2
+    assert page1["hasMore"] is True
+    # Newest first, and the second page picks up exactly where the first left
+    # off -- no row repeated or skipped across the boundary.
+    assert [item["progressCurrent"] for item in page1["items"]] == [4, 3, 2]
+    assert page1["statusCounts"] == {
+        "queued": 3,
+        "running": 1,
+        "completed": 0,
+        "failed": 2,
+        "cancelled": 0,
+    }
+    assert page1["jobTypes"] == ["detect_duplicates", "generate_export"]
+    assert set(page1["failedIds"]) == {made[0].id, made[1].id}
+
+    page2 = client.get(
+        f"/api/v1/projects/{project.id}/jobs/page?page=2&pageSize=3"
+    ).json()
+    assert [item["progressCurrent"] for item in page2["items"]] == [1, 0, 0]
+    assert page2["hasMore"] is False
+
+
+def test_jobs_page_filters_leave_project_wide_aggregates_untouched(client, db) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    project, _ = _seed_job_page_fixture(db)
+    login(client)
+
+    failed = client.get(
+        f"/api/v1/projects/{project.id}/jobs/page?status=failed"
+    ).json()
+    assert failed["total"] == 2
+    assert failed["projectTotal"] == 6
+    assert [item["status"] for item in failed["items"]] == ["failed", "failed"]
+    assert failed["statusCounts"]["queued"] == 3
+
+    by_type = client.get(
+        f"/api/v1/projects/{project.id}/jobs/page?jobType=detect_duplicates"
+    ).json()
+    assert by_type["total"] == 1
+    assert by_type["items"][0]["jobType"] == "detect_duplicates"
+
+
+def test_jobs_page_sorts_by_a_requested_column(client, db) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    project, _ = _seed_job_page_fixture(db)
+    login(client)
+
+    ascending = client.get(
+        f"/api/v1/projects/{project.id}/jobs/page"
+        "?sort=progress&direction=asc&pageSize=50"
+    ).json()
+    progresses = [item["progressCurrent"] for item in ascending["items"]]
+    # The five jobs with a known total sort by fraction complete; the lone
+    # job with no total has no position on this axis and sorts last.
+    assert progresses[:5] == [0, 1, 2, 3, 4]
+    assert ascending["items"][5]["jobType"] == "detect_duplicates"
+
+
 def test_bulk_restart_only_restarts_failed_jobs(
     client, db, session_factory, monkeypatch
 ) -> None:
@@ -355,6 +457,208 @@ def test_bulk_restart_only_restarts_failed_jobs(
         assert still_queued is not None
         assert still_queued.status == JobStatus.QUEUED
         assert still_queued.attempts == 0
+
+
+def test_cancel_all_project_jobs_stops_queued_and_running_only(
+    client, db, session_factory
+) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    project = Project(
+        name="Review", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed"
+    )
+    other = Project(
+        name="Other", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed2"
+    )
+    db.add_all([project, other])
+    db.commit()
+    csrf = login(client)
+
+    def add_job(owner: Project, status: JobStatus) -> str:
+        job = enqueue_job(
+            db, "generate_export", {}, project_id=owner.id, created_by_id=None
+        )
+        job.status = status
+        db.add(job)
+        db.commit()
+        return job.id
+
+    queued_id = add_job(project, JobStatus.QUEUED)
+    running_id = add_job(project, JobStatus.RUNNING)
+    completed_id = add_job(project, JobStatus.COMPLETED)
+    failed_id = add_job(project, JobStatus.FAILED)
+    other_queued_id = add_job(other, JobStatus.QUEUED)
+
+    response = client.post(
+        f"/api/v1/projects/{project.id}/jobs/cancel",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 200
+    assert {job["id"] for job in response.json()} == {queued_id, running_id}
+    assert all(job["status"] == "cancelled" for job in response.json())
+
+    with session_factory() as check:
+        assert check.get(BackgroundJob, queued_id).status == JobStatus.CANCELLED
+        assert check.get(BackgroundJob, running_id).status == JobStatus.CANCELLED
+        assert check.get(BackgroundJob, queued_id).completed_at is not None
+        # Terminal jobs and other projects' jobs are untouched.
+        assert check.get(BackgroundJob, completed_id).status == JobStatus.COMPLETED
+        assert check.get(BackgroundJob, failed_id).status == JobStatus.FAILED
+        assert check.get(BackgroundJob, other_queued_id).status == JobStatus.QUEUED
+
+    # A cancelled job is never claimed by a worker; the untouched job in the
+    # other project still is.
+    with session_factory() as worker_db:
+        claimed = claim_job(worker_db, "test-worker")
+        assert claimed is not None
+        assert claimed.id == other_queued_id
+
+
+def test_cancel_all_project_jobs_requires_a_project_manager(client, db) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    member = create_user(db, "member", "Member", "member-password")
+    project = Project(
+        name="Review", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed"
+    )
+    db.add(project)
+    db.flush()
+    db.add(ProjectMembership(project_id=project.id, user_id=member.id))
+    job = enqueue_job(
+        db, "generate_export", {}, project_id=project.id, created_by_id=None
+    )
+    job.status = JobStatus.QUEUED
+    db.commit()
+    job_id = job.id
+
+    login_response = client.post(
+        "/api/v1/auth/login",
+        json={"username": "member", "password": "member-password"},
+    )
+    csrf = login_response.json()["csrfToken"]
+
+    response = client.post(
+        f"/api/v1/projects/{project.id}/jobs/cancel",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 403
+    db.expire_all()
+    assert db.get(BackgroundJob, job_id).status == JobStatus.QUEUED
+
+
+def test_cancel_all_project_jobs_also_cancels_in_flight_llm_runs(
+    client, db
+) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    project = Project(
+        name="LLM Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+    )
+    db.add(project)
+    db.flush()
+    publication = Publication(project_id=project.id, title="Paper")
+    db.add(publication)
+    db.flush()
+    run = LlmExtractionRun(
+        project_id=project.id,
+        publication_id=publication.id,
+        task_type=LlmTaskType.TITLE_ABSTRACT_SCREENING,
+        model="qwen3:8b",
+        prompt_template_version="title-abstract-v1",
+        status=ProcessingStatus.PROCESSING,
+        queued_at=datetime.now(UTC),
+        started_at=datetime.now(UTC),
+    )
+    db.add(run)
+    db.flush()
+    job = enqueue_job(
+        db,
+        LLM_JOB_TYPE_BY_TASK[LlmTaskType.TITLE_ABSTRACT_SCREENING],
+        {"run_id": run.id},
+        project_id=project.id,
+        created_by_id=None,
+    )
+    job.status = JobStatus.RUNNING
+    run.background_job_id = job.id
+    db.commit()
+    run_id, job_id = run.id, job.id
+    csrf = login(client)
+
+    response = client.post(
+        f"/api/v1/projects/{project.id}/jobs/cancel",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 200
+
+    db.expire_all()
+    assert db.get(BackgroundJob, job_id).status == JobStatus.CANCELLED
+    assert db.get(LlmExtractionRun, run_id).status == ProcessingStatus.CANCELLED
+
+
+def test_worker_discards_the_result_of_a_job_cancelled_while_running(
+    session_factory, monkeypatch
+) -> None:
+    with session_factory() as db:
+        project = Project(
+            name="Cancel Review",
+            review_type=ReviewType.SYSTEMATIC_REVIEW,
+            random_seed="seed",
+        )
+        db.add(project)
+        db.flush()
+        job = enqueue_job(
+            db, "generate_export", {}, project_id=project.id, created_by_id=None
+        )
+        job_id = job.id
+        db.commit()
+
+    def cancel_then_finish(handler_db, running_job):
+        # Stand in for a manager triggering "cancel all jobs" mid-handler.
+        cancel_project_jobs(handler_db, running_job.project_id)
+        handler_db.commit()
+        return {"artifact": "should be discarded"}
+
+    monkeypatch.setitem(HANDLERS, "generate_export", cancel_then_finish)
+    assert execute_next_job(session_factory, "test-worker") is True
+
+    with session_factory() as check:
+        cancelled = check.get(BackgroundJob, job_id)
+        assert cancelled is not None
+        assert cancelled.status == JobStatus.CANCELLED
+        assert cancelled.result is None
+        # Not resurrected for a retry.
+        assert claim_job(check, "test-worker-2") is None
+
+
+def test_worker_does_not_record_failure_for_a_job_cancelled_while_running(
+    session_factory, monkeypatch
+) -> None:
+    with session_factory() as db:
+        project = Project(
+            name="Cancel Review",
+            review_type=ReviewType.SYSTEMATIC_REVIEW,
+            random_seed="seed",
+        )
+        db.add(project)
+        db.flush()
+        job = enqueue_job(
+            db, "generate_export", {}, project_id=project.id, created_by_id=None
+        )
+        job_id = job.id
+        db.commit()
+
+    def cancel_then_raise(handler_db, running_job):
+        cancel_project_jobs(handler_db, running_job.project_id)
+        handler_db.commit()
+        raise RuntimeError("boom after cancellation")
+
+    monkeypatch.setitem(HANDLERS, "generate_export", cancel_then_raise)
+    assert execute_next_job(session_factory, "test-worker") is True
+
+    with session_factory() as check:
+        cancelled = check.get(BackgroundJob, job_id)
+        assert cancelled is not None
+        assert cancelled.status == JobStatus.CANCELLED
+        assert cancelled.error_message is None
 
 
 def test_llm_job_diagnostics_identify_the_exact_task_stage_and_publication(db) -> None:

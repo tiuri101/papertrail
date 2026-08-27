@@ -302,6 +302,35 @@ def cancel_all_llm_jobs(db: Session) -> int:
     return len(runs)
 
 
+def cancel_project_llm_runs(db: Session, project_id: str) -> int:
+    """Cancel every in-flight LLM run for one project.
+
+    The project-scoped counterpart of ``cancel_all_llm_jobs``, used when a
+    project manager cancels all of the project's background jobs: an LLM
+    background job that is only stopped at the ``BackgroundJob`` level would
+    otherwise leave its ``LlmExtractionRun`` stuck ``PENDING``/``PROCESSING``
+    in the UI. A ``PROCESSING`` run is owned by a worker thread mid Ollama
+    call; marking it ``CANCELLED`` makes ``was_cancelled`` discard the
+    result. The caller cancels the ``BackgroundJob`` rows themselves.
+    """
+    runs = list(
+        db.scalars(
+            select(LlmExtractionRun).where(
+                LlmExtractionRun.project_id == project_id,
+                LlmExtractionRun.status.in_(
+                    [ProcessingStatus.PENDING, ProcessingStatus.PROCESSING]
+                ),
+            )
+        )
+    )
+    now = utcnow()
+    for run in runs:
+        run.status = ProcessingStatus.CANCELLED
+        run.completed_at = now
+    db.flush()
+    return len(runs)
+
+
 def latest_current_run(
     db: Session, project_id: str, publication_id: str
 ) -> LlmExtractionRun | None:

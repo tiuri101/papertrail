@@ -101,5 +101,9 @@ def assess_duplicate_candidates_job(
             "No metadata provider or bibliographic URL could be reached to "
             "assess duplicate candidates"
         )
+    # A provider-confirmed auto-merge here can clear the last unresolved pair;
+    # advance the project the same way a reviewer resolving it would.
+    if result["autoMerged"]:
+        transition_if_duplicate_review_complete(db, get_project(db, project_id))
     db.commit()
     return {"projectId": project_id, **result}
