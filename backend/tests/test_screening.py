@@ -79,6 +79,58 @@ def setup_screening(db):
     return project, publication, reviewer1, reviewer2, [criterion1, criterion2]
 
 
+def test_has_publications_without_work_items_tracks_backfill_need(db) -> None:
+    from app.screening.service import has_publications_without_work_items
+
+    project, publication, reviewer1, reviewer2, _ = setup_screening(db)
+
+    # Before any work items exist, the one publication is missing its slots.
+    assert (
+        has_publications_without_work_items(
+            db, project.id, ScreeningStage.TITLE_ABSTRACT
+        )
+        is True
+    )
+
+    create_screening_work_items(db, project, ScreeningStage.TITLE_ABSTRACT)
+    db.commit()
+    assert (
+        has_publications_without_work_items(
+            db, project.id, ScreeningStage.TITLE_ABSTRACT
+        )
+        is False
+    )
+
+    # A publication added later (e.g. a second import batch) re-opens the gap,
+    # and a fresh backfill closes it again without duplicating existing slots.
+    late = Publication(project_id=project.id, title="Late paper")
+    db.add(late)
+    db.commit()
+    assert (
+        has_publications_without_work_items(
+            db, project.id, ScreeningStage.TITLE_ABSTRACT
+        )
+        is True
+    )
+    created = create_screening_work_items(db, project, ScreeningStage.TITLE_ABSTRACT)
+    db.commit()
+    assert created == 2  # only the late publication's two slots
+    assert (
+        db.scalar(
+            select(func.count())
+            .select_from(ScreeningWorkItem)
+            .where(ScreeningWorkItem.project_id == project.id)
+        )
+        == 4
+    )
+    assert (
+        has_publications_without_work_items(
+            db, project.id, ScreeningStage.TITLE_ABSTRACT
+        )
+        is False
+    )
+
+
 def test_queue_claims_independent_slots_and_uses_deterministic_rank(db) -> None:
     project, publication, reviewer1, reviewer2, _ = setup_screening(db)
     assert create_screening_work_items(db, project, ScreeningStage.TITLE_ABSTRACT) == 2

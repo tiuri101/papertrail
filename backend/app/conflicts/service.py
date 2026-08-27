@@ -401,6 +401,38 @@ def refresh_automatic_final_decision(
     return None
 
 
+def _stage_has_unfinalized_publication(
+    db: Session, project_id: str, stage: ScreeningStage
+) -> bool:
+    """Whether any active, non-merged publication still lacks a valid final
+    decision for this stage. A single LIMIT 1 anti-join used to cheaply rule
+    out "stage not complete yet" before the full unresolved_publication_ids
+    sweep (see transition_if_screening_complete).
+    """
+    valid_final_exists = (
+        select(FinalDecision.id)
+        .where(
+            FinalDecision.publication_id == Publication.id,
+            FinalDecision.stage == stage,
+            FinalDecision.is_valid.is_(True),
+        )
+        .exists()
+    )
+    return (
+        db.scalar(
+            select(Publication.id)
+            .where(
+                Publication.project_id == project_id,
+                Publication.is_active.is_(True),
+                Publication.merged_into_id.is_(None),
+                ~valid_final_exists,
+            )
+            .limit(1)
+        )
+        is not None
+    )
+
+
 def unresolved_publication_ids(
     db: Session, project_id: str, stage: ScreeningStage
 ) -> list[str]:
@@ -529,6 +561,19 @@ def transition_if_screening_complete(
     if stage == ScreeningStage.TITLE_ABSTRACT:
         # Every active publication is screened at title/abstract, so the
         # project-wide unresolved check applies directly to this stage.
+        #
+        # unresolved_publication_ids visits every publication in the project,
+        # taking a per-publication advisory lock and running several queries
+        # each -- run on every decision submit, that is thousands of round
+        # trips per submit on a large project. Since each publication is already
+        # finalized when its own last decision is submitted (the route calls
+        # refresh_automatic_final_decision per publication), a cheap "is any
+        # publication still missing a valid final decision" probe rules out the
+        # not-yet-complete case -- which is almost every submit -- without the
+        # sweep. The sweep still runs as the authoritative confirmation once the
+        # probe says the stage looks finished.
+        if _stage_has_unfinalized_publication(db, project.id, stage):
+            return False
         if unresolved_publication_ids(db, project.id, stage):
             return False
         from app.fulltext.service import initialize_full_text_stage

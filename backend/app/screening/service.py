@@ -164,15 +164,31 @@ def create_screening_work_items(
             f"At least {config.required_reviewers} eligible reviewers are required "
             f"for {stage.value}"
         )
-    query = select(Publication).where(
+    query = select(Publication.id).where(
         Publication.project_id == project.id,
         Publication.is_active.is_(True),
         Publication.merged_into_id.is_(None),
     )
     if publication_ids is not None:
         query = query.where(Publication.id.in_(publication_ids))
-    publications = list(db.scalars(query.order_by(Publication.id)))
+    publication_id_list = list(db.scalars(query.order_by(Publication.id)))
+    # One lookup for every slot that already exists, instead of a SELECT per
+    # (publication, slot) inside the loop below. On a project with several
+    # thousand publications the per-slot probes were the dominant cost of every
+    # "load next publication" fetch, which backfills through here on each call.
+    existing_slots: set[tuple[str, int]] = {
+        (publication_id, slot_number)
+        for publication_id, slot_number in db.execute(
+            select(
+                ScreeningWorkItem.publication_id, ScreeningWorkItem.slot_number
+            ).where(
+                ScreeningWorkItem.project_id == project.id,
+                ScreeningWorkItem.stage == stage,
+            )
+        )
+    }
     created = 0
+    new_items: list[ScreeningWorkItem] = []
     newly_eligible_publication_ids: set[str] = set()
     # In claim mode, slots are left unassigned for reviewers to pick up themselves
     # (see claim_next_work_item), so no assignment sequence is needed. Otherwise,
@@ -184,31 +200,24 @@ def create_screening_work_items(
         else weighted_round_robin_sequence(
             reviewers,
             reviewer_weights(db, project.id, reviewers),
-            len(publications) * config.required_reviewers,
+            len(publication_id_list) * config.required_reviewers,
         )
     )
     assignment_position = 0
-    for publication in publications:
-        rank = rank_for(project, publication.id, stage)
+    for publication_id in publication_id_list:
+        rank = rank_for(project, publication_id, stage)
         for slot in range(config.required_reviewers):
-            existing = db.scalar(
-                select(ScreeningWorkItem.id).where(
-                    ScreeningWorkItem.publication_id == publication.id,
-                    ScreeningWorkItem.stage == stage,
-                    ScreeningWorkItem.slot_number == slot + 1,
-                )
-            )
-            if existing:
+            if (publication_id, slot + 1) in existing_slots:
                 continue
             if config.allocation_mode == AllocationMode.CLAIM:
                 assigned_reviewer_id = None
             else:
                 assigned_reviewer_id = assignment_sequence[assignment_position]
                 assignment_position += 1
-            db.add(
+            new_items.append(
                 ScreeningWorkItem(
                     project_id=project.id,
-                    publication_id=publication.id,
+                    publication_id=publication_id,
                     stage=stage,
                     slot_number=slot + 1,
                     assigned_reviewer_id=assigned_reviewer_id,
@@ -216,7 +225,8 @@ def create_screening_work_items(
                 )
             )
             created += 1
-            newly_eligible_publication_ids.add(publication.id)
+            newly_eligible_publication_ids.add(publication_id)
+    db.add_all(new_items)
     db.flush()
     if stage == ScreeningStage.TITLE_ABSTRACT:
         # Precompute suggestions as soon as publications enter screening. The
@@ -231,6 +241,43 @@ def create_screening_work_items(
                 db, publication_id, priority=0, bulk_id=bulk_id
             )
     return created
+
+
+def has_publications_without_work_items(
+    db: Session, project_id: str, stage: ScreeningStage
+) -> bool:
+    """Whether any active, non-merged publication is missing a work item for
+    this stage -- i.e. whether a `create_screening_work_items` backfill would
+    actually do anything.
+
+    `next_item` calls the backfill on every fetch to catch publications added
+    after the one-time creation at duplicate-review completion. That backfill
+    scans every publication in the project, so on a large project it dominated
+    the request even when there was nothing to create. This is a single
+    LIMIT 1 anti-join that lets the hot path skip the backfill entirely in the
+    overwhelmingly common case where every publication already has its slots.
+    """
+    work_item_exists = (
+        select(ScreeningWorkItem.id)
+        .where(
+            ScreeningWorkItem.publication_id == Publication.id,
+            ScreeningWorkItem.stage == stage,
+        )
+        .exists()
+    )
+    return (
+        db.scalar(
+            select(Publication.id)
+            .where(
+                Publication.project_id == project_id,
+                Publication.is_active.is_(True),
+                Publication.merged_into_id.is_(None),
+                ~work_item_exists,
+            )
+            .limit(1)
+        )
+        is not None
+    )
 
 
 def reassign_work_items_from_ineligible_reviewers(
@@ -255,18 +302,24 @@ def reassign_work_items_from_ineligible_reviewers(
     eligible = eligible_reviewer_ids(db, project_id, stage)
     if not eligible:
         return 0
+    orphan_filters = (
+        ScreeningWorkItem.project_id == project_id,
+        ScreeningWorkItem.stage == stage,
+        ScreeningWorkItem.status != WorkItemStatus.SUBMITTED,
+        ScreeningWorkItem.assigned_reviewer_id.is_not(None),
+        ScreeningWorkItem.assigned_reviewer_id.not_in(eligible),
+    )
+    # next_item runs this defensively on every fetch. Probe first so the common
+    # case (nobody lost eligibility since work items were created) costs one
+    # LIMIT 1 lookup instead of materialising and rank-sorting the whole stage.
+    if db.scalar(select(ScreeningWorkItem.id).where(*orphan_filters).limit(1)) is None:
+        return 0
     config = get_screening_config(db, project_id, stage)
     claim_mode = config is not None and config.allocation_mode == AllocationMode.CLAIM
     orphaned = list(
         db.scalars(
             select(ScreeningWorkItem)
-            .where(
-                ScreeningWorkItem.project_id == project_id,
-                ScreeningWorkItem.stage == stage,
-                ScreeningWorkItem.status != WorkItemStatus.SUBMITTED,
-                ScreeningWorkItem.assigned_reviewer_id.is_not(None),
-                ScreeningWorkItem.assigned_reviewer_id.not_in(eligible),
-            )
+            .where(*orphan_filters)
             .order_by(ScreeningWorkItem.random_rank)
         )
     )
@@ -400,6 +453,13 @@ def _llm_ready_rank(db: Session, project_id: str, stage: ScreeningStage) -> Any:
     screening suggestion ahead of ones without, so reviewers see LLM-assisted
     papers first. Returns None when LLM assistance is disabled for this stage,
     in which case ordering is left untouched.
+
+    This is a soft ordering hint, not a correctness gate -- the result endpoint
+    still enforces the independent-decision reveal gate. It asks "does a
+    completed run exist" (a plain EXISTS, backed by ix_llm_runs_pub_task_status)
+    rather than "is the *latest* run completed" (which needed a per-row ordered
+    subquery). A completed run followed by a stale/failed re-run therefore still
+    counts as ready, which is fine for queue ordering.
     """
     from app.llm.models import LlmExtractionRun, LlmTaskType, ProcessingStatus
     from app.llm.task_service import feature_enabled
@@ -410,18 +470,17 @@ def _llm_ready_rank(db: Session, project_id: str, stage: ScreeningStage) -> Any:
     }[stage]
     if not feature_enabled(db, project_id, task_type):
         return None
-    latest_status = (
-        select(LlmExtractionRun.status)
+    completed_run_exists = (
+        select(LlmExtractionRun.id)
         .where(
             LlmExtractionRun.publication_id == ScreeningWorkItem.publication_id,
             LlmExtractionRun.task_type == task_type,
+            LlmExtractionRun.status == ProcessingStatus.COMPLETED,
         )
-        .order_by(LlmExtractionRun.created_at.desc())
-        .limit(1)
         .correlate(ScreeningWorkItem)
-        .scalar_subquery()
+        .exists()
     )
-    return case((latest_status == ProcessingStatus.COMPLETED, 0), else_=1)
+    return case((completed_run_exists, 0), else_=1)
 
 
 def claim_next_work_item(

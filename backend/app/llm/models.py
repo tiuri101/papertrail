@@ -248,6 +248,15 @@ class LlmExtractionRun(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ),
         Index("ix_llm_runs_project_status", "project_id", "status"),
         Index("ix_llm_runs_publication_created", "publication_id", "created_at"),
+        # Lets the screening queue's "does this publication have a completed
+        # suggestion for this task?" ordering hint resolve as an index probe
+        # rather than a per-row correlated subquery.
+        Index(
+            "ix_llm_runs_pub_task_status",
+            "publication_id",
+            "task_type",
+            "status",
+        ),
     )
 
     project_id: Mapped[str] = mapped_column(
