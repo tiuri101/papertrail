@@ -29,6 +29,14 @@ from app.jobs.service import enqueue_job
 from app.projects.dependencies import require_project_member_csrf
 from app.projects.models import Criterion, ScreeningStage
 from app.projects.service import is_project_manager, require_project_access
+from app.publications.conflict_listing import (
+    DEFAULT_CONFLICT_PAGE_SIZE,
+    MAX_CONFLICT_PAGE_SIZE,
+    ConflictFilters,
+    ConflictPage,
+    ConflictSortKey,
+    conflicts_page,
+)
 from app.publications.deletion import remove_publications_from_review
 from app.publications.listing import (
     DEFAULT_PAGE_SIZE,
@@ -47,6 +55,7 @@ from app.publications.models import ConflictStatus, MetadataConflict, Publicatio
 from app.publications.schemas import (
     BulkDeleteRequest,
     BulkEnrichmentRequest,
+    ConflictPageResponse,
     ConflictResolve,
     ConflictResponse,
     PublicationCreate,
@@ -579,6 +588,45 @@ def list_conflicts(
                 MetadataConflict.status == ConflictStatus.OPEN,
             )
         )
+    )
+
+
+@router.get(
+    "/projects/{project_id}/metadata-conflicts/page",
+    response_model=ConflictPageResponse,
+)
+def list_conflicts_page(
+    project_id: str,
+    search: str | None = None,
+    source: str | None = None,
+    field: str | None = None,
+    sort: ConflictSortKey = "created",
+    direction: SortDirection = "desc",
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(
+        default=DEFAULT_CONFLICT_PAGE_SIZE,
+        ge=1,
+        le=MAX_CONFLICT_PAGE_SIZE,
+        alias="pageSize",
+    ),
+    _: User = Depends(require_project_member_csrf),
+    db: Session = Depends(get_db),
+) -> ConflictPage:
+    """One page of a project's open metadata conflicts, narrowed and ordered
+    server-side.
+
+    Registered ahead of ``/metadata-conflicts/{conflict_id}/resolve`` siblings;
+    the bare array route above is kept for the project dashboard banner, which
+    only needs the open-conflict count.
+    """
+    return conflicts_page(
+        db,
+        project_id,
+        filters=ConflictFilters(search=search, source=source, field=field),
+        sort=sort,
+        direction=direction,
+        page=page,
+        page_size=page_size,
     )
 
 
