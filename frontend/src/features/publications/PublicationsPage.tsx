@@ -351,14 +351,83 @@ function PublicationRow({
   )
 }
 
+/** One server-rendered page of open metadata conflicts
+ * (backend/app/publications/conflict_listing.py). */
+interface ConflictPage {
+  items: MetadataConflict[]
+  /** Matching the current filters, across every page. */
+  total: number
+  /** Open conflicts in the project, ignoring the filters. */
+  projectTotal: number
+  page: number
+  pageSize: number
+  pageCount: number
+  hasMore: boolean
+  /** Open-conflict count per source, project-wide and unfiltered — drives the
+   * source dropdown and the project-wide merge-conflict hint. */
+  sourceCounts: Record<string, number>
+  /** Distinct conflicting field names, project-wide and unfiltered. */
+  fieldNames: string[]
+}
+
+type ConflictSortValue =
+  | 'created:desc'
+  | 'created:asc'
+  | 'publication:asc'
+  | 'publication:desc'
+  | 'field:asc'
+  | 'field:desc'
+  | 'source:asc'
+  | 'source:desc'
+
+const CONFLICT_PAGE_SIZE = 25
+
 function MetadataConflictsPanel({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient()
+  const [search, setSearch] = useState('')
+  const [sourceFilter, setSourceFilter] = useState('')
+  const [fieldFilter, setFieldFilter] = useState('')
+  const [sort, setSort] = useState<ConflictSortValue>('created:desc')
+  const [page, setPage] = useState(1)
+  const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS)
+  const listTopRef = useRef<HTMLUListElement>(null)
+
+  const listParams = useMemo(() => {
+    const params = new URLSearchParams()
+    const trimmed = debouncedSearch.trim()
+    if (trimmed) params.set('search', trimmed)
+    if (sourceFilter) params.set('source', sourceFilter)
+    if (fieldFilter) params.set('field', fieldFilter)
+    const [sortKey, direction] = sort.split(':')
+    params.set('sort', sortKey)
+    params.set('direction', direction)
+    params.set('page', String(page))
+    params.set('pageSize', String(CONFLICT_PAGE_SIZE))
+    return params.toString()
+  }, [debouncedSearch, sourceFilter, fieldFilter, sort, page])
+
   const conflicts = useQuery({
-    queryKey: ['metadata-conflicts', projectId],
-    queryFn: () => apiRequest<MetadataConflict[]>(
-      `/api/v1/projects/${projectId}/metadata-conflicts`,
+    // Nested under ['metadata-conflicts', projectId] so the resolve mutation
+    // and the project dashboard's own query both still invalidate whichever
+    // page is on screen.
+    queryKey: ['metadata-conflicts', projectId, 'page', listParams],
+    queryFn: () => apiRequest<ConflictPage>(
+      `/api/v1/projects/${projectId}/metadata-conflicts/page?${listParams}`,
     ),
+    placeholderData: keepPreviousData,
   })
+
+  // Any change to what matches invalidates the page number that was showing.
+  const narrow = <T,>(apply: (value: T) => void) => (value: T) => {
+    apply(value)
+    setPage(1)
+  }
+
+  // Only paging should jump the view -- not a filter change resetting to page 1.
+  const goToPage = (updater: (current: number) => number) => {
+    setPage(updater)
+    listTopRef.current?.scrollIntoView({ block: 'start' })
+  }
 
   const resolve = useMutation({
     mutationFn: (variables: { conflictId: string; acceptProposed: boolean }) => apiRequest(
@@ -380,13 +449,22 @@ function MetadataConflictsPanel({ projectId }: { projectId: string }) {
   })
 
   useEffect(() => {
-    if (!conflicts.data?.length || window.location.hash !== '#metadata-conflicts') return
+    if (!conflicts.data?.items.length || window.location.hash !== '#metadata-conflicts') return
     document.getElementById('metadata-conflicts')?.scrollIntoView({ block: 'start' })
   }, [conflicts.data])
 
-  if (!conflicts.error && (!conflicts.data || conflicts.data.length === 0)) return null
+  // Hidden entirely only when the project has no open conflicts at all -- once
+  // it has some, the panel stays mounted so its filters can narrow to zero
+  // without the controls vanishing.
+  if (!conflicts.error && (!conflicts.data || conflicts.data.projectTotal === 0)) return null
 
-  const mergeConflictCount = conflicts.data?.filter((conflict) => conflict.sourceName === 'merge').length ?? 0
+  const items = conflicts.data?.items ?? []
+  const total = conflicts.data?.total ?? 0
+  const pageCount = conflicts.data?.pageCount ?? 1
+  const sourceCounts = conflicts.data?.sourceCounts ?? {}
+  const fieldNames = conflicts.data?.fieldNames ?? []
+  const mergeConflictCount = sourceCounts.merge ?? 0
+  const filtersActive = Boolean(search || sourceFilter || fieldFilter)
 
   return (
     <section className={cardStyles} data-ui="card" id="metadata-conflicts">
@@ -420,8 +498,58 @@ function MetadataConflictsPanel({ projectId }: { projectId: string }) {
       {bulkResolveViaProvider.error ? <p className="text-danger" role="alert">{bulkResolveViaProvider.error.message}</p> : null}
       {conflicts.error ? <p className="text-danger" role="alert">{conflicts.error.message}</p> : null}
       {resolve.error ? <p className="text-danger" role="alert">{resolve.error.message}</p> : null}
-      <ul className="mt-5 grid list-none gap-6 p-0">
-        {conflicts.data?.map((conflict) => (
+      <div className="mt-5 flex flex-wrap items-end gap-3">
+        <label className="w-full flex-[0_1_24rem]">
+          Search conflicts
+          <Input
+            type="search"
+            value={search}
+            onChange={(event) => narrow(setSearch)(event.target.value)}
+            placeholder="Publication title, field, value…"
+          />
+        </label>
+        <FieldLabel>
+          Source
+          <Select value={sourceFilter} onChange={(event) => narrow(setSourceFilter)(event.target.value)}>
+            <option value="">All sources</option>
+            {Object.keys(sourceCounts).sort().map((source) => (
+              <option key={source} value={source}>
+                {metadataSourceLabel(source)} ({sourceCounts[source]})
+              </option>
+            ))}
+          </Select>
+        </FieldLabel>
+        <FieldLabel>
+          Field
+          <Select value={fieldFilter} onChange={(event) => narrow(setFieldFilter)(event.target.value)}>
+            <option value="">All fields</option>
+            {fieldNames.map((name) => (
+              <option key={name} value={name}>{humanizeMetadataField(name)}</option>
+            ))}
+          </Select>
+        </FieldLabel>
+        <FieldLabel>
+          Sort by
+          <Select
+            value={sort}
+            onChange={(event) => {
+              setSort(event.target.value as ConflictSortValue)
+              setPage(1)
+            }}
+          >
+            <option value="created:desc">Newest first</option>
+            <option value="created:asc">Oldest first</option>
+            <option value="publication:asc">Publication A–Z</option>
+            <option value="publication:desc">Publication Z–A</option>
+            <option value="field:asc">Field A–Z</option>
+            <option value="field:desc">Field Z–A</option>
+            <option value="source:asc">Source A–Z</option>
+            <option value="source:desc">Source Z–A</option>
+          </Select>
+        </FieldLabel>
+      </div>
+      <ul ref={listTopRef} className="mt-5 grid list-none gap-6 p-0">
+        {items.map((conflict) => (
           <li key={conflict.id} className="overflow-hidden rounded-lg border border-border bg-[color-mix(in_srgb,var(--color-surface)_92%,transparent)] shadow-sm">
             <header className="flex items-center justify-between gap-4 border-b border-border bg-[color-mix(in_srgb,var(--color-surface-raised)_72%,transparent)] px-5 py-4 max-[680px]:flex-col max-[680px]:items-start max-[680px]:p-4 [&_h3]:mb-0 [&_h3]:mt-0.5 [&_h3]:text-base">
               <div>
@@ -520,6 +648,38 @@ function MetadataConflictsPanel({ projectId }: { projectId: string }) {
           </li>
         ))}
       </ul>
+      {conflicts.data && items.length === 0 ? (
+        <p className="text-text-muted">
+          {filtersActive
+            ? 'No open conflicts match your filters.'
+            : 'No open metadata conflicts.'}
+        </p>
+      ) : null}
+      {pageCount > 1 ? (
+        <nav className={cn(toolbarClass, 'mt-4 items-center')} aria-label="Metadata conflict pages">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={page <= 1}
+            onClick={() => goToPage((current) => Math.max(1, current - 1))}
+          >
+            Previous
+          </Button>
+          <span className="text-text-muted" role="status">
+            Page {page} of {pageCount} ({total} conflict{total === 1 ? '' : 's'})
+          </span>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={page >= pageCount}
+            onClick={() => goToPage((current) => Math.min(pageCount, current + 1))}
+          >
+            Next
+          </Button>
+        </nav>
+      ) : null}
     </section>
   )
 }

@@ -138,6 +138,72 @@ function servePublications(url: string, all: TestPublication[] = publications) {
   })
 }
 
+interface TestConflict {
+  id: string
+  publicationId: string
+  fieldName: string
+  currentValue: string | null
+  proposedValue: string | null
+  sourceName: string
+  status: string
+  publication?: TestPublication
+}
+
+const isConflictPage = (url: string): boolean =>
+  new URL(url, 'http://localhost').pathname.endsWith('/metadata-conflicts/page')
+
+/**
+ * Stands in for `backend/app/publications/conflict_listing.py`: the Metadata
+ * Conflicts panel now pages, filters (source, field, search) and sorts
+ * server-side, so a test that touches it is answered the way the server does.
+ */
+function serveConflictPage(url: string, conflicts: TestConflict[] = []) {
+  const query = new URL(url, 'http://localhost').searchParams
+  const source = query.get('source')
+  const field = query.get('field')
+  const search = (query.get('search') ?? '').toLowerCase()
+  let matches = conflicts.filter((conflict) => {
+    if (source && conflict.sourceName !== source) return false
+    if (field && conflict.fieldName !== field) return false
+    if (search) {
+      const haystack = [conflict.publication?.title, conflict.fieldName, conflict.currentValue, conflict.proposedValue]
+        .filter(Boolean).join(' ').toLowerCase()
+      if (!haystack.includes(search)) return false
+    }
+    return true
+  })
+  const sort = query.get('sort') ?? 'created'
+  const direction = query.get('direction') ?? 'desc'
+  const sortValue = (conflict: TestConflict): string => {
+    if (sort === 'field') return conflict.fieldName.toLowerCase()
+    if (sort === 'source') return conflict.sourceName.toLowerCase()
+    if (sort === 'publication') return (conflict.publication?.title ?? '').toLowerCase()
+    return ''
+  }
+  matches = [...matches].sort((left, right) => {
+    const comparison = sortValue(left).localeCompare(sortValue(right))
+    return direction === 'asc' ? comparison : -comparison
+  })
+  const sourceCounts: Record<string, number> = {}
+  for (const conflict of conflicts) {
+    sourceCounts[conflict.sourceName] = (sourceCounts[conflict.sourceName] ?? 0) + 1
+  }
+  const fieldNames = [...new Set(conflicts.map((conflict) => conflict.fieldName))].sort()
+  const pageSize = Number(query.get('pageSize') ?? 25)
+  const page = Number(query.get('page') ?? 1)
+  return jsonResponse({
+    items: matches.slice((page - 1) * pageSize, page * pageSize),
+    total: matches.length,
+    projectTotal: conflicts.length,
+    page,
+    pageSize,
+    pageCount: Math.max(1, Math.ceil(matches.length / pageSize)),
+    hasMore: page * pageSize < matches.length,
+    sourceCounts,
+    fieldNames,
+  })
+}
+
 describe('PublicationsPage', () => {
   it('renders normalized bibliographic metadata as a table row and links to the detail page', async () => {
     mockFetch((input) => pdfRetrievalDefault(String(input)) ?? servePublications(String(input)))
@@ -170,7 +236,7 @@ describe('PublicationsPage', () => {
       const pdfRetrieval = pdfRetrievalDefault(url)
       if (pdfRetrieval) return pdfRetrieval
       if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: false, canManagePublications: true })
-      if (url.endsWith('/metadata-conflicts')) return jsonResponse([])
+      if (isConflictPage(url)) return serveConflictPage(url)
       return servePublications(url)
     })
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
@@ -282,7 +348,7 @@ describe('PublicationsPage', () => {
       if (url.endsWith('/publications/publication-1/enrich') && init?.method === 'POST') {
         return jsonResponse({ jobId: 'job-1' }, 202)
       }
-      if (url.endsWith('/metadata-conflicts')) return jsonResponse([])
+      if (isConflictPage(url)) return serveConflictPage(url)
       return servePublications(url)
     })
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
@@ -312,7 +378,7 @@ describe('PublicationsPage', () => {
       if (url.endsWith('/publications/enrich') && init?.method === 'POST') {
         return jsonResponse({ jobIds: ['job-1'] }, 202)
       }
-      if (url.endsWith('/metadata-conflicts')) return jsonResponse([])
+      if (isConflictPage(url)) return serveConflictPage(url)
       return servePublications(url)
     })
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
@@ -360,7 +426,7 @@ describe('PublicationsPage', () => {
       const pdfRetrieval = pdfRetrievalDefault(url)
       if (pdfRetrieval) return pdfRetrieval
       if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
-      if (url.endsWith('/metadata-conflicts')) return jsonResponse(conflicts)
+      if (isConflictPage(url)) return serveConflictPage(url, conflicts)
       if (url.endsWith('/metadata-conflicts/conflict-1/resolve') && init?.method === 'POST') {
         return jsonResponse({ ...conflicts[0], status: 'accept_proposed' })
       }
@@ -388,6 +454,60 @@ describe('PublicationsPage', () => {
     })
   })
 
+  it('pages, filters and sorts metadata conflicts server-side', async () => {
+    const conflicts: TestConflict[] = Array.from({ length: 30 }, (_, index) => ({
+      id: `conflict-${index}`,
+      publicationId: 'publication-1',
+      fieldName: index % 2 === 0 ? 'venue' : 'doi',
+      currentValue: `current ${index}`,
+      proposedValue: `proposed ${index}`,
+      sourceName: index < 5 ? 'merge' : 'crossref',
+      status: 'open',
+      publication: { ...publications[0], title: `Paper ${String(index).padStart(2, '0')}` },
+    }))
+    const fetchMock = mockFetch((input) => {
+      const url = String(input)
+      const pdfRetrieval = pdfRetrievalDefault(url)
+      if (pdfRetrieval) return pdfRetrieval
+      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
+      if (isConflictPage(url)) return serveConflictPage(url, conflicts)
+      return servePublications(url)
+    })
+    renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications?tab=metadata', path: '/projects/:projectId/publications' })
+
+    const heading = await screen.findByRole('heading', { name: 'Metadata Conflicts' })
+    const panel = heading.closest('section') as HTMLElement
+
+    const conflictParams = () => {
+      const last = [...fetchMock.mock.calls].reverse().find(([input]) => isConflictPage(String(input)))
+      return new URL(String(last?.[0]), 'http://localhost').searchParams
+    }
+
+    // First page: 25 of 30, newest-first default, and a Next control.
+    await waitFor(() => expect(within(panel).getByText('Page 1 of 2 (30 conflicts)')).toBeInTheDocument())
+    expect(conflictParams().get('sort')).toBe('created')
+    expect(conflictParams().get('direction')).toBe('desc')
+
+    fireEvent.click(within(panel).getByRole('button', { name: 'Next' }))
+    await waitFor(() => expect(conflictParams().get('page')).toBe('2'))
+
+    // The merge-conflict hint counts the whole project, not just the page.
+    expect(within(panel).getByText(/break the tie on 5 merge conflicts/)).toBeInTheDocument()
+
+    // Filtering by source resets to page 1 and narrows the request.
+    fireEvent.change(within(panel).getByLabelText('Source'), { target: { value: 'merge' } })
+    await waitFor(() => {
+      expect(conflictParams().get('source')).toBe('merge')
+      expect(conflictParams().get('page')).toBe('1')
+    })
+
+    fireEvent.change(within(panel).getByLabelText('Sort by'), { target: { value: 'field:asc' } })
+    await waitFor(() => {
+      expect(conflictParams().get('sort')).toBe('field')
+      expect(conflictParams().get('direction')).toBe('asc')
+    })
+  })
+
   it('lets a manager sweep merge conflicts for automatic resolution via provider', async () => {
     const conflicts = [
       {
@@ -406,7 +526,7 @@ describe('PublicationsPage', () => {
       const pdfRetrieval = pdfRetrievalDefault(url)
       if (pdfRetrieval) return pdfRetrieval
       if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
-      if (url.endsWith('/metadata-conflicts')) return jsonResponse(conflicts)
+      if (isConflictPage(url)) return serveConflictPage(url, conflicts)
       if (url.endsWith('/metadata-conflicts/resolve-via-provider') && init?.method === 'POST') {
         return jsonResponse({ jobIds: ['job-1'], queuedCount: 1 }, 202)
       }
@@ -445,7 +565,7 @@ describe('PublicationsPage', () => {
       const pdfRetrieval = pdfRetrievalDefault(url)
       if (pdfRetrieval) return pdfRetrieval
       if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
-      if (url.endsWith('/metadata-conflicts')) return jsonResponse(conflicts)
+      if (isConflictPage(url)) return serveConflictPage(url, conflicts)
       return servePublications(url)
     })
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
@@ -474,7 +594,7 @@ describe('PublicationsPage', () => {
       const pdfRetrieval = pdfRetrievalDefault(url)
       if (pdfRetrieval) return pdfRetrieval
       if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
-      if (url.endsWith('/metadata-conflicts')) return jsonResponse(conflicts)
+      if (isConflictPage(url)) return serveConflictPage(url, conflicts)
       return servePublications(url)
     })
     renderWithProviders(<PublicationsPage />, {
@@ -643,7 +763,7 @@ describe('PublicationsPage', () => {
       const pdfRetrieval = pdfRetrievalDefault(url)
       if (pdfRetrieval) return pdfRetrieval
       if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
-      if (url.endsWith('/metadata-conflicts')) return jsonResponse([])
+      if (isConflictPage(url)) return serveConflictPage(url)
       if (url.endsWith('/publications/delete') && init?.method === 'POST') {
         return jsonResponse({ deletedCount: 1 })
       }
@@ -673,7 +793,7 @@ describe('PublicationsPage', () => {
       const pdfRetrieval = pdfRetrievalDefault(url)
       if (pdfRetrieval) return pdfRetrieval
       if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
-      if (url.endsWith('/metadata-conflicts')) return jsonResponse([])
+      if (isConflictPage(url)) return serveConflictPage(url)
       return servePublications(url)
     })
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
@@ -710,7 +830,7 @@ describe('PublicationsPage', () => {
       const pdfRetrieval = pdfRetrievalDefault(url)
       if (pdfRetrieval) return pdfRetrieval
       if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
-      if (url.endsWith('/metadata-conflicts')) return jsonResponse([])
+      if (isConflictPage(url)) return serveConflictPage(url)
       // Force one publication per page so paging is observable.
       const paged = new URL(url, 'http://localhost')
       if (paged.searchParams.has('pageSize')) paged.searchParams.set('pageSize', '1')
@@ -775,7 +895,7 @@ describe('PublicationsPage', () => {
       const pdfRetrieval = pdfRetrievalDefault(url)
       if (pdfRetrieval) return pdfRetrieval
       if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
-      if (url.endsWith('/metadata-conflicts')) return jsonResponse([])
+      if (isConflictPage(url)) return serveConflictPage(url)
       if (url.endsWith('/publications/pdfs') && init?.method === 'POST') {
         return jsonResponse({
           importBatchId: 'batch-1',
@@ -823,7 +943,7 @@ describe('PublicationsPage', () => {
       const pdfRetrieval = pdfRetrievalDefault(url)
       if (pdfRetrieval) return pdfRetrieval
       if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
-      if (url.endsWith('/metadata-conflicts')) return jsonResponse([])
+      if (isConflictPage(url)) return serveConflictPage(url)
       return servePublications(url, [
         { ...publications[0], fullText: { available: true, document: { pageCount: 12 } } },
         publications[1],
@@ -859,7 +979,7 @@ describe('PublicationsPage', () => {
       const pdfRetrieval = pdfRetrievalDefault(url)
       if (pdfRetrieval) return pdfRetrieval
       if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
-      if (url.endsWith('/metadata-conflicts')) return jsonResponse([])
+      if (isConflictPage(url)) return serveConflictPage(url)
       if (url.endsWith('/exports') && init?.method === 'POST') {
         return jsonResponse({ jobId: 'job-1' })
       }
@@ -910,7 +1030,7 @@ describe('PublicationsPage', () => {
       const pdfRetrieval = pdfRetrievalDefault(url)
       if (pdfRetrieval) return pdfRetrieval
       if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
-      if (url.endsWith('/metadata-conflicts')) return jsonResponse([])
+      if (isConflictPage(url)) return serveConflictPage(url)
       if (url.endsWith('/publications/publication-1/full-text') && init?.method === 'POST') {
         return jsonResponse({ available: true, document: { id: 'doc-1', originalFilename: 'paper.pdf', fileSize: 1024, uploadedAt: '2026-08-08T10:00:00Z', uploadedBy: null, isActive: true, removedAt: null } }, 201)
       }

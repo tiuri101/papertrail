@@ -105,6 +105,27 @@ class ConflictResponse(ApiModel):
     publication: PublicationResponse
 
 
+class ConflictPageResponse(ApiModel):
+    """One page of a project's open metadata conflicts, plus the aggregates a
+    client used to derive from holding the whole list.
+
+    ``total`` counts everything matching the request's filters; ``projectTotal``,
+    ``sourceCounts`` and ``fieldNames`` ignore them and describe the project as a
+    whole -- the source/field filter dropdowns, and the project-wide
+    merge-conflict count the "Resolve via Provider" hint reports.
+    """
+
+    items: list[ConflictResponse]
+    total: int
+    project_total: int = Field(serialization_alias="projectTotal")
+    page: int
+    page_size: int = Field(serialization_alias="pageSize")
+    page_count: int = Field(serialization_alias="pageCount")
+    has_more: bool = Field(serialization_alias="hasMore")
+    source_counts: dict[str, int] = Field(serialization_alias="sourceCounts")
+    field_names: list[str] = Field(serialization_alias="fieldNames")
+
+
 class ConflictResolve(ApiModel):
     accept_proposed: bool = Field(alias="acceptProposed")
 
