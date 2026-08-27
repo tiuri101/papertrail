@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
@@ -7,11 +7,22 @@ from app.api.errors import ConflictError, DomainError, NotFoundError
 from app.audit.service import record_audit
 from app.db.session import get_db
 from app.deduplication.models import DuplicateCandidate, PublicationMerge
-from app.deduplication.schemas import CandidateResponse, MergeRequest, ResolutionNote
+from app.deduplication.schemas import (
+    CandidateResponse,
+    DuplicateProgress,
+    MergeRequest,
+    ResolutionNote,
+    ReviseRequest,
+)
 from app.deduplication.service import (
+    claim_next_duplicate,
+    duplicate_review_progress,
+    lock_candidate_for_update,
     mark_not_duplicate,
     merge_publications,
+    release_duplicate_candidate,
     reverse_merge,
+    revise_resolution,
     transition_if_duplicate_review_complete,
 )
 from app.jobs.models import BackgroundJob, JobStatus
@@ -24,6 +35,63 @@ from app.projects.models import ProjectStage
 from app.projects.service import get_project
 
 router = APIRouter(tags=["deduplication"])
+
+
+def _candidate_response(
+    candidate: DuplicateCandidate, active_merge: PublicationMerge | None
+) -> CandidateResponse:
+    """Serialize a candidate for the review UI, folding in the resolver's
+    display name and (for merged pairs) the merge a revision would undo."""
+    return CandidateResponse(
+        id=candidate.id,
+        publication_a_id=candidate.publication_a_id,
+        publication_b_id=candidate.publication_b_id,
+        publication_a=candidate.publication_a,
+        publication_b=candidate.publication_b,
+        match_reasons=candidate.match_reasons,
+        title_similarity=candidate.title_similarity,
+        author_similarity=candidate.author_similarity,
+        year_agreement=candidate.year_agreement,
+        confidence=candidate.confidence,
+        status=candidate.status,
+        auto_resolved=candidate.auto_resolved,
+        resolved_by_id=candidate.resolved_by_id,
+        resolved_by_name=(
+            candidate.resolved_by.display_name if candidate.resolved_by else None
+        ),
+        resolved_at=(
+            candidate.updated_at if candidate.status != "unresolved" else None
+        ),
+        resolution_note=candidate.resolution_note,
+        canonical_publication_id=(
+            active_merge.canonical_publication_id if active_merge else None
+        ),
+        merge_id=active_merge.id if active_merge else None,
+        reserved_until=candidate.reserved_until,
+        reserved_by_id=candidate.reserved_by_id,
+    )
+
+
+def _load_candidate(
+    db: Session, project_id: str, candidate_id: str, *, lock: bool = False
+) -> DuplicateCandidate:
+    candidate = (
+        lock_candidate_for_update(db, candidate_id)
+        if lock
+        else db.get(DuplicateCandidate, candidate_id)
+    )
+    if candidate is None or candidate.project_id != project_id:
+        raise NotFoundError("Duplicate candidate not found")
+    return candidate
+
+
+def _active_merge(db: Session, candidate_id: str) -> PublicationMerge | None:
+    return db.scalar(
+        select(PublicationMerge).where(
+            PublicationMerge.candidate_id == candidate_id,
+            PublicationMerge.reversed_at.is_(None),
+        )
+    )
 
 
 @router.post("/projects/{project_id}/ready", status_code=status.HTTP_202_ACCEPTED)
@@ -77,18 +145,77 @@ def list_candidates(
     project_id: str,
     _: User = Depends(require_project_member_csrf),
     db: Session = Depends(get_db),
-) -> list[DuplicateCandidate]:
-    return list(
+) -> list[CandidateResponse]:
+    candidates = list(
         db.scalars(
             select(DuplicateCandidate)
             .options(
                 joinedload(DuplicateCandidate.publication_a),
                 joinedload(DuplicateCandidate.publication_b),
+                joinedload(DuplicateCandidate.resolved_by),
             )
             .where(DuplicateCandidate.project_id == project_id)
             .order_by(DuplicateCandidate.confidence.desc())
         )
     )
+    merged_ids = [c.id for c in candidates if c.status == "merged"]
+    merges: dict[str, PublicationMerge] = {}
+    if merged_ids:
+        for merge in db.scalars(
+            select(PublicationMerge).where(
+                PublicationMerge.candidate_id.in_(merged_ids),
+                PublicationMerge.reversed_at.is_(None),
+            )
+        ):
+            if merge.candidate_id is not None:
+                merges[merge.candidate_id] = merge
+    return [_candidate_response(c, merges.get(c.id)) for c in candidates]
+
+
+@router.post(
+    "/projects/{project_id}/duplicates/next",
+    response_model=CandidateResponse | None,
+)
+def claim_next_candidate(
+    project_id: str,
+    excluded_ids: list[str] = Query(default=[], alias="excludedItemId"),
+    member: User = Depends(require_project_member_csrf),
+    db: Session = Depends(get_db),
+) -> CandidateResponse | None:
+    get_project(db, project_id)
+    candidate = claim_next_duplicate(
+        db, project_id, member.id, set(excluded_ids)
+    )
+    db.commit()
+    if candidate is None:
+        return None
+    return _candidate_response(candidate, None)
+
+
+@router.get(
+    "/projects/{project_id}/duplicates/progress",
+    response_model=DuplicateProgress,
+)
+def duplicate_progress(
+    project_id: str,
+    _: User = Depends(require_project_member_csrf),
+    db: Session = Depends(get_db),
+) -> dict[str, int]:
+    get_project(db, project_id)
+    return duplicate_review_progress(db, project_id)
+
+
+@router.post("/projects/{project_id}/duplicates/{candidate_id}/release")
+def release_candidate(
+    project_id: str,
+    candidate_id: str,
+    member: User = Depends(require_project_member_csrf),
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    candidate = _load_candidate(db, project_id, candidate_id)
+    release_duplicate_candidate(db, candidate, member.id)
+    db.commit()
+    return {"status": "released"}
 
 
 @router.post(
@@ -142,10 +269,12 @@ def resolve_not_duplicate(
     payload: ResolutionNote,
     admin: User = Depends(require_project_member_csrf),
     db: Session = Depends(get_db),
-) -> DuplicateCandidate:
-    candidate = db.get(DuplicateCandidate, candidate_id)
-    if candidate is None or candidate.project_id != project_id:
-        raise NotFoundError("Duplicate candidate not found")
+) -> CandidateResponse:
+    candidate = _load_candidate(db, project_id, candidate_id, lock=True)
+    if candidate.status != "unresolved":
+        raise ConflictError(
+            "Duplicate candidate was already resolved by another reviewer"
+        )
     mark_not_duplicate(candidate, admin.id, payload.note)
     transition_if_duplicate_review_complete(db, get_project(db, project_id))
     record_audit(
@@ -158,7 +287,7 @@ def resolve_not_duplicate(
         summary="Resolved duplicate candidate as distinct",
     )
     db.commit()
-    return candidate
+    return _candidate_response(candidate, None)
 
 
 @router.post("/projects/{project_id}/duplicates/{candidate_id}/merge")
@@ -169,9 +298,11 @@ def resolve_merge(
     admin: User = Depends(require_project_member_csrf),
     db: Session = Depends(get_db),
 ) -> dict[str, str]:
-    candidate = db.get(DuplicateCandidate, candidate_id)
-    if candidate is None or candidate.project_id != project_id:
-        raise NotFoundError("Duplicate candidate not found")
+    candidate = _load_candidate(db, project_id, candidate_id, lock=True)
+    if candidate.status != "unresolved":
+        raise ConflictError(
+            "Duplicate candidate was already resolved by another reviewer"
+        )
     merge = merge_publications(
         db, candidate, payload.canonical_publication_id, admin.id
     )
@@ -194,6 +325,47 @@ def resolve_merge(
         "mergeId": merge.id,
         "canonicalPublicationId": merge.canonical_publication_id,
     }
+
+
+@router.post(
+    "/projects/{project_id}/duplicates/{candidate_id}/revise",
+    response_model=CandidateResponse,
+)
+def revise_duplicate_decision(
+    project_id: str,
+    candidate_id: str,
+    payload: ReviseRequest,
+    member: User = Depends(require_project_member_csrf),
+    db: Session = Depends(get_db),
+) -> CandidateResponse:
+    project = get_project(db, project_id)
+    candidate = _load_candidate(db, project_id, candidate_id, lock=True)
+    previous_status = candidate.status
+    new_merge = revise_resolution(
+        db,
+        project,
+        candidate,
+        member.id,
+        payload.resolution,
+        payload.canonical_publication_id,
+        payload.note,
+    )
+    record_audit(
+        db,
+        action="duplicate.decision_revised",
+        entity_type="duplicate_candidate",
+        entity_id=candidate.id,
+        project_id=project_id,
+        actor_id=member.id,
+        summary="Revised duplicate candidate resolution",
+        metadata={
+            "previousStatus": previous_status,
+            "newStatus": candidate.status,
+            "mergeId": new_merge.id if new_merge else None,
+        },
+    )
+    db.commit()
+    return _candidate_response(candidate, _active_merge(db, candidate.id))
 
 
 @router.post("/projects/{project_id}/merges/{merge_id}/reverse")

@@ -30,3 +30,7 @@ export function lastExtractionKey(projectId: string): string {
 export function lastScreeningKey(projectId: string, stage: string): string {
   return `papertrail:last-screening:${projectId}:${stage}`
 }
+
+export function lastDuplicateKey(projectId: string): string {
+  return `papertrail:last-duplicate:${projectId}`
+}
