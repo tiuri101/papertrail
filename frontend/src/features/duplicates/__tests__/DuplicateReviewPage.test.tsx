@@ -26,6 +26,7 @@ const candidate = {
   matchReasons: ['exact_doi', 'similar_title_authors', 'shared_issn'],
   confidence: 0.98,
   status: 'unresolved',
+  autoResolved: false,
 }
 
 describe('DuplicateReviewPage', () => {
@@ -173,5 +174,18 @@ describe('DuplicateReviewPage', () => {
     await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => init?.method === 'POST')).toBe(true))
     const postCall = fetchMock.mock.calls.find(([, init]) => init?.method === 'POST')
     expect(JSON.parse(String(postCall?.[1]?.body))).toEqual({ canonicalPublicationId: 'publication-b' })
+  })
+
+  it('flags an automatically merged exact match instead of offering decision buttons', async () => {
+    mockFetch(async (input) => {
+      const path = String(input)
+      if (path.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
+      return jsonResponse([{ ...candidate, status: 'merged', autoResolved: true }])
+    })
+    renderWithProviders(<DuplicateReviewPage />, { route: '/projects/p1/duplicates', path: '/projects/:projectId/duplicates' })
+
+    expect(await screen.findByText('Auto-merged')).toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Not a Duplicate' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Keep This One' })).not.toBeInTheDocument()
   })
 })
