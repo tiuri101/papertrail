@@ -24,6 +24,7 @@ class CandidateResponse(ApiModel):
     year_agreement: bool | None = Field(serialization_alias="yearAgreement")
     confidence: float
     status: str
+    auto_resolved: bool = Field(serialization_alias="autoResolved")
 
 
 class MergeRequest(ApiModel):

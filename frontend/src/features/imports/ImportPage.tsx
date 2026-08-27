@@ -18,7 +18,7 @@ import { Textarea } from '../../components/Textarea'
 import { InfoTooltip } from '../../components/Tooltip'
 import { getCsrfToken } from '../auth/session'
 import { isJobActive } from '../jobs/jobStatus'
-import { usePendingJob } from '../jobs/usePendingJob'
+import { usePendingJobs } from '../jobs/usePendingJob'
 import { StageEyebrow } from '../projects/StageEyebrow'
 import { AttachPdfsPanel } from './AttachPdfsPanel'
 import { FileDropZone } from './FileDropZone'
@@ -52,6 +52,7 @@ interface SearchSource {
 }
 
 interface ImportResult { jobId: string; importBatchId: string }
+type ImportResults = ImportResult[]
 
 interface DeleteSearchPreview {
   deleted: boolean
@@ -91,7 +92,7 @@ export function ImportPage() {
   const { projectId = '' } = useParams()
   useRegisterSectionItems(importSections)
   const queryClient = useQueryClient()
-  const [file, setFile] = useState<File | null>(null)
+  const [files, setFiles] = useState<File[]>([])
   const [pdfFiles, setPdfFiles] = useState<File[]>([])
   const [pdfArchives, setPdfArchives] = useState<File[]>([])
   const [sourceName, setSourceName] = useState('')
@@ -126,7 +127,7 @@ export function ImportPage() {
     ) > 0,
   )
 
-  const { setPendingJobId, pendingJob } = usePendingJob(projectId, {
+  const { setPendingJobIds, pendingJobs } = usePendingJobs(projectId, {
     clearOnComplete: false,
     onComplete: () => {
       queryClient.invalidateQueries({ queryKey: ['publications', projectId] })
@@ -142,25 +143,29 @@ export function ImportPage() {
   }, [hadSearchHistoryOnLoad, searches.data, searches.isLoading])
 
   useEffect(() => {
+    // PDFs/PDF ZIPs uploaded alongside the metadata files are only ever staged
+    // against the first import batch, so that job's result is the only one
+    // that can carry a `pdfs` summary worth auto-scrolling to.
+    const pdfJob = pendingJobs[0]
     if (
-      pendingJob?.status !== 'completed'
+      pdfJob?.status !== 'completed'
       || !projectNeedsPdfReview
-      || autoScrolledPdfReviewJobIdRef.current === pendingJob.id
+      || autoScrolledPdfReviewJobIdRef.current === pdfJob.id
     ) return
-    const pdfSummary = pendingJob.result?.pdfs as PdfSummary | undefined
+    const pdfSummary = pdfJob.result?.pdfs as PdfSummary | undefined
     const needsReview = (pdfSummary?.ambiguous ?? 0)
       + (pdfSummary?.unmatched ?? 0)
       + (pdfSummary?.conflict_existing_pdf ?? 0)
     if (needsReview === 0) return
     const reviewCard = document.getElementById('section-pdf-review')
     if (!reviewCard) return
-    autoScrolledPdfReviewJobIdRef.current = pendingJob.id
+    autoScrolledPdfReviewJobIdRef.current = pdfJob.id
     reviewCard.scrollIntoView({ behavior: 'smooth', block: 'start' })
-  }, [pendingJob, projectNeedsPdfReview])
+  }, [pendingJobs, projectNeedsPdfReview])
 
   const submit = useMutation({
-    mutationFn: async (): Promise<ImportResult> => {
-      if (!file) throw new Error('Choose a file')
+    mutationFn: async (): Promise<ImportResults> => {
+      if (!files.length) throw new Error('Choose at least one file')
 
       const search = await apiRequest<SearchSource>(`/api/v1/projects/${projectId}/searches`, {
         method: 'POST',
@@ -173,7 +178,7 @@ export function ImportPage() {
       })
 
       const form = new FormData()
-      form.append('file', file)
+      files.forEach((bibliographicFile) => form.append('file', bibliographicFile))
       form.append('searchSourceId', search.id)
       pdfFiles.forEach((pdf) => form.append('pdfs', pdf))
       pdfArchives.forEach((archive) => form.append('pdfArchive', archive))
@@ -187,17 +192,17 @@ export function ImportPage() {
         const body = await response.json().catch(() => null)
         throw new Error(body?.error?.message ?? 'Import failed')
       }
-      return response.json() as Promise<ImportResult>
+      return response.json() as Promise<ImportResults>
     },
-    onSuccess: (result) => {
+    onSuccess: (results) => {
       setSourceName('')
       setQuery('')
       setSearchDate('')
       setFilters('')
-      setFile(null)
+      setFiles([])
       setPdfFiles([])
       setPdfArchives([])
-      setPendingJobId(result.jobId)
+      setPendingJobIds(results.map((result) => result.jobId))
       queryClient.invalidateQueries({ queryKey: ['searches', projectId] })
     },
   })
@@ -224,6 +229,8 @@ export function ImportPage() {
       queryClient.invalidateQueries({ queryKey: ['publications', projectId] })
     },
   })
+
+  const importResults = submit.data ?? []
 
   return (
     <Page>
@@ -264,10 +271,11 @@ export function ImportPage() {
           <FileDropZone
             id="bibliographic-export"
             label="Bibliographic export"
-            hint="CSV, TSV, XLSX, RIS, or BibTeX"
+            hint="CSV, TSV, XLSX, RIS, or BibTeX — one or more files, each becomes its own import"
             accept=".csv,.tsv,.xlsx,.ris,.bib,.bibtex"
-            files={file ? [file] : []}
-            onChange={(files) => setFile(files[0] ?? null)}
+            multiple
+            files={files}
+            onChange={setFiles}
           />
           <FileDropZone
             id="fulltext-pdfs"
@@ -287,57 +295,64 @@ export function ImportPage() {
             files={pdfArchives}
             onChange={setPdfArchives}
           />
-          <Button type="submit" disabled={!file || submit.isPending}>
+          <Button type="submit" disabled={!files.length || submit.isPending}>
             <IconUpload />
             Upload
           </Button>
           {submit.isPending ? (
             <p role="status">
-              Uploading metadata
+              Uploading {files.length} bibliographic file{files.length === 1 ? '' : 's'}
               {pdfFiles.length ? `, ${pdfFiles.length} PDFs` : ''}
               {pdfArchives.length ? `, ${pdfArchives.length} ZIP archives` : ''}…
             </p>
           ) : null}
         </Form>
-        {submit.data ? (
-          !pendingJob || isJobActive(pendingJob.status) ? (
-            <p>Import queued: {submit.data.jobId}</p>
-          ) : pendingJob.status === 'completed' ? (
-            <>
-              <p>Import complete.</p>
-              {(() => {
-                const pdfSummary = pendingJob.result?.pdfs as PdfSummary | undefined
-                if (!pdfSummary?.total) return null
-                const needsReview = (pdfSummary.ambiguous ?? 0)
-                  + (pdfSummary.unmatched ?? 0)
-                  + (pdfSummary.conflict_existing_pdf ?? 0)
+        {importResults.length > 0 ? (
+          <div className="grid gap-3">
+            {importResults.map((result, index) => {
+              const job = pendingJobs.find((candidate) => candidate.id === result.jobId)
+              const filePosition = importResults.length > 1 ? ` (file ${index + 1} of ${importResults.length})` : ''
+              if (!job || isJobActive(job.status)) {
+                return <p key={result.jobId}>Import queued{filePosition}: {result.jobId}</p>
+              }
+              if (job.status === 'completed') {
+                const pdfSummary = job.result?.pdfs as PdfSummary | undefined
+                const needsReview = pdfSummary
+                  ? (pdfSummary.ambiguous ?? 0) + (pdfSummary.unmatched ?? 0) + (pdfSummary.conflict_existing_pdf ?? 0)
+                  : 0
                 return (
-                  <div className="grid gap-3 rounded-md border border-border bg-bg-elevated p-4">
-                    <h3>
-                      PDF import
-                      <InfoTooltip text="Matched: automatically linked to a publication by title, DOI, or filename. Need review: the match was uncertain, no match was found, or it conflicts with a PDF already attached — check these manually. Duplicate: this file was already imported. Invalid: the file couldn't be read as a PDF." />
-                    </h3>
-                    <p>{pdfSummary.total} files processed · {pdfSummary.matched ?? 0} matched · {needsReview} need review · {pdfSummary.duplicate ?? 0} duplicate · {pdfSummary.invalid ?? 0} invalid</p>
-                    {needsReview ? (
-                      <Button
-                        type="button"
-                        onClick={() => document
-                          .getElementById('section-pdf-review')
-                          ?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                      >
-                        Review PDF matches
-                      </Button>
+                  <div key={result.jobId}>
+                    <p>Import complete{filePosition}.</p>
+                    {pdfSummary?.total ? (
+                      <div className="grid gap-3 rounded-md border border-border bg-bg-elevated p-4">
+                        <h3>
+                          PDF import
+                          <InfoTooltip text="Matched: automatically linked to a publication by title, DOI, or filename. Need review: the match was uncertain, no match was found, or it conflicts with a PDF already attached — check these manually. Duplicate: this file was already imported. Invalid: the file couldn't be read as a PDF." />
+                        </h3>
+                        <p>{pdfSummary.total} files processed · {pdfSummary.matched ?? 0} matched · {needsReview} need review · {pdfSummary.duplicate ?? 0} duplicate · {pdfSummary.invalid ?? 0} invalid</p>
+                        {needsReview ? (
+                          <Button
+                            type="button"
+                            onClick={() => document
+                              .getElementById('section-pdf-review')
+                              ?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                          >
+                            Review PDF matches
+                          </Button>
+                        ) : null}
+                      </div>
                     ) : null}
                   </div>
                 )
-              })()}
-            </>
-          ) : (
-            <p className="text-danger" role="alert">
-              Import {pendingJob.status}
-              {pendingJob.errorMessage ? `: ${pendingJob.errorMessage}` : ''}
-            </p>
-          )
+              }
+              return (
+                <p className="text-danger" role="alert" key={result.jobId}>
+                  Import {job.status}{filePosition}
+                  {job.errorMessage ? `: ${job.errorMessage}` : ''}
+                </p>
+              )
+            })}
+          </div>
         ) : null}
         </CollapsibleSection>
       )}

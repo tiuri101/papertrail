@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { type BackgroundJob, findJob, hasActiveJob, isJobActive } from './jobStatus'
@@ -45,4 +45,50 @@ export function usePendingJob(
   }, [pendingJob, clearOnComplete])
 
   return { pendingJobId, setPendingJobId, pendingJob }
+}
+
+/**
+ * Same polling state machine as {@link usePendingJob}, for tracking several
+ * background jobs kicked off by one action (e.g. one import batch per file
+ * uploaded in a single multi-file submit). `onComplete` fires once every
+ * tracked job has finished, with the full set of finished jobs.
+ */
+export function usePendingJobs(
+  projectId: string | undefined,
+  options: { onComplete?: (jobs: BackgroundJob[]) => void; clearOnComplete?: boolean } = {},
+): {
+  pendingJobIds: string[]
+  setPendingJobIds: (ids: string[]) => void
+  pendingJobs: BackgroundJob[]
+} {
+  const [pendingJobIds, setPendingJobIds] = useState<string[]>([])
+  const jobs = useQuery({
+    queryKey: ['jobs', projectId],
+    queryFn: () => apiRequest<BackgroundJob[]>(`/api/v1/projects/${projectId}/jobs`),
+    enabled: Boolean(projectId) && pendingJobIds.length > 0,
+    refetchInterval: (query) => (hasActiveJob(query.state.data) ? 2000 : false),
+  })
+  const pendingJobs = useMemo(
+    () => pendingJobIds
+      .map((id) => findJob(jobs.data, id))
+      .filter((job): job is BackgroundJob => Boolean(job)),
+    [jobs.data, pendingJobIds],
+  )
+
+  const onCompleteRef = useRef(options.onComplete)
+  onCompleteRef.current = options.onComplete
+  const clearOnComplete = options.clearOnComplete ?? true
+
+  useEffect(() => {
+    if (
+      pendingJobIds.length > 0
+      && pendingJobs.length === pendingJobIds.length
+      && pendingJobs.every((job) => !isJobActive(job.status))
+    ) {
+      onCompleteRef.current?.(pendingJobs)
+      if (clearOnComplete) setPendingJobIds([])
+    }
+  }, [pendingJobIds, pendingJobs, clearOnComplete])
+
+  return { pendingJobIds, setPendingJobIds, pendingJobs }
 }

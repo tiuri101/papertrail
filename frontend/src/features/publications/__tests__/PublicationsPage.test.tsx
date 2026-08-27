@@ -159,8 +159,8 @@ describe('PublicationsPage', () => {
     expect(within(publicationCard).getByRole('link', { name: 'Urban Data in VR' })).toHaveAttribute(
       'href', '/projects/p1/publications/publication-1',
     )
-    expect(within(publicationCard).getByRole('link', { name: 'View Urban Data in VR' })).toHaveAttribute(
-      'href', '/projects/p1/publications/publication-1',
+    expect(within(publicationCard).getByRole('link', { name: 'DOI' })).toHaveAttribute(
+      'href', 'https://doi.org/10.1000/urban-vr',
     )
   })
 
