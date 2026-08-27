@@ -119,3 +119,8 @@ See [Installation](docs/installation.md) for production configuration.
 | [Import formats](docs/import-formats.md) | Supported bibliographic export formats |
 | [LLM-assisted extraction](docs/llm-assisted-extraction.md) | How the optional Ollama integration works |
 | [API overview](docs/api.md) | API conventions and integration overview; `/docs` and `/openapi.json` are authoritative |
+
+## License
+
+Papertrail is licensed under the GNU Affero General Public License
+v3.0 only (AGPL-3.0-only). See [LICENSE](LICENSE) for details.
