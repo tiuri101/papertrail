@@ -4,7 +4,11 @@ from app.accounts.models import LoginThrottle, PasswordResetToken, User, UserSes
 from app.analysis.models import StageAnalysis
 from app.audit.models import AuditEvent
 from app.conflicts.models import FinalDecision
-from app.deduplication.models import DuplicateCandidate, PublicationMerge
+from app.deduplication.models import (
+    DuplicateCandidate,
+    PublicationMerge,
+    PublicationUrlCheck,
+)
 from app.extraction.models import ExtractionResponse, ExtractionWorkItem
 from app.forms.models import FormField, FormVersion, ReviewForm
 from app.fulltext.models import FullTextRetrieval, PublicationDocument
@@ -84,6 +88,7 @@ __all__ = [
     "Publication",
     "PublicationMerge",
     "PublicationSource",
+    "PublicationUrlCheck",
     "QualityConfig",
     "QualityResponse",
     "QualityWorkItem",

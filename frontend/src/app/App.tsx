@@ -31,7 +31,8 @@ import { ForgotPasswordPage } from '../features/auth/ForgotPasswordPage'
 import { LoginPage } from '../features/auth/LoginPage'
 import { ResetPasswordPage } from '../features/auth/ResetPasswordPage'
 import { ConflictResolutionPage } from '../features/conflicts/ConflictResolutionPage'
-import { DuplicateReviewPage } from '../features/duplicates/DuplicateReviewPage'
+import { DuplicateDecisionsPage } from '../features/duplicates/DuplicateDecisionsPage'
+import { DuplicateQueuePage } from '../features/duplicates/DuplicateQueuePage'
 import { ExtractionPage } from '../features/extraction/ExtractionPage'
 import { MyExtractionsPage } from '../features/extraction/MyExtractionsPage'
 import { ReconciliationPage } from '../features/extraction/ReconciliationPage'
@@ -292,7 +293,8 @@ export function App() {
             <Route path="/projects/:projectId/publications" element={<PublicationsPage />} />
             <Route path="/projects/:projectId/publications/add" element={<AddPublicationPage />} />
             <Route path="/projects/:projectId/publications/:publicationId" element={<PublicationDetailPage />} />
-            <Route path="/projects/:projectId/duplicates" element={<DuplicateReviewPage />} />
+            <Route path="/projects/:projectId/duplicates" element={<DuplicateQueuePage />} />
+            <Route path="/projects/:projectId/duplicates/decisions" element={<DuplicateDecisionsPage />} />
             <Route path="/projects/:projectId/screening/title_abstract" element={<TitleAbstractScreeningPage />} />
             <Route path="/projects/:projectId/screening/:stage/my-decisions" element={<MyDecisionsPage />} />
             <Route path="/projects/:projectId/conflicts/:stage" element={<ConflictResolutionPage />} />

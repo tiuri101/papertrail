@@ -73,7 +73,7 @@ const helpTabs: HelpTab[] = [
 
 const stageDescriptions: Record<string, string> = {
   draft: 'Set up the project: add reviewers, define research questions and criteria, configure screening settings, and import search results.',
-  duplicate_review: 'Resolve every suggested duplicate: mark it as not a duplicate, or merge it and choose which record stays canonical.',
+  duplicate_review: 'Resolve every suggested duplicate: mark it as not a duplicate, or merge it and choose which record stays canonical. Papertrail checks each record’s links and asks Crossref / Semantic Scholar which record to keep — shown as a non-binding suggestion, with provider-confirmed same-work pairs merged automatically.',
   title_abstract_screening: 'Each reviewer checks every publication against the inclusion/exclusion criteria and decides include, exclude, uncertain, or duplicate.',
   full_text_screening: 'Retrieve and upload full-text PDFs, then make the final eligibility decision for each publication that passed title/abstract screening.',
   extraction_quality: 'Extract structured data from each included publication and, when enabled, assess its quality or risk of bias.',
@@ -203,6 +203,7 @@ const stages: StageResponsibilities[] = [
     ],
     reviewer: [
       'Resolve each suggested duplicate: mark it as not a duplicate, or merge it and choose which record stays canonical.',
+      'Use the link-reachability badges and the Crossref / Semantic Scholar suggestion as hints — they never decide for you, though a provider-confirmed same-work pair is merged automatically.',
     ],
   },
   {
