@@ -1,7 +1,9 @@
 import { DoiPill } from '../../components/DoiPill'
 import { IconCheckCircle, IconLightbulb, IconXCircle } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
+import { PublisherLinkPill } from '../../components/PublisherLinkPill'
 import { Tooltip } from '../../components/Tooltip'
+import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { humanizeMatchReason } from './matchReasons'
 import {
   type Candidate,
@@ -89,12 +91,18 @@ function PublicationSummary({
           <dd>{publication.venue ?? '—'}</dd>
         </div>
         <div>
-          <dt>DOI</dt>
-          <dd>{publication.doi ? <DoiPill doi={publication.doi} /> : '—'}</dd>
+          <dt>Links</dt>
+          <dd className="flex flex-wrap items-center gap-2">
+            {publication.doi ? <DoiPill doi={publication.doi} /> : null}
+            {isSafeHttpUrl(publication.publisherUrl) ? (
+              <PublisherLinkPill url={publication.publisherUrl} />
+            ) : null}
+            {!publication.doi && !isSafeHttpUrl(publication.publisherUrl) ? '—' : null}
+          </dd>
         </div>
         {(publication.urlChecks ?? []).length > 0 ? (
           <div>
-            <dt>Links</dt>
+            <dt>Link status</dt>
             <dd className="flex flex-wrap gap-2">
               {(publication.urlChecks ?? []).map((check) => (
                 <UrlCheckBadge check={check} key={check.kind} />

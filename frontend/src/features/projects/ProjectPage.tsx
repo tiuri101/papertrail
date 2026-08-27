@@ -142,7 +142,10 @@ const projectSectionGroups: ProjectSectionGroup[] = [
   {
     heading: 'Duplicate Review',
     stage: 'duplicate_review',
-    links: [{ path: 'duplicates', label: 'Review Duplicate Candidates' }],
+    links: [
+      { path: 'duplicates', label: 'Review Duplicate Candidates' },
+      { path: 'duplicates/decisions', label: 'Review or Change Past Decisions' },
+    ],
     jobStages: ['Duplicate review'],
   },
   {
