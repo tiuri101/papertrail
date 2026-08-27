@@ -45,6 +45,27 @@ class JobResponse(ApiModel):
         return self
 
 
+class JobPageResponse(ApiModel):
+    """One page of a project's background jobs for the Jobs page.
+
+    ``total`` counts the jobs matching the active filters; ``projectTotal``,
+    ``statusCounts`` and ``jobTypes`` ignore them and describe the project as a
+    whole (the status summary cards and the job-type dropdown). ``failedIds``
+    lists every failed job in the project so "Restart all failed" spans pages.
+    """
+
+    items: list[JobResponse]
+    total: int
+    project_total: int = Field(serialization_alias="projectTotal")
+    page: int
+    page_size: int = Field(serialization_alias="pageSize")
+    page_count: int = Field(serialization_alias="pageCount")
+    has_more: bool = Field(serialization_alias="hasMore")
+    status_counts: dict[str, int] = Field(serialization_alias="statusCounts")
+    job_types: list[str] = Field(serialization_alias="jobTypes")
+    failed_ids: list[str] = Field(serialization_alias="failedIds")
+
+
 class JobErrorResponse(ApiModel):
     """The manager/administrator diagnostic report for a failed job.
 
