@@ -570,6 +570,107 @@ def test_merge_flags_conflicting_important_fields_instead_of_dropping_them(db) -
     assert conflict.status == "open"
 
 
+def test_merge_does_not_flag_formatting_only_differences_as_a_conflict(db) -> None:
+    """Two records for the same paper from different imports are almost
+    never byte-identical in formatting even when they agree on the fact --
+    only a genuine disagreement should become a MetadataConflict."""
+    project = Project(
+        name="Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.DUPLICATE_REVIEW,
+    )
+    db.add(project)
+    db.flush()
+    canonical = Publication(
+        project_id=project.id,
+        title="A Study of Urban VR.",
+        authors="Doe, Jane",
+        doi="10.1000/same",
+    )
+    duplicate = Publication(
+        project_id=project.id,
+        title="a study of urban vr",
+        authors="doe,  jane",
+        doi="10.1000/same",
+    )
+    db.add_all([canonical, duplicate])
+    db.commit()
+    candidate = DuplicateCandidate(
+        project_id=project.id,
+        publication_a_id=canonical.id,
+        publication_b_id=duplicate.id,
+        match_reasons=["exact_doi"],
+        confidence=1.0,
+    )
+    db.add(candidate)
+    db.commit()
+
+    merge_publications(db, candidate, canonical.id)
+    db.commit()
+
+    assert canonical.title == "A Study of Urban VR."
+    assert canonical.authors == "Doe, Jane"
+    assert (
+        db.scalar(
+            select(MetadataConflict).where(
+                MetadataConflict.publication_id == canonical.id
+            )
+        )
+        is None
+    )
+    assert (
+        db.scalar(
+            select(BackgroundJob).where(
+                BackgroundJob.job_type == "resolve_merge_conflicts"
+            )
+        )
+        is None
+    )
+
+
+def test_merge_queues_provider_tiebreak_when_conflicts_are_created(db) -> None:
+    project = Project(
+        name="Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.DUPLICATE_REVIEW,
+    )
+    db.add(project)
+    db.flush()
+    canonical = Publication(
+        project_id=project.id,
+        title="A Study of Urban VR",
+        doi="10.1000/same",
+    )
+    duplicate = Publication(
+        project_id=project.id,
+        title="A Study of Urban VR (preprint)",
+        doi="10.1000/same",
+    )
+    db.add_all([canonical, duplicate])
+    db.commit()
+    candidate = DuplicateCandidate(
+        project_id=project.id,
+        publication_a_id=canonical.id,
+        publication_b_id=duplicate.id,
+        match_reasons=["exact_doi"],
+        confidence=1.0,
+    )
+    db.add(candidate)
+    db.commit()
+
+    merge_publications(db, candidate, canonical.id)
+    db.commit()
+
+    job = db.scalar(
+        select(BackgroundJob).where(BackgroundJob.job_type == "resolve_merge_conflicts")
+    )
+    assert job is not None
+    assert job.payload == {"publication_id": canonical.id}
+    assert job.project_id == project.id
+
+
 def test_reversing_a_merge_clears_the_conflicts_it_created(db) -> None:
     project = Project(
         name="Review",

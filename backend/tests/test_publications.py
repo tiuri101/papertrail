@@ -698,6 +698,39 @@ def test_enrichment_fills_missing_fields_and_records_important_conflicts(db) -> 
     assert conflict.proposed_value == "2026"
 
 
+def test_enrichment_does_not_flag_formatting_only_differences_as_a_conflict(db) -> None:
+    """A provider's title/authors almost never comes back byte-identical to
+    what was imported (case, trailing punctuation, comma spacing) even when
+    it is describing the exact same fact -- only a genuine disagreement
+    should reach a reviewer as a MetadataConflict."""
+    _, project, _ = project_and_batch(db)
+    publication = Publication(
+        project_id=project.id, title="A Study of Urban VR.", authors="Doe, Jane"
+    )
+    db.add(publication)
+    db.flush()
+
+    conflicts = apply_enrichment(
+        db,
+        publication,
+        {"title": "a study of urban vr", "authors": "doe,  jane"},
+        "crossref",
+    )
+    db.commit()
+
+    assert conflicts == 0
+    assert publication.title == "A Study of Urban VR."
+    assert publication.authors == "Doe, Jane"
+    assert (
+        db.scalar(
+            select(MetadataConflict).where(
+                MetadataConflict.publication_id == publication.id
+            )
+        )
+        is None
+    )
+
+
 def project_in_title_abstract(db, *, stage=ProjectStage.TITLE_ABSTRACT):
     admin = create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
     reviewer = create_user(db, "reviewer", "Reviewer", "reviewer-password")
