@@ -3,7 +3,15 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any, TypedDict
 
-from sqlalchemy import DateTime, Float, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    Float,
+    ForeignKey,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
@@ -50,6 +58,9 @@ class DuplicateCandidate(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         ForeignKey("users.id", ondelete="SET NULL")
     )
     resolution_note: Mapped[str | None] = mapped_column(Text)
+    auto_resolved: Mapped[bool] = mapped_column(
+        Boolean, server_default="false", default=False, nullable=False
+    )
 
     publication_a = relationship("Publication", foreign_keys=[publication_a_id])
     publication_b = relationship("Publication", foreign_keys=[publication_b_id])

@@ -1,8 +1,11 @@
 import random
 
+import pytest
 from sqlalchemy import select
 
 from app.accounts.service import create_user
+from app.api.errors import ConflictError
+from app.audit.models import AuditEvent
 from app.deduplication.models import DuplicateCandidate, PublicationMerge
 from app.deduplication.service import (
     candidate_pairs,
@@ -291,7 +294,12 @@ def setup_records(db):
     return project, publications
 
 
-def test_detect_merge_and_reverse_duplicate(db) -> None:
+def test_detect_duplicates_auto_merges_an_exact_doi_match(db) -> None:
+    """An exact DOI/PubMed/arXiv match (confidence 1.0) is resolved by
+    detect_duplicates itself -- no reviewer click required -- but still
+    produces the same PublicationMerge audit trail, reversible the same way
+    a manual merge is, and the candidate stays visible (as "merged") in the
+    duplicate list rather than disappearing."""
     project, publications = setup_records(db)
     count = detect_duplicates(db, project.id)
     db.commit()
@@ -301,20 +309,48 @@ def test_detect_merge_and_reverse_duplicate(db) -> None:
     )
     assert candidate is not None
     assert "exact_doi" in candidate.match_reasons
+    assert candidate.status == "merged"
+    assert candidate.auto_resolved is True
+    assert candidate.resolved_by_id is None
 
-    merge = merge_publications(db, candidate, publications[0].id)
-    db.commit()
-    assert publications[1].is_active is False
-    assert publications[1].merged_into_id == publications[0].id
-    assert len(publications[0].sources) == 2
-    assert merge.reversed_at is None
+    merge = db.scalar(
+        select(PublicationMerge).where(PublicationMerge.candidate_id == candidate.id)
+    )
+    assert merge is not None
+    assert merge.merged_by_id is None
+    canonical = db.get(Publication, merge.canonical_publication_id)
+    duplicate = db.get(Publication, merge.merged_publication_id)
+    assert {canonical.id, duplicate.id} == {publications[0].id, publications[1].id}
+    assert duplicate.is_active is False
+    assert duplicate.merged_into_id == canonical.id
+    assert len(canonical.sources) == 2
+
+    audit_event = db.scalar(
+        select(AuditEvent).where(AuditEvent.action == "duplicate.auto_merged")
+    )
+    assert audit_event is not None
+    assert audit_event.actor_id is None
+    assert audit_event.entity_id == merge.id
 
     reverse_merge(db, merge)
     db.commit()
-    assert publications[1].is_active is True
-    assert publications[1].merged_into_id is None
-    assert len(publications[0].sources) == 1
+    assert duplicate.is_active is True
+    assert duplicate.merged_into_id is None
+    assert len(canonical.sources) == 1
     assert merge.reversed_at is not None
+
+
+def test_merging_an_already_auto_merged_candidate_is_rejected(db) -> None:
+    project, publications = setup_records(db)
+    detect_duplicates(db, project.id)
+    db.commit()
+    candidate = db.scalar(
+        select(DuplicateCandidate).where(DuplicateCandidate.project_id == project.id)
+    )
+    assert candidate.status == "merged"
+
+    with pytest.raises(ConflictError):
+        merge_publications(db, candidate, publications[0].id)
 
 
 def test_detect_duplicates_matches_similar_title_with_year_agreement(db) -> None:
@@ -377,6 +413,10 @@ def test_detect_duplicates_matches_unique_publication_identifiers(db) -> None:
     assert candidate is not None
     assert "exact_pubmed_id" in candidate.match_reasons
     assert candidate.confidence == 1.0
+    # An exact identifier match is auto-merged rather than left for a
+    # reviewer to click through.
+    assert candidate.status == "merged"
+    assert candidate.auto_resolved is True
 
 
 def test_detect_duplicates_does_not_treat_shared_isbn_or_issn_as_proof(db) -> None:
@@ -419,6 +459,12 @@ def test_detect_duplicates_does_not_treat_shared_isbn_or_issn_as_proof(db) -> No
 
 
 def test_detect_duplicates_refreshes_stale_unresolved_candidates(db) -> None:
+    """A title-only exact match caps at 0.99 confidence (never auto-merge
+    eligible, see AUTO_MERGE_CONFIDENCE), so it stays unresolved across runs
+    and detect_duplicates must keep recomputing its reasons/confidence as the
+    underlying publications change -- unlike an exact-identifier match, which
+    would be auto-merged and stop being reassessed (see
+    test_detect_duplicates_auto_merges_an_exact_doi_match)."""
     project = Project(
         name="Review",
         review_type=ReviewType.SYSTEMATIC_REVIEW,
@@ -430,12 +476,12 @@ def test_detect_duplicates_refreshes_stale_unresolved_candidates(db) -> None:
     pub_a = Publication(
         project_id=project.id,
         title="A Study of Urban VR",
-        doi="10.1000/same",
+        isbn="978-1-2345-6789-0",
     )
     pub_b = Publication(
         project_id=project.id,
         title="A Study of Urban VR",
-        doi="10.1000/same",
+        isbn="978-1-2345-6789-0",
     )
     db.add_all([pub_a, pub_b])
     db.commit()
@@ -445,10 +491,13 @@ def test_detect_duplicates_refreshes_stale_unresolved_candidates(db) -> None:
         select(DuplicateCandidate).where(DuplicateCandidate.project_id == project.id)
     )
     assert candidate is not None
-    assert candidate.confidence == 1.0
+    assert candidate.status == "unresolved"
+    assert set(candidate.match_reasons) == {"exact_title", "shared_isbn"}
+    assert candidate.confidence == 0.99
 
-    pub_b.doi = "10.1000/different"
+    pub_b.isbn = "978-0-0000-0000-0"
     assert detect_duplicates(db, project.id) == 0
+    assert candidate.status == "unresolved"
     assert candidate.match_reasons == ["exact_title"]
     assert candidate.confidence == 0.99
 
@@ -578,14 +627,29 @@ def test_reversing_a_merge_clears_the_conflicts_it_created(db) -> None:
 
 
 def test_duplicate_review_only_transitions_when_all_candidates_resolved(db) -> None:
-    project, _ = setup_records(db)
+    """setup_records' exact-DOI pair auto-merges on detection, but a fuzzy
+    title-only match still needs a reviewer -- the stage can't transition
+    until that one is resolved too."""
+    project, _publications = setup_records(db)
+    third = Publication(project_id=project.id, title="A Study of Urban VR II")
+    db.add(third)
+    db.commit()
+
     detect_duplicates(db, project.id)
     db.commit()
+
     assert transition_if_duplicate_review_complete(db, project) is False
-    candidate = db.scalar(
-        select(DuplicateCandidate).where(DuplicateCandidate.project_id == project.id)
+    unresolved = list(
+        db.scalars(
+            select(DuplicateCandidate).where(
+                DuplicateCandidate.project_id == project.id,
+                DuplicateCandidate.status == "unresolved",
+            )
+        )
     )
-    mark_not_duplicate(candidate)
+    assert unresolved
+    for candidate in unresolved:
+        mark_not_duplicate(candidate)
     assert transition_if_duplicate_review_complete(db, project) is True
     assert project.stage == ProjectStage.TITLE_ABSTRACT
 
@@ -593,8 +657,14 @@ def test_duplicate_review_only_transitions_when_all_candidates_resolved(db) -> N
 def _merged_pair(db):
     """A project in duplicate review with one merge already applied, plus a
     second unresolved candidate so the merge does not itself finish the
-    stage."""
+    stage. The merged pair deliberately shares no exact identifier (only a
+    fuzzy/manual-strength match) so that re-running detect_duplicates later
+    (e.g. via Move Back) won't immediately auto-merge it back together --
+    that behavior is covered separately by
+    test_detect_duplicates_auto_merges_an_exact_doi_match."""
     project, publications = setup_records(db)
+    publications[0].doi = None
+    publications[1].doi = None
     third = Publication(
         project_id=project.id, title="An unrelated paper", doi="10.1000/other"
     )
@@ -604,8 +674,8 @@ def _merged_pair(db):
         project_id=project.id,
         publication_a_id=publications[0].id,
         publication_b_id=publications[1].id,
-        match_reasons=["exact_doi"],
-        confidence=1.0,
+        match_reasons=["exact_title"],
+        confidence=0.99,
     )
     still_open = DuplicateCandidate(
         project_id=project.id,
@@ -844,7 +914,12 @@ def test_detect_duplicates_still_reassesses_a_previously_recorded_pair(
 ) -> None:
     """A candidate the DB already knows about must be re-evaluated even on a
     run where blocking finds nothing new -- confirms detect_duplicates unions
-    in existing_candidates rather than relying on candidate_pairs alone."""
+    in existing_candidates rather than relying on candidate_pairs alone.
+
+    Uses a shared ISBN (a context identifier, never enough on its own to
+    auto-merge -- see AUTO_MERGE_CONFIDENCE) rather than a DOI, so the
+    candidate stays unresolved across runs instead of being auto-merged away
+    after the first one."""
     project = Project(
         name="Review",
         review_type=ReviewType.SYSTEMATIC_REVIEW,
@@ -854,17 +929,27 @@ def test_detect_duplicates_still_reassesses_a_previously_recorded_pair(
     db.add(project)
     db.flush()
     pub_a = Publication(
-        project_id=project.id, title="Distinctive wording alpha", doi="10.1/shared"
+        project_id=project.id,
+        title="Distinctive wording alpha",
+        isbn="978-1-2345-6789-0",
     )
     pub_b = Publication(
-        project_id=project.id, title="Completely different wording beta", doi="10.1/shared"
+        project_id=project.id,
+        title="Completely different wording beta",
+        isbn="978-1-2345-6789-0",
     )
     db.add_all([pub_a, pub_b])
     db.commit()
+    assert detect_duplicates(db, project.id) == 0
+
+    # A shared ISBN alone yields no match reasons (see
+    # test_detect_duplicates_does_not_treat_shared_isbn_or_issn_as_proof) --
+    # add a fuzzy title match so a candidate exists to re-evaluate.
+    pub_b.title = "Distinctive wording alpha 2"
     assert detect_duplicates(db, project.id) == 1
 
     # Simulate a run where blocking (correctly) finds no *new* candidate
-    # pairs at all -- the still-shared DOI means the existing candidate must
+    # pairs at all -- the still-shared ISBN means the existing candidate must
     # come from the existing_candidates union, not from a fresh block.
     import app.deduplication.service as dedup_service
 

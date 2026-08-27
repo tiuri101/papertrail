@@ -88,7 +88,7 @@ describe('ImportPage', () => {
         return jsonResponse(search, 201)
       }
       if (url.endsWith('/searches')) return jsonResponse(searches)
-      return jsonResponse({ jobId: 'job-42' }, 202)
+      return jsonResponse([{ jobId: 'job-42', importBatchId: 'batch-42' }], 202)
     })
     renderWithProviders(<ImportPage />, { route: '/projects/project-1/imports', path: '/projects/:projectId/imports' })
 
@@ -176,7 +176,7 @@ describe('ImportPage', () => {
       }
       if (url.endsWith('/searches')) return jsonResponse([])
       if (init?.method === 'POST' && url.endsWith('/imports')) {
-        return jsonResponse({ jobId: 'job-77', importBatchId: 'batch-77' }, 202)
+        return jsonResponse([{ jobId: 'job-77', importBatchId: 'batch-77' }], 202)
       }
       if (url.endsWith('/jobs')) {
         return jsonResponse([
@@ -244,6 +244,51 @@ describe('ImportPage', () => {
       expect(scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' })
     })
     scrollIntoView.mockRestore()
+  })
+
+  it('uploads several bibliographic files in one submit, each as its own import', async () => {
+    setCsrfToken('csrf-import')
+    const fetchMock = mockFetch((input, init) => {
+      const url = String(input)
+      if (url.endsWith('/projects/project-1')) return jsonResponse({ id: 'project-1', canManage: true })
+      if (init?.method === 'POST' && url.endsWith('/searches')) {
+        return jsonResponse({ id: 'search-1', sourceName: 'IEEE Xplore', query: 'urban', searchDate: '2026-07-30', filters: null }, 201)
+      }
+      if (url.endsWith('/searches')) return jsonResponse([])
+      if (init?.method === 'POST' && url.endsWith('/imports')) {
+        return jsonResponse([
+          { jobId: 'job-a', importBatchId: 'batch-a' },
+          { jobId: 'job-b', importBatchId: 'batch-b' },
+        ], 202)
+      }
+      if (url.endsWith('/jobs')) {
+        return jsonResponse([
+          { id: 'job-a', jobType: 'parse_import', status: 'queued', progressCurrent: 0, progressTotal: 0, progressMessage: null, errorMessage: null, createdAt: '2026-07-30T09:00:00Z', completedAt: null, result: null },
+          { id: 'job-b', jobType: 'parse_import', status: 'queued', progressCurrent: 0, progressTotal: 0, progressMessage: null, errorMessage: null, createdAt: '2026-07-30T09:00:00Z', completedAt: null, result: null },
+        ])
+      }
+      return jsonResponse([])
+    })
+    renderWithProviders(<ImportPage />, { route: '/projects/project-1/imports', path: '/projects/:projectId/imports' })
+
+    await screen.findByLabelText('Database')
+    fillSearchFields()
+    const fileA = new File(['Title,Authors\nPaper A,Author'], 'records-a.csv', { type: 'text/csv' })
+    const fileB = new File(['@article{doe2026, title={Paper B}}'], 'records-b.bib', { type: 'text/plain' })
+    fireEvent.change(screen.getByLabelText('Bibliographic export'), { target: { files: [fileA, fileB] } })
+    expect(screen.getByText('records-a.csv')).toBeInTheDocument()
+    expect(screen.getByText('records-b.bib')).toBeInTheDocument()
+    fireEvent.click(screen.getByRole('button', { name: 'Upload' }))
+
+    await waitFor(() => {
+      const uploadCall = fetchMock.mock.calls.find(([callInput]) => String(callInput) === '/api/v1/projects/project-1/imports')
+      expect(uploadCall).toBeTruthy()
+      const [, init] = uploadCall!
+      expect((init?.body as FormData).getAll('file')).toEqual([fileA, fileB])
+    })
+
+    expect(await screen.findByText('Import queued (file 1 of 2): job-a')).toBeInTheDocument()
+    expect(await screen.findByText('Import queued (file 2 of 2): job-b')).toBeInTheDocument()
   })
 
   it('lists previously documented searches for reference', async () => {

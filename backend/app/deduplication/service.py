@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.api.errors import ConflictError, NotFoundError
+from app.audit.service import record_audit
 from app.deduplication.models import DuplicateCandidate, PublicationMerge
 from app.fulltext.models import PublicationDocument
 from app.jobs.service import enqueue_job
@@ -25,6 +26,13 @@ from app.publications.service import IMPORTANT_FIELDS
 
 UNIQUE_IDENTIFIER_FIELDS = ("pubmed_id", "arxiv_id")
 CONTEXT_IDENTIFIER_FIELDS = ("isbn", "issn")
+
+#: _duplicate_assessment only ever scores a pair at 1.0 when the pair shares
+#: an exact DOI/PubMed ID/arXiv ID (see "strong_identifier_match" below) --
+#: i.e. an "exact match" in the sense a reviewer wouldn't need to eyeball, as
+#: opposed to an identical title (capped at 0.99) or any fuzzy match. Only
+#: these pairs are safe to resolve automatically.
+AUTO_MERGE_CONFIDENCE = 1.0
 
 MERGE_FIELDS = (
     "title",
@@ -224,8 +232,15 @@ def detect_duplicates(db: Session, project_id: str) -> int:
     pairs_to_assess = candidate_pairs(publications) | set(existing_candidates)
 
     active_pairs: set[tuple[str, str]] = set()
+    # Publications auto-merged away earlier in *this* run: any later pair
+    # naming one is stale the same way a pair naming an already-inactive
+    # publication is, and gets skipped/cleaned up the same way (see the
+    # `left is None or right is None` branch below).
+    merged_away: set[str] = set()
     created = 0
     for a_id, b_id in pairs_to_assess:
+        if a_id in merged_away or b_id in merged_away:
+            continue
         left = by_id.get(a_id)
         right = by_id.get(b_id)
         if left is None or right is None:
@@ -255,6 +270,11 @@ def detect_duplicates(db: Session, project_id: str) -> int:
                 project_id=project_id,
                 publication_a_id=a_id,
                 publication_b_id=b_id,
+                # Set explicitly (matches the column default) rather than
+                # relying on the ORM default, which is only applied at flush
+                # -- merge_publications below checks status on this same
+                # unflushed object and needs it to already read "unresolved".
+                status="unresolved",
             )
             db.add(existing)
             created += 1
@@ -263,6 +283,31 @@ def detect_duplicates(db: Session, project_id: str) -> int:
         existing.author_similarity = author_score
         existing.year_agreement = year_agreement
         existing.confidence = confidence
+
+        if confidence >= AUTO_MERGE_CONFIDENCE:
+            # The session is autoflush=False, and merge_publications records
+            # a PublicationMerge.candidate_id -- flush now so a freshly
+            # created `existing` already has its id assigned.
+            db.flush()
+            canonical, duplicate_publication = sorted(
+                (left, right), key=lambda publication: (publication.created_at, publication.id)
+            )
+            merge = merge_publications(db, existing, canonical.id, merged_by_id=None)
+            existing.auto_resolved = True
+            merged_away.add(duplicate_publication.id)
+            record_audit(
+                db,
+                action="duplicate.auto_merged",
+                entity_type="publication_merge",
+                entity_id=merge.id,
+                project_id=project_id,
+                summary="Automatically merged exact duplicate publications",
+                metadata={
+                    "canonicalPublicationId": merge.canonical_publication_id,
+                    "mergedPublicationId": merge.merged_publication_id,
+                    "matchReasons": reasons,
+                },
+            )
 
     for pair, candidate in existing_candidates.items():
         if candidate.status == "unresolved" and pair not in active_pairs:

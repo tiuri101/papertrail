@@ -7,7 +7,7 @@ import { apiRequest } from '../../api/client'
 import { ActionListItem } from '../../components/ActionListItem'
 import { actionListItemClass } from '../../components/actionListStyles'
 import { Badge } from '../../components/Badge'
-import { Button, IconButton } from '../../components/Button'
+import { Button } from '../../components/Button'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { CountPill } from '../../components/CountPill'
 import { DetailList, DetailListRow } from '../../components/DetailList'
@@ -19,7 +19,6 @@ import { Input } from '../../components/Input'
 import {
   IconCheckCircle,
   IconDownload,
-  IconEye,
   IconFolder,
   IconHelpCircle,
   IconPlus,
@@ -27,6 +26,7 @@ import {
   IconTrash,
   IconUpload,
 } from '../../components/icons'
+import { DoiPill } from '../../components/DoiPill'
 import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
 import { PublicationListSortHeader } from '../../components/PublicationListSortHeader'
 import { RowActionsMenu } from '../../components/RowActionsMenu'
@@ -288,15 +288,7 @@ function PublicationRow({
           />
         </span>
         <span className="flex items-center justify-end gap-1 max-[900px]:[grid-area:actions] max-[600px]:self-start">
-          <IconButton
-            as={Link}
-            variant="primary"
-            to={detailHref}
-            aria-label={`View ${publication.title}`}
-            title="View details"
-          >
-            <IconEye />
-          </IconButton>
+          <DoiPill doi={publication.doi} />
           {canManage ? (
             <RowActionsMenu label={`More actions for ${publication.title}`}>
               <ActionListItem as={Link} to={`${detailHref}?edit=1`}>Edit Metadata</ActionListItem>

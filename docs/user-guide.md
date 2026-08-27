@@ -35,7 +35,9 @@ Project managers can also manually add a publication when it did not come from o
 
 ## Duplicate review
 
-Any project member can resolve a suggested duplicate as **not a duplicate** or merge the pair and choose which publication remains canonical. The project owner/administrator marks the project ready to enter duplicate review and can reverse a completed merge.
+Candidate pairs that share an exact DOI, PubMed ID, or arXiv ID are merged automatically as soon as detection finds them, keeping the earliest-imported record as canonical — no reviewer action needed. Every other candidate still needs a decision: any project member can resolve it as **not a duplicate** or merge the pair and choose which publication remains canonical. The project owner/administrator marks the project ready to enter duplicate review and can reverse any completed merge, automatic or manual.
+
+Automatic and manual merges use the same underlying merge record, so the duplicate review list keeps showing every resolved pair (marked "Auto-merged" when Papertrail resolved it) alongside anything still awaiting review.
 
 A merge preserves provenance and transfers related data/documents to the canonical publication according to the workflow rules; it is not a hard delete of the duplicate history.
 
