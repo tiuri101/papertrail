@@ -1,4 +1,5 @@
 import random
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sqlalchemy import select
@@ -9,10 +10,14 @@ from app.audit.models import AuditEvent
 from app.deduplication.models import DuplicateCandidate, PublicationMerge
 from app.deduplication.service import (
     candidate_pairs,
+    claim_next_duplicate,
     detect_duplicates,
+    duplicate_review_progress,
     mark_not_duplicate,
     merge_publications,
+    release_duplicate_candidate,
     reverse_merge,
+    revise_resolution,
     transition_if_duplicate_review_complete,
 )
 from app.imports.models import ImportBatch, ImportedRecord, ImportStatus
@@ -202,12 +207,11 @@ def test_a_regular_project_member_can_resolve_duplicates(client, db) -> None:
     )
     db.add(project)
     db.flush()
-    pub_a = Publication(
-        project_id=project.id, title="A Study of Urban VR", doi="10.1000/same"
-    )
-    pub_b = Publication(
-        project_id=project.id, title="A study of urban VR", doi="10.1000/same"
-    )
+    # A title-only match (no shared identifier) caps at 0.99 confidence, so it
+    # stays unresolved for a reviewer to act on -- an exact-DOI pair would be
+    # auto-merged before anyone could click.
+    pub_a = Publication(project_id=project.id, title="A Study of Urban VR")
+    pub_b = Publication(project_id=project.id, title="A Study of Urban VR")
     db.add_all([pub_a, pub_b])
     db.commit()
 
@@ -1065,3 +1069,309 @@ def test_detect_duplicates_still_reassesses_a_previously_recorded_pair(
         "since its match reason still holds) even when blocking alone finds "
         "no new pairs"
     )
+
+
+def _project_with_candidates(db, confidences):
+    """A project in duplicate review with one unresolved DuplicateCandidate
+    per confidence, each over its own fresh pair of publications."""
+    project = Project(
+        name="Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.DUPLICATE_REVIEW,
+    )
+    db.add(project)
+    db.flush()
+    candidates = []
+    for index, confidence in enumerate(confidences):
+        pub_a = Publication(project_id=project.id, title=f"Paper {index} original")
+        pub_b = Publication(project_id=project.id, title=f"Paper {index} duplicate")
+        db.add_all([pub_a, pub_b])
+        db.flush()
+        candidate = DuplicateCandidate(
+            project_id=project.id,
+            publication_a_id=pub_a.id,
+            publication_b_id=pub_b.id,
+            match_reasons=["similar_title"],
+            confidence=confidence,
+            status="unresolved",
+        )
+        db.add(candidate)
+        candidates.append(candidate)
+    db.commit()
+    return project, candidates
+
+
+def test_claim_next_duplicate_reserves_highest_confidence_first(db) -> None:
+    project, candidates = _project_with_candidates(db, [0.6, 0.95, 0.8])
+    reviewer = create_user(db, "r1", "R1", "secret-password")
+    db.commit()
+
+    claimed = claim_next_duplicate(db, project.id, reviewer.id)
+
+    assert claimed is not None
+    assert claimed.id == candidates[1].id
+    assert claimed.reserved_by_id == reviewer.id
+    assert claimed.reserved_until is not None
+
+
+def test_claim_next_duplicate_hides_a_reserved_pair_from_other_reviewers(db) -> None:
+    project, candidates = _project_with_candidates(db, [0.9, 0.8])
+    r1 = create_user(db, "r1", "R1", "secret-password")
+    r2 = create_user(db, "r2", "R2", "secret-password")
+    r3 = create_user(db, "r3", "R3", "secret-password")
+    db.commit()
+
+    first = claim_next_duplicate(db, project.id, r1.id)
+    second = claim_next_duplicate(db, project.id, r2.id)
+
+    assert first is not None and second is not None
+    assert {first.id, second.id} == {c.id for c in candidates}
+    # Both pairs are now leased out; a third reviewer sees an empty queue.
+    assert claim_next_duplicate(db, project.id, r3.id) is None
+
+
+def test_claim_next_duplicate_returns_your_own_reservation(db) -> None:
+    project, _candidates = _project_with_candidates(db, [0.9])
+    reviewer = create_user(db, "r1", "R1", "secret-password")
+    db.commit()
+
+    first = claim_next_duplicate(db, project.id, reviewer.id)
+    again = claim_next_duplicate(db, project.id, reviewer.id)
+
+    assert first is not None and again is not None
+    assert first.id == again.id
+
+
+def test_claim_next_duplicate_reclaims_an_expired_reservation(db) -> None:
+    project, _candidates = _project_with_candidates(db, [0.9])
+    r1 = create_user(db, "r1", "R1", "secret-password")
+    r2 = create_user(db, "r2", "R2", "secret-password")
+    db.commit()
+
+    claimed = claim_next_duplicate(db, project.id, r1.id)
+    assert claimed is not None
+    claimed.reserved_until = datetime.now(UTC) - timedelta(minutes=1)
+    db.commit()
+
+    reclaimed = claim_next_duplicate(db, project.id, r2.id)
+    assert reclaimed is not None
+    assert reclaimed.id == claimed.id
+    assert reclaimed.reserved_by_id == r2.id
+
+
+def test_release_duplicate_candidate_returns_it_to_the_queue(db) -> None:
+    project, _candidates = _project_with_candidates(db, [0.9])
+    r1 = create_user(db, "r1", "R1", "secret-password")
+    r2 = create_user(db, "r2", "R2", "secret-password")
+    db.commit()
+
+    claimed = claim_next_duplicate(db, project.id, r1.id)
+    assert claimed is not None
+    release_duplicate_candidate(db, claimed, r1.id)
+    db.commit()
+
+    assert claimed.reserved_by_id is None
+    handed_on = claim_next_duplicate(db, project.id, r2.id)
+    assert handed_on is not None and handed_on.id == claimed.id
+
+
+def test_resolving_a_candidate_clears_its_reservation(db) -> None:
+    project, _candidates = _project_with_candidates(db, [0.9])
+    reviewer = create_user(db, "r1", "R1", "secret-password")
+    db.commit()
+
+    claimed = claim_next_duplicate(db, project.id, reviewer.id)
+    assert claimed is not None
+    mark_not_duplicate(claimed, reviewer.id)
+    db.commit()
+
+    assert claimed.reserved_by_id is None
+    assert claimed.reserved_until is None
+
+
+def test_duplicate_review_progress_counts_project_wide(db) -> None:
+    project, candidates = _project_with_candidates(db, [0.9, 0.8, 0.7])
+    mark_not_duplicate(candidates[0])
+    db.commit()
+
+    assert duplicate_review_progress(db, project.id) == {
+        "remaining": 2,
+        "resolved": 1,
+        "total": 3,
+    }
+
+
+def test_resolving_an_already_resolved_candidate_is_rejected(client, db) -> None:
+    project, publications, merge = _merged_pair(db)
+    csrf = login(client)
+
+    as_not_duplicate = client.post(
+        f"/api/v1/projects/{project.id}/duplicates/{merge.candidate_id}/not-duplicate",
+        json={"note": None},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert as_not_duplicate.status_code == 409
+
+    as_merge = client.post(
+        f"/api/v1/projects/{project.id}/duplicates/{merge.candidate_id}/merge",
+        json={"canonicalPublicationId": publications[0].id},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert as_merge.status_code == 409
+
+
+def test_revise_a_merged_candidate_to_not_duplicate_restores_the_publication(
+    client, db
+) -> None:
+    project, publications, merge = _merged_pair(db)
+    merged_publication_id = merge.merged_publication_id
+    csrf = login(client)
+
+    response = client.post(
+        f"/api/v1/projects/{project.id}/duplicates/{merge.candidate_id}/revise",
+        json={"resolution": "not_duplicate"},
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["status"] == "not_duplicate"
+    db.expire_all()
+    assert db.get(Publication, merged_publication_id).is_active is True
+    assert db.get(PublicationMerge, merge.id).reversed_at is not None
+    audit = db.scalar(
+        select(AuditEvent).where(AuditEvent.action == "duplicate.decision_revised")
+    )
+    assert audit is not None
+
+
+def test_revise_resolution_not_duplicate_to_merge(db) -> None:
+    project, candidates = _project_with_candidates(db, [0.9, 0.5])
+    actor = create_user(db, "r1", "R1", "secret-password")
+    db.commit()
+    candidate = candidates[0]
+    mark_not_duplicate(candidate, actor.id)
+    db.commit()
+
+    new_merge = revise_resolution(
+        db, project, candidate, actor.id, "merge", candidate.publication_a_id
+    )
+    db.commit()
+
+    assert candidate.status == "merged"
+    assert new_merge is not None
+    assert db.get(Publication, new_merge.merged_publication_id).is_active is False
+
+
+def test_revise_resolution_merged_keep_a_to_keep_b(db) -> None:
+    project, candidates = _project_with_candidates(db, [0.9, 0.5])
+    actor = create_user(db, "r1", "R1", "secret-password")
+    db.commit()
+    candidate = candidates[0]
+    a_id, b_id = candidate.publication_a_id, candidate.publication_b_id
+    merge_publications(db, candidate, a_id, actor.id)
+    db.commit()
+    assert db.get(Publication, b_id).is_active is False
+
+    new_merge = revise_resolution(db, project, candidate, actor.id, "merge", b_id)
+    db.commit()
+
+    assert new_merge is not None
+    assert new_merge.canonical_publication_id == b_id
+    assert db.get(Publication, a_id).is_active is False
+    assert db.get(Publication, b_id).is_active is True
+
+
+def test_revise_is_refused_once_the_project_left_duplicate_review(client, db) -> None:
+    project, _publications, merge = _merged_pair(db)
+    project.stage = ProjectStage.TITLE_ABSTRACT
+    db.commit()
+    csrf = login(client)
+
+    response = client.post(
+        f"/api/v1/projects/{project.id}/duplicates/{merge.candidate_id}/revise",
+        json={"resolution": "not_duplicate"},
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    assert response.status_code == 409
+    assert response.json()["error"]["code"] == "merge_reversal_stage_locked"
+    db.expire_all()
+    assert db.get(PublicationMerge, merge.id).reversed_at is None
+
+
+def test_revise_resolution_runs_the_stage_transition_when_it_clears_the_queue(
+    db,
+) -> None:
+    project, candidates = _project_with_candidates(db, [0.9, 0.5])
+    actor = create_user(db, "r1", "R1", "secret-password")
+    db.commit()
+    for candidate in candidates:
+        mark_not_duplicate(candidate, actor.id)
+    db.commit()
+    assert project.stage == ProjectStage.DUPLICATE_REVIEW
+
+    revise_resolution(
+        db, project, candidates[1], actor.id, "merge", candidates[1].publication_a_id
+    )
+    db.commit()
+
+    assert project.stage == ProjectStage.TITLE_ABSTRACT
+
+
+def test_duplicate_list_exposes_resolver_and_active_merge(client, db) -> None:
+    project, _publications, merge = _merged_pair(db)
+    csrf = login(client)
+
+    listed = client.get(
+        f"/api/v1/projects/{project.id}/duplicates",
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+
+    merged = next(c for c in listed if c["status"] == "merged")
+    assert merged["mergeId"] == merge.id
+    assert merged["canonicalPublicationId"] == merge.canonical_publication_id
+    assert merged["resolvedAt"] is not None
+    still_open = next(c for c in listed if c["status"] == "unresolved")
+    assert still_open["mergeId"] is None
+    assert still_open["resolvedAt"] is None
+
+
+def test_duplicate_next_and_progress_endpoints(client, db) -> None:
+    project, _publications, _merge = _merged_pair(db)
+    csrf = login(client)
+
+    progress = client.get(
+        f"/api/v1/projects/{project.id}/duplicates/progress",
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+    assert progress == {"remaining": 1, "resolved": 1, "total": 2}
+
+    claimed = client.post(
+        f"/api/v1/projects/{project.id}/duplicates/next",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert claimed.status_code == 200
+    body = claimed.json()
+    assert body["status"] == "unresolved"
+    assert body["reservedById"] is not None
+
+    same = client.post(
+        f"/api/v1/projects/{project.id}/duplicates/next",
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+    assert same["id"] == body["id"]
+
+    excluded = client.post(
+        f"/api/v1/projects/{project.id}/duplicates/next?excludedItemId={body['id']}",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert excluded.json() is None
+
+    released = client.post(
+        f"/api/v1/projects/{project.id}/duplicates/{body['id']}/release",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert released.status_code == 200
+    db.expire_all()
+    assert db.get(DuplicateCandidate, body["id"]).reserved_by_id is None

@@ -81,3 +81,73 @@ export function DuplicateDetectionAction({
     </div>
   )
 }
+
+interface AssessmentJob {
+  jobId: string
+  status: string
+}
+
+/**
+ * Re-runs only the external assist for the current unresolved pairs — URL
+ * reachability + Crossref / Semantic Scholar — without the (slower) blocking
+ * detection pass. Manager-only, shown during duplicate review.
+ */
+export function DuplicateAssessmentAction({ projectId }: { projectId: string }) {
+  const queryClient = useQueryClient()
+  const [assessmentJobId, setAssessmentJobId] = useState<string | null>(null)
+  const refreshedJobId = useRef<string | null>(null)
+  const jobs = useQuery({
+    queryKey: ['jobs', projectId],
+    queryFn: () => apiRequest<BackgroundJob[]>(`/api/v1/projects/${projectId}/jobs`),
+    enabled: Boolean(projectId && assessmentJobId),
+    refetchInterval: (query) => {
+      if (!assessmentJobId) return false
+      const job = findJob(query.state.data, assessmentJobId)
+      return !job || isJobActive(job.status) ? 2000 : false
+    },
+  })
+  const assessmentJob = assessmentJobId ? findJob(jobs.data, assessmentJobId) : undefined
+
+  useEffect(() => {
+    if (
+      !assessmentJobId
+      || assessmentJob?.status !== 'completed'
+      || refreshedJobId.current === assessmentJobId
+    ) return
+    refreshedJobId.current = assessmentJobId
+    queryClient.invalidateQueries({ queryKey: ['duplicates', projectId] })
+  }, [assessmentJob?.status, assessmentJobId, projectId, queryClient])
+
+  const assessment = useMutation({
+    mutationFn: () => apiRequest<AssessmentJob>(
+      `/api/v1/projects/${projectId}/duplicates/assess`,
+      { method: 'POST' },
+    ),
+    onSuccess: (job) => {
+      refreshedJobId.current = null
+      setAssessmentJobId(job.jobId)
+      queryClient.invalidateQueries({ queryKey: ['jobs', projectId] })
+    },
+  })
+
+  return (
+    <div className="flex flex-wrap items-center gap-3 [&_.text-danger]:m-0 [&_.text-success]:m-0">
+      <Button
+        type="button"
+        variant="secondary"
+        onClick={() => assessment.mutate()}
+        loading={assessment.isPending}
+      >
+        {assessment.isPending ? 'Queueing…' : 'Re-check links & providers'}
+      </Button>
+      {assessment.isSuccess ? (
+        <span className="text-success" role="status">
+          {assessmentJob?.status === 'completed'
+            ? 'Assessment finished. Suggestions refreshed.'
+            : 'Assessment queued.'}
+        </span>
+      ) : null}
+      {assessment.error ? <span className="text-danger" role="alert">{assessment.error.message}</span> : null}
+    </div>
+  )
+}

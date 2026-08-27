@@ -7,6 +7,8 @@ from typing import Any, Protocol
 
 import httpx
 
+from app.integrations.url_health import USER_AGENT
+
 
 class LookupOutcome(enum.StrEnum):
     """What a single metadata provider call actually told us.
@@ -114,7 +116,7 @@ class CrossrefClient:
         def request() -> dict[str, Any]:
             with httpx.Client(
                 timeout=self.timeout,
-                headers={"User-Agent": "Papertrail/0.1 (mailto:admin@example.invalid)"},
+                headers={"User-Agent": USER_AGENT},
             ) as client:
                 response = client.get(f"{self.base_url}/works/{doi}")
                 response.raise_for_status()

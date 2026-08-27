@@ -24,7 +24,10 @@ from sqlalchemy.orm import Session
 
 from app.analysis.jobs import STAGE_ANALYSIS_JOB, generate_stage_analysis_job
 from app.analysis.rq_jobs import RQ_SYNTHESIS_JOB, generate_rq_synthesis_job
-from app.deduplication.jobs import detect_duplicates_job
+from app.deduplication.jobs import (
+    assess_duplicate_candidates_job,
+    detect_duplicates_job,
+)
 from app.imports.service import mark_import_permanently_failed, process_import_job
 from app.jobs.models import BackgroundJob
 from app.llm.models import LlmTaskType
@@ -122,6 +125,12 @@ JOB_DEFINITIONS: dict[str, JobDefinition] = {
         handler=detect_duplicates_job,
         worker_pool=WorkerPool.GENERAL,
         label="Detect duplicate publications",
+        stage="Duplicate review",
+    ),
+    "assess_duplicate_candidates": JobDefinition(
+        handler=assess_duplicate_candidates_job,
+        worker_pool=WorkerPool.GENERAL,
+        label="Assess duplicate candidates via providers",
         stage="Duplicate review",
     ),
     "generate_export": JobDefinition(
