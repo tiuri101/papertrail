@@ -6,7 +6,7 @@ from app.integrations.metadata import LookupOutcome, metadata_providers
 from app.jobs.errors import TransientJobError
 from app.jobs.models import BackgroundJob
 from app.publications.models import Publication
-from app.publications.service import apply_enrichment
+from app.publications.service import apply_enrichment, resolve_conflicts_via_providers
 
 
 def enrich_publication_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
@@ -58,3 +58,26 @@ def enrich_publication_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
         "failures": failures,
         "conflicts": conflicts,
     }
+
+
+def resolve_merge_conflicts_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
+    """Try to break a tie on the metadata conflicts a duplicate merge just
+    created, using the same external providers enrichment draws on.
+
+    Re-running this is safe: it only ever acts on conflicts still OPEN, so a
+    conflict a previous run (or a reviewer) already resolved is left alone.
+
+    A provider that legitimately has no record for the DOI is a real answer,
+    not a failure -- the conflicts just stay open for a reviewer. Only a
+    provider that could not be reached at all is worth retrying for.
+    """
+    publication = db.get(Publication, job.payload["publication_id"])
+    if publication is None:
+        return {"publicationId": job.payload["publication_id"], "status": "not-found"}
+    result = resolve_conflicts_via_providers(db, publication)
+    if result["transientFailure"]:
+        raise TransientJobError(
+            "No metadata provider could be reached to resolve merge conflicts"
+        )
+    db.commit()
+    return {"publicationId": publication.id, **result}

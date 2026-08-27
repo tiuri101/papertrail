@@ -388,6 +388,74 @@ describe('PublicationsPage', () => {
     })
   })
 
+  it('lets a manager sweep merge conflicts for automatic resolution via provider', async () => {
+    const conflicts = [
+      {
+        id: 'conflict-1',
+        publicationId: 'publication-1',
+        fieldName: 'venue',
+        currentValue: 'Journal of Tests',
+        proposedValue: 'J. of Tests',
+        sourceName: 'merge',
+        status: 'open',
+        publication: publications[0],
+      },
+    ]
+    const fetchMock = mockFetch((input, init) => {
+      const url = String(input)
+      const pdfRetrieval = pdfRetrievalDefault(url)
+      if (pdfRetrieval) return pdfRetrieval
+      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
+      if (url.endsWith('/metadata-conflicts')) return jsonResponse(conflicts)
+      if (url.endsWith('/metadata-conflicts/resolve-via-provider') && init?.method === 'POST') {
+        return jsonResponse({ jobIds: ['job-1'], queuedCount: 1 }, 202)
+      }
+      return servePublications(url)
+    })
+    renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
+
+    fireEvent.click(await screen.findByRole('tab', { name: 'Metadata Tools' }))
+    const heading = await screen.findByRole('heading', { name: 'Metadata Conflicts' })
+    const panel = heading.closest('section') as HTMLElement
+
+    fireEvent.click(within(panel).getByRole('button', { name: 'Resolve via Provider' }))
+
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find(([input, init]) => String(input).endsWith('/metadata-conflicts/resolve-via-provider') && init?.method === 'POST')
+      expect(call).toBeTruthy()
+    })
+    expect(await within(panel).findByText('Queued 1 publication for provider resolution. Check back shortly.')).toBeInTheDocument()
+  })
+
+  it('does not offer the provider sweep when no conflict came from a merge', async () => {
+    const conflicts = [
+      {
+        id: 'conflict-1',
+        publicationId: 'publication-1',
+        fieldName: 'title',
+        currentValue: 'Urban Data in VR',
+        proposedValue: 'Urban Data in Virtual Reality',
+        sourceName: 'crossref',
+        status: 'open',
+        publication: publications[0],
+      },
+    ]
+    mockFetch((input) => {
+      const url = String(input)
+      const pdfRetrieval = pdfRetrievalDefault(url)
+      if (pdfRetrieval) return pdfRetrieval
+      if (url.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true, canManagePublications: true })
+      if (url.endsWith('/metadata-conflicts')) return jsonResponse(conflicts)
+      return servePublications(url)
+    })
+    renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
+
+    fireEvent.click(await screen.findByRole('tab', { name: 'Metadata Tools' }))
+    await screen.findByRole('heading', { name: 'Metadata Conflicts' })
+
+    expect(screen.queryByRole('button', { name: 'Resolve via Provider' })).not.toBeInTheDocument()
+  })
+
   it('opens directly on the metadata tab when linked with ?tab=metadata', async () => {
     const conflicts = [
       {
