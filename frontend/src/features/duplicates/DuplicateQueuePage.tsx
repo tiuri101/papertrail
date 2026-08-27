@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { useEffect, useRef } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
@@ -27,8 +28,16 @@ function ActiveDuplicateCard({ queue }: { queue: DuplicateQueue }) {
   const pending = queue.merge.isPending || queue.notDuplicate.isPending || queue.skip.isPending
   const error = queue.merge.error ?? queue.notDuplicate.error ?? queue.skip.error
 
+  // Mirror the screening / extraction / quality queues: once a decision is
+  // submitted and the next pair loads, bring the top of the card back into
+  // view so the reviewer starts from the records, not mid-page.
+  const cardRef = useRef<HTMLElement>(null)
+  useEffect(() => {
+    cardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [candidate.id])
+
   return (
-    <section className={cardClass} aria-label="Duplicate candidate">
+    <section ref={cardRef} className={`${cardClass} scroll-mt-[92px]`} aria-label="Duplicate candidate">
       <header className="flex items-center justify-between gap-4 border-b border-border bg-surface-raised/70 px-5 py-4">
         <div>
           <span className="mb-1 block text-xs font-extrabold uppercase tracking-[0.08em] text-primary">Candidate pair</span>

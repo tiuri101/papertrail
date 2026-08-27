@@ -47,6 +47,7 @@ describe('ProjectPage', () => {
     expect(await screen.findByRole('heading', { name: 'Immersive analytics review' })).toBeInTheDocument()
     expect(document.title).toBe('Immersive analytics review · Papertrail')
     expect(screen.getByRole('link', { name: 'Title/Abstract Screening' })).toHaveAttribute('href', '/projects/p1/screening/title_abstract')
+    expect(screen.getByRole('link', { name: 'Review or Change Past Decisions' })).toHaveAttribute('href', '/projects/p1/duplicates/decisions')
     expect(screen.queryByRole('heading', { name: 'Reporting' })).not.toBeInTheDocument()
     const completedGroup = screen.getByRole('heading', { name: 'Completed' }).closest('li') as HTMLElement
     expect(within(completedGroup).getByRole('link', { name: 'Charts & Analysis' }))

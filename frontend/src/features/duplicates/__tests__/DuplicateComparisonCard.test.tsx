@@ -15,6 +15,7 @@ function candidate(overrides: Partial<Candidate> = {}): Candidate {
       publicationYear: 2024,
       venue: 'CHI',
       doi: '10.1/a',
+      publisherUrl: 'https://publisher.example/a',
       urlChecks: [
         { kind: 'publisher_url', url: 'https://a.invalid', reachable: true, statusCode: 200, checkedAt: '2026-08-27T00:00:00Z' },
         { kind: 'doi', url: 'https://doi.org/10.1/a', reachable: false, statusCode: 404, checkedAt: '2026-08-27T00:00:00Z' },
@@ -27,6 +28,7 @@ function candidate(overrides: Partial<Candidate> = {}): Candidate {
       publicationYear: 2024,
       venue: 'CHI',
       doi: '10.1/b',
+      publisherUrl: null,
       urlChecks: [],
     },
     matchReasons: ['similar_title'],
@@ -57,6 +59,12 @@ describe('DuplicateComparisonCard', () => {
     renderWithProviders(<DuplicateComparisonCard candidate={candidate()} />)
     expect(screen.getByText(/Publisher link: Reachable/)).toBeInTheDocument()
     expect(screen.getByText(/DOI link: Unreachable/)).toBeInTheDocument()
+  })
+
+  it('shows a publisher link pill when the record has one', () => {
+    renderWithProviders(<DuplicateComparisonCard candidate={candidate()} />)
+    const pill = screen.getByRole('link', { name: 'Publisher link' })
+    expect(pill).toHaveAttribute('href', 'https://publisher.example/a')
   })
 
   it('shows the provider "keep record A" recommendation with its reason', () => {
