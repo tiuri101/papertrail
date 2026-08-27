@@ -1,11 +1,14 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useMemo, useState } from 'react'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { Page } from '../../components/Page'
 import { CountPill } from '../../components/CountPill'
 import { DoiPill } from '../../components/DoiPill'
+import { FieldLabel } from '../../components/FieldLabel'
 import { IconCheckCircle } from '../../components/icons'
+import { Select } from '../../components/Select'
 import { Tooltip } from '../../components/Tooltip'
 import { StageEyebrow } from '../projects/StageEyebrow'
 import { DuplicateDetectionAction } from './DuplicateDetectionAction'
@@ -48,6 +51,46 @@ const MATCH_REASON_LABELS: Record<string, string> = {
 
 function humanizeMatchReason(reason: string): string {
   return MATCH_REASON_LABELS[reason] ?? reason.replace(/_/g, ' ')
+}
+
+const STATUS_FILTER_OPTIONS = [
+  { value: 'all', label: 'All statuses' },
+  { value: 'unresolved', label: 'Unresolved' },
+  { value: 'merged', label: 'Merged' },
+  { value: 'not_duplicate', label: 'Not a duplicate' },
+] as const
+
+type StatusFilter = typeof STATUS_FILTER_OPTIONS[number]['value']
+
+// Lower rank sorts first. Candidates still needing a decision lead by
+// default; anything with no rank here (an unexpected status) sorts last.
+const STATUS_RANK: Record<string, number> = { unresolved: 0, merged: 1, not_duplicate: 2 }
+
+type SortOrder = 'status_unresolved_first' | 'status_resolved_first' | 'confidence_desc' | 'confidence_asc'
+
+const SORT_OPTIONS: { value: SortOrder; label: string }[] = [
+  { value: 'status_unresolved_first', label: 'Status: unresolved first' },
+  { value: 'status_resolved_first', label: 'Status: resolved first' },
+  { value: 'confidence_desc', label: 'Match confidence: high to low' },
+  { value: 'confidence_asc', label: 'Match confidence: low to high' },
+]
+
+function sortCandidates(candidates: Candidate[], sortOrder: SortOrder): Candidate[] {
+  const statusRank = (candidate: Candidate) => STATUS_RANK[candidate.status] ?? Number.MAX_SAFE_INTEGER
+  return [...candidates].sort((a, b) => {
+    switch (sortOrder) {
+      case 'status_unresolved_first':
+        return statusRank(a) - statusRank(b)
+      case 'status_resolved_first':
+        return statusRank(b) - statusRank(a)
+      case 'confidence_desc':
+        return b.confidence - a.confidence
+      case 'confidence_asc':
+        return a.confidence - b.confidence
+      default:
+        return 0
+    }
+  })
 }
 
 function PublicationSummary({
@@ -129,6 +172,14 @@ export function DuplicateReviewPage() {
     onSuccess: refreshCandidates,
   })
 
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
+  const [sortOrder, setSortOrder] = useState<SortOrder>('status_unresolved_first')
+  const visibleCandidates = useMemo(() => {
+    const all = candidates.data ?? []
+    const filtered = statusFilter === 'all' ? all : all.filter((candidate) => candidate.status === statusFilter)
+    return sortCandidates(filtered, sortOrder)
+  }, [candidates.data, statusFilter, sortOrder])
+
   const mutationError = notDuplicate.error ?? merge.error
   const pending = notDuplicate.isPending || merge.isPending
 
@@ -148,13 +199,44 @@ export function DuplicateReviewPage() {
       {candidates.error ? <p className="text-danger" role="alert">{candidates.error.message}</p> : null}
       {mutationError ? <p className="text-danger" role="alert">{mutationError.message}</p> : null}
       {candidates.data && candidates.data.length > 0 ? (
-        <CountPill count={candidates.data.filter((candidate) => candidate.status === 'unresolved').length}>
-          unresolved of {candidates.data.length} duplicates
-        </CountPill>
+        <>
+          <CountPill count={candidates.data.filter((candidate) => candidate.status === 'unresolved').length}>
+            unresolved of {candidates.data.length} duplicates
+          </CountPill>
+          <div className="mt-4 mb-2 flex flex-wrap items-end gap-3">
+            <FieldLabel htmlFor="duplicate-status-filter">
+              Status
+              <Select
+                id="duplicate-status-filter"
+                value={statusFilter}
+                onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}
+              >
+                {STATUS_FILTER_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </Select>
+            </FieldLabel>
+            <FieldLabel htmlFor="duplicate-sort-order">
+              Sort by
+              <Select
+                id="duplicate-sort-order"
+                value={sortOrder}
+                onChange={(event) => setSortOrder(event.target.value as SortOrder)}
+              >
+                {SORT_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
+              </Select>
+            </FieldLabel>
+          </div>
+        </>
       ) : null}
       {candidates.data && candidates.data.length === 0 ? <p className="text-text-muted">No duplicates found.</p> : null}
+      {candidates.data && candidates.data.length > 0 && visibleCandidates.length === 0 ? (
+        <p className="text-text-muted">No duplicates match the selected status.</p>
+      ) : null}
       <ul className="mt-6 mb-6 grid list-none gap-6 overflow-hidden rounded-md border border-border bg-surface p-0" aria-label="Duplicate candidates">
-        {candidates.data?.map((candidate) => (
+        {visibleCandidates.map((candidate) => (
           <li
             className="overflow-hidden rounded-lg border border-border bg-surface/90 px-5 py-4 shadow-sm data-[resolved=true]:opacity-70"
             data-resolved={candidate.status !== 'unresolved'}
