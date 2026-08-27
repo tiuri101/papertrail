@@ -182,29 +182,32 @@ def delete_search(
 
 @router.post(
     "/projects/{project_id}/imports",
-    response_model=JobAccepted,
+    response_model=list[JobAccepted],
     status_code=status.HTTP_202_ACCEPTED,
 )
 async def upload_import(
     project_id: str,
     search_source_id: str | None = Form(default=None, alias="searchSourceId"),
     mapping_json: str | None = Form(default=None, alias="mappingJson"),
-    file: UploadFile = File(...),
+    files: list[UploadFile] = File(..., alias="file"),
     pdfs: list[UploadFile] = File(default=[]),
     pdf_archives: list[UploadFile] = File(default=[], alias="pdfArchive"),
     admin: User = Depends(require_project_member_csrf),
     db: Session = Depends(get_db),
-) -> JobAccepted:
+) -> list[JobAccepted]:
     get_project(db, project_id)
     # Must run before anything is written: a foreign search-source id has to
     # fail before an ImportBatch (or a staged upload) exists for it.
     resolve_project_search_source(db, project_id, search_source_id)
 
-    safe_name = Path(file.filename or "import").name
-    suffix = Path(safe_name).suffix.lower()
     supported = {".csv", ".tsv", ".xlsx", ".ris", ".bib", ".bibtex"}
-    if suffix not in supported:
-        raise UnsupportedMediaError("Unsupported import format")
+    safe_names_and_suffixes = []
+    for file in files:
+        safe_name = Path(file.filename or "import").name
+        suffix = Path(safe_name).suffix.lower()
+        if suffix not in supported:
+            raise UnsupportedMediaError(f'Unsupported import format: "{safe_name}"')
+        safe_names_and_suffixes.append((safe_name, suffix))
 
     mapping = None
     if mapping_json:
@@ -220,55 +223,66 @@ async def upload_import(
     settings = get_settings()
     project_dir = settings.import_dir / project_id
     project_dir.mkdir(parents=True, exist_ok=True)
-    stored_path = project_dir / f"{uuid4()}{suffix}"
-    total_bytes = 0
-    try:
-        with stored_path.open("wb") as destination:
-            while chunk := await file.read(1024 * 1024):
-                total_bytes += len(chunk)
-                if total_bytes > settings.max_upload_bytes:
-                    raise PayloadTooLargeError(
-                        f"Import file exceeds the {settings.max_upload_bytes}-byte limit"
-                    )
-                destination.write(chunk)
-    except Exception:
-        stored_path.unlink(missing_ok=True)
-        raise
-    finally:
-        await file.close()
 
-    batch = ImportBatch(
-        project_id=project_id,
-        search_source_id=search_source_id,
-        original_filename=safe_name,
-        stored_path=str(stored_path),
-        file_type=suffix.lstrip("."),
-        status=ImportStatus.PENDING,
-        created_by_id=admin.id,
-        mapping=mapping,
-    )
-    db.add(batch)
-    db.flush()
-    await stage_bulk_uploads(db, batch, pdfs, pdf_archives)
-    job = enqueue_job(
-        db,
-        "parse_import",
-        {"import_batch_id": batch.id},
-        project_id=project_id,
-        created_by_id=admin.id,
-    )
-    record_audit(
-        db,
-        action="import.queued",
-        entity_type="import_batch",
-        entity_id=batch.id,
-        project_id=project_id,
-        actor_id=admin.id,
-        summary=f"Queued import {safe_name}",
-        metadata={"bytes": total_bytes},
-    )
+    results: list[JobAccepted] = []
+    for index, (file, (safe_name, suffix)) in enumerate(
+        zip(files, safe_names_and_suffixes, strict=True)
+    ):
+        stored_path = project_dir / f"{uuid4()}{suffix}"
+        total_bytes = 0
+        try:
+            with stored_path.open("wb") as destination:
+                while chunk := await file.read(1024 * 1024):
+                    total_bytes += len(chunk)
+                    if total_bytes > settings.max_upload_bytes:
+                        raise PayloadTooLargeError(
+                            f"Import file exceeds the {settings.max_upload_bytes}-byte limit"
+                        )
+                    destination.write(chunk)
+        except Exception:
+            stored_path.unlink(missing_ok=True)
+            raise
+        finally:
+            await file.close()
+
+        batch = ImportBatch(
+            project_id=project_id,
+            search_source_id=search_source_id,
+            original_filename=safe_name,
+            stored_path=str(stored_path),
+            file_type=suffix.lstrip("."),
+            status=ImportStatus.PENDING,
+            created_by_id=admin.id,
+            mapping=mapping,
+        )
+        db.add(batch)
+        db.flush()
+        # PDFs/PDF ZIPs uploaded alongside the metadata files can only be read
+        # once, so they're staged against the first batch; the reviewer-facing
+        # PDF-match review still lets any of them resolve against any active
+        # publication in the project, not just this batch's.
+        if index == 0:
+            await stage_bulk_uploads(db, batch, pdfs, pdf_archives)
+        job = enqueue_job(
+            db,
+            "parse_import",
+            {"import_batch_id": batch.id},
+            project_id=project_id,
+            created_by_id=admin.id,
+        )
+        record_audit(
+            db,
+            action="import.queued",
+            entity_type="import_batch",
+            entity_id=batch.id,
+            project_id=project_id,
+            actor_id=admin.id,
+            summary=f"Queued import {safe_name}",
+            metadata={"bytes": total_bytes},
+        )
+        results.append(JobAccepted(job_id=job.id, import_batch_id=batch.id))
     db.commit()
-    return JobAccepted(job_id=job.id, import_batch_id=batch.id)
+    return results
 
 
 @router.post("/projects/{project_id}/imports/{import_batch_id}/pdfs")

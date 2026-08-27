@@ -197,7 +197,7 @@ def test_pdfs_can_be_bulk_attached_to_a_previously_completed_search_import(
         headers={"X-CSRF-Token": csrf},
     )
     assert response.status_code == 202
-    import_batch_id = response.json()["importBatchId"]
+    import_batch_id = response.json()[0]["importBatchId"]
     assert execute_next_job(session_factory, worker_id="test-worker") is True
 
     listed = client.get(f"/api/v1/projects/{project_id}/searches").json()
@@ -218,6 +218,88 @@ def test_pdfs_can_be_bulk_attached_to_a_previously_completed_search_import(
     assert attach.json()["summary"]["total"] == 1
     listed_after_attach = client.get(f"/api/v1/projects/{project_id}/searches").json()
     assert listed_after_attach[0]["importBatches"][0]["attachedPaperCount"] == 1
+
+
+def test_multiple_bibliographic_files_create_one_batch_each_under_the_same_search(
+    client, db, session_factory, tmp_path, monkeypatch
+) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    db.commit()
+    csrf = login(client)
+    project_id = create_project(client, csrf)
+
+    monkeypatch.setenv("PAPERTRAIL_IMPORT_DIR", str(tmp_path / "imports"))
+    from app.core.config import get_settings
+
+    get_settings.cache_clear()
+
+    search = client.post(
+        f"/api/v1/projects/{project_id}/searches",
+        json={
+            "sourceName": "IEEE Xplore",
+            "query": "virtual reality",
+            "searchDate": "2026-07-30",
+        },
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+
+    response = client.post(
+        f"/api/v1/projects/{project_id}/imports",
+        data={"searchSourceId": search["id"]},
+        files=[
+            ("file", ("records-a.csv", b"Title,Authors\nPaper A,Doe\n", "text/csv")),
+            (
+                "file",
+                (
+                    "records-b.bib",
+                    b"@article{doe2026, title={Paper B}, author={Doe, Jane}, year={2026}}",
+                    "text/plain",
+                ),
+            ),
+        ],
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 202, response.text
+    results = response.json()
+    assert len(results) == 2
+    assert results[0]["importBatchId"] != results[1]["importBatchId"]
+    assert results[0]["jobId"] != results[1]["jobId"]
+
+    assert execute_next_job(session_factory, worker_id="test-worker") is True
+    assert execute_next_job(session_factory, worker_id="test-worker") is True
+
+    listed = client.get(f"/api/v1/projects/{project_id}/searches").json()
+    assert len(listed) == 1
+    batches = listed[0]["importBatches"]
+    assert len(batches) == 2
+    filenames = {batch["originalFilename"] for batch in batches}
+    assert filenames == {"records-a.csv", "records-b.bib"}
+    assert all(batch["status"] == "completed" for batch in batches)
+
+
+def test_import_rejects_the_whole_upload_if_any_file_has_an_unsupported_format(
+    client, db, tmp_path, monkeypatch
+) -> None:
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    db.commit()
+    csrf = login(client)
+    project_id = create_project(client, csrf)
+
+    monkeypatch.setenv("PAPERTRAIL_IMPORT_DIR", str(tmp_path / "imports"))
+    from app.core.config import get_settings
+
+    get_settings.cache_clear()
+
+    response = client.post(
+        f"/api/v1/projects/{project_id}/imports",
+        files=[
+            ("file", ("records-a.csv", b"Title,Authors\nPaper A,Doe\n", "text/csv")),
+            ("file", ("malware.exe", b"x", "application/octet-stream")),
+        ],
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 415
+    assert list(db.scalars(select(ImportBatch))) == []
 
 
 def test_a_regular_project_member_can_document_a_search_and_import_records(
@@ -305,7 +387,7 @@ def test_csv_import_runs_through_persistent_job(
         headers={"X-CSRF-Token": csrf},
     )
     assert response.status_code == 202
-    job_id = response.json()["jobId"]
+    job_id = response.json()[0]["jobId"]
 
     assert execute_next_job(session_factory, worker_id="test-worker") is True
     db.expire_all()
