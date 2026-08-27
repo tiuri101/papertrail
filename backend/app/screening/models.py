@@ -8,6 +8,7 @@ from sqlalchemy import (
     Boolean,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -39,6 +40,22 @@ class ScreeningWorkItem(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         UniqueConstraint(
             "publication_id", "stage", "slot_number", name="uq_screening_slot"
         ),
+        # Supports the reviewer-queue claim query in claim_next_work_item and the
+        # ineligible-assignment probe in reassign_work_items_from_ineligible_reviewers:
+        # both filter by project + stage + status (+ assignee) and order by
+        # random_rank. Without this the planner falls back to combining several
+        # single-column indexes plus an in-memory sort over every row in the stage.
+        Index(
+            "ix_screening_wi_queue",
+            "project_id",
+            "stage",
+            "status",
+            "assigned_reviewer_id",
+            "random_rank",
+        ),
+        # Rank-ordered scans that don't constrain status (rebalance, orphan
+        # redistribution).
+        Index("ix_screening_wi_rank", "project_id", "stage", "random_rank"),
     )
 
     project_id: Mapped[str] = mapped_column(
@@ -90,6 +107,9 @@ class ScreeningDecision(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         UniqueConstraint(
             "work_item_id", "version", name="uq_screening_decision_version"
         ),
+        # decisions_visible / current_decisions repeatedly ask for the current
+        # decision of a work item; this covers that lookup directly.
+        Index("ix_screening_decision_current", "work_item_id", "is_current"),
     )
 
     work_item_id: Mapped[str] = mapped_column(

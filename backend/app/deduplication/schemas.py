@@ -21,6 +21,7 @@ class CandidatePublication(ApiModel):
     publication_year: int | None = Field(serialization_alias="publicationYear")
     venue: str | None
     doi: str | None
+    publisher_url: str | None = Field(serialization_alias="publisherUrl")
     #: publisher_url + DOI-URL reachability, written by the
     #: ``assess_duplicate_candidates`` job; empty until it has run.
     url_checks: list[UrlCheckOut] = Field(

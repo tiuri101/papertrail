@@ -13,6 +13,7 @@ export interface CandidatePublication {
   publicationYear: number | null
   venue: string | null
   doi: string | null
+  publisherUrl: string | null
   urlChecks: UrlCheck[]
 }
 

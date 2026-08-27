@@ -244,6 +244,39 @@ def test_provider_confirmed_same_work_pair_is_auto_merged(db, monkeypatch) -> No
     assert audit is not None
 
 
+def test_auto_merging_the_last_pair_transitions_the_stage(db, monkeypatch) -> None:
+    project = _make_project(db)
+    _make_candidate(
+        db,
+        project,
+        a={"title": "Only pair", "doi": "10.1/a", "publication_year": 2024},
+        b={"title": "Only pair", "doi": "10.1/b", "publication_year": 2024},
+    )
+    _use_providers(
+        monkeypatch,
+        _DoiStubProvider(
+            "crossref",
+            {
+                "10.1/a": _found("Only Pair", 2024),
+                "10.1/b": _found("Only Pair", 2024),
+            },
+        ),
+    )
+    job = enqueue_job(
+        db,
+        "assess_duplicate_candidates",
+        {"project_id": project.id},
+        project_id=project.id,
+        created_by_id=None,
+    )
+    db.flush()
+
+    assess_duplicate_candidates_job(db, job)
+
+    db.refresh(project)
+    assert project.stage == ProjectStage.TITLE_ABSTRACT
+
+
 def test_one_dead_doi_recommends_keeping_the_resolvable_record(db, monkeypatch) -> None:
     project = _make_project(db)
     candidate = _make_candidate(

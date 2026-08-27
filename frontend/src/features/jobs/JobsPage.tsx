@@ -1,11 +1,12 @@
-import { tableBaseClass, tableCompactClass, tableScrollClass } from '../../components/layoutStyles'
-import { Fragment, useMemo, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { tableBaseClass, tableCompactClass, tableScrollClass, toolbarClass } from '../../components/layoutStyles'
+import { Fragment, useMemo, useRef, useState } from 'react'
+import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { Badge, type BadgeVariant } from '../../components/Badge'
 import { Button, IconButton } from '../../components/Button'
+import { ConfirmDialog } from '../../components/ConfirmDialog'
 import { CountPill } from '../../components/CountPill'
 import { FormField } from '../../components/FormField'
 import { IconRestart } from '../../components/icons'
@@ -17,7 +18,9 @@ import { InfoTooltip } from '../../components/Tooltip'
 import { useCanManageProject } from '../../hooks/useCanManageProject'
 import { cn } from '../../lib/cn'
 import { AdministrationEyebrow } from '../projects/StageEyebrow'
-import { BackgroundJob, hasActiveJob } from './jobStatus'
+import { BackgroundJob, JobPage } from './jobStatus'
+
+const PAGE_SIZE = 25
 
 const STATUS_FILTER_OPTIONS = [
   { value: '', label: 'All' },
@@ -67,16 +70,6 @@ const STATUS_CARD_STYLES: Record<string, string> = {
   completed: 'border-success/35 bg-success-container aria-pressed:ring-success/50 [&_strong]:text-success',
   failed: 'border-danger/35 bg-danger-container aria-pressed:ring-danger/50 [&_strong]:text-danger',
   cancelled: 'border-border bg-bg-elevated aria-pressed:ring-border-strong/60 [&_strong]:text-text',
-}
-
-function sortValue(job: BackgroundJob, key: SortKey): string | number | null {
-  if (key === 'progress') {
-    return job.progressTotal ? job.progressCurrent / job.progressTotal : null
-  }
-  if (key === 'message') return job.errorMessage ?? job.progressMessage ?? ''
-  if (key === 'createdAt') return Date.parse(job.createdAt)
-  if (key === 'completedAt') return job.completedAt ? Date.parse(job.completedAt) : null
-  return job[key]
 }
 
 function formatDate(value: string | null): string {
@@ -198,46 +191,67 @@ export function JobsPage() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [statusFilter, setStatusFilter] = useState('')
   const [jobTypeFilter, setJobTypeFilter] = useState('')
+  const [page, setPage] = useState(1)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [confirmCancelAll, setConfirmCancelAll] = useState(false)
+  const tableTopRef = useRef<HTMLDivElement>(null)
+
+  // Filtering, sorting and the status/type aggregates are all applied by the
+  // server now (backend/app/jobs/service.py): a project's job history is
+  // unbounded, so the page only ever fetches one slice of what matches.
+  const listParams = useMemo(() => {
+    const params = new URLSearchParams()
+    if (statusFilter) params.set('status', statusFilter)
+    if (jobTypeFilter) params.set('jobType', jobTypeFilter)
+    params.set('sort', sortKey)
+    params.set('direction', sortDirection)
+    params.set('page', String(page))
+    params.set('pageSize', String(PAGE_SIZE))
+    return params.toString()
+  }, [statusFilter, jobTypeFilter, sortKey, sortDirection, page])
+
   const jobs = useQuery({
-    queryKey: ['jobs', projectId],
-    queryFn: () => apiRequest<BackgroundJob[]>(`/api/v1/projects/${projectId}/jobs`),
+    // Nested under ['jobs', projectId] so every existing invalidation of that
+    // prefix -- restarts here, imports, merges elsewhere -- refreshes the page
+    // that is on screen.
+    queryKey: ['jobs', projectId, 'page', listParams],
+    queryFn: () => apiRequest<JobPage>(`/api/v1/projects/${projectId}/jobs/page?${listParams}`),
     enabled: Boolean(projectId),
-    refetchInterval: (query) => (hasActiveJob(query.state.data) ? 3000 : false),
+    // Keep the current page visible while the next one loads.
+    placeholderData: keepPreviousData,
+    refetchInterval: (query) => {
+      const counts = query.state.data?.statusCounts
+      const active = (counts?.queued ?? 0) + (counts?.running ?? 0)
+      return active > 0 ? 3000 : false
+    },
   })
 
-  const jobTypeOptions = useMemo(() => (
-    Array.from(new Set((jobs.data ?? []).map((job) => job.jobType))).sort()
-  ), [jobs.data])
+  const data = jobs.data
+  const items = data?.items ?? []
+  const total = data?.total ?? 0
+  const projectTotal = data?.projectTotal ?? 0
+  const pageCount = data?.pageCount ?? 1
+  const jobTypeOptions = data?.jobTypes ?? []
+  const failedJobIds = data?.failedIds ?? []
+  const filtersActive = Boolean(statusFilter || jobTypeFilter)
 
-  const jobStatusCounts = useMemo(() => (
-    STATUS_SUMMARY_ITEMS.map((item) => ({
-      ...item,
-      count: (jobs.data ?? []).filter((job) => job.status === item.status).length,
-    }))
-  ), [jobs.data])
+  const jobStatusCounts = STATUS_SUMMARY_ITEMS.map((item) => ({
+    ...item,
+    count: data?.statusCounts?.[item.status] ?? 0,
+  }))
 
-  const filteredJobs = useMemo(() => (
-    (jobs.data ?? []).filter((job) => (
-      (!statusFilter || job.status === statusFilter)
-      && (!jobTypeFilter || job.jobType === jobTypeFilter)
-    ))
-  ), [jobs.data, statusFilter, jobTypeFilter])
+  // Any change to what matches or how it is ordered invalidates the page
+  // number that was showing: page 3 of a filtered list is nowhere in a
+  // one-page one.
+  const narrowTo = <T,>(apply: (value: T) => void) => (value: T) => {
+    apply(value)
+    setPage(1)
+  }
 
-  const sortedJobs = useMemo(() => {
-    const result = [...filteredJobs]
-    result.sort((left, right) => {
-      const leftValue = sortValue(left, sortKey)
-      const rightValue = sortValue(right, sortKey)
-      if (leftValue === null) return rightValue === null ? 0 : 1
-      if (rightValue === null) return -1
-      const comparison = typeof leftValue === 'number' && typeof rightValue === 'number'
-        ? leftValue - rightValue
-        : String(leftValue).localeCompare(String(rightValue), undefined, { sensitivity: 'base' })
-      return sortDirection === 'asc' ? comparison : -comparison
-    })
-    return result
-  }, [filteredJobs, sortDirection, sortKey])
+  const goToPage = (updater: (current: number) => number) => {
+    setPage(updater)
+    tableTopRef.current?.scrollIntoView({ block: 'start' })
+  }
 
   const toggleSort = (key: SortKey) => {
     if (sortKey === key) {
@@ -246,6 +260,7 @@ export function JobsPage() {
       setSortKey(key)
       setSortDirection('asc')
     }
+    setPage(1)
   }
 
   const toggleSelected = (id: string) => setSelectedIds((current) => {
@@ -255,9 +270,6 @@ export function JobsPage() {
     return next
   })
 
-  const failedJobIds = useMemo(() => (
-    (jobs.data ?? []).filter((job) => job.status === 'failed').map((job) => job.id)
-  ), [jobs.data])
   const allFailedSelected = failedJobIds.length > 0
     && failedJobIds.every((id) => selectedIds.has(id))
 
@@ -289,6 +301,21 @@ export function JobsPage() {
     },
   })
 
+  // Queued jobs stop before they start; a job already running finishes its
+  // current step but its result is discarded and it is not retried.
+  const activeJobCount = (data?.statusCounts?.queued ?? 0) + (data?.statusCounts?.running ?? 0)
+
+  const cancelActive = useMutation({
+    mutationFn: () => apiRequest<BackgroundJob[]>(
+      `/api/v1/projects/${projectId}/jobs/cancel`,
+      { method: 'POST' },
+    ),
+    onSuccess: () => {
+      setConfirmCancelAll(false)
+      queryClient.invalidateQueries({ queryKey: ['jobs', projectId] })
+    },
+  })
+
   return (
     <Page>
       <AdministrationEyebrow />
@@ -300,16 +327,17 @@ export function JobsPage() {
       {jobs.error ? <p className="text-danger" role="alert">{jobs.error.message}</p> : null}
       {restartOne.error ? <p className="text-danger" role="alert">{restartOne.error.message}</p> : null}
       {restartMany.error ? <p className="text-danger" role="alert">{restartMany.error.message}</p> : null}
+      {cancelActive.error ? <p className="text-danger" role="alert">{cancelActive.error.message}</p> : null}
       {jobs.isLoading ? <p>Loading…</p> : null}
-      {jobs.data ? (
-        <CountPill count={sortedJobs.length}>
-          {statusFilter || jobTypeFilter
-            ? `of ${jobs.data.length} jobs match your filters`
-            : `job${jobs.data.length === 1 ? '' : 's'}`}
+      {data ? (
+        <CountPill count={total}>
+          {filtersActive
+            ? `of ${projectTotal} jobs match your filters`
+            : `job${total === 1 ? '' : 's'}`}
         </CountPill>
       ) : null}
-      {jobs.data && jobs.data.length === 0 ? <p className="text-text-muted">No background jobs have run for this project yet.</p> : null}
-      {jobs.data && jobs.data.length > 0 ? (
+      {data && projectTotal === 0 ? <p className="text-text-muted">No background jobs have run for this project yet.</p> : null}
+      {data && projectTotal > 0 ? (
         <section className="mb-6 flex flex-wrap  gap-3" aria-label="Job status summary">
           {jobStatusCounts.map(({ status, label, count }) => (
             <button
@@ -321,7 +349,7 @@ export function JobsPage() {
               )}
               aria-label={`${count} ${status} job${count === 1 ? '' : 's'}`}
               aria-pressed={statusFilter === status}
-              onClick={() => setStatusFilter(status)}
+              onClick={() => narrowTo(setStatusFilter)(status)}
             >
               <strong>{count}</strong>
               <span>{label}</span>
@@ -329,17 +357,17 @@ export function JobsPage() {
           ))}
         </section>
       ) : null}
-      {jobs.data && jobs.data.length > 0 ? (
+      {data && projectTotal > 0 ? (
         <div className="mb-4 flex flex-wrap items-end gap-3">
           <FormField label="Status">
-            <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+            <Select value={statusFilter} onChange={(event) => narrowTo(setStatusFilter)(event.target.value)}>
               {STATUS_FILTER_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </Select>
           </FormField>
           <FormField label="Job type">
-            <Select value={jobTypeFilter} onChange={(event) => setJobTypeFilter(event.target.value)}>
+            <Select value={jobTypeFilter} onChange={(event) => narrowTo(setJobTypeFilter)(event.target.value)}>
               <option value="">All</option>
               {jobTypeOptions.map((jobType) => (
                 <option key={jobType} value={jobType}>{jobType}</option>
@@ -364,11 +392,20 @@ export function JobsPage() {
               >
                 Restart All Failed ({failedJobIds.length})
               </Button>
+              <Button
+                type="button"
+                variant="destructive"
+                disabled={activeJobCount === 0 || cancelActive.isPending}
+                onClick={() => setConfirmCancelAll(true)}
+              >
+                Cancel Running Jobs ({activeJobCount})
+              </Button>
             </>
           ) : null}
         </div>
       ) : null}
-      {sortedJobs.length ? (
+      <div ref={tableTopRef}>
+      {items.length ? (
         <div className={tableScrollClass}>
           <table className={`${tableBaseClass} ${tableCompactClass} jobs-table`}>
             <caption className="sr-only">Background jobs</caption>
@@ -401,7 +438,7 @@ export function JobsPage() {
               </tr>
             </thead>
             <tbody>
-              {sortedJobs.map((job) => {
+              {items.map((job) => {
                 const failed = job.status === 'failed'
                 return (
                   <tr key={job.id}>
@@ -469,8 +506,52 @@ export function JobsPage() {
           </table>
         </div>
       ) : null}
-      {jobs.data && jobs.data.length > 0 && sortedJobs.length === 0 ? (
+      {data && projectTotal > 0 && total === 0 ? (
         <p className="text-text-muted">No jobs match your filters.</p>
+      ) : null}
+      {pageCount > 1 ? (
+        <nav className={cn(toolbarClass, 'mt-4 items-center')} aria-label="Job pages">
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={page <= 1}
+            onClick={() => goToPage((current) => Math.max(1, current - 1))}
+          >
+            Previous
+          </Button>
+          <span className="text-text-muted" role="status">
+            Page {page} of {pageCount} ({total} job{total === 1 ? '' : 's'})
+          </span>
+          <Button
+            type="button"
+            variant="secondary"
+            size="sm"
+            disabled={page >= pageCount}
+            onClick={() => goToPage((current) => Math.min(pageCount, current + 1))}
+          >
+            Next
+          </Button>
+        </nav>
+      ) : null}
+      </div>
+      {confirmCancelAll ? (
+        <ConfirmDialog
+          title={`Cancel ${activeJobCount} running job${activeJobCount === 1 ? '' : 's'}?`}
+          variant="danger"
+          confirmLabel={cancelActive.isPending ? 'Cancelling…' : 'Cancel Jobs'}
+          cancelLabel="Keep Running"
+          onCancel={() => setConfirmCancelAll(false)}
+          onConfirm={() => cancelActive.mutate()}
+          message={
+            <>
+              Every queued or running background task for this project will be stopped.
+              Queued tasks never start; a task already running finishes its current step,
+              but its result is discarded and it is not retried. Completed and failed jobs
+              are unaffected.
+            </>
+          }
+        />
       ) : null}
     </Page>
   )

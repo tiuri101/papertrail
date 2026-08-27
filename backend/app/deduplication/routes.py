@@ -70,6 +70,7 @@ def _candidate_publication(
         publication_year=publication.publication_year,
         venue=publication.venue,
         doi=publication.doi,
+        publisher_url=publication.publisher_url,
         url_checks=[
             UrlCheckOut(
                 kind=check.url_kind,
