@@ -46,6 +46,7 @@ from app.screening.service import (
     claim_next_work_item,
     create_screening_work_items,
     current_decisions,
+    has_publications_without_work_items,
     my_progress,
     my_submitted_work_items,
     override_decision,
@@ -207,12 +208,16 @@ def next_item(
     db: Session = Depends(get_db),
 ) -> dict[str, Any] | None:
     project = require_project_access(db, project_id, session.user)
-    if stage == ScreeningStage.TITLE_ABSTRACT:
+    if stage == ScreeningStage.TITLE_ABSTRACT and has_publications_without_work_items(
+        db, project_id, ScreeningStage.TITLE_ABSTRACT
+    ):
         # Publications added after duplicate review completes (a manual add, or a
         # second import batch) never went through the one-time work-item creation
         # that runs at that transition. Backfilling here -- idempotent, since
         # existing work items are left alone -- keeps any such publication from
         # silently sitting invisible to reviewers instead of just leaving it stuck.
+        # Only entered when the cheap probe above finds a gap: the backfill itself
+        # scans every publication in the project.
         with contextlib.suppress(DomainError):
             create_screening_work_items(db, project, ScreeningStage.TITLE_ABSTRACT)
     # A reviewer removed (or had this stage's permission revoked) after work items

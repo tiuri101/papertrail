@@ -138,6 +138,49 @@ def test_agreement_creates_automatic_final_decision(db) -> None:
     )
 
 
+def test_transition_waits_while_another_publication_is_undecided(db) -> None:
+    """One publication finalised, another with no decisions: the stage is not
+    complete, so transition_if_screening_complete returns False without running
+    the full unresolved sweep. Deciding the second publication then transitions.
+    """
+    _, project, decided_pub, r1, r2, _, criterion = setup_conflict(
+        db, second_outcome="include"
+    )
+    refresh_automatic_final_decision(
+        db, decided_pub.id, ScreeningStage.TITLE_ABSTRACT
+    )
+    db.commit()
+
+    other = Publication(project_id=project.id, title="Undecided paper")
+    db.add(other)
+    db.flush()
+    create_screening_work_items(db, project, ScreeningStage.TITLE_ABSTRACT)
+    db.commit()
+
+    assert (
+        transition_if_screening_complete(db, project, ScreeningStage.TITLE_ABSTRACT)
+        is False
+    )
+    assert project.stage == ProjectStage.TITLE_ABSTRACT
+
+    for reviewer in (r1, r2):
+        item = claim_next_work_item(
+            db, project.id, ScreeningStage.TITLE_ABSTRACT, reviewer.id, other.id
+        )
+        assert item is not None
+        submit_decision(
+            db, item, reviewer.id, "include", {criterion.id: True}, None
+        )
+    refresh_automatic_final_decision(db, other.id, ScreeningStage.TITLE_ABSTRACT)
+    db.commit()
+
+    assert (
+        transition_if_screening_complete(db, project, ScreeningStage.TITLE_ABSTRACT)
+        is True
+    )
+    assert project.stage == ProjectStage.FULL_TEXT
+
+
 def test_revision_invalidates_existing_consensus(db) -> None:
     admin, _, publication, r1, _, items, criterion = setup_conflict(db)
     final = record_final_decision(
