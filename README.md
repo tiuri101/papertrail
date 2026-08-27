@@ -54,6 +54,13 @@ Papertrail is a modular monolith. The API and worker share domain services and o
 
 PDF binaries are stored in a dedicated persistent filesystem volume, while their metadata and stable document IDs are stored in PostgreSQL. The Papertrail server never scrapes publisher full text using server-side institutional credentials. Reviewers upload PDFs directly, or pair the optional `browser-extension/` Chrome Manifest V3 extension (see [Reviewer guide](docs/user-guide.md#browser-assisted-pdf-retrieval)) so PDFs are retrieved through their own browser's network access and sign-in state and then uploaded through the same authoritative PDF pipeline.
 
+A high-level overview of the Papertrail architecture:
+
+[![Papertrail architecture](docs/assets/architecture.svg)](docs/architecture.md)
+
+For a detailed description of the components and data flows, see the
+[architecture documentation](docs/architecture.md).
+
 ## 🚀 Local development
 
 Local development uses Docker only for PostgreSQL. FastAPI, the worker, and Vite run directly on the host.

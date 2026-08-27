@@ -2,34 +2,14 @@
 
 Papertrail is an API-first modular monolith. A React/TypeScript single-page application communicates with a FastAPI backend. PostgreSQL is the authoritative store for bibliographic records, workflow state, sessions, audit events, queue reservations, background jobs, notification state, form versions, LLM configuration/results, extracted page text, and PDF metadata/version links. PDF binaries live in a dedicated persistent filesystem volume. The optional Chrome Browser Helper executes publisher retrieval work on the reviewer's computer. Optional SMTP and Ollama integrations are external services.
 
-```text
-React SPA -------------------------------+
-                                         | session cookie + CSRF
-Chrome Browser Helper -------------------| bearer agent token
-                                         v
-                                  +-------------+
-                                  |   FastAPI   |
-                                  +------+------+ 
-                                         |
-                          +--------------+--------------+
-                          |                             |
-                    +-----v-----+                 +-----v------+
-                    | PostgreSQL |                 | PDF volume |
-                    +-----+-----+                 +------------+
-                          |
-              +-----------+-----------+
-              |                       |
-       +------v-------+        +------v-------+
-       | normal worker |        |  LLM worker  |
-       +------+-------+        +------+-------+
-              |                       |
-            SMTP                    Ollama
-              |
-       notification mail
 
-The production frontend is a separate static container. An external reverse proxy
-normally exposes the frontend and `/api` under the public HTTPS hostname.
-```
+[![Papertrail architecture](assets/architecture.svg)](assets/architecture.svg)
+
+> Click the diagram to open the full-size version.
+
+For a more detailed, interactive view:
+
+[Open the interactive architecture diagram](https://tiuri101.github.io/papertrail/architecture/)
 
 ## Backend modules
 
