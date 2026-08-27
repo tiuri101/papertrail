@@ -450,7 +450,7 @@ def test_metadata_with_zip_isolated_failures_and_metadata_only_still_works(
         headers={"X-CSRF-Token": csrf},
     )
     assert response.status_code == 202
-    job = db.get(BackgroundJob, response.json()["jobId"])
+    job = db.get(BackgroundJob, response.json()[0]["jobId"])
     assert job is not None
     result = process_import_job(db, job)
     assert result["pdfs"]["matched"] == 2
@@ -464,7 +464,7 @@ def test_metadata_with_zip_isolated_failures_and_metadata_only_still_works(
         headers={"X-CSRF-Token": csrf},
     )
     assert metadata_only.status_code == 202
-    second_job = db.get(BackgroundJob, metadata_only.json()["jobId"])
+    second_job = db.get(BackgroundJob, metadata_only.json()[0]["jobId"])
     assert second_job is not None
     second_result = process_import_job(db, second_job)
     assert second_result["pdfs"]["total"] == 0
@@ -484,7 +484,7 @@ def test_metadata_with_zip_isolated_failures_and_metadata_only_still_works(
             ],
             headers={"X-CSRF-Token": csrf},
         )
-        bomb_job = db.get(BackgroundJob, suspicious.json()["jobId"])
+        bomb_job = db.get(BackgroundJob, suspicious.json()[0]["jobId"])
         assert bomb_job is not None
         bomb_result = process_import_job(db, bomb_job)
         assert bomb_result["pdfs"]["invalid"] == 1

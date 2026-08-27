@@ -282,7 +282,11 @@ export function ProjectsPage() {
               </span>
             </div>
             <h2 className="mt-4"><Link to={`/projects/${project.id}`}>{project.name}</Link></h2>
-            {project.description ? <p className="mt-1 text-text-muted">{project.description}</p> : null}
+            {project.description ? (
+              <p className="mt-1 line-clamp-3 text-text-muted" title={project.description}>
+                {project.description}
+              </p>
+            ) : null}
             <div className="flex flex-wrap gap-2">
               {projectPills(project).map((pill) => (
                 <Badge
