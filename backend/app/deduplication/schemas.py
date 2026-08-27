@@ -1,3 +1,6 @@
+from datetime import datetime
+from typing import Literal
+
 from pydantic import Field
 
 from app.api.schemas import ApiModel
@@ -25,6 +28,30 @@ class CandidateResponse(ApiModel):
     confidence: float
     status: str
     auto_resolved: bool = Field(serialization_alias="autoResolved")
+    resolved_by_id: str | None = Field(
+        default=None, serialization_alias="resolvedById"
+    )
+    resolved_by_name: str | None = Field(
+        default=None, serialization_alias="resolvedByName"
+    )
+    resolved_at: datetime | None = Field(
+        default=None, serialization_alias="resolvedAt"
+    )
+    resolution_note: str | None = Field(
+        default=None, serialization_alias="resolutionNote"
+    )
+    # For a currently-merged candidate: which record was kept, and the active
+    # (non-reversed) PublicationMerge that a revision would undo.
+    canonical_publication_id: str | None = Field(
+        default=None, serialization_alias="canonicalPublicationId"
+    )
+    merge_id: str | None = Field(default=None, serialization_alias="mergeId")
+    reserved_until: datetime | None = Field(
+        default=None, serialization_alias="reservedUntil"
+    )
+    reserved_by_id: str | None = Field(
+        default=None, serialization_alias="reservedById"
+    )
 
 
 class MergeRequest(ApiModel):
@@ -33,3 +60,20 @@ class MergeRequest(ApiModel):
 
 class ResolutionNote(ApiModel):
     note: str | None = None
+
+
+class ReviseRequest(ApiModel):
+    """Change an already-resolved candidate to a different outcome. Only
+    permitted while the project is still in duplicate review."""
+
+    resolution: Literal["merge", "not_duplicate"]
+    canonical_publication_id: str | None = Field(
+        default=None, alias="canonicalPublicationId"
+    )
+    note: str | None = None
+
+
+class DuplicateProgress(ApiModel):
+    remaining: int
+    resolved: int
+    total: int

@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import re
 from collections import defaultdict
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from itertools import combinations
-from typing import Any
+from typing import Any, TypeVar
 
 from rapidfuzz.fuzz import ratio
-from sqlalchemy import func, select
+from sqlalchemy import Select, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.api.errors import ConflictError, NotFoundError
@@ -33,6 +33,11 @@ CONTEXT_IDENTIFIER_FIELDS = ("isbn", "issn")
 #: opposed to an identical title (capped at 0.99) or any fuzzy match. Only
 #: these pairs are safe to resolve automatically.
 AUTO_MERGE_CONFIDENCE = 1.0
+
+#: How long a claimed-but-undecided candidate stays hidden from other
+#: reviewers working the duplicate-review queue. Matches the reviewer-queue
+#: reservation window used by screening / extraction / quality.
+RESERVATION_HOURS = 1
 
 MERGE_FIELDS = (
     "title",
@@ -421,6 +426,8 @@ def merge_publications(
     duplicate.merged_into_id = canonical.id
     candidate.status = "merged"
     candidate.resolved_by_id = merged_by_id
+    candidate.reserved_by_id = None
+    candidate.reserved_until = None
     merge = PublicationMerge(
         project_id=candidate.project_id,
         canonical_publication_id=canonical.id,
@@ -507,6 +514,159 @@ def mark_not_duplicate(
     candidate.status = "not_duplicate"
     candidate.resolved_by_id = resolved_by_id
     candidate.resolution_note = note
+    candidate.reserved_by_id = None
+    candidate.reserved_until = None
+
+
+# --------------------------------------------------------------------------
+# Reviewer queue: reservation lease + one-at-a-time claiming
+# --------------------------------------------------------------------------
+#
+# The duplicate-review stage is worked the same way as screening / extraction
+# / quality: a reviewer is handed one unresolved candidate at a time and it is
+# leased to them for a short window so a second reviewer working the queue
+# concurrently is never shown the same pair. Unlike those stages there is no
+# per-reviewer assignment and no separate work-item table -- the candidate row
+# is the work item, and any project member may resolve any pair.
+
+
+_SelectT = TypeVar("_SelectT", bound=Select[Any])
+
+
+def _for_update(
+    query: _SelectT, db: Session, *, skip_locked: bool = False
+) -> _SelectT:
+    if db.bind is not None and db.bind.dialect.name == "postgresql":
+        return query.with_for_update(skip_locked=skip_locked)
+    return query
+
+
+def claim_next_duplicate(
+    db: Session,
+    project_id: str,
+    reviewer_id: str,
+    excluded_ids: set[str] | None = None,
+) -> DuplicateCandidate | None:
+    """Reserve and return the highest-confidence unresolved candidate that is
+    free (unreserved, an expired lease, or already this reviewer's), or None
+    when the queue is empty for this reviewer."""
+    now = datetime.now(UTC)
+    query = (
+        select(DuplicateCandidate)
+        .where(
+            DuplicateCandidate.project_id == project_id,
+            DuplicateCandidate.status == "unresolved",
+            or_(
+                DuplicateCandidate.reserved_until.is_(None),
+                DuplicateCandidate.reserved_until < now,
+                DuplicateCandidate.reserved_by_id == reviewer_id,
+            ),
+        )
+        .order_by(DuplicateCandidate.confidence.desc(), DuplicateCandidate.id)
+        .limit(1)
+    )
+    if excluded_ids:
+        query = query.where(DuplicateCandidate.id.not_in(excluded_ids))
+    candidate = db.scalar(_for_update(query, db, skip_locked=True))
+    if candidate is not None:
+        candidate.reserved_by_id = reviewer_id
+        candidate.reserved_until = now + timedelta(hours=RESERVATION_HOURS)
+        db.flush()
+    return candidate
+
+
+def release_duplicate_candidate(
+    db: Session, candidate: DuplicateCandidate, reviewer_id: str
+) -> None:
+    """Hand a still-unresolved candidate back to the queue."""
+    if candidate.reserved_by_id == reviewer_id and candidate.status == "unresolved":
+        candidate.reserved_by_id = None
+        candidate.reserved_until = None
+        db.flush()
+
+
+def lock_candidate_for_update(
+    db: Session, candidate_id: str
+) -> DuplicateCandidate | None:
+    """Row-lock a candidate so a resolve/revise re-reads its status under the
+    lock instead of racing a concurrent reviewer's decision."""
+    query = select(DuplicateCandidate).where(DuplicateCandidate.id == candidate_id)
+    return db.scalar(_for_update(query, db))
+
+
+def duplicate_review_progress(db: Session, project_id: str) -> dict[str, int]:
+    """Project-wide queue progress (duplicate review is not partitioned per
+    reviewer, so this is the same for everyone)."""
+    rows = db.execute(
+        select(DuplicateCandidate.status, func.count())
+        .where(DuplicateCandidate.project_id == project_id)
+        .group_by(DuplicateCandidate.status)
+    ).all()
+    counts = {status: count for status, count in rows}
+    remaining = counts.get("unresolved", 0)
+    total = sum(counts.values())
+    return {"remaining": remaining, "resolved": total - remaining, "total": total}
+
+
+def revise_resolution(
+    db: Session,
+    project: Project,
+    candidate: DuplicateCandidate,
+    actor_id: str,
+    resolution: str,
+    canonical_id: str | None = None,
+    note: str | None = None,
+) -> PublicationMerge | None:
+    """Change an already-resolved candidate to a different outcome.
+
+    Revising re-shapes the post-deduplication cohort (an existing merge is
+    undone and/or a new one applied) and downstream stages are built on that
+    cohort, so this is confined to the duplicate-review stage exactly like a
+    standalone Undo Merge -- a project that has moved on goes back through
+    Move Back. Returns the new PublicationMerge when the new outcome is a
+    merge, else None.
+    """
+    from app.projects.lifecycle import require_merge_reversal_allowed
+
+    if resolution not in ("merge", "not_duplicate"):
+        raise ConflictError("Unknown duplicate resolution")
+    if candidate.status not in ("merged", "not_duplicate"):
+        raise ConflictError("Only a resolved duplicate candidate can be revised")
+    require_merge_reversal_allowed(db, project)
+
+    if candidate.status == "merged":
+        active_merge = db.scalar(
+            select(PublicationMerge).where(
+                PublicationMerge.candidate_id == candidate.id,
+                PublicationMerge.reversed_at.is_(None),
+            )
+        )
+        if active_merge is None:
+            raise NotFoundError("No active merge to revise for this candidate")
+        # reverse_merge resets the candidate back to "unresolved".
+        reverse_merge(db, active_merge, actor_id)
+
+    if candidate.status != "unresolved":
+        # Was "not_duplicate": merge_publications' guard needs "unresolved".
+        candidate.status = "unresolved"
+        candidate.resolved_by_id = None
+        candidate.resolution_note = None
+
+    new_merge: PublicationMerge | None = None
+    if resolution == "merge":
+        if canonical_id not in (
+            candidate.publication_a_id,
+            candidate.publication_b_id,
+        ):
+            raise ConflictError(
+                "Canonical publication must belong to the candidate pair"
+            )
+        new_merge = merge_publications(db, candidate, canonical_id, actor_id)
+    else:
+        mark_not_duplicate(candidate, actor_id, note)
+
+    transition_if_duplicate_review_complete(db, project)
+    return new_merge
 
 
 def transition_if_duplicate_review_complete(db: Session, project: Project) -> bool:

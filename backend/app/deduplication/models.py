@@ -61,9 +61,21 @@ class DuplicateCandidate(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     auto_resolved: Mapped[bool] = mapped_column(
         Boolean, server_default="false", default=False, nullable=False
     )
+    # Soft reservation lease, mirroring the reviewer queues in screening /
+    # extraction / quality: an unresolved candidate handed to one reviewer via
+    # ``claim_next_duplicate`` is hidden from the others until the lease
+    # expires. The candidate row *is* the work item (one pair, one reviewer),
+    # so there is no separate work-item table.
+    reserved_by_id: Mapped[str | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL")
+    )
+    reserved_until: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), index=True
+    )
 
     publication_a = relationship("Publication", foreign_keys=[publication_a_id])
     publication_b = relationship("Publication", foreign_keys=[publication_b_id])
+    resolved_by = relationship("User", foreign_keys=[resolved_by_id])
 
 
 class PublicationMerge(UUIDPrimaryKeyMixin, TimestampMixin, Base):
