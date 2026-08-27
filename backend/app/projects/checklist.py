@@ -14,11 +14,13 @@ from app.jobs.models import BackgroundJob, JobStatus
 from app.llm.models import ProjectLlmSettings
 from app.projects.models import (
     STAGE_ORDER,
+    AllocationMode,
     CriterionKind,
     Project,
     ProjectMembership,
     ProjectStage,
     ScreeningStage,
+    TaskAllocationMode,
 )
 from app.publications.models import Publication
 from app.quality.models import QualityConfig, QualityStatus, QualityWorkItem
@@ -188,25 +190,69 @@ def _my_open_work_item_count(
     )
 
 
+def _claim_pool_detail(remaining: int, open_total: int, verb: str) -> str:
+    """Queue detail line for a claim-mode stage.
+
+    In claim mode work items sit unassigned until a reviewer claims one, so a
+    per-reviewer "awaiting your decision" count is ~always zero however much
+    work is left in the stage -- "0 awaiting your decision" then reads as
+    "nothing for you to do" when the shared pool is in fact full. Report the
+    pool the reviewer draws from instead.
+    """
+    if remaining == 0:
+        return f"Nothing for you to claim right now ({open_total} open in total)"
+    return f"{remaining} available for you to {verb} ({open_total} open in total)"
+
+
+def _screening_decision_detail(
+    db: Session,
+    project: Project,
+    user_id: str | None,
+    stage: ScreeningStage,
+    open_total: int,
+) -> str:
+    """The screening "… awaiting your decision" line, phrased for the stage's
+    allocation mode: a personal assignment count under independent/divided
+    allocation, the claimable shared pool under claim allocation."""
+    from app.screening.service import (
+        get_screening_config,
+        remaining_claimable_publications,
+    )
+
+    config = get_screening_config(db, project.id, stage)
+    if (
+        user_id
+        and config is not None
+        and config.allocation_mode == AllocationMode.CLAIM
+    ):
+        remaining = remaining_claimable_publications(
+            db, project.id, stage, user_id
+        )
+        return _claim_pool_detail(remaining, open_total, "screen")
+    my_open = _my_open_work_item_count(
+        db,
+        ScreeningWorkItem,
+        project.id,
+        user_id,
+        extra_clauses=(ScreeningWorkItem.stage == stage,),
+    )
+    return f"{my_open} awaiting your decision ({open_total} open in total)"
+
+
 def _title_abstract_items(
     db: Session, project: Project, user_id: str | None
 ) -> list[dict[str, Any]]:
     unresolved = count_unfinalized_publications(
         db, project.id, ScreeningStage.TITLE_ABSTRACT
     )
-    my_open = _my_open_work_item_count(
-        db,
-        ScreeningWorkItem,
-        project.id,
-        user_id,
-        extra_clauses=(ScreeningWorkItem.stage == ScreeningStage.TITLE_ABSTRACT,),
-    )
     return [
         _item(
             "title_abstract_decisions",
             "Reach a final include/exclude decision for every publication",
             unresolved == 0,
-            f"{my_open} awaiting your decision ({unresolved} open in total)",
+            _screening_decision_detail(
+                db, project, user_id, ScreeningStage.TITLE_ABSTRACT, unresolved
+            ),
         ),
     ]
 
@@ -249,13 +295,6 @@ def _full_text_items(
             or 0
         )
     has_extraction_form = project_form(db, project.id) is not None
-    my_open = _my_open_work_item_count(
-        db,
-        ScreeningWorkItem,
-        project.id,
-        user_id,
-        extra_clauses=(ScreeningWorkItem.stage == ScreeningStage.FULL_TEXT,),
-    )
     return [
         _item(
             "full_text_retrieval",
@@ -267,7 +306,13 @@ def _full_text_items(
             "full_text_decisions",
             "Screen every retrieved full text",
             decided == len(available_ids),
-            f"{my_open} awaiting your decision ({len(available_ids) - decided} open in total)",
+            _screening_decision_detail(
+                db,
+                project,
+                user_id,
+                ScreeningStage.FULL_TEXT,
+                len(available_ids) - decided,
+            ),
         ),
         _item(
             "extraction_form",
@@ -282,7 +327,11 @@ def _extraction_items(
     db: Session, project: Project, user_id: str | None
 ) -> list[dict[str, Any]]:
     from app.extraction.final import get_current_final_extractions
-    from app.extraction.service import included_publication_ids
+    from app.extraction.service import (
+        extraction_allocation_mode,
+        included_publication_ids,
+        remaining_claimable_extractions,
+    )
 
     publication_ids = included_publication_ids(db, project.id)
     extraction_total = len(publication_ids)
@@ -292,14 +341,30 @@ def _extraction_items(
     # disagree stays open (in reconciliation) even though both slots are
     # individually done.
     extraction_done = len(get_current_final_extractions(db, publication_ids))
-    my_open = _my_open_work_item_count(db, ExtractionWorkItem, project.id, user_id)
+    extraction_open = extraction_total - extraction_done
+    if (
+        user_id
+        and extraction_allocation_mode(db, project.id) == TaskAllocationMode.CLAIM
+    ):
+        extraction_detail = _claim_pool_detail(
+            remaining_claimable_extractions(db, project.id, user_id),
+            extraction_open,
+            "extract",
+        )
+    else:
+        my_open = _my_open_work_item_count(
+            db, ExtractionWorkItem, project.id, user_id
+        )
+        extraction_detail = (
+            f"{my_open} awaiting your extraction "
+            f"({extraction_open} open in total)"
+        )
     items = [
         _item(
             "extraction",
             "Complete data extraction for every included publication",
             extraction_done == extraction_total,
-            f"{my_open} awaiting your extraction "
-            f"({extraction_total - extraction_done} open in total)",
+            extraction_detail,
         ),
     ]
     llm_settings = db.scalar(
@@ -347,16 +412,29 @@ def _extraction_items(
             )
             or 0
         )
-        my_open_quality = _my_open_work_item_count(
-            db, QualityWorkItem, project.id, user_id
-        )
+        quality_open = quality_total - quality_done
+        if user_id and config.allocation_mode == TaskAllocationMode.CLAIM:
+            from app.quality.service import remaining_claimable_assessments
+
+            quality_detail = _claim_pool_detail(
+                remaining_claimable_assessments(db, project.id, user_id),
+                quality_open,
+                "assess",
+            )
+        else:
+            my_open_quality = _my_open_work_item_count(
+                db, QualityWorkItem, project.id, user_id
+            )
+            quality_detail = (
+                f"{my_open_quality} awaiting your assessment "
+                f"({quality_open} open in total)"
+            )
         items.append(
             _item(
                 "quality",
                 "Complete quality assessment for every included publication",
                 quality_done == quality_total,
-                f"{my_open_quality} awaiting your assessment "
-                f"({quality_total - quality_done} open in total)",
+                quality_detail,
             )
         )
     return items

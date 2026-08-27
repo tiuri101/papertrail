@@ -1,6 +1,10 @@
 from app.accounts.service import create_user
 from app.deduplication.models import DuplicateCandidate
-from app.extraction.models import ExtractionWorkItem
+from app.extraction.models import (
+    ExtractionConfig,
+    ExtractionStatus,
+    ExtractionWorkItem,
+)
 from app.forms.models import FormKind
 from app.forms.service import create_form
 from app.fulltext.models import FullTextRetrieval, RetrievalStatus
@@ -8,15 +12,20 @@ from app.jobs.models import BackgroundJob, JobStatus
 from app.llm.models import ProjectLlmSettings
 from app.projects.checklist import project_checklist
 from app.projects.models import (
+    AllocationMode,
     Criterion,
     CriterionKind,
     Project,
     ProjectStage,
     ResearchQuestion,
     ReviewType,
+    ScreeningConfig,
+    ScreeningStage,
+    TaskAllocationMode,
 )
 from app.projects.service import add_membership, get_project
 from app.publications.models import Publication
+from app.quality.models import QualityConfig, QualityStatus, QualityWorkItem
 from app.screening.models import ScreeningWorkItem, WorkItemStatus
 
 
@@ -478,3 +487,190 @@ def test_extraction_checklist_only_shows_llm_validation_when_enabled(db) -> None
     )
     assert validation["done"] is False
     assert validation["detail"] == "0 of 1 validated"
+
+
+def _screening_item(checklist: dict, stage: ProjectStage, key: str) -> dict:
+    stage_block = next(s for s in checklist["stages"] if s["stage"] == stage)
+    return next(item for item in stage_block["items"] if item["key"] == key)
+
+
+def test_title_abstract_claim_mode_reports_the_claimable_pool(db) -> None:
+    reviewer = create_user(db, "claim-reviewer", "Claim Reviewer", "secret-password")
+    project = Project(
+        name="Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.TITLE_ABSTRACT,
+    )
+    db.add(project)
+    db.flush()
+    db.add(
+        ScreeningConfig(
+            project_id=project.id,
+            stage=ScreeningStage.TITLE_ABSTRACT,
+            allocation_mode=AllocationMode.CLAIM,
+        )
+    )
+    pubs = [Publication(project_id=project.id, title=f"Study {n}") for n in range(3)]
+    db.add_all(pubs)
+    db.flush()
+    # Claim-mode work items sit unassigned in a shared pool until a reviewer
+    # picks one up -- the reviewer here has claimed nothing yet.
+    db.add_all(
+        ScreeningWorkItem(
+            project_id=project.id,
+            publication_id=pub.id,
+            stage="title_abstract",
+            slot_number=0,
+            assigned_reviewer_id=None,
+            random_rank=str(index),
+            status=WorkItemStatus.AVAILABLE,
+        )
+        for index, pub in enumerate(pubs)
+    )
+    db.commit()
+
+    project = get_project(db, project.id)
+    item = _screening_item(
+        project_checklist(db, project, user_id=reviewer.id),
+        ProjectStage.TITLE_ABSTRACT,
+        "title_abstract_decisions",
+    )
+    assert item["done"] is False
+    assert item["detail"] == "3 available for you to screen (3 open in total)"
+
+
+def test_title_abstract_claim_mode_when_nothing_is_claimable(db) -> None:
+    reviewer_a = create_user(db, "claim-a", "Claim A", "secret-password")
+    reviewer_b = create_user(db, "claim-b", "Claim B", "secret-password")
+    project = Project(
+        name="Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.TITLE_ABSTRACT,
+    )
+    db.add(project)
+    db.flush()
+    db.add(
+        ScreeningConfig(
+            project_id=project.id,
+            stage=ScreeningStage.TITLE_ABSTRACT,
+            allocation_mode=AllocationMode.CLAIM,
+        )
+    )
+    pub = Publication(project_id=project.id, title="Study")
+    db.add(pub)
+    db.flush()
+    # The only slot is already submitted by the other reviewer, but the
+    # publication has no final decision yet, so it is still "open in total".
+    db.add(
+        ScreeningWorkItem(
+            project_id=project.id,
+            publication_id=pub.id,
+            stage="title_abstract",
+            slot_number=0,
+            assigned_reviewer_id=reviewer_b.id,
+            random_rank="a",
+            status=WorkItemStatus.SUBMITTED,
+        )
+    )
+    db.commit()
+
+    project = get_project(db, project.id)
+    item = _screening_item(
+        project_checklist(db, project, user_id=reviewer_a.id),
+        ProjectStage.TITLE_ABSTRACT,
+        "title_abstract_decisions",
+    )
+    assert item["detail"] == "Nothing for you to claim right now (1 open in total)"
+
+
+def test_extraction_claim_mode_reports_the_claimable_pool(db) -> None:
+    from app.conflicts.service import record_final_decision
+
+    reviewer = create_user(db, "extract-claim", "Extractor", "secret-password")
+    project = Project(
+        name="Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.EXTRACTION,
+    )
+    db.add(project)
+    db.flush()
+    pub = Publication(project_id=project.id, title="A Study")
+    db.add(pub)
+    db.flush()
+    record_final_decision(
+        db, pub.id, ScreeningStage.FULL_TEXT, "include", "agreement", None, None
+    )
+    db.add(
+        ExtractionConfig(
+            project_id=project.id, allocation_mode=TaskAllocationMode.CLAIM
+        )
+    )
+    db.add(
+        ExtractionWorkItem(
+            project_id=project.id,
+            publication_id=pub.id,
+            slot_number=1,
+            assigned_reviewer_id=None,
+            random_rank="r",
+            status=ExtractionStatus.AVAILABLE,
+        )
+    )
+    db.commit()
+
+    project = get_project(db, project.id)
+    item = _screening_item(
+        project_checklist(db, project, user_id=reviewer.id),
+        ProjectStage.EXTRACTION,
+        "extraction",
+    )
+    assert item["done"] is False
+    assert item["detail"] == "1 available for you to extract (1 open in total)"
+
+
+def test_quality_claim_mode_reports_the_claimable_pool(db) -> None:
+    from app.conflicts.service import record_final_decision
+
+    reviewer = create_user(db, "quality-claim", "Assessor", "secret-password")
+    project = Project(
+        name="Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.EXTRACTION,
+    )
+    db.add(project)
+    db.flush()
+    pub = Publication(project_id=project.id, title="A Study")
+    db.add(pub)
+    db.flush()
+    record_final_decision(
+        db, pub.id, ScreeningStage.FULL_TEXT, "include", "agreement", None, None
+    )
+    db.add(
+        QualityConfig(
+            project_id=project.id,
+            enabled=True,
+            allocation_mode=TaskAllocationMode.CLAIM,
+        )
+    )
+    db.add(
+        QualityWorkItem(
+            project_id=project.id,
+            publication_id=pub.id,
+            assigned_reviewer_id=None,
+            random_rank="r",
+            status=QualityStatus.AVAILABLE,
+        )
+    )
+    db.commit()
+
+    project = get_project(db, project.id)
+    item = _screening_item(
+        project_checklist(db, project, user_id=reviewer.id),
+        ProjectStage.EXTRACTION,
+        "quality",
+    )
+    assert item["done"] is False
+    assert item["detail"] == "1 available for you to assess (1 open in total)"
