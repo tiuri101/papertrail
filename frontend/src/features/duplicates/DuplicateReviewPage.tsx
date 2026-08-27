@@ -26,6 +26,7 @@ interface Candidate {
   matchReasons: string[]
   confidence: number
   status: string
+  autoResolved: boolean
 }
 
 interface ProjectAccess {
@@ -136,8 +137,10 @@ export function DuplicateReviewPage() {
       <StageEyebrow stage="duplicate_review" />
       <h1>Duplicate Review</h1>
       <p className="text-text-muted">
-        Candidate duplicate pairs found in this project. Compare each pair and keep the record
-        you want, or mark them as not duplicates.
+        Candidate duplicate pairs found in this project. Pairs sharing an exact DOI, PubMed ID,
+        or arXiv ID are merged automatically; everything else is listed here for you to compare
+        and keep the record you want, or mark as not duplicates. Every resolved pair — automatic
+        or manual — stays listed below for review.
       </p>
       {project.data?.canManage && project.data.stage === 'duplicate_review' ? (
         <DuplicateDetectionAction projectId={projectId} />
@@ -163,7 +166,7 @@ export function DuplicateReviewPage() {
                 <h2 className="mb-0 mt-0.5 text-base">Compare publication records</h2>
               </div>
               <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold capitalize ${candidate.status === 'unresolved' ? 'bg-warning-container text-warning' : 'bg-success-container text-success'}`}>
-                {candidate.status}
+                {candidate.autoResolved ? 'Auto-merged' : candidate.status}
               </span>
             </header>
             <div className="grid grid-cols-1 items-stretch gap-5 p-4 min-[681px]:grid-cols-2 min-[681px]:p-5 min-[961px]:grid-cols-[minmax(0,1fr)_minmax(11rem,.42fr)_minmax(0,1fr)]">
