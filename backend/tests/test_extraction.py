@@ -277,6 +277,57 @@ def test_claim_next_extraction_resumes_reviewers_existing_reservation(db) -> Non
     assert resumed.reserved_until >= first_reservation
 
 
+def test_claim_next_extraction_prefers_publication_with_completed_llm_suggestion(
+    db, monkeypatch
+) -> None:
+    from datetime import UTC, datetime
+
+    from app.core.config import get_settings
+    from app.llm.models import LlmExtractionRun, LlmTaskType, ProcessingStatus
+    from app.llm.task_service import project_settings
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "llm_enabled", True)
+    monkeypatch.setattr(settings, "ollama_model", "test-model:latest")
+
+    project, _, _, _, publications, r1, _ = setup_extraction(db)
+    initialize_extraction(db, project)
+    db.commit()
+
+    llm_settings = project_settings(db, project.id, create=True)
+    llm_settings.enabled = True
+    db.commit()
+
+    items = {
+        item.publication_id: item
+        for item in db.scalars(select(ExtractionWorkItem))
+    }
+    pub_ready, pub_pending = publications[0], publications[1]
+    # Force the LLM-ready publication's rank to sort *after* the pending one, so
+    # the assertion below can only pass because of LLM-readiness, not luck.
+    items[pub_ready.id].random_rank = "f" * 64
+    items[pub_pending.id].random_rank = "0" * 64
+    db.add(
+        LlmExtractionRun(
+            project_id=project.id,
+            publication_id=pub_ready.id,
+            task_type=LlmTaskType.DATA_EXTRACTION,
+            input_fingerprint="fp",
+            provider="ollama",
+            model="test-model:latest",
+            model_configuration={},
+            prompt_template_version="v1",
+            status=ProcessingStatus.COMPLETED,
+            queued_at=datetime.now(UTC),
+        )
+    )
+    db.commit()
+
+    claimed = claim_next_extraction(db, project.id, r1.id)
+    assert claimed is not None
+    assert claimed.publication_id == pub_ready.id
+
+
 def test_new_required_field_reopens_completed_extractions(db) -> None:
     project, form, required, _, _, r1, _ = setup_extraction(db)
     initialize_extraction(db, project)

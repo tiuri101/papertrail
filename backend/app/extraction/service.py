@@ -366,6 +366,37 @@ def my_progress(
     )
 
 
+def _llm_ready_rank(db: Session, project_id: str) -> Any:
+    """Order key sorting extraction work items whose publication already has a
+    completed LLM data-extraction suggestion ahead of ones without, so reviewers
+    pick up LLM-assisted papers first. Returns None when LLM data extraction is
+    disabled for this project, leaving the ordering untouched.
+
+    Mirrors ``screening.service._llm_ready_rank``: a soft ordering hint, not a
+    correctness gate -- the independent-decision reveal gate on the response
+    endpoint is unaffected. It asks "does a completed run exist" (a plain EXISTS,
+    backed by ix_llm_runs_pub_task_status) rather than "is the *latest* run
+    completed", so a completed run followed by a stale/failed re-run still counts
+    as ready, which is fine for queue ordering.
+    """
+    from app.llm.models import LlmExtractionRun, LlmTaskType, ProcessingStatus
+    from app.llm.task_service import feature_enabled
+
+    if not feature_enabled(db, project_id, LlmTaskType.DATA_EXTRACTION):
+        return None
+    completed_run_exists = (
+        select(LlmExtractionRun.id)
+        .where(
+            LlmExtractionRun.publication_id == ExtractionWorkItem.publication_id,
+            LlmExtractionRun.task_type == LlmTaskType.DATA_EXTRACTION,
+            LlmExtractionRun.status == ProcessingStatus.COMPLETED,
+        )
+        .correlate(ExtractionWorkItem)
+        .exists()
+    )
+    return case((completed_run_exists, 0), else_=1)
+
+
 def claim_next_extraction(
     db: Session,
     project_id: str,
@@ -401,6 +432,16 @@ def claim_next_extraction(
             if claim_mode
             else ExtractionWorkItem.assigned_reviewer_id == reviewer_id
         )
+        order: list[Any] = [
+            case(
+                (ExtractionWorkItem.status == ExtractionStatus.RESERVED, 0),
+                else_=1,
+            ),
+            ExtractionWorkItem.random_rank,
+        ]
+        llm_ready_rank = _llm_ready_rank(db, project_id)
+        if llm_ready_rank is not None:
+            order.insert(0, llm_ready_rank)
         query = (
             select(ExtractionWorkItem)
             .where(
@@ -408,13 +449,7 @@ def claim_next_extraction(
                 ExtractionWorkItem.project_id == project_id,
                 ExtractionWorkItem.status != ExtractionStatus.COMPLETED,
             )
-            .order_by(
-                case(
-                    (ExtractionWorkItem.status == ExtractionStatus.RESERVED, 0),
-                    else_=1,
-                ),
-                ExtractionWorkItem.random_rank,
-            )
+            .order_by(*order)
             .limit(1)
         )
         if excluded_item_ids:
