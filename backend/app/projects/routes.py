@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
@@ -16,8 +16,15 @@ from app.imports.schemas import JobRestartRequest, JobStageSummary
 from app.jobs.diagnostics import STAGE_ORDER
 from app.jobs.models import BackgroundJob, JobStatus
 from app.jobs.registry import JOB_STAGES
-from app.jobs.schemas import JobResponse
-from app.jobs.service import restart_job
+from app.jobs.schemas import JobPageResponse, JobResponse
+from app.jobs.service import (
+    DEFAULT_JOB_PAGE_SIZE,
+    MAX_JOB_PAGE_SIZE,
+    JobPage,
+    cancel_project_jobs,
+    jobs_page,
+    restart_job,
+)
 from app.notifications.service import queue_membership_email
 from app.projects.dependencies import (
     require_project_manager,
@@ -809,6 +816,39 @@ def list_project_jobs(
     )
 
 
+@router.get("/{project_id}/jobs/page", response_model=JobPageResponse)
+def list_project_jobs_page(
+    project_id: str,
+    status_filter: JobStatus | None = Query(default=None, alias="status"),
+    job_type: str | None = Query(default=None, alias="jobType"),
+    sort: str = "createdAt",
+    direction: Literal["asc", "desc"] = "desc",
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(
+        default=DEFAULT_JOB_PAGE_SIZE, ge=1, le=MAX_JOB_PAGE_SIZE, alias="pageSize"
+    ),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> JobPage:
+    """One page of a project's background jobs, filtered and ordered server-side.
+
+    The sibling ``/jobs`` endpoint still returns the whole list for the
+    short-lived pollers that watch a single just-enqueued job; this one backs
+    the Jobs page, whose list is unbounded.
+    """
+    require_project_access(db, project_id, user)
+    return jobs_page(
+        db,
+        project_id,
+        status=status_filter,
+        job_type=job_type,
+        sort=sort,
+        direction=direction,
+        page=page,
+        page_size=page_size,
+    )
+
+
 @router.get("/{project_id}/jobs/summary", response_model=list[JobStageSummary])
 def project_jobs_summary(
     project_id: str,
@@ -899,6 +939,37 @@ def bulk_restart_project_jobs(
             project_id=project_id,
             actor_id=admin.id,
             summary=f"Restarted background job {job.job_type}",
+        )
+    db.commit()
+    return jobs
+
+
+@router.post("/{project_id}/jobs/cancel", response_model=list[JobResponse])
+def cancel_all_project_jobs(
+    project_id: str,
+    admin: User = Depends(require_project_manager_csrf),
+    db: Session = Depends(get_db),
+) -> list[BackgroundJob]:
+    """Cancel every queued or running background job for this project.
+
+    Queued jobs never start; a job already running finishes its current
+    handler but its result is discarded and it is not retried (see
+    ``cancel_project_jobs`` and ``jobs.worker.execute_next_job``). In-flight
+    LLM runs are marked cancelled too so they do not linger as "processing".
+    """
+    from app.llm.service import cancel_project_llm_runs
+
+    cancel_project_llm_runs(db, project_id)
+    jobs = cancel_project_jobs(db, project_id)
+    for job in jobs:
+        record_audit(
+            db,
+            action="job.cancelled",
+            entity_type="background_job",
+            entity_id=job.id,
+            project_id=project_id,
+            actor_id=admin.id,
+            summary=f"Cancelled background job {job.job_type}",
         )
     db.commit()
     return jobs
