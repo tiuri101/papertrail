@@ -6,13 +6,19 @@ from app.accounts.models import User
 from app.api.errors import ConflictError, DomainError, NotFoundError
 from app.audit.service import record_audit
 from app.db.session import get_db
-from app.deduplication.models import DuplicateCandidate, PublicationMerge
+from app.deduplication.models import (
+    DuplicateCandidate,
+    PublicationMerge,
+    PublicationUrlCheck,
+)
 from app.deduplication.schemas import (
+    CandidatePublication,
     CandidateResponse,
     DuplicateProgress,
     MergeRequest,
     ResolutionNote,
     ReviseRequest,
+    UrlCheckOut,
 )
 from app.deduplication.service import (
     claim_next_duplicate,
@@ -33,21 +39,69 @@ from app.projects.dependencies import (
 )
 from app.projects.models import ProjectStage
 from app.projects.service import get_project
+from app.publications.models import Publication
 
 router = APIRouter(tags=["deduplication"])
 
 
+UrlChecksByPub = dict[str, list[PublicationUrlCheck]]
+
+
+def _load_url_checks(db: Session, *publication_ids: str) -> UrlChecksByPub:
+    by_pub: UrlChecksByPub = {}
+    if not publication_ids:
+        return by_pub
+    for row in db.scalars(
+        select(PublicationUrlCheck)
+        .where(PublicationUrlCheck.publication_id.in_(set(publication_ids)))
+        .order_by(PublicationUrlCheck.url_kind)
+    ):
+        by_pub.setdefault(row.publication_id, []).append(row)
+    return by_pub
+
+
+def _candidate_publication(
+    publication: Publication, checks: list[PublicationUrlCheck]
+) -> CandidatePublication:
+    return CandidatePublication(
+        id=publication.id,
+        title=publication.title,
+        authors=publication.authors,
+        publication_year=publication.publication_year,
+        venue=publication.venue,
+        doi=publication.doi,
+        url_checks=[
+            UrlCheckOut(
+                kind=check.url_kind,
+                url=check.url,
+                reachable=check.reachable,
+                status_code=check.status_code,
+                checked_at=check.checked_at,
+            )
+            for check in checks
+        ],
+    )
+
+
 def _candidate_response(
-    candidate: DuplicateCandidate, active_merge: PublicationMerge | None
+    candidate: DuplicateCandidate,
+    active_merge: PublicationMerge | None,
+    url_checks: UrlChecksByPub | None = None,
 ) -> CandidateResponse:
     """Serialize a candidate for the review UI, folding in the resolver's
-    display name and (for merged pairs) the merge a revision would undo."""
+    display name, the merge a revision would undo (merged pairs), and each
+    record's URL-reachability results."""
+    url_checks = url_checks or {}
     return CandidateResponse(
         id=candidate.id,
         publication_a_id=candidate.publication_a_id,
         publication_b_id=candidate.publication_b_id,
-        publication_a=candidate.publication_a,
-        publication_b=candidate.publication_b,
+        publication_a=_candidate_publication(
+            candidate.publication_a, url_checks.get(candidate.publication_a_id, [])
+        ),
+        publication_b=_candidate_publication(
+            candidate.publication_b, url_checks.get(candidate.publication_b_id, [])
+        ),
         match_reasons=candidate.match_reasons,
         title_similarity=candidate.title_similarity,
         author_similarity=candidate.author_similarity,
@@ -63,6 +117,12 @@ def _candidate_response(
             candidate.updated_at if candidate.status != "unresolved" else None
         ),
         resolution_note=candidate.resolution_note,
+        provider_recommendation=candidate.provider_recommendation,
+        provider_recommended_canonical_id=(
+            candidate.provider_recommended_canonical_id
+        ),
+        provider_recommendation_reason=candidate.provider_recommendation_reason,
+        provider_recommendation_source=candidate.provider_recommendation_source,
         canonical_publication_id=(
             active_merge.canonical_publication_id if active_merge else None
         ),
@@ -169,7 +229,13 @@ def list_candidates(
         ):
             if merge.candidate_id is not None:
                 merges[merge.candidate_id] = merge
-    return [_candidate_response(c, merges.get(c.id)) for c in candidates]
+    pub_ids = {c.publication_a_id for c in candidates} | {
+        c.publication_b_id for c in candidates
+    }
+    url_checks = _load_url_checks(db, *pub_ids)
+    return [
+        _candidate_response(c, merges.get(c.id), url_checks) for c in candidates
+    ]
 
 
 @router.post(
@@ -189,7 +255,10 @@ def claim_next_candidate(
     db.commit()
     if candidate is None:
         return None
-    return _candidate_response(candidate, None)
+    url_checks = _load_url_checks(
+        db, candidate.publication_a_id, candidate.publication_b_id
+    )
+    return _candidate_response(candidate, None, url_checks)
 
 
 @router.get(
@@ -260,6 +329,51 @@ def rerun_duplicate_detection(
 
 
 @router.post(
+    "/projects/{project_id}/duplicates/assess",
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def rerun_candidate_assessment(
+    project_id: str,
+    manager: User = Depends(require_project_manager_csrf),
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    """Re-check candidate-record links and re-query Crossref / Semantic Scholar
+    for the unresolved pairs, without re-running blocking detection."""
+    project = get_project(db, project_id)
+    if project.stage != ProjectStage.DUPLICATE_REVIEW:
+        raise DomainError(
+            "Candidate assessment can only run during duplicate review"
+        )
+    active_job = db.scalar(
+        select(BackgroundJob.id).where(
+            BackgroundJob.project_id == project_id,
+            BackgroundJob.job_type == "assess_duplicate_candidates",
+            BackgroundJob.status.in_([JobStatus.QUEUED, JobStatus.RUNNING]),
+        )
+    )
+    if active_job is not None:
+        raise ConflictError("Candidate assessment is already queued or running")
+    job = enqueue_job(
+        db,
+        "assess_duplicate_candidates",
+        {"project_id": project_id},
+        project_id=project_id,
+        created_by_id=manager.id,
+    )
+    record_audit(
+        db,
+        action="duplicate.assessment_requeued",
+        entity_type="background_job",
+        entity_id=job.id,
+        project_id=project_id,
+        actor_id=manager.id,
+        summary="Re-ran duplicate candidate link/provider assessment",
+    )
+    db.commit()
+    return {"jobId": job.id, "status": job.status.value}
+
+
+@router.post(
     "/projects/{project_id}/duplicates/{candidate_id}/not-duplicate",
     response_model=CandidateResponse,
 )
@@ -287,7 +401,10 @@ def resolve_not_duplicate(
         summary="Resolved duplicate candidate as distinct",
     )
     db.commit()
-    return _candidate_response(candidate, None)
+    url_checks = _load_url_checks(
+        db, candidate.publication_a_id, candidate.publication_b_id
+    )
+    return _candidate_response(candidate, None, url_checks)
 
 
 @router.post("/projects/{project_id}/duplicates/{candidate_id}/merge")
@@ -365,7 +482,12 @@ def revise_duplicate_decision(
         },
     )
     db.commit()
-    return _candidate_response(candidate, _active_merge(db, candidate.id))
+    url_checks = _load_url_checks(
+        db, candidate.publication_a_id, candidate.publication_b_id
+    )
+    return _candidate_response(
+        candidate, _active_merge(db, candidate.id), url_checks
+    )
 
 
 @router.post("/projects/{project_id}/merges/{merge_id}/reverse")

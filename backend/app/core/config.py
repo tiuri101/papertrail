@@ -101,6 +101,12 @@ class Settings(BaseSettings):
     smtp_starttls: bool = True
     smtp_use_ssl: bool = False
     smtp_timeout_seconds: int = 30
+    # Duplicate review calls Crossref / Semantic Scholar and probes each
+    # candidate record's bibliographic URLs to suggest which record to keep
+    # (and to auto-merge a provider-confirmed same-work pair). An installation
+    # with no outbound internet access can switch the whole step off.
+    duplicate_assessment_enabled: bool = True
+    url_check_timeout_seconds: float = 8.0
     llm_enabled: bool = False
     ollama_base_url: str | None = None
     ollama_model: str | None = None
@@ -218,6 +224,10 @@ class Settings(BaseSettings):
             or not parsed_public_url.netloc
         ):
             raise ValueError("PAPERTRAIL_PUBLIC_BASE_URL must be an HTTP(S) URL")
+        if self.url_check_timeout_seconds < 1:
+            raise ValueError(
+                "PAPERTRAIL_URL_CHECK_TIMEOUT_SECONDS must be at least 1"
+            )
         if self.llm_enabled and (not self.ollama_base_url or not self.ollama_model):
             raise ValueError(
                 "PAPERTRAIL_OLLAMA_BASE_URL and PAPERTRAIL_OLLAMA_MODEL are required "

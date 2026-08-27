@@ -1,3 +1,11 @@
+export interface UrlCheck {
+  kind: 'publisher_url' | 'doi'
+  url: string
+  reachable: boolean | null
+  statusCode: number | null
+  checkedAt: string
+}
+
 export interface CandidatePublication {
   id: string
   title: string
@@ -5,7 +13,12 @@ export interface CandidatePublication {
   publicationYear: number | null
   venue: string | null
   doi: string | null
+  urlChecks: UrlCheck[]
 }
+
+/** Non-binding provider suggestion for an unresolved pair. `merge` points at
+ * `providerRecommendedCanonicalId`; `distinct` / `uncertain` do not. */
+export type ProviderRecommendation = 'merge' | 'distinct' | 'uncertain'
 
 export type CandidateStatus = 'unresolved' | 'merged' | 'not_duplicate'
 
@@ -28,6 +41,10 @@ export interface Candidate {
   mergeId: string | null
   reservedUntil: string | null
   reservedById: string | null
+  providerRecommendation: ProviderRecommendation | null
+  providerRecommendedCanonicalId: string | null
+  providerRecommendationReason: string | null
+  providerRecommendationSource: string | null
 }
 
 export interface DuplicateProgress {
@@ -46,6 +63,18 @@ export function currentChoice(candidate: Candidate): DuplicateChoice | undefined
   if (candidate.status === 'merged') {
     if (candidate.canonicalPublicationId === candidate.publicationA.id) return 'a'
     if (candidate.canonicalPublicationId === candidate.publicationB.id) return 'b'
+  }
+  return undefined
+}
+
+/** Which button the provider assessment points at, or undefined when there is
+ * no actionable suggestion (no recommendation, "uncertain", or a "merge"
+ * recommendation whose canonical record is neither A nor B). */
+export function recommendedChoice(candidate: Candidate): DuplicateChoice | undefined {
+  if (candidate.providerRecommendation === 'distinct') return 'not_duplicate'
+  if (candidate.providerRecommendation === 'merge') {
+    if (candidate.providerRecommendedCanonicalId === candidate.publicationA.id) return 'a'
+    if (candidate.providerRecommendedCanonicalId === candidate.publicationB.id) return 'b'
   }
   return undefined
 }

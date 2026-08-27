@@ -518,6 +518,11 @@ RETRY_SAFETY_REVIEW: dict[str, str] = {
         "owned by the deduplication domain: re-detection reuses the existing "
         "candidate rows for a project"
     ),
+    "assess_duplicate_candidates": (
+        "naturally idempotent: only touches candidates still unresolved, "
+        "upserts one PublicationUrlCheck row per (publication, kind), and "
+        "overwrites the recommendation columns, so a retry converges"
+    ),
     "generate_export": (
         "naturally idempotent: returns the ExportArtifact already produced for "
         "this job id instead of building a second one"

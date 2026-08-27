@@ -82,7 +82,7 @@ def build_job_diagnostics(db: Session, job: BackgroundJob) -> dict[str, Any]:
             context["File type"] = batch.file_type
     elif job.job_type in ("enrich_publication", "resolve_merge_conflicts"):
         publication_id = str(job.payload.get("publication_id", "")) or None
-    elif job.job_type == "detect_duplicates":
+    elif job.job_type in ("detect_duplicates", "assess_duplicate_candidates"):
         context["Detection project ID"] = (
             str(job.payload.get("project_id", job.project_id or "")) or None
         )
