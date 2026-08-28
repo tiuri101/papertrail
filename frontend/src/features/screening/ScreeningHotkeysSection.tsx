@@ -5,12 +5,12 @@ import { Button } from '../../components/Button'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { IconKeyboard } from '../../components/icons'
 import { toolbarClass } from '../../components/layoutStyles'
+import { useUiPreference } from '../../hooks/useUiPreferences'
 import {
   DEFAULT_SCREENING_HOTKEYS,
   formatHotkey,
-  loadScreeningHotkeys,
-  saveScreeningHotkeys,
   SCREENING_HOTKEY_ACTIONS,
+  SCREENING_HOTKEYS_PREFERENCE_KEY,
   type ScreeningHotkeyAction,
   type ScreeningHotkeys,
 } from '../../lib/screeningHotkeys'
@@ -35,18 +35,13 @@ function duplicateKeys(hotkeys: ScreeningHotkeys): Set<string> {
 }
 
 export function ScreeningHotkeysSection() {
-  const [hotkeys, setHotkeys] = useState<ScreeningHotkeys>(() => loadScreeningHotkeys())
+  const { value: hotkeys, setValue: update, isSaving, error } = useUiPreference<ScreeningHotkeys>(
+    SCREENING_HOTKEYS_PREFERENCE_KEY,
+    DEFAULT_SCREENING_HOTKEYS,
+  )
   const [capturing, setCapturing] = useState<ScreeningHotkeyAction | null>(null)
-  const [saved, setSaved] = useState(false)
-
-  const update = (next: ScreeningHotkeys) => {
-    setHotkeys(next)
-    saveScreeningHotkeys(next)
-    setSaved(true)
-  }
 
   const startCapture = (action: ScreeningHotkeyAction) => {
-    setSaved(false)
     setCapturing(action)
   }
 
@@ -112,7 +107,8 @@ export function ScreeningHotkeysSection() {
           Reset to defaults
         </Button>
       </div>
-      <p className="text-text-muted" aria-live="polite">{saved ? 'Saved.' : ' '}</p>
+      {error ? <p className="text-danger" role="alert">{error.message}</p> : null}
+      <p className="text-text-muted" aria-live="polite">{isSaving ? 'Saving…' : ' '}</p>
     </CollapsibleSection>
   )
 }

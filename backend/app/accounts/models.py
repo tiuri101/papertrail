@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Any
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
+from app.db.types import JSONType
 
 
 class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
@@ -23,6 +25,12 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
         Boolean, default=False, nullable=False
     )
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # Opaque, reviewer-editable UI preferences (screening hotkeys, title/abstract
+    # font choices, ...) namespaced by feature key. Never interpreted server-side
+    # beyond a size cap -- see SelfUpdate.ui_preferences.
+    ui_preferences: Mapped[dict[str, Any]] = mapped_column(
+        JSONType, default=dict, nullable=False
+    )
 
     sessions: Mapped[list[UserSession]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
