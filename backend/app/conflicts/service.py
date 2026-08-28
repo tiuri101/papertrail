@@ -18,11 +18,17 @@ from app.projects.models import (
 )
 from app.publications.models import Publication
 from app.review_work.finalization import lock_publication_for_finalization
-from app.screening.models import ScreeningOutcome, ScreeningWorkItem, WorkItemStatus
+from app.screening.models import (
+    ScreeningDecision,
+    ScreeningOutcome,
+    ScreeningWorkItem,
+    WorkItemStatus,
+)
 from app.screening.service import (
     current_decisions,
     decisions_visible,
     eligible_reviewer_ids,
+    get_screening_config,
 )
 
 
@@ -506,27 +512,51 @@ def conflicted_publication_ids(
     Unlike unresolved_publication_ids, this excludes publications that simply
     haven't received all of their required decisions yet, since those aren't
     conflicts an admin can meaningfully resolve.
+
+    Read-only and set-based -- like count_unfinalized_publications, this skips
+    refresh_automatic_final_decision's per-publication lock/query/write: any
+    quorum that resolves automatically already did so synchronously when its
+    last decision was submitted (screening routes call that refresh then), so
+    re-deriving it here on every Conflict Resolution page load was pure
+    overhead that scaled with the project's publication count.
     """
-    publication_ids = list(
+    config = get_screening_config(db, project_id, stage)
+    if config is None:
+        return []
+
+    valid_final_exists = (
+        select(FinalDecision.id)
+        .where(
+            FinalDecision.publication_id == Publication.id,
+            FinalDecision.stage == stage,
+            FinalDecision.is_valid.is_(True),
+        )
+        .exists()
+    )
+    current_decision_count = (
+        select(func.count())
+        .select_from(ScreeningDecision)
+        .join(ScreeningWorkItem)
+        .where(
+            ScreeningWorkItem.publication_id == Publication.id,
+            ScreeningWorkItem.stage == stage,
+            ScreeningDecision.is_current.is_(True),
+        )
+        .scalar_subquery()
+    )
+    return list(
         db.scalars(
             select(Publication.id)
             .where(
                 Publication.project_id == project_id,
                 Publication.is_active.is_(True),
                 Publication.merged_into_id.is_(None),
+                ~valid_final_exists,
+                current_decision_count >= config.required_reviewers,
             )
             .order_by(Publication.id)
         )
     )
-    result = []
-    for publication_id in publication_ids:
-        if not decisions_visible(db, publication_id, stage):
-            continue
-        refresh_automatic_final_decision(db, publication_id, stage)
-        if valid_final_decision(db, publication_id, stage) is None:
-            result.append(publication_id)
-    db.flush()
-    return result
 
 
 def add_resolution_reviewer(

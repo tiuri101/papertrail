@@ -65,7 +65,7 @@ def test_temporary_password_session_is_limited_to_recovery_endpoints(
         f"/api/v1/projects/{project.id}/checklist",
         # Sent with a valid CSRF token so the refusal can only come from the
         # pending password change, not from the CSRF check.
-        f"/api/v1/projects/{project.id}/full-text",
+        f"/api/v1/projects/{project.id}/full-text/progress",
     ):
         blocked = client.get(path, headers={"X-CSRF-Token": csrf})
         assert blocked.status_code == 403, path

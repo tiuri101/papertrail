@@ -6,12 +6,22 @@ from app.accounts.models import User
 from app.api.errors import ConflictError, DomainError, NotFoundError
 from app.audit.service import record_audit
 from app.db.session import get_db
+from app.deduplication.listing import (
+    DEFAULT_CANDIDATE_PAGE_SIZE,
+    MAX_CANDIDATE_PAGE_SIZE,
+    CandidateFilters,
+    CandidatePage,
+    CandidateSortKey,
+    SortDirection,
+    candidates_page,
+)
 from app.deduplication.models import (
     DuplicateCandidate,
     PublicationMerge,
     PublicationUrlCheck,
 )
 from app.deduplication.schemas import (
+    CandidatePageResponse,
     CandidatePublication,
     CandidateResponse,
     DuplicateProgress,
@@ -201,24 +211,11 @@ def mark_project_ready(
     return {"jobId": job.id, "stage": project.stage.value}
 
 
-@router.get("/projects/{project_id}/duplicates", response_model=list[CandidateResponse])
-def list_candidates(
-    project_id: str,
-    _: User = Depends(require_project_member_csrf),
-    db: Session = Depends(get_db),
+def _candidate_responses(
+    db: Session, candidates: list[DuplicateCandidate]
 ) -> list[CandidateResponse]:
-    candidates = list(
-        db.scalars(
-            select(DuplicateCandidate)
-            .options(
-                joinedload(DuplicateCandidate.publication_a),
-                joinedload(DuplicateCandidate.publication_b),
-                joinedload(DuplicateCandidate.resolved_by),
-            )
-            .where(DuplicateCandidate.project_id == project_id)
-            .order_by(DuplicateCandidate.confidence.desc())
-        )
-    )
+    """Batch-serialize candidates, loading each one's active merge and URL
+    checks in a couple of grouped queries rather than one per candidate."""
     merged_ids = [c.id for c in candidates if c.status == "merged"]
     merges: dict[str, PublicationMerge] = {}
     if merged_ids:
@@ -237,6 +234,75 @@ def list_candidates(
     return [
         _candidate_response(c, merges.get(c.id), url_checks) for c in candidates
     ]
+
+
+@router.get("/projects/{project_id}/duplicates", response_model=list[CandidateResponse])
+def list_candidates(
+    project_id: str,
+    _: User = Depends(require_project_member_csrf),
+    db: Session = Depends(get_db),
+) -> list[CandidateResponse]:
+    candidates = list(
+        db.scalars(
+            select(DuplicateCandidate)
+            .options(
+                joinedload(DuplicateCandidate.publication_a),
+                joinedload(DuplicateCandidate.publication_b),
+                joinedload(DuplicateCandidate.resolved_by),
+            )
+            .where(DuplicateCandidate.project_id == project_id)
+            .order_by(DuplicateCandidate.confidence.desc())
+        )
+    )
+    return _candidate_responses(db, candidates)
+
+
+@router.get(
+    "/projects/{project_id}/duplicates/page",
+    response_model=CandidatePageResponse,
+)
+def list_candidates_page(
+    project_id: str,
+    search: str | None = None,
+    status: str | None = None,
+    sort: CandidateSortKey = "resolvedAt",
+    direction: SortDirection = "desc",
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(
+        default=DEFAULT_CANDIDATE_PAGE_SIZE,
+        ge=1,
+        le=MAX_CANDIDATE_PAGE_SIZE,
+        alias="pageSize",
+    ),
+    _: User = Depends(require_project_member_csrf),
+    db: Session = Depends(get_db),
+) -> CandidatePageResponse:
+    """One page of a project's resolved duplicate decisions, narrowed and
+    ordered server-side.
+
+    Registered ahead of the ``{candidate_id}`` siblings below. The bare array
+    route above is kept for the live review queue's claim/progress flow; this
+    one backs the Duplicate Review Decisions page, whose history is unbounded
+    and previously loaded (and client-filtered) every candidate at once.
+    """
+    result: CandidatePage = candidates_page(
+        db,
+        project_id,
+        filters=CandidateFilters(search=search, status=status),
+        sort=sort,
+        direction=direction,
+        page=page,
+        page_size=page_size,
+    )
+    return CandidatePageResponse(
+        items=_candidate_responses(db, result.items),
+        total=result.total,
+        resolved_total=result.resolved_total,
+        page=result.page,
+        page_size=result.page_size,
+        page_count=result.page_count,
+        has_more=result.has_more,
+    )
 
 
 @router.post(
@@ -273,6 +339,26 @@ def duplicate_progress(
 ) -> dict[str, int]:
     get_project(db, project_id)
     return duplicate_review_progress(db, project_id)
+
+
+@router.get(
+    "/projects/{project_id}/duplicates/{candidate_id}",
+    response_model=CandidateResponse,
+)
+def get_candidate(
+    project_id: str,
+    candidate_id: str,
+    _: User = Depends(require_project_member_csrf),
+    db: Session = Depends(get_db),
+) -> CandidateResponse:
+    """A single candidate by id, for the review queue's "go back to the
+    previous pair" -- it used to fetch the entire candidate list just to find
+    one by id."""
+    candidate = _load_candidate(db, project_id, candidate_id)
+    url_checks = _load_url_checks(
+        db, candidate.publication_a_id, candidate.publication_b_id
+    )
+    return _candidate_response(candidate, _active_merge(db, candidate.id), url_checks)
 
 
 @router.post("/projects/{project_id}/duplicates/{candidate_id}/release")

@@ -119,14 +119,11 @@ export function useDuplicateQueue(projectId: string) {
   })
 
   const goBack = useMutation({
-    mutationFn: async () => {
+    mutationFn: () => {
       if (!lastCompletedItem) throw new Error('No previous pair to go back to')
-      const all = await apiRequest<Candidate[]>(
-        `/api/v1/projects/${projectId}/duplicates`,
+      return apiRequest<Candidate>(
+        `/api/v1/projects/${projectId}/duplicates/${lastCompletedItem.id}`,
       )
-      const found = all.find((entry) => entry.id === lastCompletedItem.id)
-      if (!found) throw new Error('That duplicate pair is no longer available')
-      return found
     },
     onSuccess: (found) => setPreviousCandidate(found),
   })

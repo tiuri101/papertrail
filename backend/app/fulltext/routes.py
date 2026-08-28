@@ -1,8 +1,7 @@
 from typing import Any
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import select
-from sqlalchemy.orm import Session, joinedload
+from sqlalchemy.orm import Session
 
 from app.accounts.dependencies import require_csrf
 from app.accounts.models import User, UserSession
@@ -30,22 +29,6 @@ from app.projects.service import (
 )
 
 router = APIRouter(tags=["full text"])
-
-
-@router.get("/projects/{project_id}/full-text", response_model=list[RetrievalResponse])
-def list_retrievals(
-    project_id: str,
-    session: UserSession = Depends(require_csrf),
-    db: Session = Depends(get_db),
-) -> list[FullTextRetrieval]:
-    require_project_access(db, project_id, session.user)
-    return list(
-        db.scalars(
-            select(FullTextRetrieval)
-            .options(joinedload(FullTextRetrieval.publication))
-            .where(FullTextRetrieval.project_id == project_id)
-        )
-    )
 
 
 @router.post(

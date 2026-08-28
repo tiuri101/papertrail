@@ -1,9 +1,11 @@
 import type { RefObject, ReactNode } from 'react'
 import type { UseQueryResult } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 
 import { DoiPill } from '../../components/DoiPill'
 import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
 import { PublisherLinkPill } from '../../components/PublisherLinkPill'
+import { formatYearVenue } from '../../lib/format'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { fullTextDocumentEndpoint, type FullTextDocumentState } from '../fulltext/useFullTextDocument'
 import type { PublicationSummary } from '../publications/types'
@@ -30,13 +32,17 @@ export function ReviewPublicationHeader({
   fullTextDocument: UseQueryResult<FullTextDocumentState>
   afterAuthors?: ReactNode
 }) {
+  const yearVenue = formatYearVenue(publication.publicationYear, publication.venue)
+
   return (
     <>
-      <h2 ref={titleRef} className="scroll-mt-[92px]">{publication.title}</h2>
-      <p className="text-text">
-        {publication.authors ?? 'Unknown authors'}
-        {publication.publicationYear ? ` (${publication.publicationYear})` : ''}
-      </p>
+      <h2 ref={titleRef} className="scroll-mt-[92px]">
+        <Link to={`/projects/${projectId}/publications/${publicationId}`} target="_blank" rel="noreferrer">
+          {publication.title}
+        </Link>
+      </h2>
+      <p className="text-text">{publication.authors ?? 'Unknown authors'}</p>
+      {yearVenue ? <p className="text-text-muted">{yearVenue}</p> : null}
       {afterAuthors}
       <div className="toolbar flex flex-wrap items-center gap-3 my-5 max-[760px]:gap-2">
         {fullTextDocument.data ? (

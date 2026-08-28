@@ -12,6 +12,7 @@ import { IconAlertTriangle, IconArrowRight } from '../../components/icons'
 import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
 import { PublisherLinkPill } from '../../components/PublisherLinkPill'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
+import { formatYearVenue } from '../../lib/format'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { StageEyebrow } from '../projects/StageEyebrow'
 import { PreviousItemCard } from '../screening/PreviousItemCard'
@@ -190,6 +191,7 @@ function RetrievalCard({ projectId, retrieval, saving, onSubmit, onSkip, skippin
   const publication = retrieval.publication
   const isAvailable = status === 'available'
   const fullTextDocument = useFullTextDocument(projectId, publication.id)
+  const yearVenue = formatYearVenue(publication.publicationYear, publication.venue)
 
   const handleSubmit = () => {
     onSubmit(status, note || null)
@@ -197,11 +199,13 @@ function RetrievalCard({ projectId, retrieval, saving, onSubmit, onSkip, skippin
 
   return (
     <article className={cardStyles} data-ui="card">
-      <h2>{publication.title}</h2>
-      <p className="text-text">
-        {publication.authors ?? 'Unknown authors'}
-        {publication.publicationYear ? ` (${publication.publicationYear})` : ''}
-      </p>
+      <h2>
+        <Link to={`/projects/${projectId}/publications/${publication.id}`} target="_blank" rel="noreferrer">
+          {publication.title}
+        </Link>
+      </h2>
+      <p className="text-text">{publication.authors ?? 'Unknown authors'}</p>
+      {yearVenue ? <p className="text-text-muted">{yearVenue}</p> : null}
       <div className="toolbar flex flex-wrap items-center gap-3 my-5 max-[760px]:gap-2">
         {fullTextDocument.data ? (
           <PdfAvailabilityPill

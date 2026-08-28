@@ -41,6 +41,7 @@ class RetrievalPublication(ApiModel):
     title: str
     authors: str | None
     publication_year: int | None = Field(serialization_alias="publicationYear")
+    venue: str | None
     doi: str | None
     publisher_url: str | None = Field(serialization_alias="publisherUrl")
 

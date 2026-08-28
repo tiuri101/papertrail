@@ -12,6 +12,14 @@ export function formatSubmittedAtParts(value: string | null): { date: string; ti
   return { date: date.toLocaleDateString(), time: date.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) }
 }
 
+/** "Year, venue" for the reviewer-facing screening/extraction/QA screens; falls back to whichever half is present. */
+export function formatYearVenue(year: number | null | undefined, venue: string | null | undefined): string | null {
+  if (year && venue) return `${year}, ${venue}`
+  if (venue) return venue
+  if (year) return `${year}`
+  return null
+}
+
 export function formatFileSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`
   const units = ['KB', 'MB', 'GB']

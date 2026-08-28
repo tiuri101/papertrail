@@ -262,38 +262,55 @@ def _full_text_items(
 ) -> list[dict[str, Any]]:
     from app.extraction.service import project_form
 
-    retrievals = list(
-        db.scalars(
-            select(FullTextRetrieval).where(FullTextRetrieval.project_id == project.id)
+    # Grouped counts rather than loading every retrieval row into Python --
+    # the old version materialized the whole project's FullTextRetrieval
+    # table on every checklist poll.
+    total = (
+        db.scalar(
+            select(func.count())
+            .select_from(FullTextRetrieval)
+            .where(FullTextRetrieval.project_id == project.id)
         )
+        or 0
     )
-    total = len(retrievals)
-    retrieved = sum(
-        1
-        for retrieval in retrievals
-        if retrieval.status
-        not in {RetrievalStatus.NOT_YET_SOUGHT, RetrievalStatus.REQUESTED}
-    )
-    available_ids = [
-        retrieval.publication_id
-        for retrieval in retrievals
-        if retrieval.status == RetrievalStatus.AVAILABLE
-    ]
-    # One grouped count rather than a valid_final_decision() query per
-    # available publication -- the old loop was O(included publications) on
-    # every checklist poll.
-    decided = 0
-    if available_ids:
-        decided = (
-            db.scalar(
-                select(func.count(func.distinct(FinalDecision.publication_id))).where(
-                    FinalDecision.publication_id.in_(available_ids),
-                    FinalDecision.stage == ScreeningStage.FULL_TEXT,
-                    FinalDecision.is_valid.is_(True),
-                )
+    retrieved = (
+        db.scalar(
+            select(func.count())
+            .select_from(FullTextRetrieval)
+            .where(
+                FullTextRetrieval.project_id == project.id,
+                FullTextRetrieval.status.notin_(
+                    {RetrievalStatus.NOT_YET_SOUGHT, RetrievalStatus.REQUESTED}
+                ),
             )
-            or 0
         )
+        or 0
+    )
+    available_total = (
+        db.scalar(
+            select(func.count())
+            .select_from(FullTextRetrieval)
+            .where(
+                FullTextRetrieval.project_id == project.id,
+                FullTextRetrieval.status == RetrievalStatus.AVAILABLE,
+            )
+        )
+        or 0
+    )
+    available_publication_ids = select(FullTextRetrieval.publication_id).where(
+        FullTextRetrieval.project_id == project.id,
+        FullTextRetrieval.status == RetrievalStatus.AVAILABLE,
+    )
+    decided = (
+        db.scalar(
+            select(func.count(func.distinct(FinalDecision.publication_id))).where(
+                FinalDecision.publication_id.in_(available_publication_ids),
+                FinalDecision.stage == ScreeningStage.FULL_TEXT,
+                FinalDecision.is_valid.is_(True),
+            )
+        )
+        or 0
+    )
     has_extraction_form = project_form(db, project.id) is not None
     return [
         _item(
@@ -305,13 +322,13 @@ def _full_text_items(
         _item(
             "full_text_decisions",
             "Screen every retrieved full text",
-            decided == len(available_ids),
+            decided == available_total,
             _screening_decision_detail(
                 db,
                 project,
                 user_id,
                 ScreeningStage.FULL_TEXT,
-                len(available_ids) - decided,
+                available_total - decided,
             ),
         ),
         _item(

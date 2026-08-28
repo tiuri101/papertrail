@@ -1375,3 +1375,137 @@ def test_duplicate_next_and_progress_endpoints(client, db) -> None:
     assert released.status_code == 200
     db.expire_all()
     assert db.get(DuplicateCandidate, body["id"]).reserved_by_id is None
+
+
+def _paginated_decisions_project(db):
+    """A duplicate-review project with two merged candidates, one marked not
+    a duplicate, and one still unresolved -- enough to exercise /duplicates/page
+    without needing a large fixture."""
+    create_user(db, "admin", "Admin", "secret-password", is_admin=True)
+    reviewer = create_user(db, "reviewer2", "Reviewer Two", "secret-password")
+    project = Project(
+        name="Review",
+        review_type=ReviewType.SYSTEMATIC_REVIEW,
+        random_seed="seed",
+        stage=ProjectStage.DUPLICATE_REVIEW,
+    )
+    db.add(project)
+    db.flush()
+
+    def pub(title: str) -> Publication:
+        publication = Publication(project_id=project.id, title=title)
+        db.add(publication)
+        db.flush()
+        return publication
+
+    a1, b1 = pub("Alpha One"), pub("Alpha One Copy")
+    c1 = DuplicateCandidate(
+        project_id=project.id,
+        publication_a_id=a1.id,
+        publication_b_id=b1.id,
+        match_reasons=["exact_title"],
+        confidence=0.99,
+    )
+    db.add(c1)
+    db.flush()
+    merge_publications(db, c1, a1.id, reviewer.id)
+
+    a2, b2 = pub("Bravo Two"), pub("Bravo Two Copy")
+    c2 = DuplicateCandidate(
+        project_id=project.id,
+        publication_a_id=a2.id,
+        publication_b_id=b2.id,
+        match_reasons=["exact_title"],
+        confidence=0.98,
+    )
+    db.add(c2)
+    db.flush()
+    merge_publications(db, c2, a2.id, reviewer.id)
+
+    a3, b3 = pub("Charlie Three"), pub("Charlie Three Copy")
+    c3 = DuplicateCandidate(
+        project_id=project.id,
+        publication_a_id=a3.id,
+        publication_b_id=b3.id,
+        match_reasons=["similar_title"],
+        confidence=0.8,
+    )
+    db.add(c3)
+    db.flush()
+    mark_not_duplicate(c3, reviewer.id, "Different studies")
+
+    a4, b4 = pub("Delta Four"), pub("Delta Four Copy")
+    c4 = DuplicateCandidate(
+        project_id=project.id,
+        publication_a_id=a4.id,
+        publication_b_id=b4.id,
+        match_reasons=["similar_title"],
+        confidence=0.75,
+    )
+    db.add(c4)
+    db.commit()
+    return project, [c1, c2, c3, c4]
+
+
+def test_duplicates_page_excludes_unresolved_and_paginates(client, db) -> None:
+    project, candidates = _paginated_decisions_project(db)
+    csrf = login(client)
+
+    first_page = client.get(
+        f"/api/v1/projects/{project.id}/duplicates/page?pageSize=2&page=1",
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+    assert first_page["resolvedTotal"] == 3
+    assert first_page["total"] == 3
+    assert first_page["pageCount"] == 2
+    assert len(first_page["items"]) == 2
+    assert all(item["status"] != "unresolved" for item in first_page["items"])
+
+    second_page = client.get(
+        f"/api/v1/projects/{project.id}/duplicates/page?pageSize=2&page=2",
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+    assert len(second_page["items"]) == 1
+
+    seen_ids = {item["id"] for item in first_page["items"]} | {
+        item["id"] for item in second_page["items"]
+    }
+    assert seen_ids == {c.id for c in candidates if c.status != "unresolved"}
+
+
+def test_duplicates_page_filters_by_status_and_search(client, db) -> None:
+    project, _candidates = _paginated_decisions_project(db)
+    csrf = login(client)
+
+    merged_only = client.get(
+        f"/api/v1/projects/{project.id}/duplicates/page?status=merged",
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+    assert merged_only["total"] == 2
+    assert all(item["status"] == "merged" for item in merged_only["items"])
+
+    searched = client.get(
+        f"/api/v1/projects/{project.id}/duplicates/page?search=Charlie",
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+    assert searched["total"] == 1
+    assert searched["items"][0]["status"] == "not_duplicate"
+
+
+def test_get_candidate_by_id_returns_a_single_candidate(client, db) -> None:
+    project, candidates = _paginated_decisions_project(db)
+    csrf = login(client)
+    target = candidates[0]
+
+    response = client.get(
+        f"/api/v1/projects/{project.id}/duplicates/{target.id}",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 200
+    assert response.json()["id"] == target.id
+
+    missing = client.get(
+        f"/api/v1/projects/{project.id}/duplicates/does-not-exist",
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert missing.status_code == 404
