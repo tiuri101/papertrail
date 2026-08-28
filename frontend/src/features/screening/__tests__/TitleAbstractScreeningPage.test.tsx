@@ -145,11 +145,13 @@ describe('TitleAbstractScreeningPage', () => {
     renderScreening(async (input) => String(input).endsWith('/next') ? jsonResponse(reordered) : jsonResponse({}))
     await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
 
-    const rowHeaders = screen.getAllByRole('rowheader').map((cell) => cell.textContent)
+    const rowHeaders = screen.getAllByRole('rowheader').map((cell) => cell.textContent?.trim())
     expect(rowHeaders).toEqual([
-      'IC1 Uses virtual reality',
-      'EC1 Is an editorial',
+      'Uses virtual reality',
+      'Is an editorial',
     ])
+    const kindBadges = screen.getAllByText(/^(IC|EC)\d+$/).map((badge) => badge.textContent)
+    expect(kindBadges).toEqual(['IC1', 'EC1'])
   })
 
   it('switches the decision to Exclude when an inclusion criterion is marked not fulfilled', async () => {
