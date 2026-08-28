@@ -1,11 +1,13 @@
 import { toolbarClass } from '../../components/layoutStyles'
 import { useEffect, useRef, useState } from 'react'
+import { Link } from 'react-router-dom'
 
 import { Button } from '../../components/Button'
 import { Card } from '../../components/Card'
 import { DoiPill } from '../../components/DoiPill'
 import { HighlightedText } from '../../components/HighlightedText'
 import { PublisherLinkPill } from '../../components/PublisherLinkPill'
+import { formatYearVenue } from '../../lib/format'
 import { formatHotkey, loadScreeningHotkeys } from '../../lib/screeningHotkeys'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { ScreeningLlmPanel } from '../llm/LlmTaskComponents'
@@ -55,12 +57,18 @@ export function PreviousItemCard({
     titleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [previousItem.id])
 
+  const yearVenue = formatYearVenue(previousItem.publication.publicationYear, previousItem.publication.venue)
+
   return (
     <Card as="article">
       <p className="text-text-muted">You went back to the previous paper. Changes here update your existing decision.</p>
-      <h2 ref={titleRef} className="scroll-mt-[92px]"><HighlightedText text={previousItem.publication.title} keywords={highlightKeywords} /></h2>
+      <h2 ref={titleRef} className="scroll-mt-[92px]">
+        <Link to={`/projects/${projectId}/publications/${previousItem.publication.id}`} target="_blank" rel="noreferrer">
+          <HighlightedText text={previousItem.publication.title} keywords={highlightKeywords} />
+        </Link>
+      </h2>
       <p>{previousItem.publication.authors ?? 'Unknown authors'}</p>
-      {previousItem.publication.venue ? <p className="text-text-muted">{previousItem.publication.venue}</p> : null}
+      {yearVenue ? <p className="text-text-muted">{yearVenue}</p> : null}
       <p>
         {previousItem.publication.abstract
           ? <HighlightedText text={previousItem.publication.abstract} keywords={highlightKeywords} />

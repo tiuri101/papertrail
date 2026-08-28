@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { Link } from 'react-router-dom'
 
 import { DoiPill } from '../../components/DoiPill'
 import { Button } from '../../components/Button'
@@ -8,6 +9,7 @@ import { IconArrowRight, IconCheckCircle } from '../../components/icons'
 import { toolbarClass } from '../../components/layoutStyles'
 import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
 import { PublisherLinkPill } from '../../components/PublisherLinkPill'
+import { formatYearVenue } from '../../lib/format'
 import { formatHotkey, loadScreeningHotkeys } from '../../lib/screeningHotkeys'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { fullTextDocumentEndpoint, useFullTextDocument } from '../fulltext/useFullTextDocument'
@@ -48,11 +50,17 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
     ? <HighlightedText text={item.publication.abstract} keywords={highlightKeywords} />
     : 'No abstract available.'
 
+  const yearVenue = formatYearVenue(item.publication.publicationYear, item.publication.venue)
+
   return (
     <Card as="article">
-      <h2 ref={titleRef} className="scroll-mt-[92px]"><HighlightedText text={item.publication.title} keywords={highlightKeywords} /></h2>
+      <h2 ref={titleRef} className="scroll-mt-[92px]">
+        <Link to={`/projects/${queue.projectId}/publications/${item.publication.id}`} target="_blank" rel="noreferrer">
+          <HighlightedText text={item.publication.title} keywords={highlightKeywords} />
+        </Link>
+      </h2>
       <p>{item.publication.authors ?? 'Unknown authors'}</p>
-      {item.publication.venue ? <p className="text-text-muted">{item.publication.venue}</p> : null}
+      {yearVenue ? <p className="text-text-muted">{yearVenue}</p> : null}
       {isFullTextStage ? (
         <details className="rounded-md border border-border bg-bg-elevated px-4 py-3 [&_summary]:cursor-pointer [&_summary]:font-semibold [&_p]:mb-0 [&_p]:mt-3">
           <summary>Abstract</summary>
