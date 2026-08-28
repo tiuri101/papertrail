@@ -9,8 +9,10 @@ import { IconArrowRight, IconCheckCircle } from '../../components/icons'
 import { toolbarClass } from '../../components/layoutStyles'
 import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
 import { PublisherLinkPill } from '../../components/PublisherLinkPill'
+import { usePaperTextStyle } from '../../hooks/usePaperTextStyle'
+import { useUiPreference } from '../../hooks/useUiPreferences'
 import { formatYearVenue } from '../../lib/format'
-import { formatHotkey, loadScreeningHotkeys } from '../../lib/screeningHotkeys'
+import { DEFAULT_SCREENING_HOTKEYS, formatHotkey, SCREENING_HOTKEYS_PREFERENCE_KEY, type ScreeningHotkeys } from '../../lib/screeningHotkeys'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { fullTextDocumentEndpoint, useFullTextDocument } from '../fulltext/useFullTextDocument'
 import { CriteriaAnswerFields } from './CriteriaAnswerFields'
@@ -43,9 +45,12 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
     },
   })
 
+  const { value: hotkeys } = useUiPreference<ScreeningHotkeys>(SCREENING_HOTKEYS_PREFERENCE_KEY, DEFAULT_SCREENING_HOTKEYS)
+  const paperTextStyle = usePaperTextStyle()
+
   if (!item) return null
   const decisionError = awaitingConfirmation ? queue.reviseDecision.error : submit.error
-  const submitHotkey = formatHotkey(loadScreeningHotkeys().submit)
+  const submitHotkey = formatHotkey(hotkeys.submit)
   const abstractContent = item.publication.abstract
     ? <HighlightedText text={item.publication.abstract} keywords={highlightKeywords} />
     : 'No abstract available.'
@@ -54,7 +59,7 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
 
   return (
     <Card as="article">
-      <h2 ref={titleRef} className="scroll-mt-[92px]">
+      <h2 ref={titleRef} className="scroll-mt-[92px]" style={paperTextStyle.title}>
         <Link to={`/projects/${queue.projectId}/publications/${item.publication.id}`} target="_blank" rel="noreferrer">
           <HighlightedText text={item.publication.title} keywords={highlightKeywords} />
         </Link>
@@ -70,10 +75,10 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
       {isFullTextStage ? (
         <details className="rounded-md border border-border bg-bg-elevated px-4 py-3 [&_summary]:cursor-pointer [&_summary]:font-semibold [&_p]:mb-0 [&_p]:mt-3">
           <summary>Abstract</summary>
-          <p>{abstractContent}</p>
+          <p style={paperTextStyle.abstract}>{abstractContent}</p>
         </details>
       ) : (
-        <p>{abstractContent}</p>
+        <p style={paperTextStyle.abstract}>{abstractContent}</p>
       )}
       {isFullTextStage && fullTextDocument.data ? (
         <div className="flex flex-wrap items-center gap-3">

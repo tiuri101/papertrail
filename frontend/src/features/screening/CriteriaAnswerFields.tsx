@@ -2,7 +2,14 @@ import { useEffect, useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
 
 import { IconCheckCircle, IconXCircle } from '../../components/icons'
-import { formatHotkey, loadScreeningHotkeys, type ScreeningHotkeyAction } from '../../lib/screeningHotkeys'
+import { useUiPreference } from '../../hooks/useUiPreferences'
+import {
+  DEFAULT_SCREENING_HOTKEYS,
+  formatHotkey,
+  SCREENING_HOTKEYS_PREFERENCE_KEY,
+  type ScreeningHotkeyAction,
+  type ScreeningHotkeys,
+} from '../../lib/screeningHotkeys'
 import { criterionNumbers, sortedByKind } from './criteriaNumbering'
 import { tableBaseClass } from '../../components/layoutStyles'
 import type { CriterionAnswer, ScreeningCriterion } from './useScreeningQueue'
@@ -48,7 +55,7 @@ export function CriteriaAnswerFields({
   autoFocusFirstCriterion?: boolean
 }) {
   const numbers = criterionNumbers(criteria)
-  const hotkeys = loadScreeningHotkeys()
+  const { value: hotkeys } = useUiPreference<ScreeningHotkeys>(SCREENING_HOTKEYS_PREFERENCE_KEY, DEFAULT_SCREENING_HOTKEYS)
   const sorted = sortedByKind(criteria)
 
   const cellRefs = useRef(new Map<string, HTMLButtonElement>())

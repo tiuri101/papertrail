@@ -1,36 +1,104 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { createPortal } from 'react-dom'
 
-import { persistTheme, type Theme } from '../app/theme'
+import { persistTheme, THEMES, type Theme } from '../app/theme'
 import { IconButton } from './Button'
+import { ActionListItem } from './ActionListItem'
+import { IconCheck } from './icons'
 
 function themeFromDocument(): Theme {
-  return document.documentElement.dataset.theme === 'light' ? 'light' : 'dark'
+  const current = document.documentElement.dataset.theme
+  return THEMES.some((theme) => theme.id === current) ? (current as Theme) : 'dark'
 }
 
+/**
+ * Portal-rendered dropdown for picking one of the app's themes, positioned
+ * from the trigger's bounding rect the same way `RowActionsMenu` is — the
+ * trigger routinely sits in a header that doesn't establish its own
+ * stacking context, so painting the menu at the end of `<body>` avoids
+ * z-index fights instead of chasing them.
+ */
 export function ThemeToggle() {
   const [theme, setTheme] = useState<Theme>(themeFromDocument)
-  const nextTheme: Theme = theme === 'dark' ? 'light' : 'dark'
-  const label = `Switch to ${nextTheme} mode`
+  const [open, setOpen] = useState(false)
+  const [position, setPosition] = useState<{ top: number; right: number } | null>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const menuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return undefined
+    const close = () => setOpen(false)
+    const handlePointerDown = (event: MouseEvent) => {
+      const target = event.target as Node
+      if (triggerRef.current?.contains(target) || menuRef.current?.contains(target)) return
+      close()
+    }
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') close()
+    }
+    document.addEventListener('mousedown', handlePointerDown)
+    document.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('scroll', close, true)
+    window.addEventListener('resize', close)
+    return () => {
+      document.removeEventListener('mousedown', handlePointerDown)
+      document.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('scroll', close, true)
+      window.removeEventListener('resize', close)
+    }
+  }, [open])
+
+  const toggle = () => {
+    if (!open && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect()
+      setPosition({ top: rect.bottom + 4, right: window.innerWidth - rect.right })
+    }
+    setOpen((current) => !current)
+  }
+
+  const select = (next: Theme) => {
+    persistTheme(next)
+    setTheme(next)
+    setOpen(false)
+  }
 
   return (
-    <IconButton
-      variant="secondary"
-      aria-label={label}
-      title={label}
-      onClick={() => {
-        persistTheme(nextTheme)
-        setTheme(nextTheme)
-      }}
-    >
-      {theme === 'dark' ? (
+    <>
+      <IconButton
+        variant="secondary"
+        ref={triggerRef}
+        aria-label="Choose theme"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        title="Choose theme"
+        onClick={toggle}
+      >
         <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M12 18a6 6 0 1 0 0-12 6 6 0 0 0 0 12Zm0 4a1 1 0 0 1-1-1v-1.1a1 1 0 1 1 2 0V21a1 1 0 0 1-1 1Zm0-17.9a1 1 0 0 1-1-1V2a1 1 0 1 1 2 0v1.1a1 1 0 0 1-1 1ZM3.1 13H2a1 1 0 1 1 0-2h1.1a1 1 0 1 1 0 2ZM22 13h-1.1a1 1 0 1 1 0-2H22a1 1 0 1 1 0 2ZM5.7 19.7a1 1 0 0 1-.7-1.7l.8-.8a1 1 0 0 1 1.4 1.4l-.8.8a1 1 0 0 1-.7.3Zm12.5-12.5a1 1 0 0 1-.7-1.7l.8-.8a1 1 0 1 1 1.4 1.4l-.8.8a1 1 0 0 1-.7.3ZM6.5 7.2a1 1 0 0 1-.7-.3L5 6.1a1 1 0 1 1 1.4-1.4l.8.8a1 1 0 0 1-.7 1.7Zm12.5 12.5a1 1 0 0 1-.7-.3l-.8-.8a1 1 0 1 1 1.4-1.4l.8.8a1 1 0 0 1-.7 1.7Z" />
+          <path d="M12 2a10 10 0 1 0 0 20 2.5 2.5 0 0 0 1.77-4.27 1.5 1.5 0 0 1 1.06-2.56H17a5 5 0 0 0 5-5 8 8 0 0 0-10-8Zm-5.5 9a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm3-4a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm3 4a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z" />
         </svg>
-      ) : (
-        <svg viewBox="0 0 24 24" aria-hidden="true">
-          <path d="M20.7 15.1a8.5 8.5 0 0 1-11.8-11.8A9.5 9.5 0 1 0 20.7 15.1ZM4.5 12a7.5 7.5 0 0 1 3-6 10.5 10.5 0 0 0 10.5 10.5A7.5 7.5 0 0 1 4.5 12Z" />
-        </svg>
-      )}
-    </IconButton>
+      </IconButton>
+      {open && position ? createPortal(
+        <div
+          ref={menuRef}
+          className="fixed z-1000 flex min-w-52 flex-col gap-0.5 rounded-md border border-border bg-surface-raised p-2 shadow-lg"
+          role="menu"
+          aria-label="Choose theme"
+          style={{ top: position.top, right: position.right }}
+        >
+          {THEMES.map((option) => (
+            <ActionListItem
+              key={option.id}
+              role="menuitem"
+              aria-current={option.id === theme}
+              onClick={() => select(option.id)}
+            >
+              <span className="flex-1 text-left">{option.label}</span>
+              {option.id === theme ? <IconCheck /> : null}
+            </ActionListItem>
+          ))}
+        </div>,
+        document.body,
+      ) : null}
+    </>
   )
 }

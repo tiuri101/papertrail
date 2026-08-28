@@ -212,6 +212,11 @@ def update_me(
     if payload.email is not None:
         set_user_email(db, user, payload.email)
         changed_fields.append("email")
+    if payload.ui_preferences is not None:
+        # Cosmetic reviewer preferences (hotkeys, fonts, ...), not a security-
+        # or identity-relevant change, so it's saved without an audit entry --
+        # otherwise every hotkey tweak or font pick would spam the audit log.
+        user.ui_preferences = payload.ui_preferences
     if payload.new_password is not None:
         client_address = request.client.host if request.client else "unknown"
         throttle_identity = f"currentpw:{user.id}"

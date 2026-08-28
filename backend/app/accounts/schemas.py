@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from pydantic import Field
+import json
+from typing import Any
+
+from pydantic import Field, field_validator
 
 from app.accounts.password_policy import MAX_PASSWORD_LENGTH
 from app.api.schemas import ApiModel
@@ -12,6 +15,12 @@ from app.api.schemas import ApiModel
 # reaches Argon2; a `min_length` matching the policy here would short-circuit
 # into an unhelpful 422 instead.
 _MIN_SUBMITTED_PASSWORD = 1
+
+# Reviewer UI preferences (hotkeys, font choices, ...) are opaque to the
+# backend, so the only server-side check is a generous size cap -- enough for
+# many namespaced preference groups, small enough that a buggy or malicious
+# client can't use the users table as unbounded blob storage.
+_MAX_UI_PREFERENCES_BYTES = 20_000
 
 
 class LoginRequest(ApiModel):
@@ -34,6 +43,9 @@ class UserResponse(ApiModel):
     is_admin: bool = Field(serialization_alias="isAdmin")
     is_active: bool = Field(serialization_alias="isActive")
     must_change_password: bool = Field(serialization_alias="mustChangePassword")
+    ui_preferences: dict[str, Any] = Field(
+        default_factory=dict, serialization_alias="uiPreferences"
+    )
 
 
 class UserCreate(ApiModel):
@@ -86,6 +98,19 @@ class SelfUpdate(ApiModel):
         max_length=MAX_PASSWORD_LENGTH,
     )
     email: str | None = Field(default=None, max_length=320)
+    # Replaces the stored preferences wholesale when provided -- the frontend
+    # always sends the full merged object, so there is no partial-merge
+    # ambiguity to resolve server-side.
+    ui_preferences: dict[str, Any] | None = Field(default=None, alias="uiPreferences")
+
+    @field_validator("ui_preferences")
+    @classmethod
+    def validate_ui_preferences_size(cls, value: dict[str, Any] | None) -> dict[str, Any] | None:
+        if value is None:
+            return value
+        if len(json.dumps(value)) > _MAX_UI_PREFERENCES_BYTES:
+            raise ValueError("Preferences payload is too large")
+        return value
 
 
 LoginResponse.model_rebuild()

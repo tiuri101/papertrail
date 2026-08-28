@@ -1,4 +1,17 @@
 /*
+ * Self-hosted so the reviewer's chosen paper title/abstract font (see
+ * lib/paperTextDisplay.ts) renders identically everywhere Papertrail runs,
+ * rather than depending on what's installed on the reviewer's machine.
+ */
+@font-face {
+  font-family: "IBM Plex Sans Condensed";
+  src: url("/fonts/IBMPlexSans_SemiCondensed-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/*
  * Papertrail design tokens.
  *
  * The concrete values below live on `:root` (and are overridden per
@@ -169,7 +182,286 @@
   background: var(--color-bg);
 }
 
-@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
+/*
+ * Catppuccin flavors (https://catppuccin.com), mapped onto the same token
+ * set as the two themes above. Each flavor's neutral ramp (crust -> mantle
+ * -> base -> surface0-2 -> overlay0-1 -> subtext0-1 -> text) maps 1:1 onto
+ * our bg/surface/border/text ramp; accents use Catppuccin's own named
+ * colors (blue as primary, sapphire for the stronger/hover shade, etc).
+ */
+:root[data-theme="catppuccin-mocha"] {
+  color-scheme: dark;
+
+  --color-bg: #11111b;
+  --color-bg-elevated: #181825;
+  --color-surface: #1e1e2e;
+  --color-surface-raised: #313244;
+  --color-surface-hover: #45475a;
+  --color-surface-active: #585b70;
+  --color-border: #6c7086;
+  --color-border-strong: #7f849c;
+  --color-text: #cdd6f4;
+  --color-text-secondary: #bac2de;
+  --color-text-muted: #a6adc8;
+  --color-primary: #89b4fa;
+  --color-primary-strong: #74c7ec;
+  --color-primary-contrast: #11111b;
+  --color-primary-container: rgba(137, 180, 250, 0.14);
+  --color-primary-container-hover: rgba(137, 180, 250, 0.22);
+  --color-success: #a6e3a1;
+  --color-success-container: rgba(166, 227, 161, 0.12);
+  --color-warning: #f9e2af;
+  --color-warning-container: rgba(249, 226, 175, 0.12);
+  --color-danger: #f38ba8;
+  --color-danger-strong: #eba0ac;
+  --color-danger-container: rgba(243, 139, 168, 0.12);
+  --color-focus: rgba(137, 180, 250, 0.35);
+  --color-overlay: rgba(17, 17, 27, 0.64);
+
+  --tooltip-bg: #4a4e57;
+  --tooltip-border: #6b7078;
+  --tooltip-text: #ffffff;
+
+  --button-primary-bg-hover: #7ba2e1;
+  --button-primary-bg-active: #6b8cc3;
+  --button-primary-border: #92bafa;
+  --button-secondary-bg: #313244;
+  --button-secondary-bg-active: #1e1e2e;
+  --button-secondary-text: #cdd6f4;
+  --button-ghost-bg-active: rgba(205, 214, 244, 0.085);
+  --button-danger-bg-active: rgba(235, 160, 172, 0.32);
+  --button-focus: #89b4fa;
+
+  --kw-0-fg: #f9e2af;
+  --kw-0-bg: rgba(249, 226, 175, 0.16);
+  --kw-1-fg: #89dceb;
+  --kw-1-bg: rgba(137, 220, 235, 0.16);
+  --kw-2-fg: #a6e3a1;
+  --kw-2-bg: rgba(166, 227, 161, 0.16);
+  --kw-3-fg: #f5c2e7;
+  --kw-3-bg: rgba(245, 194, 231, 0.16);
+  --kw-4-fg: #cba6f7;
+  --kw-4-bg: rgba(203, 166, 247, 0.16);
+  --kw-5-fg: #94e2d5;
+  --kw-5-bg: rgba(148, 226, 213, 0.16);
+  --kw-6-fg: #fab387;
+  --kw-6-bg: rgba(250, 179, 135, 0.16);
+  --kw-7-fg: #f38ba8;
+  --kw-7-bg: rgba(243, 139, 168, 0.16);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.22);
+  --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.22);
+  --shadow-lg: 0 28px 80px rgba(0, 0, 0, 0.32);
+
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+
+:root[data-theme="catppuccin-macchiato"] {
+  color-scheme: dark;
+
+  --color-bg: #181926;
+  --color-bg-elevated: #1e2030;
+  --color-surface: #24273a;
+  --color-surface-raised: #363a4f;
+  --color-surface-hover: #494d64;
+  --color-surface-active: #5b6078;
+  --color-border: #6e738d;
+  --color-border-strong: #8087a2;
+  --color-text: #cad3f5;
+  --color-text-secondary: #b8c0e0;
+  --color-text-muted: #a5adcb;
+  --color-primary: #8aadf4;
+  --color-primary-strong: #7dc4e4;
+  --color-primary-contrast: #181926;
+  --color-primary-container: rgba(138, 173, 244, 0.14);
+  --color-primary-container-hover: rgba(138, 173, 244, 0.22);
+  --color-success: #a6da95;
+  --color-success-container: rgba(166, 218, 149, 0.12);
+  --color-warning: #eed49f;
+  --color-warning-container: rgba(238, 212, 159, 0.12);
+  --color-danger: #ed8796;
+  --color-danger-strong: #ee99a0;
+  --color-danger-container: rgba(237, 135, 150, 0.12);
+  --color-focus: rgba(138, 173, 244, 0.35);
+  --color-overlay: rgba(24, 25, 38, 0.64);
+
+  --tooltip-bg: #4a4e57;
+  --tooltip-border: #6b7078;
+  --tooltip-text: #ffffff;
+
+  --button-primary-bg-hover: #7c9cdc;
+  --button-primary-bg-active: #6c87be;
+  --button-primary-border: #93b4f5;
+  --button-secondary-bg: #363a4f;
+  --button-secondary-bg-active: #24273a;
+  --button-secondary-text: #cad3f5;
+  --button-ghost-bg-active: rgba(202, 211, 245, 0.085);
+  --button-danger-bg-active: rgba(238, 153, 160, 0.32);
+  --button-focus: #8aadf4;
+
+  --kw-0-fg: #eed49f;
+  --kw-0-bg: rgba(238, 212, 159, 0.16);
+  --kw-1-fg: #91d7e3;
+  --kw-1-bg: rgba(145, 215, 227, 0.16);
+  --kw-2-fg: #a6da95;
+  --kw-2-bg: rgba(166, 218, 149, 0.16);
+  --kw-3-fg: #f5bde6;
+  --kw-3-bg: rgba(245, 189, 230, 0.16);
+  --kw-4-fg: #c6a0f6;
+  --kw-4-bg: rgba(198, 160, 246, 0.16);
+  --kw-5-fg: #8bd5ca;
+  --kw-5-bg: rgba(139, 213, 202, 0.16);
+  --kw-6-fg: #f5a97f;
+  --kw-6-bg: rgba(245, 169, 127, 0.16);
+  --kw-7-fg: #ed8796;
+  --kw-7-bg: rgba(237, 135, 150, 0.16);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.22);
+  --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.22);
+  --shadow-lg: 0 28px 80px rgba(0, 0, 0, 0.32);
+
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+
+:root[data-theme="catppuccin-frappe"] {
+  color-scheme: dark;
+
+  --color-bg: #232634;
+  --color-bg-elevated: #292c3c;
+  --color-surface: #303446;
+  --color-surface-raised: #414559;
+  --color-surface-hover: #51576d;
+  --color-surface-active: #626880;
+  --color-border: #737994;
+  --color-border-strong: #838ba7;
+  --color-text: #c6d0f5;
+  --color-text-secondary: #b5bfe2;
+  --color-text-muted: #a5adce;
+  --color-primary: #8caaee;
+  --color-primary-strong: #85c1dc;
+  --color-primary-contrast: #232634;
+  --color-primary-container: rgba(140, 170, 238, 0.14);
+  --color-primary-container-hover: rgba(140, 170, 238, 0.22);
+  --color-success: #a6d189;
+  --color-success-container: rgba(166, 209, 137, 0.12);
+  --color-warning: #e5c890;
+  --color-warning-container: rgba(229, 200, 144, 0.12);
+  --color-danger: #e78284;
+  --color-danger-strong: #ea999c;
+  --color-danger-container: rgba(231, 130, 132, 0.12);
+  --color-focus: rgba(140, 170, 238, 0.35);
+  --color-overlay: rgba(35, 38, 52, 0.64);
+
+  --tooltip-bg: #4a4e57;
+  --tooltip-border: #6b7078;
+  --tooltip-text: #ffffff;
+
+  --button-primary-bg-hover: #7e99d6;
+  --button-primary-bg-active: #6d85ba;
+  --button-primary-border: #95b1ef;
+  --button-secondary-bg: #414559;
+  --button-secondary-bg-active: #303446;
+  --button-secondary-text: #c6d0f5;
+  --button-ghost-bg-active: rgba(198, 208, 245, 0.085);
+  --button-danger-bg-active: rgba(234, 153, 156, 0.32);
+  --button-focus: #8caaee;
+
+  --kw-0-fg: #e5c890;
+  --kw-0-bg: rgba(229, 200, 144, 0.16);
+  --kw-1-fg: #99d1db;
+  --kw-1-bg: rgba(153, 209, 219, 0.16);
+  --kw-2-fg: #a6d189;
+  --kw-2-bg: rgba(166, 209, 137, 0.16);
+  --kw-3-fg: #f4b8e4;
+  --kw-3-bg: rgba(244, 184, 228, 0.16);
+  --kw-4-fg: #ca9ee6;
+  --kw-4-bg: rgba(202, 158, 230, 0.16);
+  --kw-5-fg: #81c8be;
+  --kw-5-bg: rgba(129, 200, 190, 0.16);
+  --kw-6-fg: #ef9f76;
+  --kw-6-bg: rgba(239, 159, 118, 0.16);
+  --kw-7-fg: #e78284;
+  --kw-7-bg: rgba(231, 130, 132, 0.16);
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.22);
+  --shadow-md: 0 12px 32px rgba(0, 0, 0, 0.22);
+  --shadow-lg: 0 28px 80px rgba(0, 0, 0, 0.32);
+
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+
+:root[data-theme="catppuccin-latte"] {
+  color-scheme: light;
+
+  --color-bg: #dce0e8;
+  --color-bg-elevated: #e6e9ef;
+  --color-surface: #eff1f5;
+  --color-surface-raised: #ccd0da;
+  --color-surface-hover: #bcc0cc;
+  --color-surface-active: #acb0be;
+  --color-border: #9ca0b0;
+  --color-border-strong: #8c8fa1;
+  --color-text: #4c4f69;
+  --color-text-secondary: #5c5f77;
+  --color-text-muted: #6c6f85;
+  --color-primary: #1e66f5;
+  --color-primary-strong: #209fb5;
+  --color-primary-contrast: #eff1f5;
+  --color-primary-container: rgba(30, 102, 245, 0.1);
+  --color-primary-container-hover: rgba(30, 102, 245, 0.16);
+  --color-success: #40a02b;
+  --color-success-container: rgba(64, 160, 43, 0.1);
+  --color-warning: #df8e1d;
+  --color-warning-container: rgba(223, 142, 29, 0.1);
+  --color-danger: #d20f39;
+  --color-danger-strong: #e64553;
+  --color-danger-container: rgba(210, 15, 57, 0.09);
+  --color-focus: rgba(30, 102, 245, 0.25);
+  --color-overlay: rgba(76, 79, 105, 0.4);
+
+  --tooltip-bg: #ffffff;
+  --tooltip-border: #c8ccd2;
+  --tooltip-text: #23262b;
+
+  --button-primary-bg-hover: #3575f6;
+  --button-primary-bg-active: #1a57d0;
+  --button-primary-border: #4c86f7;
+  --button-secondary-bg: #e6e9ef;
+  --button-secondary-bg-active: #ccd0da;
+  --button-secondary-text: #4c4f69;
+  --button-ghost-bg-active: rgba(76, 79, 105, 0.085);
+  --button-danger-bg-active: rgba(210, 15, 57, 0.22);
+  --button-focus: #1e66f5;
+
+  --kw-0-fg: #df8e1d;
+  --kw-0-bg: rgba(223, 142, 29, 0.14);
+  --kw-1-fg: #04a5e5;
+  --kw-1-bg: rgba(4, 165, 229, 0.12);
+  --kw-2-fg: #40a02b;
+  --kw-2-bg: rgba(64, 160, 43, 0.12);
+  --kw-3-fg: #ea76cb;
+  --kw-3-bg: rgba(234, 118, 203, 0.1);
+  --kw-4-fg: #8839ef;
+  --kw-4-bg: rgba(136, 57, 239, 0.1);
+  --kw-5-fg: #179299;
+  --kw-5-bg: rgba(23, 146, 153, 0.1);
+  --kw-6-fg: #fe640b;
+  --kw-6-bg: rgba(254, 100, 11, 0.12);
+  --kw-7-fg: #d20f39;
+  --kw-7-bg: rgba(210, 15, 57, 0.1);
+
+  --shadow-sm: 0 1px 2px rgba(76, 79, 105, 0.08);
+  --shadow-md: 0 12px 32px rgba(76, 79, 105, 0.09);
+  --shadow-lg: 0 28px 80px rgba(76, 79, 105, 0.14);
+
+  color: var(--color-text);
+  background: var(--color-bg);
+}
+
+@custom-variant dark (&:where([data-theme="dark"], [data-theme="catppuccin-frappe"], [data-theme="catppuccin-macchiato"], [data-theme="catppuccin-mocha"], [data-theme="dark"] *, [data-theme="catppuccin-frappe"] *, [data-theme="catppuccin-macchiato"] *, [data-theme="catppuccin-mocha"] *));
 
 @theme inline {
   --font-sans: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;

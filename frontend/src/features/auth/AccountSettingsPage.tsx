@@ -7,6 +7,7 @@ import { Page } from '../../components/Page'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { IconCheckCircle, IconPerson, IconSettings } from '../../components/icons'
 import { Input } from '../../components/Input'
+import { PaperTextDisplaySection } from '../../components/PaperTextDisplaySection'
 import { SectionNavigationLayout } from '../../components/SectionNavigationLayout'
 import { ScreeningHotkeysSection } from '../screening/ScreeningHotkeysSection'
 import { BrowserHelpersSection } from './BrowserHelpersSection'
@@ -20,6 +21,7 @@ const accountSections = [
   { id: 'section-account-profile', label: 'Profile' },
   { id: 'section-account-password', label: 'Password' },
   { id: 'section-account-hotkeys', label: 'Screening Hotkeys' },
+  { id: 'section-account-paper-text', label: 'Title & Abstract Display' },
   { id: 'section-account-browser-helpers', label: 'Browser Helpers' },
 ]
 
@@ -164,6 +166,7 @@ export function AccountSettingsPage() {
           </Form>
         </CollapsibleSection>
         <ScreeningHotkeysSection />
+        <PaperTextDisplaySection />
         <BrowserHelpersSection />
       </Page>
     </SectionNavigationLayout>

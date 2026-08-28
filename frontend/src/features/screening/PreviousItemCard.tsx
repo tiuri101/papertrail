@@ -7,8 +7,10 @@ import { Card } from '../../components/Card'
 import { DoiPill } from '../../components/DoiPill'
 import { HighlightedText } from '../../components/HighlightedText'
 import { PublisherLinkPill } from '../../components/PublisherLinkPill'
+import { usePaperTextStyle } from '../../hooks/usePaperTextStyle'
+import { useUiPreference } from '../../hooks/useUiPreferences'
 import { formatYearVenue } from '../../lib/format'
-import { formatHotkey, loadScreeningHotkeys } from '../../lib/screeningHotkeys'
+import { DEFAULT_SCREENING_HOTKEYS, formatHotkey, SCREENING_HOTKEYS_PREFERENCE_KEY, type ScreeningHotkeys } from '../../lib/screeningHotkeys'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { ScreeningLlmPanel } from '../llm/LlmTaskComponents'
 import { CriteriaAnswerFields } from './CriteriaAnswerFields'
@@ -51,7 +53,9 @@ export function PreviousItemCard({
       save.mutate({ outcome, criteriaAnswers: answers, notes: notes || null })
     },
   })
-  const submitHotkey = formatHotkey(loadScreeningHotkeys().submit)
+  const { value: hotkeys } = useUiPreference<ScreeningHotkeys>(SCREENING_HOTKEYS_PREFERENCE_KEY, DEFAULT_SCREENING_HOTKEYS)
+  const paperTextStyle = usePaperTextStyle()
+  const submitHotkey = formatHotkey(hotkeys.submit)
   const titleRef = useRef<HTMLHeadingElement>(null)
   useEffect(() => {
     titleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
@@ -62,7 +66,7 @@ export function PreviousItemCard({
   return (
     <Card as="article">
       <p className="text-text-muted">You went back to the previous paper. Changes here update your existing decision.</p>
-      <h2 ref={titleRef} className="scroll-mt-[92px]">
+      <h2 ref={titleRef} className="scroll-mt-[92px]" style={paperTextStyle.title}>
         <Link to={`/projects/${projectId}/publications/${previousItem.publication.id}`} target="_blank" rel="noreferrer">
           <HighlightedText text={previousItem.publication.title} keywords={highlightKeywords} />
         </Link>
@@ -75,7 +79,7 @@ export function PreviousItemCard({
       </div>
       <p>{previousItem.publication.authors ?? 'Unknown authors'}</p>
       {yearVenue ? <p className="text-text-muted">{yearVenue}</p> : null}
-      <p>
+      <p style={paperTextStyle.abstract}>
         {previousItem.publication.abstract
           ? <HighlightedText text={previousItem.publication.abstract} keywords={highlightKeywords} />
           : 'No abstract available.'}

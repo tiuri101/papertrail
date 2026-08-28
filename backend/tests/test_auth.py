@@ -181,6 +181,48 @@ def test_reviewer_can_update_own_display_name_and_password(client, db) -> None:
     assert new_password_accepted.status_code == 200
 
 
+def test_reviewer_can_persist_ui_preferences_without_an_audit_entry(client, db) -> None:
+    user = create_user(db, "reviewer", "Reviewer", "reviewer-password", is_admin=False)
+    reviewer_id = user.id
+    db.commit()
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"username": "reviewer", "password": "reviewer-password"},
+    )
+    csrf = login.json()["csrfToken"]
+
+    preferences = {
+        "screeningHotkeys": {"include": "i", "exclude": "e"},
+        "paperTextDisplay": {"fontFamily": "serif", "fontSize": "lg"},
+    }
+    updated = client.patch(
+        "/api/v1/auth/me",
+        json={"uiPreferences": preferences},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert updated.status_code == 200
+    assert updated.json()["uiPreferences"] == preferences
+
+    # Preferences persist across sessions.
+    session = client.get("/api/v1/auth/me")
+    assert session.json()["uiPreferences"] == preferences
+
+    # Cosmetic-only changes don't spam the audit log.
+    events = (
+        db.query(AuditEvent)
+        .filter(AuditEvent.entity_type == "user", AuditEvent.entity_id == reviewer_id)
+        .all()
+    )
+    assert events == []
+
+    oversized = client.patch(
+        "/api/v1/auth/me",
+        json={"uiPreferences": {"blob": "x" * 25_000}},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert oversized.status_code == 422
+
+
 def test_admin_created_user_must_change_password_on_first_login(client, db) -> None:
     create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
     db.commit()
