@@ -67,6 +67,12 @@ export function PreviousItemCard({
           <HighlightedText text={previousItem.publication.title} keywords={highlightKeywords} />
         </Link>
       </h2>
+      <div className="flex flex-wrap items-center gap-3 mt-2">
+        <DoiPill doi={previousItem.publication.doi} />
+        {isSafeHttpUrl(previousItem.publication.publisherUrl) ? (
+          <PublisherLinkPill url={previousItem.publication.publisherUrl} />
+        ) : null}
+      </div>
       <p>{previousItem.publication.authors ?? 'Unknown authors'}</p>
       {yearVenue ? <p className="text-text-muted">{yearVenue}</p> : null}
       <p>
@@ -74,12 +80,6 @@ export function PreviousItemCard({
           ? <HighlightedText text={previousItem.publication.abstract} keywords={highlightKeywords} />
           : 'No abstract available.'}
       </p>
-      <div className={toolbarClass}>
-        <DoiPill doi={previousItem.publication.doi} />
-        {isSafeHttpUrl(previousItem.publication.publisherUrl) ? (
-          <PublisherLinkPill url={previousItem.publication.publisherUrl} />
-        ) : null}
-      </div>
       {decision ? (
         <>
           <CriteriaAnswerFields
