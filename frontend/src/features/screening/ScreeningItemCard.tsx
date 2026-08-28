@@ -59,6 +59,12 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
           <HighlightedText text={item.publication.title} keywords={highlightKeywords} />
         </Link>
       </h2>
+      <div className="flex flex-wrap items-center gap-3 mt-2">
+        <DoiPill doi={item.publication.doi} />
+        {isSafeHttpUrl(item.publication.publisherUrl) ? (
+          <PublisherLinkPill url={item.publication.publisherUrl} />
+        ) : null}
+      </div>
       <p>{item.publication.authors ?? 'Unknown authors'}</p>
       {yearVenue ? <p className="text-text-muted">{yearVenue}</p> : null}
       {isFullTextStage ? (
@@ -69,19 +75,15 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
       ) : (
         <p>{abstractContent}</p>
       )}
-      <div className="flex flex-wrap items-center gap-3">
-        {isFullTextStage && fullTextDocument.data ? (
+      {isFullTextStage && fullTextDocument.data ? (
+        <div className="flex flex-wrap items-center gap-3">
           <PdfAvailabilityPill
             available={fullTextDocument.data.available}
             href={`${fullTextDocumentEndpoint(queue.projectId, item.publication.id)}/content`}
             pageCount={fullTextDocument.data.document?.pageCount}
           />
-        ) : null}
-        <DoiPill doi={item.publication.doi} />
-        {isSafeHttpUrl(item.publication.publisherUrl) ? (
-          <PublisherLinkPill url={item.publication.publisherUrl} />
-        ) : null}
-      </div>
+        </div>
+      ) : null}
       <CriteriaAnswerFields
         key={item.id}
         criteria={item.criteria}

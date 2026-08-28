@@ -41,6 +41,12 @@ export function ReviewPublicationHeader({
           {publication.title}
         </Link>
       </h2>
+      <div className="flex flex-wrap items-center gap-3 mt-2 max-[760px]:gap-2">
+        <DoiPill doi={publication.doi} />
+        {isSafeHttpUrl(publication.publisherUrl) ? (
+          <PublisherLinkPill url={publication.publisherUrl} />
+        ) : null}
+      </div>
       <p className="text-text">{publication.authors ?? 'Unknown authors'}</p>
       {yearVenue ? <p className="text-text-muted">{yearVenue}</p> : null}
       {afterAuthors}
@@ -51,10 +57,6 @@ export function ReviewPublicationHeader({
             href={`${fullTextDocumentEndpoint(projectId, publicationId)}/content`}
             pageCount={fullTextDocument.data.document?.pageCount}
           />
-        ) : null}
-        <DoiPill doi={publication.doi} />
-        {isSafeHttpUrl(publication.publisherUrl) ? (
-          <PublisherLinkPill url={publication.publisherUrl} />
         ) : null}
       </div>
       {fullTextDocument.data?.available ? (
