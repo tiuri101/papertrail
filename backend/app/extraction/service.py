@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from collections import defaultdict
 from collections.abc import Mapping
 from datetime import timedelta
 from typing import Any
@@ -179,22 +180,26 @@ def initialize_extraction(db: Session, project: Project) -> int:
     )
     created = 0
     sequence_index = 0
+    # One lookup for every slot and assignment that already exists, instead of
+    # two SELECTs per publication inside the loop below -- on a large project
+    # the per-publication probes were the dominant cost of every extraction
+    # backfill (the initial stage transition, and every late inclusion after).
+    existing_slots_by_publication: dict[str, set[int]] = defaultdict(set)
+    assigned_by_publication: dict[str, set[str]] = defaultdict(set)
+    for publication_id, slot_number, assigned_reviewer_id in db.execute(
+        select(
+            ExtractionWorkItem.publication_id,
+            ExtractionWorkItem.slot_number,
+            ExtractionWorkItem.assigned_reviewer_id,
+        ).where(ExtractionWorkItem.project_id == project.id)
+    ):
+        existing_slots_by_publication[publication_id].add(slot_number)
+        if assigned_reviewer_id is not None:
+            assigned_by_publication[publication_id].add(assigned_reviewer_id)
+
     for publication_id in publication_ids:
-        existing_slots = set(
-            db.scalars(
-                select(ExtractionWorkItem.slot_number).where(
-                    ExtractionWorkItem.publication_id == publication_id
-                )
-            )
-        )
-        assigned_this_publication: set[str] = set(
-            db.scalars(
-                select(ExtractionWorkItem.assigned_reviewer_id).where(
-                    ExtractionWorkItem.publication_id == publication_id,
-                    ExtractionWorkItem.assigned_reviewer_id.is_not(None),
-                )
-            )
-        )
+        existing_slots = existing_slots_by_publication[publication_id]
+        assigned_this_publication = set(assigned_by_publication[publication_id])
         for slot_number in range(1, required + 1):
             if slot_number in existing_slots:
                 continue

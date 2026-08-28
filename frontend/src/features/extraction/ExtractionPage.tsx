@@ -3,6 +3,7 @@ import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
+import { Button } from '../../components/Button'
 import { CountPill } from '../../components/CountPill'
 import { Page } from '../../components/Page'
 import {
@@ -44,11 +45,16 @@ export function ExtractionPage() {
         </CountPill>
       ) : null}
       {!itemId && lastCompletedItem ? (
-        <p>
-          <Link to={`/projects/${projectId}/extraction/review/${lastCompletedItem.id}`}>
+        <div className="toolbar flex flex-wrap items-center gap-3 my-5 max-[760px]:gap-2">
+          <Button
+            as={Link}
+            variant="secondary"
+            wrap
+            to={`/projects/${projectId}/extraction/review/${lastCompletedItem.id}`}
+          >
             ← Go back to “{lastCompletedItem.title}”
-          </Link>
-        </p>
+          </Button>
+        </div>
       ) : null}
       <ExtractionWorkspace
         projectId={projectId}

@@ -1,5 +1,5 @@
-import { useQuery, useQueryClient } from '@tanstack/react-query'
-import { useMemo, useState } from 'react'
+import { keepPreviousData, useQuery, useQueryClient } from '@tanstack/react-query'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
@@ -16,14 +16,26 @@ import { PublicationListSortHeader } from '../../components/PublicationListSortH
 import { reviewWorkActionsClass, reviewWorkCardClass, reviewWorkEditorClass, reviewWorkListClass } from '../../components/reviewWorkStyles'
 import { Select } from '../../components/Select'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
+import { cn } from '../../lib/cn'
 import { formatSubmittedAtParts } from '../../lib/format'
-import { type SortDirection, sortByValue } from '../../lib/sort'
+import { type SortDirection } from '../../lib/sort'
 import { StageEyebrow } from '../projects/StageEyebrow'
 import { DuplicateDecisionEditor } from './DuplicateDecisionEditor'
 import { type Candidate, statusLabel } from './types'
 
 interface ProjectAccess {
   stage: string
+}
+
+/** One server-rendered page of resolved duplicate decisions (backend/app/deduplication/listing.py). */
+interface CandidatePage {
+  items: Candidate[]
+  total: number
+  resolvedTotal: number
+  page: number
+  pageSize: number
+  pageCount: number
+  hasMore: boolean
 }
 
 const GRID = 'grid grid-cols-[minmax(12rem,1fr)_10rem_9rem_minmax(6rem,8rem)_6rem] items-center gap-3 [&>*]:min-w-0 max-[640px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] max-[640px]:gap-y-1'
@@ -37,21 +49,24 @@ const STATUS_FILTER_OPTIONS = [
 type StatusFilter = (typeof STATUS_FILTER_OPTIONS)[number]['value']
 type SortKey = 'pair' | 'decision' | 'resolvedBy' | 'resolvedAt'
 
-function badgeVariant(candidate: Candidate) {
-  return candidate.status === 'not_duplicate' ? 'neutral' : 'success'
+const PAGE_SIZE = 25
+const SEARCH_DEBOUNCE_MS = 300
+
+/**
+ * Trails `value` by `delayMs`, so a search box drives one request per pause
+ * in typing rather than one per keystroke.
+ */
+function useDebouncedValue<T>(value: T, delayMs: number): T {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delayMs)
+    return () => clearTimeout(timer)
+  }, [value, delayMs])
+  return debounced
 }
 
-function sortValue(candidate: Candidate, key: SortKey): string | number {
-  switch (key) {
-    case 'pair':
-      return candidate.publicationA.title.toLocaleLowerCase()
-    case 'decision':
-      return statusLabel(candidate).toLocaleLowerCase()
-    case 'resolvedBy':
-      return (candidate.resolvedByName ?? '').toLocaleLowerCase()
-    case 'resolvedAt':
-      return candidate.resolvedAt ? Date.parse(candidate.resolvedAt) : 0
-  }
+function badgeVariant(candidate: Candidate) {
+  return candidate.status === 'not_duplicate' ? 'neutral' : 'success'
 }
 
 function DecisionRow({
@@ -121,46 +136,53 @@ export function DuplicateDecisionsPage() {
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all')
   const [sortKey, setSortKey] = useState<SortKey>('resolvedAt')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
+  const [page, setPage] = useState(1)
+  const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS)
+  const listTopRef = useRef<HTMLDivElement>(null)
 
   const project = useQuery({
     queryKey: ['project', projectId],
     queryFn: () => apiRequest<ProjectAccess>(`/api/v1/projects/${projectId}`),
     enabled: Boolean(projectId),
   })
+
+  // Filtering, sorting and paging are applied server-side
+  // (backend/app/deduplication/listing.py): a project's duplicate backlog is
+  // unbounded, so the page only ever fetches one slice of what matches.
+  const listParams = useMemo(() => {
+    const params = new URLSearchParams()
+    const trimmed = debouncedSearch.trim()
+    if (trimmed) params.set('search', trimmed)
+    if (statusFilter !== 'all') params.set('status', statusFilter)
+    params.set('sort', sortKey)
+    params.set('direction', sortDirection)
+    params.set('page', String(page))
+    params.set('pageSize', String(PAGE_SIZE))
+    return params.toString()
+  }, [debouncedSearch, statusFilter, sortKey, sortDirection, page])
+
   const candidates = useQuery({
-    queryKey: ['duplicates', projectId],
-    queryFn: () => apiRequest<Candidate[]>(`/api/v1/projects/${projectId}/duplicates`),
+    queryKey: ['duplicates', projectId, 'page', listParams],
+    queryFn: () => apiRequest<CandidatePage>(
+      `/api/v1/projects/${projectId}/duplicates/page?${listParams}`,
+    ),
     enabled: Boolean(projectId),
+    placeholderData: keepPreviousData,
   })
 
   const readOnly = Boolean(project.data) && project.data!.stage !== 'duplicate_review'
 
-  const resolved = useMemo(
-    () => (candidates.data ?? []).filter((candidate) => candidate.status !== 'unresolved'),
-    [candidates.data],
-  )
+  // Any change to what matches invalidates the page number that was showing.
+  const narrow = <T,>(apply: (value: T) => void) => (value: T) => {
+    apply(value)
+    setPage(1)
+  }
 
-  const visible = useMemo(() => {
-    const normalized = search.trim().toLocaleLowerCase()
-    const filtered = resolved.filter((candidate) => {
-      const haystack = [
-        candidate.publicationA.title,
-        candidate.publicationB.title,
-        candidate.publicationA.authors,
-        candidate.publicationB.authors,
-        candidate.resolvedByName,
-        candidate.resolutionNote,
-      ].filter(Boolean).join(' ').toLocaleLowerCase()
-      return (!normalized || haystack.includes(normalized))
-        && (statusFilter === 'all' || candidate.status === statusFilter)
-    })
-    return sortByValue(
-      filtered,
-      sortDirection,
-      (candidate) => sortValue(candidate, sortKey),
-      (left, right) => left.publicationA.title.localeCompare(right.publicationA.title),
-    )
-  }, [resolved, search, statusFilter, sortKey, sortDirection])
+  // Only paging should jump the view -- not a filter change resetting to page 1.
+  const goToPage = (updater: (current: number) => number) => {
+    setPage(updater)
+    listTopRef.current?.scrollIntoView({ block: 'start' })
+  }
 
   const toggleSort = (key: SortKey) => {
     if (key === sortKey) setSortDirection((current) => (current === 'asc' ? 'desc' : 'asc'))
@@ -168,7 +190,14 @@ export function DuplicateDecisionsPage() {
       setSortKey(key)
       setSortDirection(key === 'resolvedAt' ? 'desc' : 'asc')
     }
+    setPage(1)
   }
+
+  const items = candidates.data?.items ?? []
+  const total = candidates.data?.total ?? 0
+  const resolvedTotal = candidates.data?.resolvedTotal ?? 0
+  const pageCount = candidates.data?.pageCount ?? 1
+  const filtersActive = Boolean(search || statusFilter !== 'all')
 
   return (
     <Page>
@@ -194,12 +223,12 @@ export function DuplicateDecisionsPage() {
               </p>
             </InfoBox>
           ) : null}
-          {resolved.length > 0 ? (
+          {resolvedTotal > 0 ? (
             <>
-              <CountPill count={search || statusFilter !== 'all' ? visible.length : resolved.length}>
-                {search || statusFilter !== 'all'
-                  ? `of ${resolved.length} decisions match your filters`
-                  : `decision${resolved.length === 1 ? '' : 's'}`}
+              <CountPill count={filtersActive ? total : resolvedTotal}>
+                {filtersActive
+                  ? `of ${resolvedTotal} decisions match your filters`
+                  : `decision${resolvedTotal === 1 ? '' : 's'}`}
               </CountPill>
               <div className={`${toolbarClass} mb-4`}>
                 <label className="grid min-w-[min(20rem,100%)] flex-1 gap-1 text-sm font-semibold text-text-secondary">
@@ -207,13 +236,16 @@ export function DuplicateDecisionsPage() {
                   <Input
                     type="search"
                     value={search}
-                    onChange={(event) => setSearch(event.target.value)}
+                    onChange={(event) => narrow(setSearch)(event.target.value)}
                     placeholder="Title, author, reviewer, note…"
                   />
                 </label>
                 <label className="grid gap-1 text-sm font-semibold text-text-secondary">
                   Decision
-                  <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as StatusFilter)}>
+                  <Select
+                    value={statusFilter}
+                    onChange={(event) => narrow(setStatusFilter)(event.target.value as StatusFilter)}
+                  >
                     {STATUS_FILTER_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>{option.label}</option>
                     ))}
@@ -222,12 +254,12 @@ export function DuplicateDecisionsPage() {
               </div>
             </>
           ) : null}
-          {resolved.length === 0 ? (
+          {resolvedTotal === 0 ? (
             <p className="text-text-muted">No duplicate pairs have been resolved yet.</p>
-          ) : visible.length === 0 ? (
+          ) : items.length === 0 ? (
             <p className="text-text-muted">No decisions match your filters.</p>
           ) : (
-            <div>
+            <div ref={listTopRef}>
               <div className={`${GRID} mt-6 mb-2 px-4 text-[0.72rem] font-bold tracking-[0.04em] text-text-muted uppercase max-[640px]:hidden`}>
                 <PublicationListSortHeader label="Pair" sortKey="pair" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
                 <PublicationListSortHeader label="Decision" sortKey="decision" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
@@ -236,7 +268,7 @@ export function DuplicateDecisionsPage() {
                 <span className={reviewWorkActionsClass}>Actions</span>
               </div>
               <ul className={reviewWorkListClass} aria-label="Duplicate decisions">
-                {visible.map((candidate) => (
+                {items.map((candidate) => (
                   <DecisionRow
                     key={candidate.id}
                     projectId={projectId}
@@ -246,6 +278,31 @@ export function DuplicateDecisionsPage() {
                   />
                 ))}
               </ul>
+              {pageCount > 1 ? (
+                <nav className={cn(toolbarClass, 'mt-4 items-center')} aria-label="Decision pages">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={page <= 1}
+                    onClick={() => goToPage((current) => Math.max(1, current - 1))}
+                  >
+                    Previous
+                  </Button>
+                  <span className="text-text-muted" role="status">
+                    Page {page} of {pageCount} ({total} decision{total === 1 ? '' : 's'})
+                  </span>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={page >= pageCount}
+                    onClick={() => goToPage((current) => Math.min(pageCount, current + 1))}
+                  >
+                    Next
+                  </Button>
+                </nav>
+              ) : null}
             </div>
           )}
         </>
