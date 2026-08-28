@@ -59,15 +59,63 @@ def ensure_full_text_retrieval(
 
 
 def initialize_full_text_stage(db: Session, project: Project) -> int:
-    created = 0
-    available_publication_ids: list[str] = []
-    for publication_id in title_abstract_included_ids(db, project.id):
-        retrieval = ensure_full_text_retrieval(db, project, publication_id)
-        if retrieval is None:
-            continue
-        if retrieval.status == RetrievalStatus.AVAILABLE:
-            available_publication_ids.append(publication_id)
-        created += 1
+    """Ensure a FullTextRetrieval row exists for every title/abstract-included
+    publication, then open full-text screening work items for any that
+    already have a PDF attached.
+
+    Runs synchronously on the request that completes title/abstract
+    screening, and again on every late inclusion, so it checks for existing
+    retrievals and attached PDFs with one grouped query each instead of the
+    two lookups ``ensure_full_text_retrieval`` needs per publication -- on a
+    large project that per-publication version was thousands of round trips
+    triggered by a single click.
+    """
+    included_ids = title_abstract_included_ids(db, project.id)
+    if not included_ids:
+        return 0
+
+    existing_ids = set(
+        db.scalars(
+            select(FullTextRetrieval.publication_id).where(
+                FullTextRetrieval.publication_id.in_(included_ids)
+            )
+        )
+    )
+    missing_ids = [
+        publication_id
+        for publication_id in included_ids
+        if publication_id not in existing_ids
+    ]
+    if not missing_ids:
+        return 0
+
+    has_pdf_ids = set(
+        db.scalars(
+            select(PublicationDocument.publication_id)
+            .where(
+                PublicationDocument.publication_id.in_(missing_ids),
+                PublicationDocument.is_active.is_(True),
+            )
+            .distinct()
+        )
+    )
+    db.add_all(
+        FullTextRetrieval(
+            project_id=project.id,
+            publication_id=publication_id,
+            status=(
+                RetrievalStatus.AVAILABLE
+                if publication_id in has_pdf_ids
+                else RetrievalStatus.NOT_YET_SOUGHT
+            ),
+        )
+        for publication_id in missing_ids
+    )
+    db.flush()
+
+    available_publication_ids = [
+        publication_id for publication_id in missing_ids if publication_id in has_pdf_ids
+    ]
     if available_publication_ids:
         create_screening_work_items(
             db,
@@ -75,7 +123,7 @@ def initialize_full_text_stage(db: Session, project: Project) -> int:
             ScreeningStage.FULL_TEXT,
             publication_ids=available_publication_ids,
         )
-    return created
+    return len(missing_ids)
 
 
 def claim_next_retrieval(

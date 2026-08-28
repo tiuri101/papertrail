@@ -198,13 +198,20 @@ def initialize_quality(db: Session, project: Project) -> int:
             len(publication_ids),
         )
     )
+    # One lookup for every work item that already exists, instead of a SELECT
+    # per publication inside the loop below -- on a large project this was the
+    # dominant cost of every quality-stage backfill (the initial stage
+    # transition, and every late inclusion after).
+    existing_ids = set(
+        db.scalars(
+            select(QualityWorkItem.publication_id).where(
+                QualityWorkItem.project_id == project.id
+            )
+        )
+    )
     created = 0
     for index, publication_id in enumerate(publication_ids):
-        if db.scalar(
-            select(QualityWorkItem.id).where(
-                QualityWorkItem.publication_id == publication_id
-            )
-        ):
+        if publication_id in existing_ids:
             continue
         rank = hashlib.sha256(
             f"{project.random_seed}:{project.id}:{publication_id}:quality".encode()

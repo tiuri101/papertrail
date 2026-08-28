@@ -106,3 +106,21 @@ class DuplicateProgress(ApiModel):
     remaining: int
     resolved: int
     total: int
+
+
+class CandidatePageResponse(ApiModel):
+    """One page of a project's resolved duplicate decisions.
+
+    ``total`` counts decisions matching the request's filters; ``resolvedTotal``
+    ignores them and counts every resolved candidate in the project -- the
+    difference is how the page tells "nothing resolved yet" apart from
+    "nothing matches your filters".
+    """
+
+    items: list[CandidateResponse]
+    total: int
+    resolved_total: int = Field(serialization_alias="resolvedTotal")
+    page: int
+    page_size: int = Field(serialization_alias="pageSize")
+    page_count: int = Field(serialization_alias="pageCount")
+    has_more: bool = Field(serialization_alias="hasMore")
