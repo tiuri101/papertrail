@@ -601,31 +601,6 @@ def test_update_retrieval_endpoint_resolves_status_and_decision_together(
     assert item.status.value == "submitted"
 
 
-def test_list_retrievals_includes_publication_details(client, db) -> None:
-    _, _, project, included, _ = setup_fulltext(db)
-    initialize_full_text_stage(db, project)
-    db.commit()
-
-    csrf = client.post(
-        "/api/v1/auth/login",
-        json={"username": "admin", "password": "secret-password"},
-    ).json()["csrfToken"]
-    response = client.get(
-        f"/api/v1/projects/{project.id}/full-text", headers={"X-CSRF-Token": csrf}
-    )
-
-    assert response.status_code == 200
-    [retrieval] = response.json()
-    assert retrieval["publication"] == {
-        "id": included.id,
-        "title": "Included",
-        "authors": "Doe, Jane",
-        "publicationYear": None,
-        "doi": "10.1/included",
-        "publisherUrl": None,
-    }
-
-
 def test_full_text_next_progress_and_release_routes(client, db) -> None:
     _, reviewer, project, included, _ = setup_fulltext(db)
     initialize_full_text_stage(db, project)

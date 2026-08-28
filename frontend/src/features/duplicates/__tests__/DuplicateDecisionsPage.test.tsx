@@ -43,26 +43,38 @@ const notDuplicate = {
   mergeId: null,
 }
 
-const unresolved = {
-  ...base,
-  id: 'u1',
-  publicationA: { id: 'pub-e', title: 'Open A', authors: null, publicationYear: null, venue: null, doi: null },
-  publicationB: { id: 'pub-f', title: 'Open B', authors: null, publicationYear: null, venue: null, doi: null },
-  status: 'unresolved',
-  resolvedById: null,
-  resolvedByName: null,
-  resolvedAt: null,
-  canonicalPublicationId: null,
-  mergeId: null,
+const resolved = [merged, notDuplicate]
+
+/** Mimics backend/app/deduplication/listing.py's status/search filtering
+ * closely enough to exercise the page: unresolved candidates never appear. */
+function pageResponse(url: URL) {
+  const status = url.searchParams.get('status')
+  const search = (url.searchParams.get('search') ?? '').toLowerCase()
+  let items = resolved
+  if (status) items = items.filter((candidate) => candidate.status === status)
+  if (search) {
+    items = items.filter((candidate) => [
+      candidate.publicationA.title,
+      candidate.publicationB.title,
+      candidate.resolvedByName,
+    ].filter(Boolean).join(' ').toLowerCase().includes(search))
+  }
+  return {
+    items,
+    total: items.length,
+    resolvedTotal: resolved.length,
+    page: 1,
+    pageSize: 25,
+    pageCount: 1,
+    hasMore: false,
+  }
 }
 
 function renderPage(stage = 'duplicate_review', onFetch?: Parameters<typeof mockFetch>[0]) {
   const fetchMock = mockFetch(onFetch ?? (async (input) => {
-    const path = String(input)
-    if (path.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', stage })
-    if (path.endsWith('/projects/p1/duplicates')) {
-      return jsonResponse([merged, notDuplicate, unresolved])
-    }
+    const url = new URL(String(input), 'http://localhost')
+    if (url.pathname.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', stage })
+    if (url.pathname.endsWith('/projects/p1/duplicates/page')) return jsonResponse(pageResponse(url))
     return jsonResponse([])
   }))
   renderWithProviders(<DuplicateDecisionsPage />, {
@@ -90,18 +102,20 @@ describe('DuplicateDecisionsPage', () => {
 
     fireEvent.change(screen.getByLabelText('Decision'), { target: { value: 'not_duplicate' } })
 
+    // keepPreviousData shows the unfiltered page while the filtered one
+    // loads, so wait for the stale "Merged A" row to actually drop out.
+    await waitFor(() => expect(screen.queryByText('Merged A')).not.toBeInTheDocument())
     expect(screen.getByText('Distinct A')).toBeInTheDocument()
-    expect(screen.queryByText('Merged A')).not.toBeInTheDocument()
   })
 
   it('changes a decision through the revise endpoint', async () => {
     const fetchMock = renderPage('duplicate_review', async (input, init) => {
-      const path = String(input)
-      if (path.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', stage: 'duplicate_review' })
-      if (path.endsWith('/projects/p1/duplicates') && init?.method !== 'POST') {
-        return jsonResponse([merged, notDuplicate])
+      const url = new URL(String(input), 'http://localhost')
+      if (url.pathname.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', stage: 'duplicate_review' })
+      if (url.pathname.endsWith('/projects/p1/duplicates/page') && init?.method !== 'POST') {
+        return jsonResponse(pageResponse(url))
       }
-      if (path.endsWith('/duplicates/m1/revise') && init?.method === 'POST') {
+      if (url.pathname.endsWith('/duplicates/m1/revise') && init?.method === 'POST') {
         return jsonResponse({ ...merged, status: 'not_duplicate', canonicalPublicationId: null })
       }
       return jsonResponse([])
