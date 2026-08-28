@@ -28,7 +28,7 @@ export type ButtonProps<T extends ElementType = 'button'> = ButtonOwnProps & {
 
 const baseClass = [
   'inline-flex h-10 min-h-10 items-center justify-center gap-2 rounded-sm border border-transparent px-4',
-  'text-sm font-semibold leading-none whitespace-nowrap no-underline select-none',
+  'text-sm font-semibold leading-none no-underline select-none',
   'transition-[background-color,border-color,color,box-shadow,transform,opacity] duration-150',
   'focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--button-focus)]',
   'disabled:cursor-not-allowed disabled:opacity-[var(--button-disabled-opacity)] disabled:transform-none disabled:shadow-none',
@@ -103,7 +103,7 @@ export function Button<T extends ElementType = 'button'>({
         baseClass,
         iconOnly ? iconOnlyClass : variantClasses[variant],
         iconOnly ? iconOnlySizeClasses[size] : sizeClasses[size],
-        wrap && 'h-auto min-h-10 py-2 whitespace-normal text-center',
+        wrap ? 'h-auto min-h-10 py-2 whitespace-normal text-center' : 'whitespace-nowrap',
         className,
       )}
       disabled={disabled || loading}

@@ -12,32 +12,9 @@ export const DEFAULT_SCREENING_HOTKEYS: ScreeningHotkeys = {
   submit: 'Enter',
 }
 
-const STORAGE_KEY = 'papertrail:screening-hotkeys'
-
-// Custom event so components in the same tab (e.g. the settings page and an
-// open screening queue) pick up a hotkey change without a full reload; the
-// native "storage" event only fires in *other* tabs.
-export const SCREENING_HOTKEYS_CHANGED_EVENT = 'papertrail:screening-hotkeys-changed'
-
-export function loadScreeningHotkeys(): ScreeningHotkeys {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return { ...DEFAULT_SCREENING_HOTKEYS }
-    const parsed = JSON.parse(raw) as Partial<ScreeningHotkeys>
-    return { ...DEFAULT_SCREENING_HOTKEYS, ...parsed }
-  } catch {
-    return { ...DEFAULT_SCREENING_HOTKEYS }
-  }
-}
-
-export function saveScreeningHotkeys(hotkeys: ScreeningHotkeys): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(hotkeys))
-  } catch {
-    // ignore storage failures (e.g. private browsing)
-  }
-  window.dispatchEvent(new Event(SCREENING_HOTKEYS_CHANGED_EVENT))
-}
+// The namespaced key this feature occupies inside the reviewer's persisted
+// `uiPreferences` blob (see hooks/useUiPreferences.ts).
+export const SCREENING_HOTKEYS_PREFERENCE_KEY = 'screeningHotkeys'
 
 const KEY_DISPLAY_NAMES: Record<string, string> = {
   ' ': 'Space',
