@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.accounts.models import User
 from app.audit.models import AuditEvent
 from app.conflicts.models import FinalDecision
-from app.conflicts.service import unresolved_publication_ids
+from app.conflicts.service import count_unfinalized_publications
 from app.deduplication.models import DuplicateCandidate
 from app.extraction.models import ExtractionStatus, ExtractionWorkItem
 from app.fulltext.models import FullTextRetrieval, RetrievalStatus
@@ -108,8 +108,8 @@ def project_dashboard(db: Session, project_id: str) -> dict[str, int | str]:
         )
         or 0
     )
-    title_abstract_screening_remaining = len(
-        unresolved_publication_ids(db, project_id, ScreeningStage.TITLE_ABSTRACT)
+    title_abstract_screening_remaining = count_unfinalized_publications(
+        db, project_id, ScreeningStage.TITLE_ABSTRACT
     )
     full_text_screening_remaining_count = full_text_screening_remaining(db, project_id)
     extraction_remaining = (
