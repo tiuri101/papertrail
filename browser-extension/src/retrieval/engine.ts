@@ -37,6 +37,19 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
+// Scopus is an abstracting/indexing database, not a publisher: its record
+// pages never host the PDF itself, so treat a Scopus publisherUrl as unusable
+// for a direct fetch and prefer resolving the DOI to the real publisher
+// instead -- the same fallback already used when no publisherUrl is present.
+function isScopusUrl(url: string): boolean {
+  try {
+    const hostname = new URL(url).hostname
+    return hostname === 'scopus.com' || hostname.endsWith('.scopus.com')
+  } catch {
+    return false
+  }
+}
+
 /** Deterministic candidate start URL: prefer the publisher URL Papertrail
  * supplied, otherwise fall back to the DOI resolver. Never anything else --
  * this extension does not perform web searches. */
@@ -75,7 +88,8 @@ export class RetrievalEngine {
     // DOI to its real target via the Handle API first and fetch that
     // directly, rather than fetching doi.org and relying on it to redirect.
     const { publisherUrl, doi } = job.publication
-    const startUrl = (!publisherUrl || !isSafePublisherUrl(publisherUrl)) && doi
+    const publisherUrlUsable = publisherUrl && isSafePublisherUrl(publisherUrl) && !isScopusUrl(publisherUrl)
+    const startUrl = !publisherUrlUsable && doi
       ? (await resolveDoiUrl(doi)) ?? fallbackStartUrl
       : fallbackStartUrl
 

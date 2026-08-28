@@ -160,6 +160,46 @@ describe('RetrievalEngine.processJob', () => {
     expect(fetchedUrls).not.toContain('https://doi.org/10.1109/vr.2017.7892377')
   })
 
+  it('resolves the DOI instead of fetching a Scopus publisherUrl directly, since Scopus never hosts the PDF', async () => {
+    installChromeMock({ permissionsContains: async () => true })
+    const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      if (url.endsWith('/state')) return jobResultResponse((JSON.parse(String(init?.body)) as { status: string }).status)
+      if (url.endsWith('/upload')) return jobResultResponse('succeeded')
+      if (url === 'https://doi.org/api/handles/10.1109%2Fvr.2017.7892377') {
+        return new Response(JSON.stringify({
+          values: [{ type: 'URL', data: { value: 'https://ieeexplore.ieee.org/document/7892377/' } }],
+        }), { status: 200 })
+      }
+      if (url === 'https://ieeexplore.ieee.org/document/7892377/') {
+        return new Response(
+          '<html><head><meta name="citation_pdf_url" content="https://ieeexplore.ieee.org/fulltext.pdf"></head></html>',
+          { status: 200, headers: { 'Content-Type': 'text/html' } },
+        )
+      }
+      if (url === 'https://ieeexplore.ieee.org/fulltext.pdf') {
+        return new Response(PDF_BODY, { status: 200, headers: { 'Content-Type': 'application/pdf' } })
+      }
+      throw new Error(`Unexpected fetch: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const client = new PapertrailClient(connection)
+    const engine = new RetrievalEngine(client)
+    const outcome = await engine.processJob(job({
+      publication: {
+        id: 'pub-1',
+        title: 'x',
+        doi: '10.1109/vr.2017.7892377',
+        publisherUrl: 'https://www.scopus.com/record/display.uri?eid=2-s2.0-1',
+      },
+    }))
+
+    expect(outcome).toEqual({ status: 'succeeded' })
+    const fetchedUrls = fetchMock.mock.calls.map(([input]) => String(input))
+    expect(fetchedUrls).not.toContain('https://www.scopus.com/record/display.uri?eid=2-s2.0-1')
+  })
+
   it('returns no_permission and makes no publisher request when host permission is missing', async () => {
     installChromeMock({ permissionsContains: async () => false })
     const fetchMock = vi.fn()
