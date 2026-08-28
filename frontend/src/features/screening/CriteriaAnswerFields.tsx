@@ -89,82 +89,88 @@ export function CriteriaAnswerFields({
 
   return (
     <>
-      <h3>Criteria</h3>
-      <table className={`${tableBaseClass} w-full [&_td]:text-center! [&_td]:align-middle! [&_th]:align-middle! [&_th:not(:first-child)]:text-center!`}>
-        <thead>
-          <tr>
-            <th scope="col">Criterion</th>
-            <th scope="col">Fulfilled</th>
-            <th scope="col">Not fulfilled</th>
-          </tr>
-        </thead>
-        <tbody>
-          {sorted.map((criterion, row) => {
-            // An inclusion criterion being fulfilled is a good sign (keep it green); an exclusion
-            // criterion being fulfilled means the exclusion applies, which argues against inclusion
-            // (so that's the "bad" red one instead) — the two checkbox columns swap color meaning
-            // depending on the criterion's kind, even though "Fulfilled"/"Not fulfilled" stay in the
-            // same columns either way.
-            const fulfilledColorClasses = criterion.kind === 'exclusion'
-              ? 'aria-checked:border-danger aria-checked:bg-danger-container aria-checked:text-danger'
-              : 'aria-checked:border-success aria-checked:bg-success-container aria-checked:text-success'
-            const notFulfilledColorClasses = criterion.kind === 'exclusion'
-              ? 'aria-checked:border-success aria-checked:bg-success-container aria-checked:text-success'
-              : 'aria-checked:border-danger aria-checked:bg-danger-container aria-checked:text-danger'
-            return (
-            <tr key={criterion.id}>
-              <th scope="row">
-                <CriterionBadge kind={criterion.kind} className="mr-2">{numbers[criterion.id]}</CriterionBadge> {criterion.text}
-              </th>
-              <td>
-                <button
-                  type="button"
-                  role="checkbox"
-                  className={`inline-flex size-8 min-h-8 items-center justify-center rounded-md border border-border bg-none bg-bg-elevated p-0 text-text-muted shadow-none transition-colors hover:border-border-strong hover:bg-surface-hover [&_svg]:size-4 [&_svg]:fill-current ${fulfilledColorClasses}`}
-                  aria-checked={answers[criterion.id] === true}
-                  aria-label={`${capitalize(criterion.kind)}: ${criterion.text} — Fulfilled`}
-                  tabIndex={focusedCell.row === row && focusedCell.column === 0 ? 0 : -1}
-                  ref={(el) => {
-                    if (el) cellRefs.current.set(cellKey(criterion.id, 0), el)
-                    else cellRefs.current.delete(cellKey(criterion.id, 0))
-                  }}
-                  onFocus={() => setFocusedCell({ row, column: 0 })}
-                  onKeyDown={handleCellKeyDown(row, 0)}
-                  onClick={() => setAnswers((current) => ({
-                    ...current,
-                    [criterion.id]: current[criterion.id] === true ? null : true,
-                  }))}
-                >
-                  {answers[criterion.id] === true ? <IconCheckCircle /> : null}
-                </button>
-              </td>
-              <td>
-                <button
-                  type="button"
-                  role="checkbox"
-                  className={`inline-flex size-8 min-h-8 items-center justify-center rounded-md border border-border bg-none bg-bg-elevated p-0 text-text-muted shadow-none transition-colors hover:border-border-strong hover:bg-surface-hover [&_svg]:size-4 [&_svg]:fill-current ${notFulfilledColorClasses}`}
-                  aria-checked={answers[criterion.id] === false}
-                  aria-label={`${capitalize(criterion.kind)}: ${criterion.text} — Not fulfilled`}
-                  tabIndex={focusedCell.row === row && focusedCell.column === 1 ? 0 : -1}
-                  ref={(el) => {
-                    if (el) cellRefs.current.set(cellKey(criterion.id, 1), el)
-                    else cellRefs.current.delete(cellKey(criterion.id, 1))
-                  }}
-                  onFocus={() => setFocusedCell({ row, column: 1 })}
-                  onKeyDown={handleCellKeyDown(row, 1)}
-                  onClick={() => setAnswers((current) => ({
-                    ...current,
-                    [criterion.id]: current[criterion.id] === false ? null : false,
-                  }))}
-                >
-                  {answers[criterion.id] === false ? <IconXCircle /> : null}
-                </button>
-              </td>
+      <div className="[&>*+*]:mt-2">
+        <h3>Criteria</h3>
+        <table className={`${tableBaseClass} w-full [&_td]:text-center! [&_td]:align-middle! [&_th]:align-middle! [&_th:nth-child(n+3)]:text-center!`}>
+          <thead>
+            <tr>
+              <th scope="col" className="sr-only">Kind</th>
+              <th scope="col">Criterion</th>
+              <th scope="col">Fulfilled</th>
+              <th scope="col">Not fulfilled</th>
             </tr>
-            )
-          })}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {sorted.map((criterion, row) => {
+              // An inclusion criterion being fulfilled is a good sign (keep it green); an exclusion
+              // criterion being fulfilled means the exclusion applies, which argues against inclusion
+              // (so that's the "bad" red one instead) — the two checkbox columns swap color meaning
+              // depending on the criterion's kind, even though "Fulfilled"/"Not fulfilled" stay in the
+              // same columns either way.
+              const fulfilledColorClasses = criterion.kind === 'exclusion'
+                ? 'aria-checked:border-danger aria-checked:bg-danger-container aria-checked:text-danger'
+                : 'aria-checked:border-success aria-checked:bg-success-container aria-checked:text-success'
+              const notFulfilledColorClasses = criterion.kind === 'exclusion'
+                ? 'aria-checked:border-success aria-checked:bg-success-container aria-checked:text-success'
+                : 'aria-checked:border-danger aria-checked:bg-danger-container aria-checked:text-danger'
+              return (
+                <tr key={criterion.id}>
+                  <td className="whitespace-nowrap">
+                    <CriterionBadge kind={criterion.kind}>{numbers[criterion.id]}</CriterionBadge>
+                  </td>
+                  <th scope="row">
+                    {criterion.text}
+                  </th>
+                  <td>
+                    <button
+                      type="button"
+                      role="checkbox"
+                      className={`inline-flex size-8 min-h-8 items-center justify-center rounded-md border border-border bg-none bg-bg-elevated p-0 text-text-muted shadow-none transition-colors hover:border-border-strong hover:bg-surface-hover [&_svg]:size-4 [&_svg]:fill-current ${fulfilledColorClasses}`}
+                      aria-checked={answers[criterion.id] === true}
+                      aria-label={`${capitalize(criterion.kind)}: ${criterion.text} — Fulfilled`}
+                      tabIndex={focusedCell.row === row && focusedCell.column === 0 ? 0 : -1}
+                      ref={(el) => {
+                        if (el) cellRefs.current.set(cellKey(criterion.id, 0), el)
+                        else cellRefs.current.delete(cellKey(criterion.id, 0))
+                      }}
+                      onFocus={() => setFocusedCell({ row, column: 0 })}
+                      onKeyDown={handleCellKeyDown(row, 0)}
+                      onClick={() => setAnswers((current) => ({
+                        ...current,
+                        [criterion.id]: current[criterion.id] === true ? null : true,
+                      }))}
+                    >
+                      {answers[criterion.id] === true ? <IconCheckCircle /> : null}
+                    </button>
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      role="checkbox"
+                      className={`inline-flex size-8 min-h-8 items-center justify-center rounded-md border border-border bg-none bg-bg-elevated p-0 text-text-muted shadow-none transition-colors hover:border-border-strong hover:bg-surface-hover [&_svg]:size-4 [&_svg]:fill-current ${notFulfilledColorClasses}`}
+                      aria-checked={answers[criterion.id] === false}
+                      aria-label={`${capitalize(criterion.kind)}: ${criterion.text} — Not fulfilled`}
+                      tabIndex={focusedCell.row === row && focusedCell.column === 1 ? 0 : -1}
+                      ref={(el) => {
+                        if (el) cellRefs.current.set(cellKey(criterion.id, 1), el)
+                        else cellRefs.current.delete(cellKey(criterion.id, 1))
+                      }}
+                      onFocus={() => setFocusedCell({ row, column: 1 })}
+                      onKeyDown={handleCellKeyDown(row, 1)}
+                      onClick={() => setAnswers((current) => ({
+                        ...current,
+                        [criterion.id]: current[criterion.id] === false ? null : false,
+                      }))}
+                    >
+                      {answers[criterion.id] === false ? <IconXCircle /> : null}
+                    </button>
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
       <InfoBox icon={<IconCheckCircle />} className="hotkey-hint mb-4 max-[760px]:hidden">
         <p>
           Click on a checkbox, then use the arrow keys to move between criteria and Left/Right keys to answer them. Use your
