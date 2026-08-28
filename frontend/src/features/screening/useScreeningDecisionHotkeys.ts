@@ -1,9 +1,12 @@
 import { useEffect, useRef } from 'react'
+import { useQueryClient } from '@tanstack/react-query'
 
+import { getUiPreferences, UI_PREFERENCES_CHANGED_EVENT } from '../../hooks/useUiPreferences'
 import {
-  loadScreeningHotkeys,
+  DEFAULT_SCREENING_HOTKEYS,
   SCREENING_HOTKEY_ACTIONS,
-  SCREENING_HOTKEYS_CHANGED_EVENT,
+  SCREENING_HOTKEYS_PREFERENCE_KEY,
+  type ScreeningHotkeys,
 } from '../../lib/screeningHotkeys'
 
 function isTypingTarget(target: EventTarget | null): boolean {
@@ -25,6 +28,7 @@ interface UseScreeningDecisionHotkeysOptions {
 // actually on screen), and never fires while the reviewer is typing in a
 // field such as Notes.
 export function useScreeningDecisionHotkeys({ enabled, setOutcome, onSubmit }: UseScreeningDecisionHotkeysOptions): void {
+  const queryClient = useQueryClient()
   const setOutcomeRef = useRef(setOutcome)
   setOutcomeRef.current = setOutcome
   const onSubmitRef = useRef(onSubmit)
@@ -35,7 +39,8 @@ export function useScreeningDecisionHotkeys({ enabled, setOutcome, onSubmit }: U
 
     let byKey = new Map<string, string>()
     const reload = () => {
-      const hotkeys = loadScreeningHotkeys()
+      const hotkeys = (getUiPreferences(queryClient)[SCREENING_HOTKEYS_PREFERENCE_KEY] as ScreeningHotkeys | undefined)
+        ?? DEFAULT_SCREENING_HOTKEYS
       byKey = new Map(
         SCREENING_HOTKEY_ACTIONS
           .filter((action) => hotkeys[action])
@@ -58,12 +63,10 @@ export function useScreeningDecisionHotkeys({ enabled, setOutcome, onSubmit }: U
     }
 
     window.addEventListener('keydown', handleKeyDown)
-    window.addEventListener(SCREENING_HOTKEYS_CHANGED_EVENT, reload)
-    window.addEventListener('storage', reload)
+    window.addEventListener(UI_PREFERENCES_CHANGED_EVENT, reload)
     return () => {
       window.removeEventListener('keydown', handleKeyDown)
-      window.removeEventListener(SCREENING_HOTKEYS_CHANGED_EVENT, reload)
-      window.removeEventListener('storage', reload)
+      window.removeEventListener(UI_PREFERENCES_CHANGED_EVENT, reload)
     }
-  }, [enabled])
+  }, [enabled, queryClient])
 }

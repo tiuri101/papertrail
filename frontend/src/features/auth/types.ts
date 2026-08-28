@@ -6,6 +6,7 @@ export interface User {
   isAdmin: boolean;
   isActive: boolean;
   mustChangePassword?: boolean;
+  uiPreferences?: Record<string, unknown>;
 }
 
 export interface LoginResponse {
