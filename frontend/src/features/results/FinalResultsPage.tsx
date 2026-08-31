@@ -3,12 +3,11 @@ import { Link, useParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 
 import { apiRequest } from '../../api/client'
-import { Button } from '../../components/Button'
 import { CountPill } from '../../components/CountPill'
 import { Input } from '../../components/Input'
-import { tableBaseClass, toolbarClass } from '../../components/layoutStyles'
+import { tableBaseClass } from '../../components/layoutStyles'
 import { Page } from '../../components/Page'
-import { Select } from '../../components/Select'
+import { DEFAULT_TABLE_PAGE_SIZE, PaginationControls, PaginationSummary } from '../../components/Pagination'
 import { SortableColumnHeader } from '../../components/SortableColumnHeader'
 import { StageEyebrow } from '../projects/StageEyebrow'
 import { extractionStatusLabel } from '../extraction/extractionStatus'
@@ -54,8 +53,6 @@ export interface FinalResultsResponse {
   qualityFields: FieldMeta[]
   items: FinalResultItem[]
 }
-
-const PAGE_SIZE_OPTIONS = [10, 25, 50, 100]
 
 type SortDirection = 'asc' | 'desc'
 
@@ -192,13 +189,13 @@ export function FinalResultsPage() {
   const [sortKey, setSortKey] = useState('title')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(25)
+  const [pageSize, setPageSize] = useState(DEFAULT_TABLE_PAGE_SIZE)
   const tableTopRef = useRef<HTMLTableSectionElement>(null)
 
   // Only paging to a different page should jump the view -- not a
   // search/sort/page-size change resetting back to page 1.
-  const goToPage = (updater: (current: number) => number) => {
-    setPage(updater)
+  const goToPage = (next: number) => {
+    setPage(next)
     tableTopRef.current?.scrollIntoView({ block: 'start' })
   }
 
@@ -275,25 +272,18 @@ export function FinalResultsPage() {
                 placeholder="Filter by title, author, DOI, or any answer…"
               />
             </label>
-            <label className="grid gap-1 text-sm font-semibold text-text-secondary">
-              Rows per page
-              <Select
-                value={pageSize}
-                onChange={(event) => {
-                  setPageSize(Number(event.target.value))
-                  setPage(1)
-                }}
-              >
-                {PAGE_SIZE_OPTIONS.map((size) => (
-                  <option key={size} value={size}>{size}</option>
-                ))}
-              </Select>
-            </label>
           </div>
           <CountPill count={sortedItems.length}>
             of {query.data.items.length} publication{query.data.items.length === 1 ? '' : 's'}
             {search.trim() ? ' match your search' : ''}
           </CountPill>
+          <PaginationSummary
+            noun="publication"
+            page={currentPage}
+            pageSize={pageSize}
+            itemCount={pageItems.length}
+            total={sortedItems.length}
+          />
           {sortedItems.length === 0 ? (
             <p>No publications match your search.</p>
           ) : (
@@ -324,16 +314,15 @@ export function FinalResultsPage() {
               </table>
             </div>
           )}
-          {pageCount > 1 ? (
-            <div className={toolbarClass}>
-              <Button type="button" onClick={() => goToPage((current) => Math.max(1, current - 1))} disabled={currentPage <= 1}>
-                Previous
-              </Button>
-              <span>Page {currentPage} of {pageCount}</span>
-              <Button type="button" onClick={() => goToPage((current) => Math.min(pageCount, current + 1))} disabled={currentPage >= pageCount}>
-                Next
-              </Button>
-            </div>
+          {sortedItems.length > 0 ? (
+            <PaginationControls
+              label="Final results pages"
+              page={currentPage}
+              pageCount={pageCount}
+              pageSize={pageSize}
+              onPageChange={goToPage}
+              onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
+            />
           ) : null}
         </>
       ) : null}

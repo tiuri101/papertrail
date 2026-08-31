@@ -228,7 +228,7 @@ describe('JobsPage', () => {
     await screen.findByRole('row', { name: /job_type_29/ })
     expect(screen.getAllByRole('row').length).toBe(1 + 25) // header + first page
     const pager = screen.getByRole('navigation', { name: 'Job pages' })
-    expect(within(pager).getByText('Page 1 of 2 (30 jobs)')).toBeInTheDocument()
+    expect(within(pager).getByText('Page 1 of 2')).toBeInTheDocument()
     expect(within(pager).getByRole('button', { name: 'Previous' })).toBeDisabled()
 
     fireEvent.click(within(pager).getByRole('button', { name: 'Next' }))
@@ -236,7 +236,7 @@ describe('JobsPage', () => {
     // The last page holds the five oldest jobs.
     await screen.findByRole('row', { name: /job_type_00/ })
     expect(screen.getAllByRole('row').length).toBe(1 + 5)
-    expect(within(pager).getByText('Page 2 of 2 (30 jobs)')).toBeInTheDocument()
+    expect(within(pager).getByText('Page 2 of 2')).toBeInTheDocument()
     expect(within(pager).getByRole('button', { name: 'Next' })).toBeDisabled()
   })
 

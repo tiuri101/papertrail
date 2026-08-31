@@ -1,10 +1,11 @@
 import { tableBaseClass, toolbarClass } from '../../components/layoutStyles'
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 
 import { Button } from '../../components/Button'
 import { Card } from '../../components/Card'
 import { CountPill } from '../../components/CountPill'
 import { Input } from '../../components/Input'
+import { DEFAULT_TABLE_PAGE_SIZE, PaginationControls, PaginationSummary } from '../../components/Pagination'
 import { Select } from '../../components/Select'
 import { LlmEvidence } from '../llm/LlmTaskComponents'
 import { FieldLabel } from '../../components/FieldLabel'
@@ -16,8 +17,6 @@ import {
   type EvidenceMatrixItem,
   type EvidenceState,
 } from './useEvidenceMatrix'
-
-const PAGE_SIZE_OPTIONS = [10, 25, 50, 100]
 
 const STATE_LABELS: Record<EvidenceState, string> = {
   answered: 'Answered',
@@ -260,10 +259,16 @@ function CellDetailPanel({
 export function EvidenceMatrixSection({ projectId }: { projectId: string }) {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(1)
-  const [pageSize, setPageSize] = useState(25)
+  const [pageSize, setPageSize] = useState(DEFAULT_TABLE_PAGE_SIZE)
   const [filters, setFilters] = useState<Record<string, EvidenceFilterPredicate>>({})
   const [hiddenColumns, setHiddenColumns] = useState<Set<string>>(new Set())
   const [selection, setSelection] = useState<CellSelection | null>(null)
+  const tableTopRef = useRef<HTMLDivElement>(null)
+
+  const goToPage = (next: number) => {
+    setPage(next)
+    tableTopRef.current?.scrollIntoView({ block: 'start' })
+  }
 
   const query = useEvidenceMatrix(projectId, { search, filters, page, pageSize })
   const data = query.data
@@ -319,20 +324,6 @@ export function EvidenceMatrixSection({ projectId }: { projectId: string }) {
             placeholder="Filter by title, author, or any answer…"
           />
         </FieldLabel>
-        <FieldLabel>
-          Rows per page
-          <Select
-            value={pageSize}
-            onChange={(event) => {
-              setPageSize(Number(event.target.value))
-              setPage(1)
-            }}
-          >
-            {PAGE_SIZE_OPTIONS.map((size) => (
-              <option key={size} value={size}>{size}</option>
-            ))}
-          </Select>
-        </FieldLabel>
       </div>
       {data ? (
         <details className="mb-3">
@@ -356,7 +347,16 @@ export function EvidenceMatrixSection({ projectId }: { projectId: string }) {
       ) : null}
       {data && data.items.length === 0 ? <p>No publications match your search and filters.</p> : null}
       {data && data.items.length > 0 ? (
-        <div className="max-h-[70vh] overflow-auto rounded-md border border-border">
+        <PaginationSummary
+          noun="publication"
+          page={page}
+          pageSize={pageSize}
+          itemCount={data.items.length}
+          total={data.total}
+        />
+      ) : null}
+      {data && data.items.length > 0 ? (
+        <div ref={tableTopRef} className="max-h-[70vh] overflow-auto rounded-md border border-border">
           <table className={`${tableBaseClass} w-auto! min-w-full [&_td]:whitespace-nowrap [&_th]:whitespace-nowrap [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-[2] [&_thead_th]:bg-bg-elevated`}>
             <thead>
               <tr>
@@ -421,16 +421,15 @@ export function EvidenceMatrixSection({ projectId }: { projectId: string }) {
           </table>
         </div>
       ) : null}
-      {data && pageCount > 1 ? (
-        <div className={toolbarClass}>
-          <Button type="button" onClick={() => setPage((current) => Math.max(1, current - 1))} disabled={page <= 1}>
-            Previous
-          </Button>
-          <span>Page {page} of {pageCount}</span>
-          <Button type="button" onClick={() => setPage((current) => Math.min(pageCount, current + 1))} disabled={page >= pageCount}>
-            Next
-          </Button>
-        </div>
+      {data && data.items.length > 0 ? (
+        <PaginationControls
+          label="Evidence matrix pages"
+          page={page}
+          pageCount={pageCount}
+          pageSize={pageSize}
+          onPageChange={goToPage}
+          onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
+        />
       ) : null}
       {selection ? (
         <CellDetailPanel projectId={projectId} selection={selection} onClose={() => setSelection(null)} />

@@ -251,7 +251,7 @@ describe('ScreeningAssignmentsPanel', () => {
     fireEvent.click(screen.getByRole('button', { name: /Screening Assignments/ }))
     await screen.findByText('Immersive Analytics Study')
 
-    expect(screen.getByText('Page 1 of 3 (45 total)')).toBeInTheDocument()
+    expect(screen.getByText('Page 1 of 2')).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Previous' })).toBeDisabled()
 
     fireEvent.click(screen.getByRole('button', { name: 'Next' }))
