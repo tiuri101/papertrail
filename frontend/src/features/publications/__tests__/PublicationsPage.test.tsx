@@ -253,6 +253,37 @@ describe('PublicationsPage', () => {
     expect(await screen.findByText('Metadata Enrichment')).toBeInTheDocument()
   })
 
+  it('summarizes the visible range and lets the reader change the page size', async () => {
+    const many = Array.from({ length: 30 }, (_, index) => ({
+      ...publications[1],
+      id: `publication-${index + 10}`,
+      title: `Paper ${String(index).padStart(2, '0')}`,
+    }))
+    const fetchMock = mockFetch((input) => {
+      const url = String(input)
+      const pdfRetrieval = pdfRetrievalDefault(url)
+      if (pdfRetrieval) return pdfRetrieval
+      if (isConflictPage(url)) return serveConflictPage(url)
+      return servePublications(url, many)
+    })
+    renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
+
+    const summaryText = () => screen
+      .getAllByRole('status')
+      .map((node) => node.textContent?.replace(/\s+/g, ' ').trim())
+      .find((text) => text?.startsWith('Showing'))
+
+    await screen.findByText('Paper 00')
+    expect(summaryText()).toBe('Showing 1–25 of 30 publications')
+
+    fireEvent.change(screen.getByLabelText('Rows per page'), { target: { value: '50' } })
+
+    await waitFor(() => {
+      expect(summaryText()).toBe('Showing 1–30 of 30 publications')
+    })
+    expect(fetchMock.mock.calls.some(([input]) => String(input).includes('pageSize=50') && String(input).includes('page=1'))).toBe(true)
+  })
+
   it('hides the multi-select checkbox and management controls when publication management is unavailable', async () => {
     mockFetch((input) => {
       const url = String(input)
@@ -484,7 +515,7 @@ describe('PublicationsPage', () => {
     }
 
     // First page: 25 of 30, newest-first default, and a Next control.
-    await waitFor(() => expect(within(panel).getByText('Page 1 of 2 (30 conflicts)')).toBeInTheDocument())
+    await waitFor(() => expect(within(panel).getByText('Page 1 of 2')).toBeInTheDocument())
     expect(conflictParams().get('sort')).toBe('created')
     expect(conflictParams().get('direction')).toBe('desc')
 
@@ -642,7 +673,7 @@ describe('PublicationsPage', () => {
     expect(firstListCall).toContain('sort=title')
     expect(firstListCall).toContain('direction=asc')
     expect(firstListCall).toContain('page=1')
-    expect(firstListCall).toContain('pageSize=50')
+    expect(firstListCall).toContain('pageSize=25')
 
     fireEvent.change(screen.getByLabelText('Title/Abstract stage'), { target: { value: 'include' } })
     fireEvent.change(screen.getByLabelText('PDF status'), { target: { value: 'unavailable' } })
@@ -839,7 +870,7 @@ describe('PublicationsPage', () => {
     renderWithProviders(<PublicationsPage />, { route: '/projects/p1/publications', path: '/projects/:projectId/publications' })
 
     await screen.findByText('Paper 0')
-    expect(screen.getByText('Page 1 of 3 (3 publications)')).toBeInTheDocument()
+    expect(screen.getByText('Page 1 of 3')).toBeInTheDocument()
 
     fireEvent.click(screen.getByLabelText('Select Paper 0'))
     fireEvent.click(screen.getByRole('button', { name: 'Next' }))
@@ -878,13 +909,13 @@ describe('PublicationsPage', () => {
     await screen.findByText('Paper 0')
     fireEvent.click(screen.getByRole('button', { name: 'Next' }))
     await screen.findByText('Paper 1')
-    expect(screen.getByText('Page 2 of 3 (3 publications)')).toBeInTheDocument()
+    expect(screen.getByText('Page 2 of 3')).toBeInTheDocument()
 
     // Page 3 of a narrowed result may not exist; staying there would show an
     // empty list over a non-empty match.
     fireEvent.change(screen.getByLabelText('Sort by'), { target: { value: 'title:desc' } })
     await waitFor(() => {
-      expect(screen.getByText('Page 1 of 3 (3 publications)')).toBeInTheDocument()
+      expect(screen.getByText('Page 1 of 3')).toBeInTheDocument()
     })
     expect(fetchMock.mock.calls.some(([input]) => String(input).includes('direction=desc') && String(input).includes('page=1'))).toBe(true)
   })

@@ -1,5 +1,5 @@
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { Button } from '../../components/Button'
@@ -13,6 +13,7 @@ import { Input } from '../../components/Input'
 import { Select } from '../../components/Select'
 import { SortableColumnHeader } from '../../components/SortableColumnHeader'
 import { FieldLabel } from '../../components/FieldLabel'
+import { DEFAULT_TABLE_PAGE_SIZE, PaginationControls, PaginationSummary } from '../../components/Pagination'
 
 type RoleKey = 'canTitleAbstractScreen' | 'canFullTextScreen'
 
@@ -60,8 +61,6 @@ const SORT_COLUMNS: Array<{ key: string; label: string }> = [
   { key: 'status', label: 'Status' },
   { key: 'assignedReviewerName', label: 'Assigned Reviewer' },
 ]
-
-const PAGE_SIZE = 20
 
 function useDebouncedValue<T>(value: T, delayMs: number): T {
   const [debounced, setDebounced] = useState(value)
@@ -156,10 +155,17 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
   const [sort, setSort] = useState('publicationTitle')
   const [order, setOrder] = useState<'asc' | 'desc'>('asc')
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(DEFAULT_TABLE_PAGE_SIZE)
   const [selectAllFiltered, setSelectAllFiltered] = useState(false)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [excludedIds, setExcludedIds] = useState<Set<string>>(new Set())
   const [bulkReviewerId, setBulkReviewerId] = useState('')
+  const tableTopRef = useRef<HTMLDivElement>(null)
+
+  const goToPage = (next: number) => {
+    setPage(next)
+    tableTopRef.current?.scrollIntoView({ block: 'start' })
+  }
 
   useEffect(() => {
     setPage(1)
@@ -183,12 +189,12 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
     sort,
     order,
     page: String(page),
-    pageSize: String(PAGE_SIZE),
+    pageSize: String(pageSize),
   })
   if (search) queryParams.set('search', search)
   if (status) queryParams.set('status', status)
   if (reviewerId) queryParams.set('reviewerId', reviewerId)
-  const assignmentsQueryKey = ['screening-assignments', projectId, stage, search, status, reviewerId, sort, order, page]
+  const assignmentsQueryKey = ['screening-assignments', projectId, stage, search, status, reviewerId, sort, order, page, pageSize]
   const assignments = useQuery({
     queryKey: assignmentsQueryKey,
     queryFn: () => apiRequest<AssignmentsPage>(
@@ -250,7 +256,7 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
   }
 
   const total = assignments.data?.total ?? 0
-  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
   const reassignableTotal = assignments.data?.reassignableTotal
     ?? assignments.data?.items.filter((item) => item.status !== 'submitted').length
     ?? 0
@@ -383,6 +389,14 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
       ) : null}
       {assignments.data && assignments.data.items.length > 0 ? (
         <>
+          <PaginationSummary
+            noun="assignment"
+            page={page}
+            pageSize={pageSize}
+            itemCount={assignments.data.items.length}
+            total={total}
+          />
+          <div ref={tableTopRef}>
           <table className={`${tableBaseClass} table-compact [&_th]:px-3! [&_th]:py-[7px]! [&_th]:text-[0.85rem]! [&_td]:px-3! [&_td]:py-[7px]! [&_td]:text-[0.85rem]! [&_thead_th]:text-[0.68rem]!`}>
             <thead>
               <tr>
@@ -413,15 +427,15 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
               ))}
             </tbody>
           </table>
-          <div className="toolbar flex flex-wrap items-center gap-3 my-5 max-[760px]:gap-2">
-            <Button type="button" variant="secondary" disabled={page <= 1} onClick={() => setPage((current) => current - 1)}>
-              Previous
-            </Button>
-            <span className="text-text">Page {page} of {totalPages} ({total} total)</span>
-            <Button type="button" variant="secondary" disabled={page >= totalPages} onClick={() => setPage((current) => current + 1)}>
-              Next
-            </Button>
           </div>
+          <PaginationControls
+            label="Assignment pages"
+            page={page}
+            pageCount={totalPages}
+            pageSize={pageSize}
+            onPageChange={goToPage}
+            onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
+          />
         </>
       ) : null}
     </CollapsibleSection>
