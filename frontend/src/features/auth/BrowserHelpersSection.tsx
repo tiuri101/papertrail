@@ -4,7 +4,7 @@ import { Button } from '../../components/Button'
 import { Card } from '../../components/Card'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { ConfirmButton } from '../../components/ConfirmButton'
-import { IconCopy, IconPlus, IconTrash, IconUpload } from '../../components/icons'
+import { IconCopy, IconDownload, IconPlus, IconTrash, IconUpload } from '../../components/icons'
 import { toolbarClass } from '../../components/layoutStyles'
 import type { PairingSecret } from './useBrowserAgents'
 import { useBrowserAgents } from './useBrowserAgents'
@@ -43,6 +43,16 @@ export function BrowserHelpersSection() {
         network connection and browser sign-in (e.g. university IP access, VPN, or an
         institutional login already open in Chrome). Papertrail never receives your publisher
         credentials or browser cookies, only the resulting PDF.
+      </p>
+      <div className={toolbarClass}>
+        <Button as="a" href="/api/v1/browser-agents/extension-download" variant="secondary">
+          <IconDownload />
+          Download Browser Helper (.zip)
+        </Button>
+      </div>
+      <p className="text-text-muted text-sm">
+        See the Browser Extension tab in Help for installation steps, including how to enable
+        Chrome&apos;s developer mode to load it.
       </p>
       {agents.error ? <p className="text-danger" role="alert">{agents.error.message}</p> : null}
       {agents.isLoading ? <p className="text-text">Loading browser helpers…</p> : null}

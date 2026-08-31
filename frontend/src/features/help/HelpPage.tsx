@@ -1,5 +1,6 @@
 import { type CSSProperties, type ReactNode, useState } from 'react'
 
+import { Button } from '../../components/Button'
 import { CollapsibleSection } from '../../components/CollapsibleSection'
 import { Page } from '../../components/Page'
 import {
@@ -8,6 +9,7 @@ import {
   IconClock,
   IconDownload,
   IconFolder,
+  IconGear,
   IconInfo,
   IconKeyboard,
   IconLightbulb,
@@ -20,11 +22,12 @@ import {
   IconUpload,
   IconUsers,
 } from '../../components/icons'
+import { toolbarClass } from '../../components/layoutStyles'
 import { SectionNavigationLayout, type SectionNavigationItem } from '../../components/SectionNavigationLayout'
 import { TabList, TabPanel } from '../../components/Tabs'
 import { STAGES } from '../projects/StageProgress'
 
-type HelpTabId = 'getting-started' | 'roles' | 'ai-automation' | 'good-to-know'
+type HelpTabId = 'getting-started' | 'roles' | 'ai-automation' | 'browser-extension' | 'good-to-know'
 
 interface HelpTab {
   id: HelpTabId
@@ -58,7 +61,16 @@ const helpTabs: HelpTab[] = [
     icon: <IconSparkle />,
     sections: [
       { id: 'section-help-llm', label: 'LLM Assistance' },
-      { id: 'section-help-extension', label: 'Browser Extension' },
+    ],
+  },
+  {
+    id: 'browser-extension',
+    label: 'Browser Extension',
+    icon: <IconDownload />,
+    sections: [
+      { id: 'section-help-extension-overview', label: 'What It Does' },
+      { id: 'section-help-extension-install', label: 'Install in Chrome' },
+      { id: 'section-help-extension-use', label: 'Pair & Use' },
     ],
   },
   {
@@ -349,16 +361,48 @@ const llmSetupSteps = [
   },
 ]
 
+const extensionInstallSteps = [
+  {
+    title: 'Download the Browser Helper',
+    section: 'Account Settings → Browser Helpers',
+    description: 'Download the "papertrail-browser-extension.zip" file, then unzip it somewhere you\'ll keep, such as a "Papertrail Browser Helper" folder in Documents. Chrome loads the extension from that folder, not from the ZIP itself.',
+    icon: <IconDownload />,
+  },
+  {
+    title: 'Turn on developer mode',
+    section: 'chrome://extensions',
+    description: 'Open a new tab to chrome://extensions (or Menu → Extensions → Manage Extensions), then switch on the "Developer mode" toggle in the top-right corner. This unlocks the "Load unpacked" button used next.',
+    icon: <IconGear />,
+  },
+  {
+    title: 'Load the unpacked extension',
+    section: '"Load unpacked" button',
+    description: 'Click "Load unpacked" and select the unzipped folder (the one containing manifest.json). "Papertrail Browser Helper" now appears in your extensions list and toolbar.',
+    icon: <IconFolder />,
+  },
+  {
+    title: 'Pin it for easy access',
+    section: 'Toolbar puzzle-piece icon',
+    description: 'Click the puzzle-piece icon in Chrome\'s toolbar and pin "Papertrail Browser Helper" so its icon, and pairing status, stay visible.',
+    icon: <IconCheckCircle />,
+  },
+]
+
 const extensionSetupSteps = [
   {
     title: 'Pair the extension',
     section: 'Account Settings → Browser Helpers',
-    description: 'Generate a pairing secret (valid for 10 minutes and usable once) then enter your server URL, the secret, and a device name on the extension\'s setup page.',
+    description: 'Generate a pairing secret in your Account settings (valid for 10 minutes and usable once) then enter your server URL, the secret, and a device name on the extension\'s setup page.',
   },
   {
     title: 'Allow publisher access',
     section: 'One-time permission prompt',
     description: 'The first time it retrieves a paper, the extension asks for a single broad HTTPS permission, since the publisher domain is only known after following each DOI. It never receives your login credentials or cookies.',
+  },
+  {
+    title: 'Capture the page you have open',
+    section: 'Extension icon → "Capture PDF from this tab"',
+    description: 'With an article or PDF open in the active tab, choose a project and "Capture PDF from this tab" to search for the matching publication (or create a new one on the spot) and add the file to Papertrail immediately.',
   },
   {
     title: 'Let retrieval run',
@@ -374,6 +418,11 @@ const extensionPracticalNotes = [
     icon: <IconInfo />,
   },
   {
+    title: 'Read the toolbar badge',
+    description: 'The extension icon\'s badge shows how many PDFs are queued and waiting to be retrieved. It turns green and says "ON" once you\'re paired with nothing queued, and stays blank if the extension isn\'t paired yet.',
+    icon: <IconClock />,
+  },
+  {
     title: 'Coverage varies by publisher',
     description: 'Dedicated support for ACM, IEEE, Springer, and ScienceDirect, with a generic fallback for other sites. Requires Chrome 116 or later, and PDFs over 50 MB are rejected.',
     icon: <IconCheckCircle />,
@@ -386,7 +435,9 @@ const extensionPracticalNotes = [
 ]
 
 const setupStepsClassName = 'm-0 mt-5 grid list-none grid-cols-1 gap-3 p-0 min-[761px]:grid-cols-3'
+const installStepsClassName = 'm-0 mt-5 grid list-none grid-cols-1 gap-3 p-0 min-[641px]:grid-cols-2'
 const setupStepClassName = 'flex min-w-0 gap-3 rounded-md border border-[color-mix(in_srgb,var(--color-primary)_24%,var(--color-border))] bg-[color-mix(in_srgb,var(--color-surface-raised)_90%,transparent)] p-4 shadow-sm'
+const setupStepIconClassName = 'inline-flex size-8 shrink-0 items-center justify-center rounded-sm bg-primary-container text-primary [&_svg]:size-4 [&_svg]:fill-current'
 const practicalNotesClassName = 'grid content-start gap-4 border-t border-border bg-[color-mix(in_srgb,var(--color-surface-hover)_55%,transparent)] p-4 min-[481px]:p-6 min-[761px]:border-l min-[761px]:border-t-0'
 const practicalNoteClassName = 'flex gap-3 [&>span]:inline-flex [&>span]:size-9 [&>span]:shrink-0 [&>span]:items-center [&>span]:justify-center [&>span]:rounded-sm [&>span]:bg-primary-container [&>span]:text-primary [&>span_svg]:size-[22px] [&>span_svg]:fill-current [&_h4]:m-0 [&_h4]:text-[0.94rem] [&_p]:mt-2 [&_p]:text-[0.88rem] [&_p]:text-text-secondary'
 
@@ -592,38 +643,28 @@ function LlmHelpSection() {
   )
 }
 
-function ExtensionHelpSection() {
+function ExtensionOverviewSection() {
   return (
-    <CollapsibleSection id="section-help-extension" title="Browser Extension" icon={<IconDownload />}>
+    <CollapsibleSection id="section-help-extension-overview" title="What It Does" icon={<IconDownload />}>
       <p>
         The Papertrail Browser Helper is an optional Chrome extension that retrieves publisher
         PDFs using your own computer's network access and sign-in, then uploads them through the
-        same review pipeline as a manual upload. Papertrail itself never scrapes publisher sites.
+        same review pipeline as a manual upload. Papertrail itself never scrapes publisher sites,
+        and it isn't published on the Chrome Web Store. You install it from a ZIP downloaded
+        straight from this Papertrail server.
       </p>
       <aside className="flex items-start gap-3 rounded-md border border-[color-mix(in_srgb,var(--color-primary)_24%,var(--color-border))] bg-primary-container p-4" aria-label="Browser extension background processing">
         <span className="inline-flex size-[38px] shrink-0 items-center justify-center rounded-sm bg-surface text-primary [&_svg]:size-5 [&_svg]:fill-current" aria-hidden="true"><IconDownload /></span>
         <div>
           <h3 className="m-0 text-[0.98rem]">Runs quietly in the background</h3>
           <p className="mt-2 text-sm text-text-secondary">
-            Once paired, a background service worker can claim queued retrieval jobs without
-            keeping any window open. Every result still goes through the same staged-upload
+            Once paired, a background service worker can claim queued retrieval jobs.
+            Every result still goes through the same staged-upload
             validation as a manually attached PDF before it counts as available, so an automated
             upload never bypasses reviewer verification.
           </p>
         </div>
       </aside>
-      <ol className={setupStepsClassName} aria-label="Browser extension setup steps">
-        {extensionSetupSteps.map((step, index) => (
-          <li className={setupStepClassName} key={step.section}>
-            <span className="inline-flex size-[30px] shrink-0 items-center justify-center rounded-full bg-primary-container text-[0.84rem] font-bold text-primary" aria-hidden="true">{index + 1}</span>
-            <div>
-              <span className="mb-1 block text-xs font-bold text-primary">{step.section}</span>
-              <h4 className="m-0 text-[0.94rem]">{step.title}</h4>
-              <p className="mt-2 text-[0.88rem] text-text-secondary">{step.description}</p>
-            </div>
-          </li>
-        ))}
-      </ol>
       <aside className={practicalNotesClassName} aria-label="Practical browser extension guidance">
         {extensionPracticalNotes.map((note) => (
           <div className={practicalNoteClassName} key={note.title}>
@@ -635,6 +676,68 @@ function ExtensionHelpSection() {
           </div>
         ))}
       </aside>
+    </CollapsibleSection>
+  )
+}
+
+function ExtensionInstallSection() {
+  return (
+    <CollapsibleSection id="section-help-extension-install" title="Install in Chrome" icon={<IconGear />}>
+      <p>
+        Because the Browser Helper isn't distributed through the Chrome Web Store, Chrome treats it
+        as an unpacked developer extension. That just means one extra "Developer mode" step
+        compared to installing something from the Web Store.
+      </p>
+      <div className={toolbarClass}>
+        <Button as="a" href="/api/v1/browser-agents/extension-download" variant="primary">
+          <IconDownload />
+          Download Browser Helper (.zip)
+        </Button>
+      </div>
+      <ol className={installStepsClassName} aria-label="Chrome installation steps">
+        {extensionInstallSteps.map((step, index) => (
+          <li className={setupStepClassName} key={step.section}>
+            <span className={setupStepIconClassName} aria-hidden="true">{step.icon}</span>
+            <div>
+              <span className="mb-1 block text-xs font-bold text-primary">{index + 1}. {step.section}</span>
+              <h4 className="m-0 text-[0.94rem]">{step.title}</h4>
+              <p className="mt-2 text-[0.88rem] text-text-secondary">{step.description}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+      <p className="m-0 mt-5 border-l-[3px] border-warning bg-warning-container px-4 py-3 text-[0.88rem] text-text-secondary">
+        Requires Chrome (or another Chromium-based browser) version 116 or later. Chrome may
+        occasionally disable unpacked extensions after a browser restart. If the Browser Helper
+        disappears from chrome://extensions, repeat the "Load unpacked" step from the same folder.
+      </p>
+    </CollapsibleSection>
+  )
+}
+
+function ExtensionUseSection() {
+  return (
+    <CollapsibleSection id="section-help-extension-use" title="Pair & Use" icon={<IconCheckCircle />}>
+      <p>
+        Once loaded into Chrome, the extension needs to be paired with your Papertrail account
+        before it can retrieve anything.
+      </p>
+      <ol className={setupStepsClassName} aria-label="Browser extension pairing steps">
+        {extensionSetupSteps.map((step, index) => (
+          <li className={setupStepClassName} key={step.section}>
+            <span className="inline-flex size-[30px] shrink-0 items-center justify-center rounded-full bg-primary-container text-[0.84rem] font-bold text-primary" aria-hidden="true">{index + 1}</span>
+            <div>
+              <span className="mb-1 block text-xs font-bold text-primary">{step.section}</span>
+              <h4 className="m-0 text-[0.94rem]">{step.title}</h4>
+              <p className="mt-2 text-[0.88rem] text-text-secondary">{step.description}</p>
+            </div>
+          </li>
+        ))}
+      </ol>
+      <p className="text-text-secondary">
+        Manage or revoke a paired helper any time from <strong>Account Settings → Browser
+        Helpers</strong>. Revoking one immediately stops it from claiming further retrieval jobs.
+      </p>
     </CollapsibleSection>
   )
 }
@@ -689,9 +792,13 @@ export function HelpPage() {
             </>
           ) : null}
           {activeTab === 'ai-automation' ? (
+            <LlmHelpSection />
+          ) : null}
+          {activeTab === 'browser-extension' ? (
             <>
-              <LlmHelpSection />
-              <ExtensionHelpSection />
+              <ExtensionOverviewSection />
+              <ExtensionInstallSection />
+              <ExtensionUseSection />
             </>
           ) : null}
           {activeTab === 'good-to-know' ? (

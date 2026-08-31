@@ -240,6 +240,49 @@ def test_raw_agent_token_is_never_persisted(client, db) -> None:
     assert row.token_hash != token
 
 
+def test_extension_download_requires_login(client, db) -> None:
+    setup_project(db)
+    response = client.get("/api/v1/browser-agents/extension-download")
+    assert response.status_code == 403
+
+
+def test_extension_download_missing_reports_not_found(client, db, tmp_path) -> None:
+    _admin, reviewer, _outsider, _project, *_ = setup_project(db)
+    login(client, reviewer.username, "reviewer-password")
+
+    settings = get_settings()
+    previous = settings.browser_extension_zip_path
+    settings.browser_extension_zip_path = tmp_path / "does-not-exist.zip"
+    try:
+        response = client.get("/api/v1/browser-agents/extension-download")
+        assert response.status_code == 404
+    finally:
+        settings.browser_extension_zip_path = previous
+
+
+def test_extension_download_returns_bundled_zip(client, db, tmp_path) -> None:
+    _admin, reviewer, _outsider, _project, *_ = setup_project(db)
+    login(client, reviewer.username, "reviewer-password")
+
+    zip_path = tmp_path / "papertrail-browser-extension.zip"
+    zip_path.write_bytes(b"PK\x03\x04fake-zip-contents")
+
+    settings = get_settings()
+    previous = settings.browser_extension_zip_path
+    settings.browser_extension_zip_path = zip_path
+    try:
+        response = client.get("/api/v1/browser-agents/extension-download")
+        assert response.status_code == 200
+        assert response.headers["content-type"] == "application/zip"
+        assert (
+            'filename="papertrail-browser-extension.zip"'
+            in response.headers["content-disposition"]
+        )
+        assert response.content == zip_path.read_bytes()
+    finally:
+        settings.browser_extension_zip_path = previous
+
+
 def test_valid_agent_token_authenticates(client, db) -> None:
     _admin, reviewer, _outsider, _project, *_ = setup_project(db)
     csrf = login(client, reviewer.username, "reviewer-password")

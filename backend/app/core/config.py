@@ -86,6 +86,9 @@ class Settings(BaseSettings):
     job_lease_seconds: int = 300
     browser_agent_pairing_ttl_minutes: int = 10
     browser_retrieval_lease_seconds: int = 300
+    # Baked into the backend Docker image at build time (see backend/Dockerfile);
+    # absent in local/source dev, where the download endpoint reports 404.
+    browser_extension_zip_path: Path = Path("./static/papertrail-browser-extension.zip")
     email_enabled: bool = False
     # High-entropy application secret used to encrypt credential-bearing email
     # payloads (currently the password-reset link) before they are persisted in

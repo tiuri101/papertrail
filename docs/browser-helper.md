@@ -6,13 +6,19 @@ The extension never sends Papertrail publisher cookies, institutional passwords,
 
 ## Install a released extension
 
-The CI release workflow builds `browser-extension/` and attaches a ZIP named like:
+The backend Docker image bakes in a matching build of `browser-extension/`, so the easiest way to
+get the ZIP is straight from a running Papertrail server: sign in, open **Account Settings →
+Browser Helpers**, and choose **Download Browser Helper (.zip)** (also linked from the **Help →
+Browser Extension** page). That endpoint (`GET /api/v1/browser-agents/extension-download`)
+requires a signed-in session and 404s on a source/dev backend, which has no bundled ZIP.
+
+The CI release workflow also attaches the same build, named like:
 
 ```text
 papertrail-browser-extension-2026.08.01.zip
 ```
 
-to the matching GitHub release.
+to the matching GitHub release, for anyone without a running server yet.
 
 To install it in Chrome:
 
@@ -98,6 +104,7 @@ User/session endpoints:
 
 - `POST /api/v1/browser-agents/pairing-secrets`
 - `GET /api/v1/browser-agents`
+- `GET /api/v1/browser-agents/extension-download` (the ZIP baked into the backend Docker image; 404 if absent)
 - `DELETE /api/v1/browser-agents/{agent_id}`
 - `POST /api/v1/browser-agents/pair` (consumes the one-time secret; no existing session required)
 
