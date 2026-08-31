@@ -11,7 +11,7 @@
     "type": "module"
   },
   "options_page": "src/options/options.html",
-  "permissions": ["storage", "alarms", "offscreen", "activeTab"],
+  "permissions": ["storage", "alarms", "offscreen", "activeTab", "scripting"],
   "optional_host_permissions": [
     "https://*/*",
     "http://localhost/*",

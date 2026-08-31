@@ -25,8 +25,13 @@ function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status })
 }
 
-function session(client: PapertrailClient, tabUrl = TAB_URL, projectId: string | null = PROJECT_ID) {
-  return new CaptureSession(client, tabUrl, projectId, PROJECT_NAME, () => {})
+function session(
+  client: PapertrailClient,
+  tabUrl = TAB_URL,
+  projectId: string | null = PROJECT_ID,
+  tabId: number | null = null,
+) {
+  return new CaptureSession(client, tabUrl, projectId, PROJECT_NAME, () => {}, tabId)
 }
 
 afterEach(() => {
@@ -217,6 +222,78 @@ describe('CaptureSession', () => {
     expect(s.snapshot.phase).toBe('not_pdf')
     expect(s.snapshot.message).toMatch(/no pdf link/i)
   })
+
+  it('falls back to reading the PDF directly out of the live tab when the background fetch is blocked', async () => {
+    // Mirrors MDPI: the background fetch of the mdpi-resolver's derived
+    // "/pdf" candidate gets blocked (its bot check rejects the extension's
+    // background request regardless of URL), but the tab script -- running
+    // inside the already-rendered tab -- fetches the same URL successfully
+    // because it carries the tab's own request fingerprint.
+    const LANDING_URL = 'https://www.mdpi.com/1660-4601/18/3/939'
+    const PDF_URL = 'https://www.mdpi.com/1660-4601/18/3/939/pdf'
+    const executeScript = vi.fn(async () => [
+      {
+        result: { ok: true, base64: btoa(PDF_BODY), contentType: 'application/pdf', finalUrl: PDF_URL },
+        frameId: 0,
+        documentId: 'doc-1',
+      },
+    ])
+    installChromeMock({ permissionsContains: async () => true, scriptingExecuteScript: executeScript })
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url === LANDING_URL) {
+        return new Response(
+          '<html><body>Just an abstract -- the download link needs JS.</body></html>',
+          { status: 200, headers: { 'Content-Type': 'text/html' } },
+        )
+      }
+      if (url === PDF_URL) {
+        return new Response('Forbidden', { status: 403 })
+      }
+      if (url.includes('/pdf-captures/detect')) {
+        return jsonResponse({ detectedDoi: null, detectedTitle: null, ambiguous: false, match: null })
+      }
+      throw new Error(`Unexpected fetch: ${url}`)
+    })
+    vi.stubGlobal('fetch', fetchMock)
+
+    const client = new PapertrailClient(connection)
+    const s = session(client, LANDING_URL, PROJECT_ID, 42)
+    await s.start()
+
+    expect(s.snapshot.phase).toBe('search')
+    expect(executeScript).toHaveBeenCalledWith(expect.objectContaining({ target: { tabId: 42 } }))
+  }, 10000)
+
+  it('reports not_pdf when both the background fetch and the live-tab fallback fail', async () => {
+    const LANDING_URL = 'https://www.mdpi.com/1660-4601/18/3/939'
+    const PDF_URL = 'https://www.mdpi.com/1660-4601/18/3/939/pdf'
+    installChromeMock({
+      permissionsContains: async () => true,
+      scriptingExecuteScript: async () => [
+        { result: { ok: false }, frameId: 0, documentId: 'doc-1' },
+      ],
+    })
+    vi.stubGlobal('fetch', vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input)
+      if (url === LANDING_URL) {
+        return new Response(
+          '<html><body>Just an abstract, no download link here.</body></html>',
+          { status: 200, headers: { 'Content-Type': 'text/html' } },
+        )
+      }
+      if (url === PDF_URL) {
+        return new Response('Forbidden', { status: 403 })
+      }
+      throw new Error(`Unexpected fetch: ${url}`)
+    }))
+
+    const client = new PapertrailClient(connection)
+    const s = session(client, LANDING_URL, PROJECT_ID, 42)
+    await s.start()
+
+    expect(s.snapshot.phase).toBe('not_pdf')
+  }, 10000)
 
   it('auto-attaches when detection finds a single exact DOI match', async () => {
     installChromeMock({ permissionsContains: async () => true })
