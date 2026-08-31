@@ -8,10 +8,11 @@ import {
   PUBLISHER_ACCESS_ORIGIN,
   requestOriginPermission,
 } from '../retrieval/permission-manager'
-import { validatePdfResponse } from '../retrieval/pdf-validator'
+import { validatePdfBytes, validatePdfResponse } from '../retrieval/pdf-validator'
 import { safeRedirectFetch } from '../retrieval/redirect-fetch'
 import { MAX_LANDING_PAGE_BYTES, readTextWithLimit } from '../retrieval/response-limits'
 import { looksLikeLoginOrPaywallPage } from '../retrieval/response-classifier'
+import { captureCandidatePdfFromTab } from './tab-pdf-probe'
 
 // A generous client-side cap on the streamed download -- only an early
 // rejection so a clearly-wrong response isn't read forever, mirroring the
@@ -85,6 +86,7 @@ export class CaptureSession {
   private state: CaptureSnapshot
   private pdfBlob: Blob | null = null
   private pdfFilename = 'paper.pdf'
+  private triedTabScriptCapture = false
 
   constructor(
     private readonly client: PapertrailClient,
@@ -92,6 +94,7 @@ export class CaptureSession {
     private readonly projectId: string | null,
     projectName: string | null,
     private readonly onChange: (snapshot: CaptureSnapshot) => void,
+    private readonly tabId: number | null = null,
   ) {
     this.state = {
       phase: 'starting',
@@ -157,17 +160,11 @@ export class CaptureSession {
     try {
       landing = await safeRedirectFetch(this.state.tabUrl)
     } catch {
-      this.set({
-        phase: 'not_pdf',
-        message: 'Could not load the current tab. Make sure a PDF or publication page is open in it.',
-      })
+      await this.failNotPdf('Could not load the current tab. Make sure a PDF or publication page is open in it.')
       return
     }
     if (!landing.response.ok) {
-      this.set({
-        phase: 'not_pdf',
-        message: `The publisher rejected this request (HTTP ${landing.response.status}). ${EXPIRED_LINK_HINT}`,
-      })
+      await this.failNotPdf(`The publisher rejected this request (HTTP ${landing.response.status}). ${EXPIRED_LINK_HINT}`)
       return
     }
 
@@ -188,15 +185,65 @@ export class CaptureSession {
 
     const validation = await validatePdfResponse(pdfResponse, MAX_CAPTURE_BYTES)
     if (!validation.valid) {
-      this.set({
-        phase: 'not_pdf',
-        message: `The current tab doesn't look like a PDF (${validation.reason}). ${EXPIRED_LINK_HINT}`,
-      })
+      await this.failNotPdf(`The current tab doesn't look like a PDF (${validation.reason}). ${EXPIRED_LINK_HINT}`)
       return
     }
     this.pdfBlob = validation.blob
     this.pdfFilename = filenameFromResponse(pdfResponse, pdfFinalUrl, '')
     await this.detectAndAttach()
+  }
+
+  /** Reports a terminal "couldn't find/fetch a PDF" outcome -- but first, if
+   * we haven't already, tries reading the PDF directly out of the live tab
+   * (see tab-pdf-probe.ts) rather than the background fetch that just
+   * failed. Some publishers block the background fetch's request
+   * fingerprint outright, cookies or not, but don't block a fetch issued
+   * from inside the tab the user already has open. */
+  private async failNotPdf(message: string): Promise<void> {
+    if (!this.triedTabScriptCapture) {
+      this.triedTabScriptCapture = true
+      const captured = await this.tryTabScriptCapture()
+      if (captured) {
+        this.pdfBlob = captured.blob
+        this.pdfFilename = captured.filename
+        await this.detectAndAttach()
+        return
+      }
+    }
+    this.set({ phase: 'not_pdf', message })
+  }
+
+  private async tryTabScriptCapture(): Promise<{ blob: Blob; filename: string } | null> {
+    if (this.tabId === null) return null
+    if (typeof chrome === 'undefined' || !chrome.scripting?.executeScript) return null
+
+    this.set({ message: 'Trying to read the PDF link directly from the open tab…' })
+    let results: chrome.scripting.InjectionResult<Awaited<ReturnType<typeof captureCandidatePdfFromTab>>>[]
+    try {
+      results = await chrome.scripting.executeScript({
+        target: { tabId: this.tabId },
+        func: captureCandidatePdfFromTab,
+        args: [this.state.tabUrl, MAX_CAPTURE_BYTES],
+      })
+    } catch {
+      return null
+    }
+
+    const outcome = results[0]?.result
+    if (!outcome?.ok) return null
+
+    let bytes: Uint8Array<ArrayBuffer>
+    try {
+      const binary = atob(outcome.base64)
+      bytes = new Uint8Array(binary.length) as Uint8Array<ArrayBuffer>
+      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i)
+    } catch {
+      return null
+    }
+
+    const validation = await validatePdfBytes(bytes, outcome.contentType, MAX_CAPTURE_BYTES)
+    if (!validation.valid) return null
+    return { blob: validation.blob, filename: filenameFromResponse(new Response(null), outcome.finalUrl, '') }
   }
 
   /** Looks for a "Download PDF"-style link on a publication's landing page
@@ -213,17 +260,11 @@ export class CaptureSession {
     try {
       html = await readTextWithLimit(response, MAX_LANDING_PAGE_BYTES)
     } catch (error) {
-      this.set({
-        phase: 'not_pdf',
-        message: `Could not read this page (${error instanceof Error ? error.message : 'unknown error'}).`,
-      })
+      await this.failNotPdf(`Could not read this page (${error instanceof Error ? error.message : 'unknown error'}).`)
       return null
     }
     if (looksLikeLoginOrPaywallPage(html)) {
-      this.set({
-        phase: 'not_pdf',
-        message: 'This page asked for institutional sign-in, so no PDF could be found.',
-      })
+      await this.failNotPdf('This page asked for institutional sign-in, so no PDF could be found.')
       return null
     }
 
@@ -231,27 +272,18 @@ export class CaptureSession {
     const resolver = resolverFor({ landingUrl, html, document })
     const candidates = resolver.discover({ landingUrl, html, document })
     if (candidates.length === 0) {
-      this.set({
-        phase: 'not_pdf',
-        message: 'No PDF link (e.g. a "Download PDF" button) was found on this page.',
-      })
+      await this.failNotPdf('No PDF link (e.g. a "Download PDF" button) was found on this page.')
       return null
     }
 
     this.set({ message: 'Downloading the PDF…' })
     const outcome = await tryPdfCandidates(candidates)
     if (outcome.status === 'needs_authentication') {
-      this.set({
-        phase: 'not_pdf',
-        message: 'The PDF link on this page required institutional sign-in.',
-      })
+      await this.failNotPdf('The PDF link on this page required institutional sign-in.')
       return null
     }
     if (outcome.status === 'not_found') {
-      this.set({
-        phase: 'not_pdf',
-        message: `No accessible PDF link was found on this page. ${EXPIRED_LINK_HINT}`,
-      })
+      await this.failNotPdf(`No accessible PDF link was found on this page. ${EXPIRED_LINK_HINT}`)
       return null
     }
     return { response: outcome.response, finalUrl: outcome.finalUrl }

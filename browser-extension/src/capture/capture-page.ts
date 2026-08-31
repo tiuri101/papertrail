@@ -9,14 +9,18 @@ let session: CaptureSession | null = null
 
 interface LocationParams {
   tabUrl: string
+  tabId: number | null
   projectId: string | null
   projectName: string | null
 }
 
 function paramsFromLocation(): LocationParams {
   const params = new URLSearchParams(window.location.search)
+  const tabIdParam = params.get('tabId')
+  const tabId = tabIdParam !== null ? Number.parseInt(tabIdParam, 10) : NaN
   return {
     tabUrl: params.get('tabUrl') ?? '',
+    tabId: Number.isFinite(tabId) ? tabId : null,
     projectId: params.get('projectId'),
     projectName: params.get('projectName'),
   }
@@ -37,8 +41,8 @@ async function boot(): Promise<void> {
     return
   }
 
-  const { tabUrl, projectId, projectName } = paramsFromLocation()
-  session = new CaptureSession(client, tabUrl, projectId, projectName, (snapshot) => renderApp(snapshot))
+  const { tabUrl, tabId, projectId, projectName } = paramsFromLocation()
+  session = new CaptureSession(client, tabUrl, projectId, projectName, (snapshot) => renderApp(snapshot), tabId)
   renderApp(session.snapshot)
   void session.start()
 }
