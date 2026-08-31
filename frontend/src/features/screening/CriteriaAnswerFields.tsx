@@ -22,6 +22,9 @@ function capitalize(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
+// Matches the max-[760px] breakpoint used elsewhere in this file to identify the mobile layout.
+const MOBILE_MEDIA_QUERY = '(max-width: 760px)'
+
 const DECISION_OPTIONS: { value: string; label: string; hotkeyAction: ScreeningHotkeyAction }[] = [
   { value: 'include', label: 'Include', hotkeyAction: 'include' },
   { value: 'exclude', label: 'Exclude', hotkeyAction: 'exclude' },
@@ -125,7 +128,20 @@ export function CriteriaAnswerFields({
                   <td className="whitespace-nowrap">
                     <CriterionBadge kind={criterion.kind}>{numbers[criterion.id]}</CriterionBadge>
                   </td>
-                  <th scope="row">
+                  <th
+                    scope="row"
+                    className="max-[760px]:cursor-pointer max-[760px]:active:bg-surface-hover"
+                    onClick={() => {
+                      // On mobile the checkboxes are small tap targets, so tapping the criterion
+                      // text itself toggles fulfilled/not-fulfilled instead. Desktop pointers keep
+                      // using the checkboxes, so this is a no-op outside the mobile breakpoint.
+                      if (!window.matchMedia(MOBILE_MEDIA_QUERY).matches) return
+                      setAnswers((current) => ({
+                        ...current,
+                        [criterion.id]: current[criterion.id] === true ? false : true,
+                      }))
+                    }}
+                  >
                     {criterion.text}
                   </th>
                   <td>
@@ -144,7 +160,7 @@ export function CriteriaAnswerFields({
                       onKeyDown={handleCellKeyDown(row, 0)}
                       onClick={() => setAnswers((current) => ({
                         ...current,
-                        [criterion.id]: current[criterion.id] === true ? null : true,
+                        [criterion.id]: current[criterion.id] === true ? false : true,
                       }))}
                     >
                       {answers[criterion.id] === true ? <IconCheckCircle /> : null}
@@ -166,7 +182,7 @@ export function CriteriaAnswerFields({
                       onKeyDown={handleCellKeyDown(row, 1)}
                       onClick={() => setAnswers((current) => ({
                         ...current,
-                        [criterion.id]: current[criterion.id] === false ? null : false,
+                        [criterion.id]: current[criterion.id] === false ? true : false,
                       }))}
                     >
                       {answers[criterion.id] === false ? <IconXCircle /> : null}
