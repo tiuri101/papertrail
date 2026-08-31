@@ -47,6 +47,13 @@ function render({
 }
 
 describe('BrowserHelpersSection', () => {
+  it('links to the bundled extension download', async () => {
+    render({ agents: [] })
+
+    const link = await screen.findByRole('link', { name: /Download Browser Helper/ })
+    expect(link).toHaveAttribute('href', '/api/v1/browser-agents/extension-download')
+  })
+
   it('lists paired browser helpers', async () => {
     render({ agents: [agent] })
 
