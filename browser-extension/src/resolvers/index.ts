@@ -1,6 +1,7 @@
 import { acmResolver } from './acm'
 import { genericResolver } from './generic'
 import { ieeeResolver } from './ieee'
+import { mdpiResolver } from './mdpi'
 import type { PdfResolver } from './resolver'
 import { scienceDirectResolver } from './sciencedirect'
 import { springerResolver } from './springer'
@@ -10,6 +11,7 @@ import { springerResolver } from './springer'
 export const resolvers: PdfResolver[] = [
   acmResolver,
   ieeeResolver,
+  mdpiResolver,
   springerResolver,
   scienceDirectResolver,
   genericResolver,

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { acmResolver } from '../../src/resolvers/acm'
 import { ieeeResolver } from '../../src/resolvers/ieee'
+import { mdpiResolver } from '../../src/resolvers/mdpi'
 import { scienceDirectResolver } from '../../src/resolvers/sciencedirect'
 import { springerResolver } from '../../src/resolvers/springer'
 import { loadFixtureHtml, parseFixture } from '../fixture'
@@ -68,6 +69,27 @@ describe('springerResolver', () => {
     const candidates = springerResolver.discover(contextFor('springer-landing.html', landingUrl))
     const urls = candidates.map((c) => c.url)
     expect(urls).toContain('https://link.springer.com/content/pdf/10.1007/s00000-000-0000-0.pdf')
+  })
+})
+
+describe('mdpiResolver', () => {
+  const landingUrl = 'https://www.mdpi.com/1660-4601/18/3/939'
+
+  it('handles mdpi.com and not other hosts', () => {
+    expect(mdpiResolver.canHandle(contextFor('mdpi-landing.html', landingUrl))).toBe(true)
+    expect(mdpiResolver.canHandle(contextFor('mdpi-landing.html', 'https://example.org/1660-4601/18/3/939'))).toBe(false)
+  })
+
+  it('derives the PDF URL from the article path even though the dropdown link is not a plain match', () => {
+    const candidates = mdpiResolver.discover(contextFor('mdpi-landing.html', landingUrl))
+    expect(candidates.some((c) => c.url === 'https://www.mdpi.com/1660-4601/18/3/939/pdf')).toBe(true)
+  })
+
+  it('does not duplicate the derived URL when the landing URL already ends in /pdf', () => {
+    const candidates = mdpiResolver.discover(
+      contextFor('mdpi-landing.html', 'https://www.mdpi.com/1660-4601/18/3/939/pdf'),
+    )
+    expect(candidates.filter((c) => c.source === 'mdpi-pdf-path')).toHaveLength(0)
   })
 })
 

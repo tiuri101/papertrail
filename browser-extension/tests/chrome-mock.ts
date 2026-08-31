@@ -7,6 +7,10 @@ export interface ChromeMockOverrides {
   windowsGetCurrent?: () => Promise<chrome.windows.Window>
   windowsCreate?: (data: chrome.windows.CreateData) => Promise<chrome.windows.Window>
   offscreenHasDocument?: boolean
+  tabsQuery?: (query: chrome.tabs.QueryInfo) => Promise<chrome.tabs.Tab[]>
+  scriptingExecuteScript?: (
+    injection: chrome.scripting.ScriptInjection<unknown[], unknown>,
+  ) => Promise<chrome.scripting.InjectionResult<unknown>[]>
 }
 
 /** Installs a minimal chrome.* mock on globalThis for one test file/case. */
@@ -39,6 +43,10 @@ export function installChromeMock(overrides: ChromeMockOverrides = {}) {
     },
     tabs: {
       create: vi.fn(async () => undefined),
+      query: vi.fn(overrides.tabsQuery ?? (async () => [])),
+    },
+    scripting: {
+      executeScript: vi.fn(overrides.scriptingExecuteScript ?? (async () => [])),
     },
     alarms: {
       create: vi.fn((_name: string, _info: chrome.alarms.AlarmCreateInfo) => undefined),
