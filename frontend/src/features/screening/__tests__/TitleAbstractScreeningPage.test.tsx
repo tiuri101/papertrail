@@ -109,16 +109,53 @@ describe('TitleAbstractScreeningPage', () => {
     expect(notes.compareDocumentPosition(hiddenMessage) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 
-  it('requires re-answering a criterion after its default is unchecked', async () => {
+  it('clicking a checked checkbox switches to the alternative answer instead of leaving it unanswered', async () => {
     renderScreening(async (input) => String(input).endsWith('/next') ? jsonResponse(workItem) : jsonResponse({}))
     await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
 
     const submit = screen.getByRole('button', { name: 'Submit Decision' })
     expect(submit).toBeEnabled()
 
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Inclusion: Uses virtual reality — Fulfilled' }))
-    expect(submit).toBeDisabled()
-    expect(screen.getByText('Answer every criterion before submitting.')).toBeInTheDocument()
+    const fulfilled = screen.getByRole('checkbox', { name: 'Inclusion: Uses virtual reality — Fulfilled' })
+    const notFulfilled = screen.getByRole('checkbox', { name: 'Inclusion: Uses virtual reality — Not fulfilled' })
+    expect(fulfilled).toBeChecked()
+
+    fireEvent.click(fulfilled)
+    expect(fulfilled).not.toBeChecked()
+    expect(notFulfilled).toBeChecked()
+    expect(submit).toBeEnabled()
+
+    fireEvent.click(notFulfilled)
+    expect(notFulfilled).not.toBeChecked()
+    expect(fulfilled).toBeChecked()
+    expect(submit).toBeEnabled()
+  })
+
+  it('tapping the criterion text toggles fulfilled/not-fulfilled on mobile widths only', async () => {
+    renderScreening(async (input) => String(input).endsWith('/next') ? jsonResponse(workItem) : jsonResponse({}))
+    await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
+
+    const fulfilled = screen.getByRole('checkbox', { name: 'Inclusion: Uses virtual reality — Fulfilled' })
+    const notFulfilled = screen.getByRole('checkbox', { name: 'Inclusion: Uses virtual reality — Not fulfilled' })
+    const criterionCell = screen.getByRole('rowheader', { name: 'Uses virtual reality' })
+    expect(fulfilled).toBeChecked()
+
+    const originalWidth = window.innerWidth
+    window.innerWidth = 1024
+    fireEvent.click(criterionCell)
+    expect(fulfilled).toBeChecked()
+    expect(notFulfilled).not.toBeChecked()
+
+    window.innerWidth = 500
+    fireEvent.click(criterionCell)
+    expect(fulfilled).not.toBeChecked()
+    expect(notFulfilled).toBeChecked()
+
+    fireEvent.click(criterionCell)
+    expect(fulfilled).toBeChecked()
+    expect(notFulfilled).not.toBeChecked()
+
+    window.innerWidth = originalWidth
   })
 
   it('checking one answer for a criterion unchecks the other', async () => {
@@ -551,18 +588,6 @@ describe('TitleAbstractScreeningPage', () => {
       expect(nextCalls).toHaveLength(2)
     })
     expect(decisionPosts).toBe(1)
-  })
-
-  it('does not submit with the Enter hotkey while a required criterion is unanswered', async () => {
-    const fetchMock = renderScreening(async (input) => String(input).endsWith('/next') ? jsonResponse(workItem) : jsonResponse({}))
-    await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
-
-    fireEvent.click(screen.getByRole('checkbox', { name: 'Inclusion: Uses virtual reality — Fulfilled' }))
-    expect(screen.getByRole('button', { name: 'Submit Decision' })).toBeDisabled()
-
-    fireEvent.keyDown(window, { key: 'Enter' })
-
-    expect(fetchMock.mock.calls.some(([input]) => String(input).endsWith('/decision'))).toBe(false)
   })
 
   it('ignores the Enter hotkey while typing in the Notes field', async () => {

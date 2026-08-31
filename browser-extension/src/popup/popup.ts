@@ -141,16 +141,26 @@ async function render(): Promise<void> {
   })
 }
 
-/** Reads the active tab's URL under the `activeTab` grant this click itself
- * provides, then hands it (and the project already chosen in this popup) to
- * the capture page as plain query parameters -- the capture page never
- * touches chrome.tabs or asks which project again, so it doesn't depend on
- * activeTab's per-tab grant surviving into a separately opened window, and
+/** Reads the active tab's URL (and id) under the `activeTab` grant this
+ * click itself provides, then hands them (and the project already chosen in
+ * this popup) to the capture page as plain query parameters -- the capture
+ * page never calls chrome.tabs itself or asks which project again, and
  * project selection stays a single, always-visible control here rather than
- * a one-off page in the middle of a capture. */
+ * a one-off page in the middle of a capture.
+ *
+ * The tab id is only used later for `chrome.scripting.executeScript`, as a
+ * last-resort fallback when the capture page's own background fetch of the
+ * tab's URL can't get a PDF (see CaptureSession.tryTabScriptCapture). That
+ * call doesn't depend on this click's `activeTab` grant surviving into the
+ * separately opened capture window -- the capture flow already requires the
+ * broader, persistent publisher host permission before it fetches anything,
+ * and that alone is enough for scripting.executeScript on the same tab. */
 async function openCapture(project: AgentProject | null): Promise<void> {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true })
   const params = new URLSearchParams({ tabUrl: tab?.url ?? '' })
+  if (tab?.id !== undefined) {
+    params.set('tabId', String(tab.id))
+  }
   if (project) {
     params.set('projectId', project.id)
     params.set('projectName', project.name)
