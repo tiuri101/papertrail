@@ -13,6 +13,7 @@ import { CountPill } from '../../components/CountPill'
 import { DetailList, DetailListRow } from '../../components/DetailList'
 import { cardStyles } from '../../components/Card'
 import { Page } from '../../components/Page'
+import { DEFAULT_TABLE_PAGE_SIZE, PaginationControls, PaginationSummary } from '../../components/Pagination'
 import { HighlightedText } from '../../components/HighlightedText'
 import { reviewWorkTitleTextClass } from '../../components/reviewWorkStyles'
 import { Input } from '../../components/Input'
@@ -70,7 +71,6 @@ interface PublicationPage {
   hasMore: boolean
 }
 
-const PAGE_SIZE = 50
 const SEARCH_DEBOUNCE_MS = 300
 
 /**
@@ -88,7 +88,7 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
 
 const dangerRowActionItemClass = actionListItemClass({ danger: true })
 
-const publicationRowGridClass = "grid grid-cols-[1.5rem_minmax(0,1fr)_3.25rem_9rem_6.5rem_4.5rem_4.5rem] items-center gap-3 [&>*]:min-w-0 max-[900px]:grid-cols-[1.5rem_auto_minmax(0,1fr)_auto_auto] max-[900px]:grid-rows-2 max-[900px]:[grid-template-areas:'checkbox_title_title_title_actions'_'._year_source_stage_pdf'] max-[900px]:gap-y-2 max-[600px]:grid-cols-[1.5rem_minmax(0,1fr)_auto] max-[600px]:grid-rows-3 max-[600px]:[grid-template-areas:'checkbox_title_actions'_'._source_pdf'_'._year_stage'] max-[600px]:gap-y-1"
+const publicationRowGridClass = "grid grid-cols-[1.5rem_minmax(0,1fr)_3.25rem_9rem_6.5rem_4.5rem_4.5rem] items-center gap-3 [&>*]:min-w-0 max-[900px]:grid-cols-[1.5rem_auto_minmax(0,1fr)_auto_auto] max-[900px]:grid-rows-2 max-[900px]:[grid-template-areas:'checkbox_title_title_title_actions'_'._year_source_stage_pdf'] max-[900px]:gap-y-2 max-[600px]:grid-cols-[auto_minmax(0,1fr)_auto] max-[600px]:grid-rows-2 max-[600px]:[grid-template-areas:'checkbox_title_actions'_'meta_meta_meta'] max-[600px]:gap-x-2 max-[600px]:gap-y-1"
 
 const SCREENING_FILTER_OPTIONS = [
   { value: '', label: 'All' },
@@ -251,7 +251,7 @@ function PublicationRow({
 
   return (
     <li data-publication-row="true" data-selected={selected || undefined} className={cn(
-      'relative rounded-md border border-border bg-linear-to-b from-surface-raised to-surface px-4 py-3 shadow-sm transition-[border-color,background-color,transform,box-shadow] duration-150 hover:-translate-y-0.5 hover:border-border-strong hover:shadow-md max-[600px]:px-3',
+      'relative rounded-md border border-border bg-linear-to-b from-surface-raised to-surface px-4 py-3 shadow-sm transition-[border-color,background-color,transform,box-shadow] duration-150 hover:-translate-y-0.5 hover:border-border-strong hover:shadow-md max-[600px]:px-3 max-[600px]:py-2',
       selected && 'border-primary bg-none bg-primary-container hover:border-primary',
     )}>
       <div className={publicationRowGridClass}>
@@ -272,21 +272,23 @@ function PublicationRow({
           </Link>
           <div className="overflow-hidden text-ellipsis whitespace-nowrap text-[0.86rem] text-text-secondary">{publication.authors ?? 'Unknown authors'}</div>
         </div>
-        <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[0.86rem] text-text-secondary max-[900px]:[grid-area:year]">{publication.publicationYear ?? '—'}</span>
-        <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[0.86rem] text-text-secondary max-[900px]:[grid-area:source] max-[600px]:w-full" title={publication.venue ?? undefined}>
-          {publication.venue ?? '—'}
-        </span>
-        <span className="max-[900px]:[grid-area:stage]">
-          <Badge variant={stage.variant}>{stage.label}</Badge>
-        </span>
-        <span className="mr-2 flex items-center max-[900px]:[grid-area:pdf] max-[600px]:mr-0">
-          <PdfAvailabilityPill
-            available={Boolean(publication.fullText?.available)}
-            href={`/api/v1/projects/${projectId}/publications/${publication.id}/full-text/content`}
-            pageCount={publication.fullText?.document?.pageCount}
-            compact
-          />
-        </span>
+        <div className="contents [&>*]:min-w-0 max-[600px]:flex max-[600px]:flex-wrap max-[600px]:items-center max-[600px]:gap-x-3 max-[600px]:gap-y-1 max-[600px]:text-[0.8rem] max-[600px]:[grid-area:meta]">
+          <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[0.86rem] text-text-secondary max-[900px]:[grid-area:year] max-[600px]:text-[inherit]">{publication.publicationYear ?? '—'}</span>
+          <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[0.86rem] text-text-secondary max-[900px]:[grid-area:source] max-[600px]:text-[inherit]" title={publication.venue ?? undefined}>
+            {publication.venue ?? '—'}
+          </span>
+          <span className="max-[900px]:[grid-area:stage]">
+            <Badge variant={stage.variant}>{stage.label}</Badge>
+          </span>
+          <span className="mr-2 flex items-center max-[900px]:[grid-area:pdf] max-[600px]:mr-0">
+            <PdfAvailabilityPill
+              available={Boolean(publication.fullText?.available)}
+              href={`/api/v1/projects/${projectId}/publications/${publication.id}/full-text/content`}
+              pageCount={publication.fullText?.document?.pageCount}
+              compact
+            />
+          </span>
+        </div>
         <span className="flex items-center justify-end gap-1 max-[900px]:[grid-area:actions] max-[600px]:self-start">
           <DoiPill doi={publication.doi} />
           {canManage ? (
@@ -380,8 +382,6 @@ type ConflictSortValue =
   | 'source:asc'
   | 'source:desc'
 
-const CONFLICT_PAGE_SIZE = 25
-
 function MetadataConflictsPanel({ projectId }: { projectId: string }) {
   const queryClient = useQueryClient()
   const [search, setSearch] = useState('')
@@ -389,6 +389,7 @@ function MetadataConflictsPanel({ projectId }: { projectId: string }) {
   const [fieldFilter, setFieldFilter] = useState('')
   const [sort, setSort] = useState<ConflictSortValue>('created:desc')
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(DEFAULT_TABLE_PAGE_SIZE)
   const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS)
   const listTopRef = useRef<HTMLUListElement>(null)
 
@@ -402,9 +403,9 @@ function MetadataConflictsPanel({ projectId }: { projectId: string }) {
     params.set('sort', sortKey)
     params.set('direction', direction)
     params.set('page', String(page))
-    params.set('pageSize', String(CONFLICT_PAGE_SIZE))
+    params.set('pageSize', String(pageSize))
     return params.toString()
-  }, [debouncedSearch, sourceFilter, fieldFilter, sort, page])
+  }, [debouncedSearch, sourceFilter, fieldFilter, sort, page, pageSize])
 
   const conflicts = useQuery({
     // Nested under ['metadata-conflicts', projectId] so the resolve mutation
@@ -424,8 +425,8 @@ function MetadataConflictsPanel({ projectId }: { projectId: string }) {
   }
 
   // Only paging should jump the view -- not a filter change resetting to page 1.
-  const goToPage = (updater: (current: number) => number) => {
-    setPage(updater)
+  const goToPage = (next: number) => {
+    setPage(next)
     listTopRef.current?.scrollIntoView({ block: 'start' })
   }
 
@@ -548,6 +549,14 @@ function MetadataConflictsPanel({ projectId }: { projectId: string }) {
           </Select>
         </FieldLabel>
       </div>
+      <PaginationSummary
+        className="mt-5"
+        noun="conflict"
+        page={page}
+        pageSize={pageSize}
+        itemCount={items.length}
+        total={total}
+      />
       <ul ref={listTopRef} className="mt-5 grid list-none gap-6 p-0">
         {items.map((conflict) => (
           <li key={conflict.id} className="overflow-hidden rounded-lg border border-border bg-[color-mix(in_srgb,var(--color-surface)_92%,transparent)] shadow-sm">
@@ -655,30 +664,15 @@ function MetadataConflictsPanel({ projectId }: { projectId: string }) {
             : 'No open metadata conflicts.'}
         </p>
       ) : null}
-      {pageCount > 1 ? (
-        <nav className={cn(toolbarClass, 'mt-4 items-center')} aria-label="Metadata conflict pages">
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            disabled={page <= 1}
-            onClick={() => goToPage((current) => Math.max(1, current - 1))}
-          >
-            Previous
-          </Button>
-          <span className="text-text-muted" role="status">
-            Page {page} of {pageCount} ({total} conflict{total === 1 ? '' : 's'})
-          </span>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            disabled={page >= pageCount}
-            onClick={() => goToPage((current) => Math.min(pageCount, current + 1))}
-          >
-            Next
-          </Button>
-        </nav>
+      {items.length > 0 ? (
+        <PaginationControls
+          label="Metadata conflict pages"
+          page={page}
+          pageCount={pageCount}
+          pageSize={pageSize}
+          onPageChange={goToPage}
+          onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
+        />
       ) : null}
     </section>
   )
@@ -718,13 +712,14 @@ export function PublicationsPage() {
   const [sortKey, setSortKey] = useState<PublicationSortKey>('title')
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc')
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(DEFAULT_TABLE_PAGE_SIZE)
   const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS)
   const tableTopRef = useRef<HTMLUListElement>(null)
 
   // Only paging to a different page should jump the view -- not the initial
   // load or a filter/search/sort change resetting back to page 1.
-  const goToPage = (updater: (current: number) => number) => {
-    setPage(updater)
+  const goToPage = (next: number) => {
+    setPage(next)
     tableTopRef.current?.scrollIntoView({ block: 'start' })
   }
 
@@ -747,9 +742,9 @@ export function PublicationsPage() {
     params.set('sort', sortKey)
     params.set('direction', sortDirection)
     params.set('page', String(page))
-    params.set('pageSize', String(PAGE_SIZE))
+    params.set('pageSize', String(pageSize))
     return params.toString()
-  }, [filterParams, sortKey, sortDirection, page])
+  }, [filterParams, sortKey, sortDirection, page, pageSize])
 
   const query = useQuery({
     // Nested under ['publications', projectId] so every existing invalidation
@@ -1082,6 +1077,14 @@ export function PublicationsPage() {
                 </a>
               </p>
             ) : null}
+            <PaginationSummary
+              className="mt-6"
+              noun="publication"
+              page={page}
+              pageSize={pageSize}
+              itemCount={publications.length}
+              total={total}
+            />
             <div className={cn(publicationRowGridClass, 'mt-6 mb-2 px-4 text-[0.72rem] font-bold tracking-[0.04em] text-text-muted uppercase max-[900px]:hidden')}>
               <span aria-hidden="true" />
               <span className="flex items-center gap-0.5">
@@ -1114,30 +1117,15 @@ export function PublicationsPage() {
                   : 'No publications yet.'}
               </p>
             ) : null}
-            {pageCount > 1 ? (
-              <nav className={cn(toolbarClass, 'mt-4 items-center')} aria-label="Publication pages">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  disabled={page <= 1}
-                  onClick={() => goToPage((current) => Math.max(1, current - 1))}
-                >
-                  Previous
-                </Button>
-                <span className="text-text-muted" role="status">
-                  Page {page} of {pageCount} ({total} publication{total === 1 ? '' : 's'})
-                </span>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  disabled={page >= pageCount}
-                  onClick={() => goToPage((current) => Math.min(pageCount, current + 1))}
-                >
-                  Next
-                </Button>
-              </nav>
+            {publications.length > 0 ? (
+              <PaginationControls
+                label="Publication pages"
+                page={page}
+                pageCount={pageCount}
+                pageSize={pageSize}
+                onPageChange={goToPage}
+                onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
+              />
             ) : null}
           </div>
         ) : null}

@@ -1,4 +1,4 @@
-import { tableBaseClass, tableCompactClass, tableScrollClass, toolbarClass } from '../../components/layoutStyles'
+import { tableBaseClass, tableCompactClass, tableScrollClass } from '../../components/layoutStyles'
 import { Fragment, useMemo, useRef, useState } from 'react'
 import { keepPreviousData, useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useParams } from 'react-router-dom'
@@ -12,6 +12,7 @@ import { FormField } from '../../components/FormField'
 import { IconRestart } from '../../components/icons'
 import { Input } from '../../components/Input'
 import { Page } from '../../components/Page'
+import { DEFAULT_TABLE_PAGE_SIZE, PaginationControls, PaginationSummary } from '../../components/Pagination'
 import { Select } from '../../components/Select'
 import { SortableColumnHeader } from '../../components/SortableColumnHeader'
 import { InfoTooltip } from '../../components/Tooltip'
@@ -19,8 +20,6 @@ import { useCanManageProject } from '../../hooks/useCanManageProject'
 import { cn } from '../../lib/cn'
 import { AdministrationEyebrow } from '../projects/StageEyebrow'
 import { BackgroundJob, JobPage } from './jobStatus'
-
-const PAGE_SIZE = 25
 
 const STATUS_FILTER_OPTIONS = [
   { value: '', label: 'All' },
@@ -192,6 +191,7 @@ export function JobsPage() {
   const [statusFilter, setStatusFilter] = useState('')
   const [jobTypeFilter, setJobTypeFilter] = useState('')
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(DEFAULT_TABLE_PAGE_SIZE)
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [confirmCancelAll, setConfirmCancelAll] = useState(false)
   const tableTopRef = useRef<HTMLDivElement>(null)
@@ -206,9 +206,9 @@ export function JobsPage() {
     params.set('sort', sortKey)
     params.set('direction', sortDirection)
     params.set('page', String(page))
-    params.set('pageSize', String(PAGE_SIZE))
+    params.set('pageSize', String(pageSize))
     return params.toString()
-  }, [statusFilter, jobTypeFilter, sortKey, sortDirection, page])
+  }, [statusFilter, jobTypeFilter, sortKey, sortDirection, page, pageSize])
 
   const jobs = useQuery({
     // Nested under ['jobs', projectId] so every existing invalidation of that
@@ -248,8 +248,8 @@ export function JobsPage() {
     setPage(1)
   }
 
-  const goToPage = (updater: (current: number) => number) => {
-    setPage(updater)
+  const goToPage = (next: number) => {
+    setPage(next)
     tableTopRef.current?.scrollIntoView({ block: 'start' })
   }
 
@@ -405,6 +405,13 @@ export function JobsPage() {
         </div>
       ) : null}
       <div ref={tableTopRef}>
+      <PaginationSummary
+        noun="job"
+        page={page}
+        pageSize={pageSize}
+        itemCount={items.length}
+        total={total}
+      />
       {items.length ? (
         <div className={tableScrollClass}>
           <table className={`${tableBaseClass} ${tableCompactClass} jobs-table`}>
@@ -509,30 +516,15 @@ export function JobsPage() {
       {data && projectTotal > 0 && total === 0 ? (
         <p className="text-text-muted">No jobs match your filters.</p>
       ) : null}
-      {pageCount > 1 ? (
-        <nav className={cn(toolbarClass, 'mt-4 items-center')} aria-label="Job pages">
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            disabled={page <= 1}
-            onClick={() => goToPage((current) => Math.max(1, current - 1))}
-          >
-            Previous
-          </Button>
-          <span className="text-text-muted" role="status">
-            Page {page} of {pageCount} ({total} job{total === 1 ? '' : 's'})
-          </span>
-          <Button
-            type="button"
-            variant="secondary"
-            size="sm"
-            disabled={page >= pageCount}
-            onClick={() => goToPage((current) => Math.min(pageCount, current + 1))}
-          >
-            Next
-          </Button>
-        </nav>
+      {items.length > 0 ? (
+        <PaginationControls
+          label="Job pages"
+          page={page}
+          pageCount={pageCount}
+          pageSize={pageSize}
+          onPageChange={goToPage}
+          onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
+        />
       ) : null}
       </div>
       {confirmCancelAll ? (

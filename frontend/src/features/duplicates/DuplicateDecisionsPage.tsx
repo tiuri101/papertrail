@@ -12,11 +12,11 @@ import { InfoBox } from '../../components/InfoBox'
 import { Input } from '../../components/Input'
 import { toolbarClass } from '../../components/layoutStyles'
 import { Page } from '../../components/Page'
+import { DEFAULT_TABLE_PAGE_SIZE, PaginationControls, PaginationSummary } from '../../components/Pagination'
 import { PublicationListSortHeader } from '../../components/PublicationListSortHeader'
 import { reviewWorkActionsClass, reviewWorkCardClass, reviewWorkEditorClass, reviewWorkListClass } from '../../components/reviewWorkStyles'
 import { Select } from '../../components/Select'
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
-import { cn } from '../../lib/cn'
 import { formatSubmittedAtParts } from '../../lib/format'
 import { type SortDirection } from '../../lib/sort'
 import { StageEyebrow } from '../projects/StageEyebrow'
@@ -49,7 +49,6 @@ const STATUS_FILTER_OPTIONS = [
 type StatusFilter = (typeof STATUS_FILTER_OPTIONS)[number]['value']
 type SortKey = 'pair' | 'decision' | 'resolvedBy' | 'resolvedAt'
 
-const PAGE_SIZE = 25
 const SEARCH_DEBOUNCE_MS = 300
 
 /**
@@ -137,6 +136,7 @@ export function DuplicateDecisionsPage() {
   const [sortKey, setSortKey] = useState<SortKey>('resolvedAt')
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc')
   const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(DEFAULT_TABLE_PAGE_SIZE)
   const debouncedSearch = useDebouncedValue(search, SEARCH_DEBOUNCE_MS)
   const listTopRef = useRef<HTMLDivElement>(null)
 
@@ -157,9 +157,9 @@ export function DuplicateDecisionsPage() {
     params.set('sort', sortKey)
     params.set('direction', sortDirection)
     params.set('page', String(page))
-    params.set('pageSize', String(PAGE_SIZE))
+    params.set('pageSize', String(pageSize))
     return params.toString()
-  }, [debouncedSearch, statusFilter, sortKey, sortDirection, page])
+  }, [debouncedSearch, statusFilter, sortKey, sortDirection, page, pageSize])
 
   const candidates = useQuery({
     queryKey: ['duplicates', projectId, 'page', listParams],
@@ -179,8 +179,8 @@ export function DuplicateDecisionsPage() {
   }
 
   // Only paging should jump the view -- not a filter change resetting to page 1.
-  const goToPage = (updater: (current: number) => number) => {
-    setPage(updater)
+  const goToPage = (next: number) => {
+    setPage(next)
     listTopRef.current?.scrollIntoView({ block: 'start' })
   }
 
@@ -260,6 +260,14 @@ export function DuplicateDecisionsPage() {
             <p className="text-text-muted">No decisions match your filters.</p>
           ) : (
             <div ref={listTopRef}>
+              <PaginationSummary
+                className="mt-6"
+                noun="decision"
+                page={page}
+                pageSize={pageSize}
+                itemCount={items.length}
+                total={total}
+              />
               <div className={`${GRID} mt-6 mb-2 px-4 text-[0.72rem] font-bold tracking-[0.04em] text-text-muted uppercase max-[640px]:hidden`}>
                 <PublicationListSortHeader label="Pair" sortKey="pair" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
                 <PublicationListSortHeader label="Decision" sortKey="decision" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
@@ -278,31 +286,14 @@ export function DuplicateDecisionsPage() {
                   />
                 ))}
               </ul>
-              {pageCount > 1 ? (
-                <nav className={cn(toolbarClass, 'mt-4 items-center')} aria-label="Decision pages">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    disabled={page <= 1}
-                    onClick={() => goToPage((current) => Math.max(1, current - 1))}
-                  >
-                    Previous
-                  </Button>
-                  <span className="text-text-muted" role="status">
-                    Page {page} of {pageCount} ({total} decision{total === 1 ? '' : 's'})
-                  </span>
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    size="sm"
-                    disabled={page >= pageCount}
-                    onClick={() => goToPage((current) => Math.min(pageCount, current + 1))}
-                  >
-                    Next
-                  </Button>
-                </nav>
-              ) : null}
+              <PaginationControls
+                label="Decision pages"
+                page={page}
+                pageCount={pageCount}
+                pageSize={pageSize}
+                onPageChange={goToPage}
+                onPageSizeChange={(size) => { setPageSize(size); setPage(1) }}
+              />
             </div>
           )}
         </>
