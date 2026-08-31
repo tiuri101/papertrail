@@ -378,7 +378,7 @@ export function PublicationReviewDetails({
               {renderScreeningStage('full_text', 'Full text', details.data.screening.fullText)}
             </div>
             {!details.data.screening.titleAbstract && !details.data.screening.fullText ? (
-              <p className="text-text-muted">No screening decisions have been recorded.</p>
+              <p className="text-base text-text-muted">No screening decisions have been recorded.</p>
             ) : null}
 
             {extraction?.final ? (
