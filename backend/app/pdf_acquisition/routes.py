@@ -3,11 +3,13 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
-from app.accounts.dependencies import require_csrf
+from app.accounts.dependencies import get_current_user, require_csrf
 from app.accounts.models import User, UserSession
-from app.api.errors import ConflictError, DomainError
+from app.api.errors import ConflictError, DomainError, NotFoundError
+from app.core.config import get_settings
 from app.db.session import get_db
 from app.instance_settings.service import effective_instance_settings
 from app.pdf_acquisition import service
@@ -83,6 +85,26 @@ def list_browser_agents(
     db: Session = Depends(get_db),
 ) -> list[BrowserAgent]:
     return service.list_agents(db, session.user)
+
+
+@user_router.get("/extension-download")
+def download_browser_extension(
+    user: User = Depends(get_current_user),
+) -> FileResponse:
+    """Serve the Browser Helper build baked into this image (backend/Dockerfile).
+
+    Not present outside a Docker deployment, so a source/dev backend reports 404
+    here -- reviewers there instead use the extension straight from
+    browser-extension/dist per docs/local-development.md.
+    """
+    zip_path = get_settings().browser_extension_zip_path
+    if not zip_path.is_file():
+        raise NotFoundError("Browser extension package is not available on this server")
+    return FileResponse(
+        zip_path,
+        filename="papertrail-browser-extension.zip",
+        media_type="application/zip",
+    )
 
 
 @user_router.delete("/{agent_id}", status_code=status.HTTP_204_NO_CONTENT)

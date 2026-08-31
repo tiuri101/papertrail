@@ -9,7 +9,7 @@ function goToTab(name: string) {
 }
 
 describe('HelpPage', () => {
-  it('presents Getting Started, Roles & Responsibilities, AI & Automation, and Good to Know as tabs', () => {
+  it('presents Getting Started, Roles & Responsibilities, AI & Automation, Browser Extension, and Good to Know as tabs', () => {
     renderWithProviders(<HelpPage />)
 
     expect(screen.getByRole('heading', { name: 'Help' })).toBeInTheDocument()
@@ -18,6 +18,7 @@ describe('HelpPage', () => {
       'Getting Started',
       'Roles & Responsibilities',
       'AI & Automation',
+      'Browser Extension',
       'Good to Know',
     ])
     expect(screen.getByRole('tab', { name: 'Getting Started' })).toHaveAttribute('aria-selected', 'true')
@@ -116,34 +117,63 @@ describe('HelpPage', () => {
     )
   })
 
-  it('places the Browser Extension section right after LLM Assistance under AI & Automation', () => {
+  it('gives the browser extension its own Help tab, separate from AI & Automation', () => {
     renderWithProviders(<HelpPage />)
     goToTab('AI & Automation')
 
-    const llmSection = document.querySelector('#section-help-llm')
-    expect(llmSection?.nextElementSibling).toHaveAttribute('id', 'section-help-extension')
+    expect(screen.queryByText('What It Does')).not.toBeInTheDocument()
+    expect(document.querySelector('#section-help-extension-overview')).not.toBeInTheDocument()
   })
 
   it('describes the browser extension: what it does, how it works, and requirements', () => {
     renderWithProviders(<HelpPage />)
-    goToTab('AI & Automation')
+    goToTab('Browser Extension')
 
-    expect(screen.getByRole('button', { name: 'Browser Extension' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'What It Does' })).toBeInTheDocument()
 
     const backgroundNote = screen.getByRole('complementary', { name: 'Browser extension background processing' })
     expect(backgroundNote).toHaveTextContent('Runs quietly in the background')
     expect(backgroundNote).toHaveTextContent('same staged-upload validation as a manually attached PDF')
 
-    const setupSteps = screen.getByRole('list', { name: 'Browser extension setup steps' })
-    expect(setupSteps.children).toHaveLength(3)
-    expect(setupSteps).toHaveTextContent('Pair the extension')
-    expect(setupSteps).toHaveTextContent('valid for 10 minutes and usable once')
-    expect(setupSteps).toHaveTextContent('Retrieve missing PDFs')
-
     const practicalNotes = screen.getByRole('complementary', { name: 'Practical browser extension guidance' })
     expect(practicalNotes).toHaveTextContent('Chrome 116 or later')
     expect(practicalNotes).toHaveTextContent('never receives your publisher credentials or cookies')
     expect(practicalNotes).toHaveTextContent('Publications needing attention')
+    expect(practicalNotes).toHaveTextContent('how many PDFs are queued and waiting to be retrieved')
+    expect(practicalNotes).toHaveTextContent('turns green and says "ON"')
+  })
+
+  it('explains how to install the extension in Chrome, with a download link', () => {
+    renderWithProviders(<HelpPage />)
+    goToTab('Browser Extension')
+
+    expect(screen.getByRole('button', { name: 'Install in Chrome' })).toBeInTheDocument()
+
+    const downloadLink = screen.getByRole('link', { name: /Download Browser Helper/ })
+    expect(downloadLink).toHaveAttribute('href', '/api/v1/browser-agents/extension-download')
+
+    const installSteps = screen.getByRole('list', { name: 'Chrome installation steps' })
+    expect(installSteps.children).toHaveLength(4)
+    expect(installSteps).toHaveTextContent('Developer mode')
+    expect(installSteps).toHaveTextContent('Load unpacked')
+    expect(installSteps).toHaveTextContent('manifest.json')
+    expect(screen.getByText(/version 116 or later/)).toBeInTheDocument()
+  })
+
+  it('explains how to pair and use the extension once installed', () => {
+    renderWithProviders(<HelpPage />)
+    goToTab('Browser Extension')
+
+    expect(screen.getByRole('button', { name: 'Pair & Use' })).toBeInTheDocument()
+
+    const setupSteps = screen.getByRole('list', { name: 'Browser extension pairing steps' })
+    expect(setupSteps.children).toHaveLength(4)
+    expect(setupSteps).toHaveTextContent('Pair the extension')
+    expect(setupSteps).toHaveTextContent('valid for 10 minutes and usable once')
+    expect(setupSteps).toHaveTextContent('Capture PDF from this tab')
+    expect(setupSteps).toHaveTextContent('create a new one on the spot')
+    expect(setupSteps).toHaveTextContent('Retrieve missing PDFs')
+    expect(screen.getByText(/immediately stops it from claiming further retrieval jobs/i)).toBeInTheDocument()
   })
 
   it('presents practical guidance as a scannable set of cards', () => {
