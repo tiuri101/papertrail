@@ -15,6 +15,23 @@ class ResizeObserverStub {
 }
 window.ResizeObserver = window.ResizeObserver ?? (ResizeObserverStub as unknown as typeof ResizeObserver)
 
+// jsdom has no matchMedia; approximate max-width queries against window.innerWidth so
+// components using CSS-breakpoint-driven behavior (e.g. mobile-only interactions) are testable.
+window.matchMedia = window.matchMedia ?? ((query: string) => {
+  const match = /max-width:\s*(\d+)px/.exec(query)
+  const maxWidth = match ? Number(match[1]) : Infinity
+  return {
+    matches: window.innerWidth <= maxWidth,
+    media: query,
+    onchange: null,
+    addListener: () => {},
+    removeListener: () => {},
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    dispatchEvent: () => false,
+  } as MediaQueryList
+})
+
 afterEach(() => {
   cleanup()
   setCsrfToken(null)
