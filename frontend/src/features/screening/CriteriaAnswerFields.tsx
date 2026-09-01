@@ -322,7 +322,12 @@ export function CriteriaAnswerFields({
           </tbody>
         </table>
       </div>
-      <InfoBox icon={<IconCheckCircle />} className="hotkey-hint mb-4 max-[760px]:hidden">
+      <InfoBox
+        icon={<IconCheckCircle />}
+        className="hotkey-hint mb-4 max-[760px]:hidden"
+        closable
+        id="screening-criteria-hotkey-hint"
+      >
         <p>
           Click on a checkbox, then use the arrow keys to move between criteria and Left/Right keys to answer them. Use your
           personalized hotkeys to include/exclude the paper and submit.

@@ -407,7 +407,14 @@ export function MyDecisionsPage() {
       {query.data ? (
         <>
           {query.data.stageCompleted ? (
-            <InfoBox icon={<IconAlertTriangle />} tone="warning" alert className="mt-4">
+            <InfoBox
+              icon={<IconAlertTriangle />}
+              tone="warning"
+              alert
+              className="mt-4"
+              closable
+              id="screening-my-decisions-stage-completed"
+            >
               <h3>This stage has been completed</h3>
               <p>
                 You can still change a decision, but doing so may affect results that have already been finalized.
