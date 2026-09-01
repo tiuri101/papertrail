@@ -259,7 +259,7 @@ export function DuplicateDecisionsPage() {
           ) : items.length === 0 ? (
             <p className="text-text-muted">No decisions match your filters.</p>
           ) : (
-            <div ref={listTopRef}>
+            <div ref={listTopRef} className="scroll-mt-[92px]">
               <PaginationSummary
                 className="mt-6"
                 noun="decision"

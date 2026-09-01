@@ -404,7 +404,7 @@ export function JobsPage() {
           ) : null}
         </div>
       ) : null}
-      <div ref={tableTopRef}>
+      <div ref={tableTopRef} className="scroll-mt-[92px]">
       <PaginationSummary
         noun="job"
         page={page}
