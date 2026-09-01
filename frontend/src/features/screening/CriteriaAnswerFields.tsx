@@ -9,6 +9,7 @@ import { cn } from '../../lib/cn'
 import {
   DEFAULT_SCREENING_HOTKEYS,
   formatHotkey,
+  SCREENING_HOTKEY_ACTIONS,
   SCREENING_HOTKEYS_PREFERENCE_KEY,
   type ScreeningHotkeyAction,
   type ScreeningHotkeys,
@@ -95,6 +96,20 @@ export function CriteriaAnswerFields({
   const numbers = criterionNumbers(criteria)
   const { value: hotkeys } = useUiPreference<ScreeningHotkeys>(SCREENING_HOTKEYS_PREFERENCE_KEY, DEFAULT_SCREENING_HOTKEYS)
   const sorted = sortedByKind(criteria)
+
+  // Mirrors useScreeningDecisionHotkeys' own key lookup: which literal keys
+  // (lowercased) the reviewer currently has bound to include/exclude/.../
+  // submit. Needed below so the row's own Enter/Space handling never steals
+  // a key the reviewer has configured as one of their decision hotkeys.
+  const boundHotkeyKeys = useMemo(
+    () => new Set(
+      SCREENING_HOTKEY_ACTIONS
+        .map((action) => hotkeys[action])
+        .filter((key): key is string => Boolean(key))
+        .map((key) => key.toLowerCase()),
+    ),
+    [hotkeys],
+  )
 
   const cellRefs = useRef(new Map<string, HTMLButtonElement>())
   const [focusedCell, setFocusedCell] = useState<{ row: number; column: CriterionColumn }>({ row: 0, column: 0 })
@@ -189,7 +204,16 @@ export function CriteriaAnswerFields({
                     onClick={suggestion ? toggleExpanded : undefined}
                     onKeyDown={suggestion ? (event) => {
                       if (event.key !== 'Enter' && event.key !== ' ') return
-                      event.preventDefault()
+                      // Space needs preventDefault to stop the page from scrolling --
+                      // but never when Space is itself one of the reviewer's configured
+                      // decision hotkeys (see AccountSettingsPage): calling it here would
+                      // mark the keydown as defaultPrevented, and useScreeningDecisionHotkeys'
+                      // window listener bails out on that flag before ever running the
+                      // reviewer's chosen action once this bubbled event reaches it. Enter
+                      // never needs preventDefault either way -- it has no default browser
+                      // action on a table row, so the default (Enter) submit hotkey is safe
+                      // regardless.
+                      if (event.key === ' ' && !boundHotkeyKeys.has(' ')) event.preventDefault()
                       toggleExpanded()
                     } : undefined}
                     tabIndex={suggestion ? 0 : undefined}
