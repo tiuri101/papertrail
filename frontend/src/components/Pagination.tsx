@@ -103,10 +103,11 @@ export function PaginationControls({
 
   return (
     <nav className={cn(toolbarClass, 'mt-4 items-center', className)} aria-label={label}>
-      <label className="flex items-center gap-2 text-[0.9rem] font-[640] text-text-secondary">
+      <label className="flex shrink-0 items-center gap-2 whitespace-nowrap text-[0.9rem] font-[640] text-text-secondary">
         Rows per page
         <Select
-          className="min-w-0"
+          className="w-[5.5rem]"
+          style={{ width: '5.5rem', minWidth: 0 }}
           value={pageSize}
           onChange={(event) => onPageSizeChange(Number(event.target.value))}
         >
@@ -127,7 +128,7 @@ export function PaginationControls({
           >
             Previous
           </Button>
-          <span className="text-text-muted" role="status">
+          <span className="shrink-0 whitespace-nowrap text-text-muted" role="status">
             Page {page} of {pageCount}
           </span>
           <Button
@@ -139,13 +140,14 @@ export function PaginationControls({
           >
             Next
           </Button>
-          <form className="flex items-center gap-2 text-[0.9rem] font-[640] text-text-secondary" onSubmit={submitGoto}>
-            <label className="flex items-center gap-2">
+          <form className="flex shrink-0 items-center gap-2 whitespace-nowrap text-[0.9rem] font-[640] text-text-secondary" onSubmit={submitGoto}>
+            <label className="flex items-center gap-2 whitespace-nowrap">
               Go to page
               <Input
                 type="number"
                 inputMode="numeric"
-                className="w-[5rem]"
+                className="w-[4.5rem]"
+                style={{ width: '4.5rem' }}
                 min={1}
                 value={gotoValue}
                 placeholder={String(page)}
