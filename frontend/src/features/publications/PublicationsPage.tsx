@@ -88,7 +88,7 @@ function useDebouncedValue<T>(value: T, delayMs: number): T {
 
 const dangerRowActionItemClass = actionListItemClass({ danger: true })
 
-const publicationRowGridClass = "grid grid-cols-[1.5rem_minmax(0,1fr)_3.25rem_9rem_6.5rem_4.5rem_4.5rem] items-center gap-3 [&>*]:min-w-0 max-[900px]:grid-cols-[1.5rem_auto_minmax(0,1fr)_auto_auto] max-[900px]:grid-rows-2 max-[900px]:[grid-template-areas:'checkbox_title_title_title_actions'_'._year_source_stage_pdf'] max-[900px]:gap-y-2 max-[600px]:grid-cols-[auto_minmax(0,1fr)_auto] max-[600px]:grid-rows-2 max-[600px]:[grid-template-areas:'checkbox_title_actions'_'meta_meta_meta'] max-[600px]:gap-x-2 max-[600px]:gap-y-1"
+const publicationRowGridClass = "grid grid-cols-[1.5rem_minmax(0,1fr)_3.25rem_9rem_6.5rem_4.5rem_4.5rem] items-center gap-3 [&>*]:min-w-0 max-[900px]:grid-cols-[1.5rem_auto_minmax(0,1fr)_auto_auto] max-[900px]:grid-rows-[auto_auto] max-[900px]:[grid-template-areas:'checkbox_title_title_title_actions'_'._year_source_stage_pdf'] max-[900px]:gap-y-2 max-[600px]:grid-cols-[auto_minmax(0,1fr)_auto] max-[600px]:grid-rows-[auto_auto] max-[600px]:[grid-template-areas:'checkbox_title_actions'_'meta_meta_meta'] max-[600px]:gap-x-2 max-[600px]:gap-y-1"
 
 const SCREENING_FILTER_OPTIONS = [
   { value: '', label: 'All' },
