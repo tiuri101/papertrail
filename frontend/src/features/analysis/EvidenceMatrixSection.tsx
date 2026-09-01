@@ -356,7 +356,7 @@ export function EvidenceMatrixSection({ projectId }: { projectId: string }) {
         />
       ) : null}
       {data && data.items.length > 0 ? (
-        <div ref={tableTopRef} className="max-h-[70vh] overflow-auto rounded-md border border-border">
+        <div ref={tableTopRef} className="max-h-[70vh] scroll-mt-[92px] overflow-auto rounded-md border border-border">
           <table className={`${tableBaseClass} w-auto! min-w-full [&_td]:whitespace-nowrap [&_th]:whitespace-nowrap [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-[2] [&_thead_th]:bg-bg-elevated`}>
             <thead>
               <tr>
