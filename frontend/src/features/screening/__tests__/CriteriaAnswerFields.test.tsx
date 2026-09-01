@@ -208,6 +208,55 @@ describe('CriteriaAnswerFields', () => {
     expect(within(row.parentElement as HTMLElement).queryByRole('button', { name: 'Apply suggestion' })).not.toBeInTheDocument()
   })
 
+  it('toggles via Enter without blocking the global submit hotkey from also seeing the keydown', () => {
+    renderWithProviders(
+      <Harness
+        criteria={criteria}
+        initialAnswers={{ 'criterion-1': true }}
+        llmData={readyAssistance({
+          criteria: [{
+            criterionId: 'criterion-1', criterionText: 'Reports an evaluation',
+            criterionKind: 'inclusion', assessment: 'met',
+            explanation: 'A study is reported.', evidence: [], evidenceValidationStatus: 'not_required',
+          }],
+        })}
+      />,
+    )
+
+    const row = screen.getByText('Reports an evaluation').closest('tr') as HTMLElement
+    // fireEvent's return value mirrors native dispatchEvent: true means the
+    // event's default was NOT prevented.
+    const notPrevented = fireEvent.keyDown(row, { key: 'Enter' })
+
+    expect(screen.getByText('A study is reported.')).toBeInTheDocument()
+    // useScreeningDecisionHotkeys bails out on `event.defaultPrevented` once its
+    // window listener sees the bubbled event -- Enter must not set that flag,
+    // or the "Confirm Decision" hotkey would never fire while a row has focus.
+    expect(notPrevented).toBe(true)
+  })
+
+  it('still prevents Space from scrolling the page while toggling the row', () => {
+    renderWithProviders(
+      <Harness
+        criteria={criteria}
+        initialAnswers={{ 'criterion-1': true }}
+        llmData={readyAssistance({
+          criteria: [{
+            criterionId: 'criterion-1', criterionText: 'Reports an evaluation',
+            criterionKind: 'inclusion', assessment: 'met',
+            explanation: 'A study is reported.', evidence: [], evidenceValidationStatus: 'not_required',
+          }],
+        })}
+      />,
+    )
+
+    const row = screen.getByText('Reports an evaluation').closest('tr') as HTMLElement
+    const notPrevented = fireEvent.keyDown(row, { key: ' ' })
+
+    expect(screen.getByText('A study is reported.')).toBeInTheDocument()
+    expect(notPrevented).toBe(false)
+  })
+
   it('does not let a checkbox click bubble into toggling the LLM explanation row', () => {
     renderWithProviders(
       <Harness
