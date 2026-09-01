@@ -315,15 +315,13 @@ export function CriteriaAnswerFields({
           </tbody>
         </table>
       </div>
-      {Object.keys(suggestionByCriterion).length > 0 ? (
-        <p className="text-sm text-text-muted">
-          Rows are colored by how the LLM suggestion compares to your answer — click a row to see its explanation.
-        </p>
-      ) : null}
       <InfoBox icon={<IconCheckCircle />} className="hotkey-hint mb-4 max-[760px]:hidden">
         <p>
           Click on a checkbox, then use the arrow keys to move between criteria and Left/Right keys to answer them. Use your
           personalized hotkeys to include/exclude the paper and submit.
+          {Object.keys(suggestionByCriterion).length > 0 ? (
+              " Rows are colored by how the LLM suggestion compares to your answer. Click a row to see its explanation."
+          ) : null}
         </p>
       </InfoBox>
       <div className="@container grid gap-2 mb-4">
