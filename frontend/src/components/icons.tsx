@@ -281,3 +281,12 @@ export function IconSparkle() {
     </svg>
   )
 }
+
+export function IconX() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="11" y="2" width="2" height="20" rx="1" transform="rotate(45 12 12)" />
+      <rect x="11" y="2" width="2" height="20" rx="1" transform="rotate(-45 12 12)" />
+    </svg>
+  )
+}

@@ -1713,6 +1713,114 @@ def test_full_text_assistance_verifies_page_evidence(db, monkeypatch) -> None:
     }
 
 
+def test_full_text_suggestion_is_generated_independently_and_revealed_only_after_decision(
+    client, db, monkeypatch
+) -> None:
+    _, reviewer, project, publication, _, _, _, _ = setup_llm_project(db)
+    criterion = Criterion(
+        project_id=project.id,
+        kind=CriterionKind.INCLUSION,
+        text="Reports an empirical evaluation",
+        position=0,
+    )
+    db.add(criterion)
+    settings = project_settings(db, project.id)
+    settings.full_text_screening_enabled = True
+    db.commit()
+
+    include_title_abstract(db, publication)
+    text_job = db.scalar(
+        select(BackgroundJob).where(BackgroundJob.job_type == TEXT_JOB)
+    )
+    extract_document_text_job(db, text_job)
+    db.commit()
+    run = db.scalar(
+        select(LlmExtractionRun).where(
+            LlmExtractionRun.task_type == LlmTaskType.FULL_TEXT_SCREENING
+        )
+    )
+    assert run is not None
+
+    item = ScreeningWorkItem(
+        project_id=project.id,
+        publication_id=publication.id,
+        stage=ScreeningStage.FULL_TEXT,
+        slot_number=1,
+        assigned_reviewer_id=reviewer.id,
+        reserved_by_id=reviewer.id,
+        random_rank="full-text-llm",
+    )
+    db.add(item)
+    db.commit()
+
+    fake = FakeOllama(
+        {
+            "suggested_decision": "include",
+            "confidence": "high",
+            "criteria": {
+                criterion.id: {
+                    "assessment": "met",
+                    "explanation": "Participants are reported.",
+                    "evidence": [
+                        {
+                            "page": 2,
+                            "section": "Methods",
+                            "quote": "Twenty-four participants took part in the study.",
+                        }
+                    ],
+                }
+            },
+            "reasoning_summary": "The eligibility criterion is supported.",
+        }
+    )
+    monkeypatch.setattr("app.llm.task_execution.create_ollama_client", lambda: fake)
+    run_llm_task_job(db, db.get(BackgroundJob, run.background_job_id))
+    db.commit()
+
+    csrf = client.post(
+        "/api/v1/auth/login",
+        json={"username": reviewer.username, "password": "reviewer-password"},
+    ).json()["csrfToken"]
+    path = f"/api/v1/projects/{project.id}/screening/work-items/{item.id}/llm-full-text"
+    hidden = client.get(path)
+    assert hidden.status_code == 200
+    assert hidden.json() == {
+        "state": "hidden",
+        "hidden": True,
+        "runId": None,
+        "documentId": None,
+        "model": None,
+        "promptVersion": None,
+        "stale": False,
+        "error": None,
+        "suggestedDecision": None,
+        "confidence": None,
+        "reasoningSummary": None,
+        "criteria": [],
+    }
+    assert "include" not in hidden.text
+
+    submit_decision(db, item, reviewer.id, "include", {criterion.id: True}, None)
+    db.commit()
+    revealed = client.get(path, headers={"X-CSRF-Token": csrf})
+    assert revealed.status_code == 200
+    assert revealed.json()["suggestedDecision"] == "include"
+    assert revealed.json()["criteria"][0]["assessment"] == "met"
+
+    outsider = create_user(db, "full-text-outsider", "Outsider", "outsider-password")
+    db.add(
+        ProjectMembership(
+            project_id=project.id, user_id=outsider.id, can_full_text_screen=True
+        )
+    )
+    db.commit()
+    client.post(
+        "/api/v1/auth/login",
+        json={"username": outsider.username, "password": "outsider-password"},
+    )
+    assert client.get(path).status_code == 403
+
+
 def test_validation_uses_human_values_and_never_changes_extraction(
     db, monkeypatch
 ) -> None:
