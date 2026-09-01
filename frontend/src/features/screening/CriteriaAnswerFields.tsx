@@ -153,7 +153,7 @@ export function CriteriaAnswerFields({
     <>
       <div className="[&>*+*]:mt-2">
         <h3>Criteria</h3>
-        <table className={`${tableBaseClass} w-full [&_td]:text-center! [&_td]:align-middle! [&_th]:align-middle! [&_th:nth-child(n+3)]:text-center!`}>
+        <table className={`${tableBaseClass} w-full [&_th]:align-middle! [&_th:nth-child(n+3)]:text-center!`}>
           <thead>
             <tr>
               <th scope="col" className="sr-only">Kind</th>
@@ -195,7 +195,7 @@ export function CriteriaAnswerFields({
                     tabIndex={suggestion ? 0 : undefined}
                     aria-expanded={suggestion ? isExpanded : undefined}
                   >
-                    <td className="whitespace-nowrap">
+                    <td className="whitespace-nowrap text-center! align-middle!">
                       <CriterionBadge kind={criterion.kind}>{numbers[criterion.id]}</CriterionBadge>
                     </td>
                     <th
@@ -224,7 +224,7 @@ export function CriteriaAnswerFields({
                         </span>
                       ) : null}
                     </th>
-                    <td>
+                    <td className="text-center! align-middle!">
                       <button
                         type="button"
                         role="checkbox"
@@ -249,7 +249,7 @@ export function CriteriaAnswerFields({
                         {answers[criterion.id] === true ? <IconCheckCircle /> : null}
                       </button>
                     </td>
-                    <td>
+                    <td className="text-center! align-middle!">
                       <button
                         type="button"
                         role="checkbox"
@@ -277,7 +277,7 @@ export function CriteriaAnswerFields({
                   </tr>
                   {isExpanded && suggestion && llm ? (
                     <tr className={rowToneClass(comparison)} aria-label={`LLM suggestion for ${criterion.text}`}>
-                      <td colSpan={4} className="text-left!">
+                      <td colSpan={4}>
                         <p>
                           <strong>LLM assessment:</strong> {statusText(suggestion.assessment)}
                           {comparison === 'mismatch' ? (
