@@ -195,12 +195,12 @@ export function CriteriaAnswerFields({
                     tabIndex={suggestion ? 0 : undefined}
                     aria-expanded={suggestion ? isExpanded : undefined}
                   >
-                    <td className="whitespace-nowrap text-center! align-middle!">
+                    <td className={cn('whitespace-nowrap text-center! align-middle!', isExpanded && 'border-b-0!')}>
                       <CriterionBadge kind={criterion.kind}>{numbers[criterion.id]}</CriterionBadge>
                     </td>
                     <th
                       scope="row"
-                      className="max-[760px]:cursor-pointer max-[760px]:active:bg-surface-hover"
+                      className={cn('max-[760px]:cursor-pointer max-[760px]:active:bg-surface-hover', isExpanded && 'border-b-0!')}
                       onClick={(event) => {
                         // On mobile the checkboxes are small tap targets, so tapping the criterion
                         // text itself toggles fulfilled/not-fulfilled instead. Desktop pointers keep
@@ -224,7 +224,7 @@ export function CriteriaAnswerFields({
                         </span>
                       ) : null}
                     </th>
-                    <td className="text-center! align-middle!">
+                    <td className={cn('text-center! align-middle!', isExpanded && 'border-b-0!')}>
                       <button
                         type="button"
                         role="checkbox"
@@ -249,7 +249,7 @@ export function CriteriaAnswerFields({
                         {answers[criterion.id] === true ? <IconCheckCircle /> : null}
                       </button>
                     </td>
-                    <td className="text-center! align-middle!">
+                    <td className={cn('text-center! align-middle!', isExpanded && 'border-b-0!')}>
                       <button
                         type="button"
                         role="checkbox"
