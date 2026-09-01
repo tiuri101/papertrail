@@ -18,7 +18,7 @@ import { fullTextDocumentEndpoint, useFullTextDocument } from '../fulltext/useFu
 import { CriteriaAnswerFields } from './CriteriaAnswerFields'
 import { useScreeningDecisionHotkeys } from './useScreeningDecisionHotkeys'
 import type { ScreeningQueue } from './useScreeningQueue'
-import { ScreeningLlmPanel } from '../llm/LlmTaskComponents'
+import { ScreeningLlmPanel, useScreeningLlmAssistance } from '../llm/LlmTaskComponents'
 
 export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: string[] }) {
   const { item, answers, setAnswers, outcome, setOutcome, notes, setNotes, criteriaComplete, submit, highlightKeywords } = queue
@@ -29,6 +29,13 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
     queue.projectId,
     isFullTextStage ? (item?.publication.id ?? '') : '',
   )
+  const stage = queue.stage as 'title_abstract' | 'full_text'
+  const llmAssistance = useScreeningLlmAssistance({
+    projectId: queue.projectId,
+    itemId: item?.id ?? '',
+    stage,
+    humanDecision: awaitingConfirmation ? outcome : undefined,
+  })
   const titleRef = useRef<HTMLHeadingElement>(null)
   const visibleItemId = item?.id
   useEffect(() => {
@@ -99,16 +106,19 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
         notes={notes}
         setNotes={setNotes}
         autoFocusFirstCriterion
+        llm={{
+          data: llmAssistance.query.data,
+          stage,
+          projectId: queue.projectId,
+          publicationId: item.publication.id,
+          onApplySuggestion: (criterionId, met) => setAnswers((current) => ({ ...current, [criterionId]: met })),
+        }}
       />
       <ScreeningLlmPanel
-        projectId={queue.projectId}
-        publicationId={item.publication.id}
         itemId={item.id}
-        stage={queue.stage as 'title_abstract' | 'full_text'}
+        stage={stage}
         humanDecision={awaitingConfirmation ? outcome : undefined}
-        criteriaAnswers={answers}
-        criteria={item.criteria}
-        setCriteriaAnswers={setAnswers}
+        assistance={llmAssistance}
       />
       {!criteriaComplete ? (
         <p className="text-text-muted">Answer every criterion before {awaitingConfirmation ? 'confirming' : 'submitting'}.</p>

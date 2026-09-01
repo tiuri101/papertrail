@@ -207,13 +207,12 @@ export function useScreeningQueue(projectId: string, stage: string) {
     onSuccess: (decision: ScreeningDecisionResponse) => {
       if (!item) return
       queryClient.invalidateQueries({ queryKey: progressQueryKey })
-      // The full-text LLM suggestion is visible before submitting (unlike
-      // title/abstract, which hides it until a first decision is in, to
-      // avoid anchoring bias), so there's nothing new to reveal that would
-      // warrant a second confirmation click here. Same when LLM assistance
-      // is off for this stage: no suggestion is ever shown, so there's
-      // nothing to reveal and nothing to confirm against.
-      if (stage === 'full_text' || !item.llmAssistanceEnabled) {
+      // Both stages hide the LLM suggestion until a first decision is in, to
+      // avoid anchoring bias — so submitting reveals something new that's
+      // worth a second confirmation click. When LLM assistance is off for
+      // this stage, no suggestion is ever shown, so there's nothing to
+      // reveal and nothing to confirm against.
+      if (!item.llmAssistanceEnabled) {
         continueAfterDecision()
         return
       }

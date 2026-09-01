@@ -1,8 +1,11 @@
-import { useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react'
 import type { KeyboardEvent } from 'react'
 
-import { IconCheckCircle, IconXCircle } from '../../components/icons'
+import { Button } from '../../components/Button'
+import { IconCheckCircle, IconSparkle, IconXCircle } from '../../components/icons'
+import { toolbarClass } from '../../components/layoutStyles'
 import { useUiPreference } from '../../hooks/useUiPreferences'
+import { cn } from '../../lib/cn'
 import {
   DEFAULT_SCREENING_HOTKEYS,
   formatHotkey,
@@ -17,6 +20,13 @@ import {InfoBox} from "../../components/InfoBox";
 import { Textarea } from '../../components/Textarea'
 import { CriterionBadge } from '../../components/CriterionBadge'
 import { FieldLabel } from '../../components/FieldLabel'
+import {
+  criterionComparison,
+  LlmEvidence,
+  statusText,
+  type CriterionSuggestion,
+  type ScreeningAssistance,
+} from '../llm/LlmTaskComponents'
 
 function capitalize(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1)
@@ -38,6 +48,22 @@ function cellKey(criterionId: string, column: CriterionColumn): string {
   return `${criterionId}:${column}`
 }
 
+function rowToneClass(comparison: 'match' | 'mismatch' | null): string {
+  return cn(
+    comparison === 'match' && 'bg-success-container! hover:bg-success-container!',
+    comparison === 'mismatch' && 'bg-danger-container! hover:bg-danger-container!',
+  )
+}
+
+export interface CriteriaLlmAssistance {
+  /** The same query result driving `ScreeningLlmPanel` — pass it through unchanged. */
+  data: ScreeningAssistance | undefined
+  stage: 'title_abstract' | 'full_text'
+  projectId: string
+  publicationId: string
+  onApplySuggestion?: (criterionId: string, met: boolean) => void
+}
+
 export function CriteriaAnswerFields({
   criteria,
   answers,
@@ -47,6 +73,7 @@ export function CriteriaAnswerFields({
   notes,
   setNotes,
   autoFocusFirstCriterion = false,
+  llm,
 }: {
   criteria: ScreeningCriterion[]
   answers: Record<string, CriterionAnswer>
@@ -56,6 +83,14 @@ export function CriteriaAnswerFields({
   notes: string
   setNotes: (notes: string) => void
   autoFocusFirstCriterion?: boolean
+  /**
+   * Optional LLM suggestion context. Until `llm.data` reaches the `ready`
+   * state (hidden before the reviewer's own decision, still processing,
+   * etc.), the table renders exactly as it does without this prop at all —
+   * no coloring, no click-to-expand. Once ready, rows compare the model's
+   * per-criterion assessment against the reviewer's own answer.
+   */
+  llm?: CriteriaLlmAssistance
 }) {
   const numbers = criterionNumbers(criteria)
   const { value: hotkeys } = useUiPreference<ScreeningHotkeys>(SCREENING_HOTKEYS_PREFERENCE_KEY, DEFAULT_SCREENING_HOTKEYS)
@@ -63,6 +98,23 @@ export function CriteriaAnswerFields({
 
   const cellRefs = useRef(new Map<string, HTMLButtonElement>())
   const [focusedCell, setFocusedCell] = useState<{ row: number; column: CriterionColumn }>({ row: 0, column: 0 })
+  const [expandedCriterionId, setExpandedCriterionId] = useState<string | null>(null)
+
+  const suggestionByCriterion = useMemo(() => {
+    const map: Record<string, CriterionSuggestion> = {}
+    if (llm?.data?.state === 'ready' && !llm.data.hidden) {
+      for (const suggestion of llm.data.criteria) {
+        if (suggestion.criterionId) map[suggestion.criterionId] = suggestion
+      }
+    }
+    return map
+  }, [llm?.data])
+
+  useEffect(() => {
+    // Collapse any expanded explanation when the suggestion set changes
+    // (e.g. a fresh item loads, or the suggestion is regenerated).
+    setExpandedCriterionId(null)
+  }, [suggestionByCriterion])
 
   const focusCell = (row: number, column: CriterionColumn) => {
     const criterion = sorted[row]
@@ -123,77 +175,151 @@ export function CriteriaAnswerFields({
               const notFulfilledColorClasses = criterion.kind === 'exclusion'
                 ? 'aria-checked:border-success aria-checked:bg-success-container aria-checked:text-success'
                 : 'aria-checked:border-danger aria-checked:bg-danger-container aria-checked:text-danger'
+              const suggestion = suggestionByCriterion[criterion.id]
+              const comparison = suggestion ? criterionComparison(suggestion.assessment, answers[criterion.id]) : null
+              const isExpanded = suggestion !== undefined && expandedCriterionId === criterion.id
+              const toggleExpanded = () => {
+                if (!suggestion) return
+                setExpandedCriterionId((current) => current === criterion.id ? null : criterion.id)
+              }
               return (
-                <tr key={criterion.id}>
-                  <td className="whitespace-nowrap">
-                    <CriterionBadge kind={criterion.kind}>{numbers[criterion.id]}</CriterionBadge>
-                  </td>
-                  <th
-                    scope="row"
-                    className="max-[760px]:cursor-pointer max-[760px]:active:bg-surface-hover"
-                    onClick={() => {
-                      // On mobile the checkboxes are small tap targets, so tapping the criterion
-                      // text itself toggles fulfilled/not-fulfilled instead. Desktop pointers keep
-                      // using the checkboxes, so this is a no-op outside the mobile breakpoint.
-                      if (!window.matchMedia(MOBILE_MEDIA_QUERY).matches) return
-                      setAnswers((current) => ({
-                        ...current,
-                        [criterion.id]: current[criterion.id] === true ? false : true,
-                      }))
-                    }}
+                <Fragment key={criterion.id}>
+                  <tr
+                    className={cn(rowToneClass(comparison), suggestion && 'cursor-pointer')}
+                    onClick={suggestion ? toggleExpanded : undefined}
+                    onKeyDown={suggestion ? (event) => {
+                      if (event.key !== 'Enter' && event.key !== ' ') return
+                      event.preventDefault()
+                      toggleExpanded()
+                    } : undefined}
+                    tabIndex={suggestion ? 0 : undefined}
+                    aria-expanded={suggestion ? isExpanded : undefined}
                   >
-                    {criterion.text}
-                  </th>
-                  <td>
-                    <button
-                      type="button"
-                      role="checkbox"
-                      className={`inline-flex size-8 min-h-8 items-center justify-center rounded-md border border-border bg-none bg-bg-elevated p-0 text-text-muted shadow-none transition-colors hover:border-border-strong hover:bg-surface-hover [&_svg]:size-4 [&_svg]:fill-current ${fulfilledColorClasses}`}
-                      aria-checked={answers[criterion.id] === true}
-                      aria-label={`${capitalize(criterion.kind)}: ${criterion.text} — Fulfilled`}
-                      tabIndex={focusedCell.row === row && focusedCell.column === 0 ? 0 : -1}
-                      ref={(el) => {
-                        if (el) cellRefs.current.set(cellKey(criterion.id, 0), el)
-                        else cellRefs.current.delete(cellKey(criterion.id, 0))
+                    <td className="whitespace-nowrap">
+                      <CriterionBadge kind={criterion.kind}>{numbers[criterion.id]}</CriterionBadge>
+                    </td>
+                    <th
+                      scope="row"
+                      className="max-[760px]:cursor-pointer max-[760px]:active:bg-surface-hover"
+                      onClick={(event) => {
+                        // On mobile the checkboxes are small tap targets, so tapping the criterion
+                        // text itself toggles fulfilled/not-fulfilled instead. Desktop pointers keep
+                        // using the checkboxes, so this is a no-op outside the mobile breakpoint.
+                        if (!window.matchMedia(MOBILE_MEDIA_QUERY).matches) return
+                        event.stopPropagation()
+                        setAnswers((current) => ({
+                          ...current,
+                          [criterion.id]: current[criterion.id] === true ? false : true,
+                        }))
                       }}
-                      onFocus={() => setFocusedCell({ row, column: 0 })}
-                      onKeyDown={handleCellKeyDown(row, 0)}
-                      onClick={() => setAnswers((current) => ({
-                        ...current,
-                        [criterion.id]: current[criterion.id] === true ? false : true,
-                      }))}
                     >
-                      {answers[criterion.id] === true ? <IconCheckCircle /> : null}
-                    </button>
-                  </td>
-                  <td>
-                    <button
-                      type="button"
-                      role="checkbox"
-                      className={`inline-flex size-8 min-h-8 items-center justify-center rounded-md border border-border bg-none bg-bg-elevated p-0 text-text-muted shadow-none transition-colors hover:border-border-strong hover:bg-surface-hover [&_svg]:size-4 [&_svg]:fill-current ${notFulfilledColorClasses}`}
-                      aria-checked={answers[criterion.id] === false}
-                      aria-label={`${capitalize(criterion.kind)}: ${criterion.text} — Not fulfilled`}
-                      tabIndex={focusedCell.row === row && focusedCell.column === 1 ? 0 : -1}
-                      ref={(el) => {
-                        if (el) cellRefs.current.set(cellKey(criterion.id, 1), el)
-                        else cellRefs.current.delete(cellKey(criterion.id, 1))
-                      }}
-                      onFocus={() => setFocusedCell({ row, column: 1 })}
-                      onKeyDown={handleCellKeyDown(row, 1)}
-                      onClick={() => setAnswers((current) => ({
-                        ...current,
-                        [criterion.id]: current[criterion.id] === false ? true : false,
-                      }))}
-                    >
-                      {answers[criterion.id] === false ? <IconXCircle /> : null}
-                    </button>
-                  </td>
-                </tr>
+                      {criterion.text}
+                      {suggestion ? (
+                        <span
+                          className="ml-1.5 inline-flex align-text-top text-primary [&_svg]:size-3.5 [&_svg]:fill-current"
+                          aria-hidden="true"
+                          title="LLM suggestion available — click the row to view it"
+                        >
+                          <IconSparkle />
+                        </span>
+                      ) : null}
+                    </th>
+                    <td>
+                      <button
+                        type="button"
+                        role="checkbox"
+                        className={`inline-flex size-8 min-h-8 items-center justify-center rounded-md border border-border bg-none bg-bg-elevated p-0 text-text-muted shadow-none transition-colors hover:border-border-strong hover:bg-surface-hover [&_svg]:size-4 [&_svg]:fill-current ${fulfilledColorClasses}`}
+                        aria-checked={answers[criterion.id] === true}
+                        aria-label={`${capitalize(criterion.kind)}: ${criterion.text} — Fulfilled`}
+                        tabIndex={focusedCell.row === row && focusedCell.column === 0 ? 0 : -1}
+                        ref={(el) => {
+                          if (el) cellRefs.current.set(cellKey(criterion.id, 0), el)
+                          else cellRefs.current.delete(cellKey(criterion.id, 0))
+                        }}
+                        onFocus={() => setFocusedCell({ row, column: 0 })}
+                        onKeyDown={handleCellKeyDown(row, 0)}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          setAnswers((current) => ({
+                            ...current,
+                            [criterion.id]: current[criterion.id] === true ? false : true,
+                          }))
+                        }}
+                      >
+                        {answers[criterion.id] === true ? <IconCheckCircle /> : null}
+                      </button>
+                    </td>
+                    <td>
+                      <button
+                        type="button"
+                        role="checkbox"
+                        className={`inline-flex size-8 min-h-8 items-center justify-center rounded-md border border-border bg-none bg-bg-elevated p-0 text-text-muted shadow-none transition-colors hover:border-border-strong hover:bg-surface-hover [&_svg]:size-4 [&_svg]:fill-current ${notFulfilledColorClasses}`}
+                        aria-checked={answers[criterion.id] === false}
+                        aria-label={`${capitalize(criterion.kind)}: ${criterion.text} — Not fulfilled`}
+                        tabIndex={focusedCell.row === row && focusedCell.column === 1 ? 0 : -1}
+                        ref={(el) => {
+                          if (el) cellRefs.current.set(cellKey(criterion.id, 1), el)
+                          else cellRefs.current.delete(cellKey(criterion.id, 1))
+                        }}
+                        onFocus={() => setFocusedCell({ row, column: 1 })}
+                        onKeyDown={handleCellKeyDown(row, 1)}
+                        onClick={(event) => {
+                          event.stopPropagation()
+                          setAnswers((current) => ({
+                            ...current,
+                            [criterion.id]: current[criterion.id] === false ? true : false,
+                          }))
+                        }}
+                      >
+                        {answers[criterion.id] === false ? <IconXCircle /> : null}
+                      </button>
+                    </td>
+                  </tr>
+                  {isExpanded && suggestion && llm ? (
+                    <tr className={rowToneClass(comparison)} aria-label={`LLM suggestion for ${criterion.text}`}>
+                      <td colSpan={4} className="text-left!">
+                        <p>
+                          <strong>LLM assessment:</strong> {statusText(suggestion.assessment)}
+                          {comparison === 'mismatch' ? (
+                            <span className="ml-2 font-semibold text-danger">⚠ Differs from your answer</span>
+                          ) : null}
+                        </p>
+                        <p>{suggestion.explanation}</p>
+                        {llm.stage === 'full_text' ? (
+                          <LlmEvidence
+                            evidence={suggestion.evidence}
+                            projectId={llm.projectId}
+                            publicationId={llm.publicationId}
+                          />
+                        ) : null}
+                        {comparison === 'mismatch' && llm.onApplySuggestion ? (
+                          <div className={toolbarClass}>
+                            <Button
+                              type="button"
+                              variant="secondary"
+                              onClick={(event) => {
+                                event.stopPropagation()
+                                llm.onApplySuggestion!(criterion.id, suggestion.assessment === 'met')
+                              }}
+                            >
+                              Apply suggestion
+                            </Button>
+                          </div>
+                        ) : null}
+                      </td>
+                    </tr>
+                  ) : null}
+                </Fragment>
               )
             })}
           </tbody>
         </table>
       </div>
+      {Object.keys(suggestionByCriterion).length > 0 ? (
+        <p className="text-sm text-text-muted">
+          Rows are colored by how the LLM suggestion compares to your answer — click a row to see its explanation.
+        </p>
+      ) : null}
       <InfoBox icon={<IconCheckCircle />} className="hotkey-hint mb-4 max-[760px]:hidden">
         <p>
           Click on a checkbox, then use the arrow keys to move between criteria and Left/Right keys to answer them. Use your
