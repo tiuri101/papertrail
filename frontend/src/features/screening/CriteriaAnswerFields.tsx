@@ -277,7 +277,14 @@ export function CriteriaAnswerFields({
                   </tr>
                   {isExpanded && suggestion && llm ? (
                     <tr className={rowToneClass(comparison)} aria-label={`LLM suggestion for ${criterion.text}`}>
-                      <td colSpan={4}>
+                      {/*
+                        `w-px` keeps this cell's (unwrapped-word) content from
+                        forcing the table's auto layout to widen every column
+                        to fit it -- without it, expanding a row nudges the
+                        whole table (badge width, header position, everything)
+                        a few pixels wider than the collapsed layout.
+                      */}
+                      <td colSpan={4} className="w-px">
                         <p>
                           <strong>LLM assessment:</strong> {statusText(suggestion.assessment)}
                           {comparison === 'mismatch' ? (
