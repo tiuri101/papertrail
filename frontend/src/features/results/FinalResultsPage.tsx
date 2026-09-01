@@ -289,7 +289,7 @@ export function FinalResultsPage() {
           ) : (
             <div className="overflow-x-auto">
               <table className={tableBaseClass}>
-                <thead ref={tableTopRef}>
+                <thead ref={tableTopRef} className="scroll-mt-[92px]">
                   <tr>
                     {columns.map((column) => (
                       <SortableColumnHeader
