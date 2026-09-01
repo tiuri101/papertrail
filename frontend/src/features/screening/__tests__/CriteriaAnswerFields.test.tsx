@@ -2,7 +2,8 @@ import { fireEvent, screen, within } from '@testing-library/react'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { renderWithProviders } from '../../../test/render'
+import { sessionQueryOptions } from '../../auth/sessionQuery'
+import { createTestQueryClient, renderWithProviders } from '../../../test/render'
 import type { ScreeningAssistance } from '../../llm/LlmTaskComponents'
 import { CriteriaAnswerFields } from '../CriteriaAnswerFields'
 import type { CriterionAnswer, ScreeningCriterion } from '../useScreeningQueue'
@@ -206,6 +207,89 @@ describe('CriteriaAnswerFields', () => {
     fireEvent.click(row)
     expect(screen.getByText('The text is ambiguous.')).toBeInTheDocument()
     expect(within(row.parentElement as HTMLElement).queryByRole('button', { name: 'Apply suggestion' })).not.toBeInTheDocument()
+  })
+
+  it('toggles via Enter without blocking the global submit hotkey from also seeing the keydown', () => {
+    renderWithProviders(
+      <Harness
+        criteria={criteria}
+        initialAnswers={{ 'criterion-1': true }}
+        llmData={readyAssistance({
+          criteria: [{
+            criterionId: 'criterion-1', criterionText: 'Reports an evaluation',
+            criterionKind: 'inclusion', assessment: 'met',
+            explanation: 'A study is reported.', evidence: [], evidenceValidationStatus: 'not_required',
+          }],
+        })}
+      />,
+    )
+
+    const row = screen.getByText('Reports an evaluation').closest('tr') as HTMLElement
+    // fireEvent's return value mirrors native dispatchEvent: true means the
+    // event's default was NOT prevented.
+    const notPrevented = fireEvent.keyDown(row, { key: 'Enter' })
+
+    expect(screen.getByText('A study is reported.')).toBeInTheDocument()
+    // useScreeningDecisionHotkeys bails out on `event.defaultPrevented` once its
+    // window listener sees the bubbled event -- Enter must not set that flag,
+    // or the "Confirm Decision" hotkey would never fire while a row has focus.
+    expect(notPrevented).toBe(true)
+  })
+
+  it('still prevents Space from scrolling the page while toggling the row', () => {
+    renderWithProviders(
+      <Harness
+        criteria={criteria}
+        initialAnswers={{ 'criterion-1': true }}
+        llmData={readyAssistance({
+          criteria: [{
+            criterionId: 'criterion-1', criterionText: 'Reports an evaluation',
+            criterionKind: 'inclusion', assessment: 'met',
+            explanation: 'A study is reported.', evidence: [], evidenceValidationStatus: 'not_required',
+          }],
+        })}
+      />,
+    )
+
+    const row = screen.getByText('Reports an evaluation').closest('tr') as HTMLElement
+    const notPrevented = fireEvent.keyDown(row, { key: ' ' })
+
+    expect(screen.getByText('A study is reported.')).toBeInTheDocument()
+    expect(notPrevented).toBe(false)
+  })
+
+  it('does not swallow Space when the reviewer has configured it as a decision hotkey', () => {
+    const queryClient = createTestQueryClient()
+    queryClient.setQueryData(sessionQueryOptions.queryKey, {
+      user: {
+        id: 'user-1', username: 'reviewer1', displayName: 'Reviewer One', isAdmin: false, isActive: true,
+        uiPreferences: { screeningHotkeys: { include: 'i', exclude: 'e', uncertain: 'u', duplicate: 'd', submit: ' ' } },
+      },
+      csrfToken: 'csrf-token',
+    })
+    renderWithProviders(
+      <Harness
+        criteria={criteria}
+        initialAnswers={{ 'criterion-1': true }}
+        llmData={readyAssistance({
+          criteria: [{
+            criterionId: 'criterion-1', criterionText: 'Reports an evaluation',
+            criterionKind: 'inclusion', assessment: 'met',
+            explanation: 'A study is reported.', evidence: [], evidenceValidationStatus: 'not_required',
+          }],
+        })}
+      />,
+      { queryClient },
+    )
+
+    const row = screen.getByText('Reports an evaluation').closest('tr') as HTMLElement
+    const notPrevented = fireEvent.keyDown(row, { key: ' ' })
+
+    expect(screen.getByText('A study is reported.')).toBeInTheDocument()
+    // Space is this reviewer's submit hotkey here, so it must reach
+    // useScreeningDecisionHotkeys' window listener un-prevented, same as
+    // Enter does when Space isn't bound to anything.
+    expect(notPrevented).toBe(true)
   })
 
   it('does not let a checkbox click bubble into toggling the LLM explanation row', () => {
