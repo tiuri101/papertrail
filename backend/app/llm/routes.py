@@ -736,6 +736,21 @@ def extraction_suggestions(
     return _assistance_payload(db, project_id, item.publication_id)
 
 
+def _reviewer_has_submitted_own_decision(
+    db: Session, item: ScreeningWorkItem, user: User
+) -> bool:
+    return (
+        db.scalar(
+            select(ScreeningDecision.id).where(
+                ScreeningDecision.work_item_id == item.id,
+                ScreeningDecision.reviewer_id == user.id,
+                ScreeningDecision.is_current.is_(True),
+            )
+        )
+        is not None
+    )
+
+
 def _assigned_screening_item(
     db: Session, project_id: str, item_id: str, user: User
 ) -> ScreeningWorkItem:
@@ -871,14 +886,7 @@ def title_abstract_suggestion(
         # Disabled always wins, even before the reviewer has submitted their
         # own decision — there is nothing to reveal or hide.
         return {"state": "disabled"}
-    own_decision = db.scalar(
-        select(ScreeningDecision.id).where(
-            ScreeningDecision.work_item_id == item.id,
-            ScreeningDecision.reviewer_id == user.id,
-            ScreeningDecision.is_current.is_(True),
-        )
-    )
-    if own_decision is None:
+    if not _reviewer_has_submitted_own_decision(db, item, user):
         # Deliberately reveal no run ID, model, status, decision, or reasoning.
         return {"state": "hidden", "hidden": True}
     run = latest_task_run(db, item.publication_id, LlmTaskType.TITLE_ABSTRACT_SCREENING)
@@ -942,6 +950,14 @@ def full_text_assistance(
     item = _assigned_screening_item(db, project_id, item_id, user)
     if item.stage != ScreeningStage.FULL_TEXT:
         raise NotFoundError("Full-text screening item not found")
+    if not feature_enabled(db, project_id, LlmTaskType.FULL_TEXT_SCREENING):
+        # Disabled always wins, even before the reviewer has submitted their
+        # own decision — there is nothing to reveal or hide.
+        return {"state": "disabled"}
+    if not _reviewer_has_submitted_own_decision(db, item, user):
+        # Deliberately reveal no run ID, model, status, decision, or reasoning —
+        # same anchoring-bias rationale as title/abstract screening.
+        return {"state": "hidden", "hidden": True}
     run = latest_task_run(db, item.publication_id, LlmTaskType.FULL_TEXT_SCREENING)
     return _screening_payload(
         db,

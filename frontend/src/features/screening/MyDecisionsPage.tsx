@@ -20,7 +20,7 @@ import { reviewWorkActionsClass, reviewWorkCardClass, reviewWorkDoiClass, review
 import { useHighlightKeywords } from '../../hooks/useHighlightKeywords'
 import { formatSubmittedAtParts } from '../../lib/format'
 import { type SortDirection, sortByValue } from '../../lib/sort'
-import { ScreeningLlmPanel } from '../llm/LlmTaskComponents'
+import { ScreeningLlmPanel, useScreeningLlmAssistance } from '../llm/LlmTaskComponents'
 import { StageEyebrow } from '../projects/StageEyebrow'
 import { CriteriaAnswerFields } from './CriteriaAnswerFields'
 import type { CriterionAnswer, ScreeningCriterion } from './useScreeningQueue'
@@ -141,6 +141,13 @@ function DecisionEditForm({
     (criterion) => answers[criterion.id] !== null && answers[criterion.id] !== undefined,
   )
 
+  const llmAssistance = useScreeningLlmAssistance({
+    projectId,
+    itemId: item.workItemId,
+    stage: stage as 'title_abstract' | 'full_text',
+    humanDecision: outcome,
+  })
+
   return (
     <>
       <CriteriaAnswerFields
@@ -151,16 +158,19 @@ function DecisionEditForm({
         setOutcome={setOutcome}
         notes={notes}
         setNotes={setNotes}
+        llm={{
+          data: llmAssistance.query.data,
+          stage: stage as 'title_abstract' | 'full_text',
+          projectId,
+          publicationId: item.publication.id,
+          onApplySuggestion: (criterionId, met) => setAnswers((current) => ({ ...current, [criterionId]: met })),
+        }}
       />
       <ScreeningLlmPanel
-        projectId={projectId}
-        publicationId={item.publication.id}
         itemId={item.workItemId}
         stage={stage as 'title_abstract' | 'full_text'}
         humanDecision={outcome}
-        criteriaAnswers={answers}
-        criteria={criteria}
-        setCriteriaAnswers={setAnswers}
+        assistance={llmAssistance}
       />
       {!criteriaComplete ? (
         <p className="text-text-muted">Answer every criterion before saving.</p>
@@ -397,7 +407,14 @@ export function MyDecisionsPage() {
       {query.data ? (
         <>
           {query.data.stageCompleted ? (
-            <InfoBox icon={<IconAlertTriangle />} tone="warning" alert className="mt-4">
+            <InfoBox
+              icon={<IconAlertTriangle />}
+              tone="warning"
+              alert
+              className="mt-4"
+              closable
+              id="screening-my-decisions-stage-completed"
+            >
               <h3>This stage has been completed</h3>
               <p>
                 You can still change a decision, but doing so may affect results that have already been finalized.

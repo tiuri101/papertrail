@@ -1,15 +1,11 @@
-import { toolbarClass } from '../../components/layoutStyles'
 import { useEffect, useRef } from 'react'
 import { useMutation, useQuery } from '@tanstack/react-query'
 
 import { apiRequest } from '../../api/client'
 import { Button } from '../../components/Button'
-import { CriterionBadge } from '../../components/CriterionBadge'
 import { IconRestart } from '../../components/icons'
-import { cn } from '../../lib/cn'
 import { llmPanelClass, llmPanelHeadingClass, llmPanelToneClass } from './llmStyles'
-import { criterionNumbers, criterionOrderIndex } from '../screening/criteriaNumbering'
-import type { CriterionAnswer, ScreeningCriterion } from '../screening/useScreeningQueue'
+import type { CriterionAnswer } from '../screening/useScreeningQueue'
 
 export interface LlmEvidenceItem {
   page: number
@@ -18,7 +14,7 @@ export interface LlmEvidenceItem {
   verified: boolean
 }
 
-interface CriterionSuggestion {
+export interface CriterionSuggestion {
   criterionId: string | null
   criterionText: string
   criterionKind: string
@@ -28,7 +24,7 @@ interface CriterionSuggestion {
   evidenceValidationStatus: string
 }
 
-interface ScreeningAssistance {
+export interface ScreeningAssistance {
   state: string
   hidden: boolean
   runId: string | null
@@ -78,11 +74,17 @@ export function LlmEvidence({
   )
 }
 
-function statusText(state: string) {
+export function statusText(state: string) {
   return state.replaceAll('_', ' ')
 }
 
-function criterionComparison(
+/**
+ * How a single criterion's LLM assessment relates to the reviewer's own
+ * answer for that criterion — used to color/annotate the criteria table
+ * once the suggestion is revealed. `null` means there's nothing to compare
+ * (the reviewer hasn't answered yet, or the model itself was unclear).
+ */
+export function criterionComparison(
   assessment: string,
   humanAnswer: CriterionAnswer | undefined,
 ): 'match' | 'mismatch' | null {
@@ -99,32 +101,29 @@ export function LlmAssistanceHeading({ qualifier }: { qualifier?: string }) {
   )
 }
 
-export function ScreeningLlmPanel({
+/**
+ * Fetches (and can regenerate) the LLM screening suggestion for one work
+ * item. Shared by the criteria table (per-criterion coloring/explanations)
+ * and `ScreeningLlmPanel` (the overall summary) so both read the exact same
+ * result — callers pass this hook's return value into both.
+ */
+export function useScreeningLlmAssistance({
   projectId,
-  publicationId,
   itemId,
   stage,
   humanDecision,
-  criteriaAnswers,
-  criteria = [],
-  setCriteriaAnswers,
 }: {
   projectId: string
-  publicationId: string
   itemId: string
   stage: 'title_abstract' | 'full_text'
   humanDecision?: string
-  criteriaAnswers?: Record<string, CriterionAnswer>
-  criteria?: ScreeningCriterion[]
-  setCriteriaAnswers?: (updater: (current: Record<string, CriterionAnswer>) => Record<string, CriterionAnswer>) => void
 }) {
-  const numbers = criterionNumbers(criteria)
-  const orderIndex = criterionOrderIndex(criteria)
   const suffix = stage === 'title_abstract' ? 'llm-title-abstract' : 'llm-full-text'
   const endpoint = `/api/v1/projects/${projectId}/screening/work-items/${itemId}/${suffix}`
   const query = useQuery({
     queryKey: ['screening-llm', projectId, itemId, stage, Boolean(humanDecision)],
     queryFn: () => apiRequest<ScreeningAssistance>(endpoint),
+    enabled: Boolean(projectId && itemId),
     refetchInterval: (current) => (
       ['queued', 'pending', 'processing'].includes(current.state.data?.state ?? '')
         ? 5000
@@ -138,6 +137,31 @@ export function ScreeningLlmPanel({
     }),
     onSuccess: () => query.refetch(),
   })
+  return { query, regenerate }
+}
+
+export type ScreeningLlmAssistance = ReturnType<typeof useScreeningLlmAssistance>
+
+/**
+ * The overall summary panel: loading/error/hidden/disabled/processing/
+ * failed/stale states, and — once ready — the suggested decision,
+ * confidence, reasoning, and a regenerate button. Per-criterion detail
+ * (assessment, explanation, evidence, apply-suggestion) lives in the
+ * criteria table itself (see CriteriaAnswerFields), which reads the same
+ * `assistance` result so both stay in sync.
+ */
+export function ScreeningLlmPanel({
+  itemId,
+  stage,
+  humanDecision,
+  assistance,
+}: {
+  itemId: string
+  stage: 'title_abstract' | 'full_text'
+  humanDecision?: string
+  assistance: ScreeningLlmAssistance
+}) {
+  const { query, regenerate } = assistance
   const data = query.data
   const headingRef = useRef<HTMLDivElement>(null)
   const scrolledResultRef = useRef<string | null>(null)
@@ -256,71 +280,9 @@ export function ScreeningLlmPanel({
         {data.confidence ? ` · ${data.confidence} confidence` : ''}
       </p>
       {data.reasoningSummary ? <p>{data.reasoningSummary}</p> : null}
-      {[...(data.criteria ?? [])]
-        .sort((a, b) => {
-          const aIndex = a.criterionId ? orderIndex[a.criterionId] : undefined
-          const bIndex = b.criterionId ? orderIndex[b.criterionId] : undefined
-          if (aIndex === undefined && bIndex === undefined) return 0
-          if (aIndex === undefined) return 1
-          if (bIndex === undefined) return -1
-          return aIndex - bIndex
-        })
-        .map((criterion) => {
-        const comparison = criterion.criterionId
-          ? criterionComparison(criterion.assessment, criteriaAnswers?.[criterion.criterionId])
-          : null
-        return (
-          <details
-            key={criterion.criterionId ?? criterion.criterionText}
-            open={stage === 'full_text'}
-            className={cn(
-              'group my-2 rounded-lg border border-transparent px-3 py-2 open:px-5 open:py-4',
-              '[&_summary]:flex [&_summary]:cursor-pointer [&_summary]:list-none [&_summary]:flex-wrap [&_summary]:items-baseline [&_summary]:gap-1',
-              '[&_summary]:after:ml-auto [&_summary]:after:shrink-0 [&_summary]:after:text-[1.35rem] [&_summary]:after:font-medium [&_summary]:after:leading-none [&_summary]:after:text-text-secondary [&_summary]:after:content-[\'+\'] open:[&_summary]:after:content-[\'−\']',
-              'open:[&_summary]:-mx-3 open:[&_summary]:-mt-2 open:[&_summary]:mb-3 open:[&_summary]:border-b open:[&_summary]:border-[color-mix(in_srgb,currentColor_18%,transparent)] open:[&_summary]:px-4 open:[&_summary]:py-3 open:[&_summary]:text-base open:[&_summary]:font-bold open:[&_summary]:leading-snug open:[&_summary]:text-text',
-              comparison === 'match' && 'border-success bg-success-container',
-              comparison === 'mismatch' && 'border-danger bg-danger-container',
-            )}
-            data-comparison={comparison ?? undefined}
-          >
-            <summary>
-              {criterion.criterionId && numbers[criterion.criterionId] ? (
-                <CriterionBadge kind={criterion.criterionKind}>
-                  {numbers[criterion.criterionId]}
-                </CriterionBadge>
-              ) : null}
-              <span className="group-open:text-base group-open:font-bold group-open:tracking-[-0.01em] group-open:text-text">{criterion.criterionText}</span>
-              <span className="group-open:text-[0.82rem] group-open:font-semibold group-open:text-text-secondary"> · {statusText(criterion.assessment)}</span>
-              {comparison === 'mismatch' ? (
-                <span className="font-semibold text-danger group-open:text-[0.82rem]"> ⚠ Differs from your answer</span>
-              ) : null}
-            </summary>
-            <p>{criterion.explanation}</p>
-            {comparison === 'mismatch' && setCriteriaAnswers && criterion.criterionId ? (
-              <div className={toolbarClass}>
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={() => {
-                    const criterionId = criterion.criterionId!
-                    const met = criterion.assessment === 'met'
-                    setCriteriaAnswers((current) => ({ ...current, [criterionId]: met }))
-                  }}
-                >
-                  Apply suggestion
-                </Button>
-              </div>
-            ) : null}
-            {stage === 'full_text' ? (
-              <LlmEvidence
-                evidence={criterion.evidence}
-                projectId={projectId}
-                publicationId={publicationId}
-              />
-            ) : null}
-          </details>
-        )
-      })}
+      {data.criteria.length ? (
+        <p className="text-text-muted">See the criteria table above for a per-criterion breakdown.</p>
+      ) : null}
     </aside>
   )
 }
