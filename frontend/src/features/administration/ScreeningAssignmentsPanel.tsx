@@ -396,7 +396,7 @@ export function ScreeningAssignmentsPanel({ projectId }: { projectId: string }) 
             itemCount={assignments.data.items.length}
             total={total}
           />
-          <div ref={tableTopRef}>
+          <div ref={tableTopRef} className="scroll-mt-[92px]">
           <table className={`${tableBaseClass} table-compact [&_th]:px-3! [&_th]:py-[7px]! [&_th]:text-[0.85rem]! [&_td]:px-3! [&_td]:py-[7px]! [&_td]:text-[0.85rem]! [&_thead_th]:text-[0.68rem]!`}>
             <thead>
               <tr>

@@ -557,7 +557,7 @@ function MetadataConflictsPanel({ projectId }: { projectId: string }) {
         itemCount={items.length}
         total={total}
       />
-      <ul ref={listTopRef} className="mt-5 grid list-none gap-6 p-0">
+      <ul ref={listTopRef} className="mt-5 grid list-none gap-6 p-0 scroll-mt-[92px]">
         {items.map((conflict) => (
           <li key={conflict.id} className="overflow-hidden rounded-lg border border-border bg-[color-mix(in_srgb,var(--color-surface)_92%,transparent)] shadow-sm">
             <header className="flex items-center justify-between gap-4 border-b border-border bg-[color-mix(in_srgb,var(--color-surface-raised)_72%,transparent)] px-5 py-4 max-[680px]:flex-col max-[680px]:items-start max-[680px]:p-4 [&_h3]:mb-0 [&_h3]:mt-0.5 [&_h3]:text-base">
@@ -1097,7 +1097,7 @@ export function PublicationsPage() {
               <PublicationListSortHeader label="PDF" sortKey="pdf" activeKey={sortKey} direction={sortDirection} onToggle={toggleSort} />
               <span aria-hidden="true" />
             </div>
-            <ul ref={tableTopRef} className="m-0 grid list-none gap-2 p-0">
+            <ul ref={tableTopRef} className="m-0 grid list-none gap-2 p-0 scroll-mt-[92px]">
               {publications.map((publication) => (
                 <PublicationRow
                   key={publication.id}
