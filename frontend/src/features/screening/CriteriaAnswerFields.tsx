@@ -188,8 +188,16 @@ export function CriteriaAnswerFields({
                     className={cn(rowToneClass(comparison), suggestion && 'cursor-pointer')}
                     onClick={suggestion ? toggleExpanded : undefined}
                     onKeyDown={suggestion ? (event) => {
-                      if (event.key !== 'Enter' && event.key !== ' ') return
-                      event.preventDefault()
+                      if (event.key === ' ') {
+                        // Only Space needs preventDefault, to stop the page from scrolling.
+                        // Enter has no default browser action on a table row, so it's left
+                        // alone -- otherwise it'd mark the keydown as defaultPrevented and
+                        // the global submit hotkey (Enter by default) would never see it
+                        // once this handler's bubble reaches the window listener.
+                        event.preventDefault()
+                      } else if (event.key !== 'Enter') {
+                        return
+                      }
                       toggleExpanded()
                     } : undefined}
                     tabIndex={suggestion ? 0 : undefined}
