@@ -12,7 +12,7 @@ import { useUiPreference } from '../../hooks/useUiPreferences'
 import { formatYearVenue } from '../../lib/format'
 import { DEFAULT_SCREENING_HOTKEYS, formatHotkey, SCREENING_HOTKEYS_PREFERENCE_KEY, type ScreeningHotkeys } from '../../lib/screeningHotkeys'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
-import { ScreeningLlmPanel } from '../llm/LlmTaskComponents'
+import { ScreeningLlmPanel, useScreeningLlmAssistance } from '../llm/LlmTaskComponents'
 import { CriteriaAnswerFields } from './CriteriaAnswerFields'
 import { useScreeningDecisionHotkeys } from './useScreeningDecisionHotkeys'
 import type { CriterionAnswer, PreviousScreeningItem, ScreeningQueue } from './useScreeningQueue'
@@ -44,6 +44,13 @@ export function PreviousItemCard({
   const criteriaComplete = previousItem.criteria.every(
     (criterion) => answers[criterion.id] !== null && answers[criterion.id] !== undefined,
   )
+
+  const llmAssistance = useScreeningLlmAssistance({
+    projectId,
+    itemId: previousItem.id,
+    stage: stage as 'title_abstract' | 'full_text',
+    humanDecision: outcome,
+  })
 
   useScreeningDecisionHotkeys({
     enabled: Boolean(decision),
@@ -94,16 +101,19 @@ export function PreviousItemCard({
             setOutcome={setOutcome}
             notes={notes}
             setNotes={setNotes}
+            llm={{
+              data: llmAssistance.query.data,
+              stage: stage as 'title_abstract' | 'full_text',
+              projectId,
+              publicationId: previousItem.publication.id,
+              onApplySuggestion: (criterionId, met) => setAnswers((current) => ({ ...current, [criterionId]: met })),
+            }}
           />
           <ScreeningLlmPanel
-            projectId={projectId}
-            publicationId={previousItem.publication.id}
             itemId={previousItem.id}
             stage={stage as 'title_abstract' | 'full_text'}
             humanDecision={outcome}
-            criteriaAnswers={answers}
-            criteria={previousItem.criteria}
-            setCriteriaAnswers={setAnswers}
+            assistance={llmAssistance}
           />
           {!criteriaComplete ? <p className="text-text-muted">Answer every criterion before saving.</p> : null}
           {save.error ? <p className="text-danger" role="alert">{save.error.message}</p> : null}
