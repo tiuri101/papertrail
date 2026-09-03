@@ -131,7 +131,7 @@ describe('TitleAbstractScreeningPage', () => {
     expect(submit).toBeEnabled()
   })
 
-  it('tapping the criterion text toggles fulfilled/not-fulfilled on mobile widths only', async () => {
+  it('tapping the criterion text toggles fulfilled/not-fulfilled on any viewport width', async () => {
     renderScreening(async (input) => String(input).endsWith('/next') ? jsonResponse(workItem) : jsonResponse({}))
     await screen.findByRole('heading', { name: 'Immersive Urban Analytics' })
 
@@ -140,13 +140,6 @@ describe('TitleAbstractScreeningPage', () => {
     const criterionCell = screen.getByRole('rowheader', { name: 'Uses virtual reality' })
     expect(fulfilled).toBeChecked()
 
-    const originalWidth = window.innerWidth
-    window.innerWidth = 1024
-    fireEvent.click(criterionCell)
-    expect(fulfilled).toBeChecked()
-    expect(notFulfilled).not.toBeChecked()
-
-    window.innerWidth = 500
     fireEvent.click(criterionCell)
     expect(fulfilled).not.toBeChecked()
     expect(notFulfilled).toBeChecked()
@@ -154,8 +147,6 @@ describe('TitleAbstractScreeningPage', () => {
     fireEvent.click(criterionCell)
     expect(fulfilled).toBeChecked()
     expect(notFulfilled).not.toBeChecked()
-
-    window.innerWidth = originalWidth
   })
 
   it('checking one answer for a criterion unchecks the other', async () => {
