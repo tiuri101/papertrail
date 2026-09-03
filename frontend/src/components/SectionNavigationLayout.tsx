@@ -81,7 +81,7 @@ export function SectionNavigationLayout({
   }
 
   const headerBackLink = backTo ? (
-    <Link className="inline-flex min-h-10 min-w-0 max-w-[34vw] items-center overflow-hidden text-ellipsis whitespace-nowrap rounded-sm px-2 text-[0.86rem] font-semibold text-text-secondary no-underline hover:bg-surface-hover hover:text-text hover:no-underline min-[761px]:max-w-none min-[761px]:px-3 min-[761px]:text-[0.92rem]" to={backTo}>
+    <Link className="inline-flex min-h-10 min-w-0 max-w-[34vw] items-center overflow-hidden text-ellipsis whitespace-nowrap rounded-sm px-2 text-[0.86rem] font-semibold text-text-secondary no-underline hover:bg-surface-hover hover:text-text hover:no-underline min-[761px]:max-w-[420px] min-[761px]:px-3 min-[761px]:text-[0.92rem]" to={backTo}>
       ← {backLabel}
     </Link>
   ) : null

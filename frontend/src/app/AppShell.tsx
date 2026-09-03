@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 
 import { apiRequest } from '../api/client'
@@ -16,7 +16,44 @@ import type { LoginResponse } from '../features/auth/types'
 const navLinkBase =
   'inline-flex min-h-10 items-center gap-2 rounded-sm px-4 text-[0.92rem] font-semibold text-text-secondary hover:bg-surface-hover hover:text-text max-md:min-h-[38px] max-md:px-3 max-[480px]:px-2.5 max-[480px]:text-[0.86rem] [&>svg]:size-[17px] [&>svg]:shrink-0 [&>svg]:fill-current'
 const navLinkActive = 'bg-primary-container text-primary'
-const navLinkCollapsible = 'max-md:hidden'
+
+// Pixels subtracted from the measured available width before comparing against the
+// expanded nav's natural width, so we collapse a little before things actually touch —
+// sub-pixel rounding, and a non-overlay scrollbar (~15-17px on Windows) that can appear
+// after the initial measurement once a long list finishes loading.
+const HEADER_OVERFLOW_SAFETY_PX = 20
+
+// Rendered both in the real header (only while `isAdmin`) and in the hidden measurement
+// probe below (always, so the probe reflects the widest case AppShell can render).
+function CollapsibleNavLinks({ isAdmin }: { isAdmin: boolean }) {
+  return (
+    <>
+      {isAdmin ? (
+        <NavLink to="/users" className={({ isActive }) => cn(navLinkBase, isActive && navLinkActive)}>
+          <IconUsers />
+          Users
+        </NavLink>
+      ) : null}
+      {isAdmin ? (
+        <NavLink
+          to="/instance-settings"
+          className={({ isActive }) => cn(navLinkBase, isActive && navLinkActive)}
+        >
+          <IconSettings />
+          Global Settings
+        </NavLink>
+      ) : null}
+      <NavLink to="/account" className={({ isActive }) => cn(navLinkBase, isActive && navLinkActive)}>
+        <IconPerson />
+        Account
+      </NavLink>
+      <NavLink to="/help" className={({ isActive }) => cn(navLinkBase, isActive && navLinkActive)}>
+        <IconHelpCircle />
+        Help
+      </NavLink>
+    </>
+  )
+}
 
 export function AppShell() {
   const navigate = useNavigate()
@@ -24,6 +61,7 @@ export function AppShell() {
   const session = queryClient.getQueryData<LoginResponse>(['session'])
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const mobileMenuId = useId()
+  const isAdmin = Boolean(session?.user.isAdmin)
   const logout = useMutation({
     mutationFn: () => apiRequest<void>('/api/v1/auth/logout', { method: 'POST' }),
     onSuccess: () => {
@@ -42,12 +80,78 @@ export function AppShell() {
     return () => window.removeEventListener('keydown', closeOnEscape)
   }, [mobileMenuOpen])
 
+  // Whether the full desktop nav (all links + Sign Out) actually fits next to the brand
+  // block at the header's current width, instead of guessing from a fixed viewport
+  // breakpoint. `navProbeRef` is a hidden, always-fully-expanded mirror of the nav (see
+  // below the header) whose natural width tells us what "expanded" would need; admins
+  // and long project titles both change that need, so a fixed px breakpoint can't win for
+  // everyone. Starts collapsed (the layout that always fits) so we never briefly paint an
+  // overflowing header before the first measurement runs.
+  const [navExpanded, setNavExpanded] = useState(false)
+  const headerRowRef = useRef<HTMLDivElement>(null)
+  const brandRef = useRef<HTMLAnchorElement>(null)
+  const navProbeRef = useRef<HTMLDivElement>(null)
+  const sectionSlotRef = useRef<HTMLDivElement>(null)
+  const sectionSlotProbeRef = useRef<HTMLDivElement>(null)
+
+  useLayoutEffect(() => {
+    const row = headerRowRef.current
+    const brand = brandRef.current
+    const probe = navProbeRef.current
+    const slot = sectionSlotRef.current
+    const slotProbe = sectionSlotProbeRef.current
+    if (!row || !brand || !probe || !slot || !slotProbe) return undefined
+
+    // `slot` itself is `display: contents` (so it never wastes gap space with nothing
+    // portaled into it) and therefore never has a real box — offsetWidth on it always
+    // reads 0 and ResizeObserver never fires on it. What we actually need to track is its
+    // portaled child (the "← Project name" back link), which mounts later via a portal, so
+    // we watch for that with a MutationObserver and (re-)subscribe a ResizeObserver to it.
+    let observedSlotChild: Element | null = null
+
+    const recompute = () => {
+      const slotChild = slot.firstElementChild as HTMLElement | null
+      if (slotChild !== observedSlotChild) {
+        if (observedSlotChild) resizeObserver.unobserve(observedSlotChild)
+        if (slotChild) resizeObserver.observe(slotChild)
+        observedSlotChild = slotChild
+      }
+      // Mirror the slot child's width into the probe synchronously so the probe's total
+      // reflects it immediately, without waiting on a React re-render.
+      slotProbe.style.width = `${slotChild?.offsetWidth ?? 0}px`
+      const rowGap = parseFloat(getComputedStyle(row).columnGap || '0') || 0
+      const available = row.clientWidth - brand.offsetWidth - rowGap - HEADER_OVERFLOW_SAFETY_PX
+      setNavExpanded(probe.offsetWidth <= available)
+    }
+
+    const resizeObserver = new ResizeObserver(recompute)
+    resizeObserver.observe(row)
+    resizeObserver.observe(brand)
+    resizeObserver.observe(probe)
+
+    const mutationObserver = new MutationObserver(recompute)
+    mutationObserver.observe(slot, { childList: true })
+
+    recompute()
+
+    return () => {
+      resizeObserver.disconnect()
+      mutationObserver.disconnect()
+    }
+  }, [])
+
   return (
     <>
       <DecorativeDocTrail className="pointer-events-none fixed bottom-[calc(4.5rem+env(safe-area-inset-bottom))] left-[max(1rem,env(safe-area-inset-left))] z-0 h-auto max-h-[calc(100vh-7rem)] w-[clamp(150px,14vw,210px)] max-w-[calc(100vw-2rem)] opacity-40 max-[900px]:hidden" />
       <header className="sticky top-0 z-50 border-b border-border bg-[color-mix(in_srgb,var(--color-bg)_84%,transparent)] backdrop-blur-[16px] backdrop-saturate-[1.4]">
-        <div className="mx-auto flex min-h-[68px] w-[min(1280px,calc(100%-2.5rem))] items-center justify-between gap-6 max-md:min-h-[62px] max-md:w-[min(1280px,calc(100%-1.5rem))] max-[480px]:gap-2">
+        <div
+          ref={headerRowRef}
+          data-testid="header-row"
+          className="mx-auto flex min-h-[68px] w-[min(1280px,calc(100%-2.5rem))] items-center justify-between gap-6 max-md:min-h-[62px] max-md:w-[min(1280px,calc(100%-1.5rem))] max-[480px]:gap-2"
+        >
           <NavLink
+            ref={brandRef}
+            data-testid="header-brand"
             className="inline-flex items-center gap-3 text-[1.05rem] font-bold tracking-tight text-text hover:text-text hover:no-underline"
             to="/"
             aria-label="Papertrail home"
@@ -72,63 +176,69 @@ export function AppShell() {
                 <IconFolder />
                 Projects
               </NavLink>
-              {session?.user.isAdmin ? (
-                <NavLink
-                  to="/users"
-                  className={({ isActive }) => cn(navLinkBase, navLinkCollapsible, isActive && navLinkActive)}
-                >
-                  <IconUsers />
-                  Users
-                </NavLink>
-              ) : null}
-              {session?.user.isAdmin ? (
-                <NavLink
-                  to="/instance-settings"
-                  className={({ isActive }) => cn(navLinkBase, navLinkCollapsible, isActive && navLinkActive)}
-                >
-                  <IconSettings />
-                  Global Settings
-                </NavLink>
-              ) : null}
-              <NavLink
-                to="/account"
-                className={({ isActive }) => cn(navLinkBase, navLinkCollapsible, isActive && navLinkActive)}
-              >
-                <IconPerson />
-                Account
-              </NavLink>
-              <NavLink
-                to="/help"
-                className={({ isActive }) => cn(navLinkBase, navLinkCollapsible, isActive && navLinkActive)}
-              >
-                <IconHelpCircle />
-                Help
-              </NavLink>
+              {navExpanded ? <CollapsibleNavLinks isAdmin={isAdmin} /> : null}
             </nav>
-            <div className="mx-1 h-7 w-px bg-border max-md:hidden" aria-hidden="true" />
+            {navExpanded ? <div className="mx-1 h-7 w-px bg-border" aria-hidden="true" /> : null}
             <ThemeToggle />
-            <Button className="max-md:hidden" variant="secondary" onClick={() => logout.mutate()} disabled={logout.isPending}>
-              Sign Out
-            </Button>
-            <IconButton
-              variant="secondary"
-              // `!` is needed here: Button's own base class always includes `inline-flex`,
-              // and Tailwind v4 doesn't resolve two same-property utilities by className
-              // order, so a plain `hidden` never wins against it at any viewport width.
-              className="hidden! max-md:inline-flex!"
-              aria-expanded={mobileMenuOpen}
-              aria-controls={mobileMenuId}
-              aria-label="Main menu"
-              onClick={() => setMobileMenuOpen(true)}
-            >
-              <svg viewBox="0 0 24 24" aria-hidden="true">
-                <path d="M4 6h16v2H4V6Zm0 5h16v2H4v-2Zm0 5h16v2H4v-2Z" />
-              </svg>
-            </IconButton>
-            <div id="app-header-section-nav-slot" className="contents" />
+            {navExpanded ? (
+              <Button variant="secondary" onClick={() => logout.mutate()} disabled={logout.isPending}>
+                Sign Out
+              </Button>
+            ) : (
+              <IconButton
+                variant="secondary"
+                aria-expanded={mobileMenuOpen}
+                aria-controls={mobileMenuId}
+                aria-label="Main menu"
+                onClick={() => setMobileMenuOpen(true)}
+              >
+                <svg viewBox="0 0 24 24" aria-hidden="true">
+                  <path d="M4 6h16v2H4V6Zm0 5h16v2H4v-2Zm0 5h16v2H4v-2Z" />
+                </svg>
+              </IconButton>
+            )}
+            <div id="app-header-section-nav-slot" ref={sectionSlotRef} data-testid="header-section-slot" className="contents" />
           </div>
         </div>
       </header>
+      {/*
+        Hidden mirror of the header's right-hand content, always rendered fully expanded
+        (all nav links + divider + Sign Out), used only to measure whether that content
+        would actually fit — see the useLayoutEffect above. `aria-hidden` + `visibility:
+        hidden` keep it out of the accessibility tree and tab order, and `position: fixed`
+        keeps it from affecting real layout or scroll size. `width: max-content` matters
+        just as much as the visibility/position tricks: a `position: fixed` box with only
+        `left` set otherwise shrink-to-fits against the *viewport* width, so once the probe's
+        natural content is close to or past that width, its own nav links start wrapping
+        (e.g. "Global Settings" onto two lines) and offsetWidth quietly reports that smaller,
+        wrapped size instead of the true width we need to compare against.
+      */}
+      <div
+        ref={navProbeRef}
+        data-testid="header-nav-probe"
+        aria-hidden="true"
+        style={{
+          visibility: 'hidden',
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: 'max-content',
+          pointerEvents: 'none',
+        }}
+        className="flex items-center gap-2"
+      >
+        <nav className="flex items-center gap-2">
+          <NavLink to="/projects" className={navLinkBase}>
+            <IconFolder />
+            Projects
+          </NavLink>
+          <CollapsibleNavLinks isAdmin={isAdmin} />
+        </nav>
+        <div className="mx-1 h-7 w-px bg-border" />
+        <ThemeToggle />
+        <Button variant="secondary">Sign Out</Button>
+        <div ref={sectionSlotProbeRef} data-testid="header-nav-probe-slot" />
+      </div>
       <div
         className={cn('fixed inset-0 z-[100] bg-overlay', mobileMenuOpen && 'flex')}
         hidden={!mobileMenuOpen}
@@ -152,13 +262,13 @@ export function AppShell() {
             </IconButton>
           </div>
           <nav className="grid gap-1">
-            {session?.user.isAdmin ? (
+            {isAdmin ? (
               <NavLink to="/users" className={cn(navLinkBase, 'w-full justify-start')} onClick={() => setMobileMenuOpen(false)}>
                 <IconUsers />
                 Users
               </NavLink>
             ) : null}
-            {session?.user.isAdmin ? (
+            {isAdmin ? (
               <NavLink
                 to="/instance-settings"
                 className={cn(navLinkBase, 'w-full justify-start')}
