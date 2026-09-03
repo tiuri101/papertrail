@@ -2,8 +2,7 @@ import { fireEvent, screen, within } from '@testing-library/react'
 import { useState } from 'react'
 import { describe, expect, it, vi } from 'vitest'
 
-import { sessionQueryOptions } from '../../auth/sessionQuery'
-import { createTestQueryClient, renderWithProviders } from '../../../test/render'
+import { renderWithProviders } from '../../../test/render'
 import type { ScreeningAssistance } from '../../llm/LlmTaskComponents'
 import { CriteriaAnswerFields } from '../CriteriaAnswerFields'
 import type { CriterionAnswer, ScreeningCriterion } from '../useScreeningQueue'
@@ -72,8 +71,8 @@ describe('CriteriaAnswerFields', () => {
 
     const row = screen.getByText('Reports an evaluation').closest('tr') as HTMLElement
     expect(row.className).not.toMatch(/bg-(success|danger)-container/)
-    expect(row).not.toHaveAttribute('tabindex')
-    expect(screen.queryByTitle(/LLM suggestion available/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/^LLM verdict:/)).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: /Show more/ })).not.toBeInTheDocument()
   })
 
   it('renders the plain table while the suggestion is still hidden or loading', () => {
@@ -87,7 +86,7 @@ describe('CriteriaAnswerFields', () => {
 
     const row = screen.getByText('Reports an evaluation').closest('tr') as HTMLElement
     expect(row.className).not.toMatch(/bg-(success|danger)-container/)
-    expect(screen.queryByTitle(/LLM suggestion available/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/^LLM verdict:/)).not.toBeInTheDocument()
   })
 
   it('colors a row green when the reviewer answer matches the LLM assessment', () => {
@@ -107,7 +106,8 @@ describe('CriteriaAnswerFields', () => {
 
     const row = screen.getByText('Reports an evaluation').closest('tr') as HTMLElement
     expect(row.className).toMatch(/bg-success-container/)
-    expect(screen.getByTitle(/LLM suggestion available/)).toBeInTheDocument()
+    expect(screen.getByText(/^LLM verdict: Fulfilled/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Show more' })).toBeInTheDocument()
   })
 
   it('colors a row red, and expanding it shows the explanation and an Apply suggestion button, when they differ', () => {
@@ -132,11 +132,13 @@ describe('CriteriaAnswerFields', () => {
 
     const row = screen.getByText('Reports an evaluation').closest('tr') as HTMLElement
     expect(row.className).toMatch(/bg-danger-container/)
+    expect(screen.getByText(/⚠ Differs from your answer/)).toBeInTheDocument()
     expect(screen.queryByText('No evaluation is reported.')).not.toBeInTheDocument()
 
-    fireEvent.click(row)
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
     expect(screen.getByText('No evaluation is reported.')).toBeInTheDocument()
     expect(screen.getByText(/Verified evidence/)).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Hide details' })).toBeInTheDocument()
 
     fireEvent.click(screen.getByRole('button', { name: 'Apply suggestion' }))
     expect(onApplySuggestion).toHaveBeenCalledWith('criterion-1', false)
@@ -161,7 +163,7 @@ describe('CriteriaAnswerFields', () => {
       />,
     )
 
-    fireEvent.click(screen.getByText('Reports an evaluation').closest('tr') as HTMLElement)
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
     expect(screen.getByText('The abstract does not mention an evaluation.')).toBeInTheDocument()
     expect(screen.queryByText(/Verified evidence|Unverified evidence/)).not.toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Apply suggestion' })).toBeInTheDocument()
@@ -182,7 +184,7 @@ describe('CriteriaAnswerFields', () => {
       />,
     )
 
-    fireEvent.click(screen.getByText('Reports an evaluation').closest('tr') as HTMLElement)
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
     expect(screen.getByText('No evaluation is reported.')).toBeInTheDocument()
     expect(screen.queryByRole('button', { name: 'Apply suggestion' })).not.toBeInTheDocument()
   })
@@ -204,16 +206,16 @@ describe('CriteriaAnswerFields', () => {
 
     const row = screen.getByText('Reports an evaluation').closest('tr') as HTMLElement
     expect(row.className).not.toMatch(/bg-(success|danger)-container/)
-    fireEvent.click(row)
+    fireEvent.click(screen.getByRole('button', { name: 'Show more' }))
     expect(screen.getByText('The text is ambiguous.')).toBeInTheDocument()
     expect(within(row.parentElement as HTMLElement).queryByRole('button', { name: 'Apply suggestion' })).not.toBeInTheDocument()
   })
 
-  it('toggles via Enter without blocking the global submit hotkey from also seeing the keydown', () => {
+  it('toggles the decision when the criterion text is clicked, without expanding the suggestion', () => {
     renderWithProviders(
       <Harness
         criteria={criteria}
-        initialAnswers={{ 'criterion-1': true }}
+        initialAnswers={{ 'criterion-1': null }}
         llmData={readyAssistance({
           criteria: [{
             criterionId: 'criterion-1', criterionText: 'Reports an evaluation',
@@ -224,72 +226,9 @@ describe('CriteriaAnswerFields', () => {
       />,
     )
 
-    const row = screen.getByText('Reports an evaluation').closest('tr') as HTMLElement
-    // fireEvent's return value mirrors native dispatchEvent: true means the
-    // event's default was NOT prevented.
-    const notPrevented = fireEvent.keyDown(row, { key: 'Enter' })
-
-    expect(screen.getByText('A study is reported.')).toBeInTheDocument()
-    // useScreeningDecisionHotkeys bails out on `event.defaultPrevented` once its
-    // window listener sees the bubbled event -- Enter must not set that flag,
-    // or the "Confirm Decision" hotkey would never fire while a row has focus.
-    expect(notPrevented).toBe(true)
-  })
-
-  it('still prevents Space from scrolling the page while toggling the row', () => {
-    renderWithProviders(
-      <Harness
-        criteria={criteria}
-        initialAnswers={{ 'criterion-1': true }}
-        llmData={readyAssistance({
-          criteria: [{
-            criterionId: 'criterion-1', criterionText: 'Reports an evaluation',
-            criterionKind: 'inclusion', assessment: 'met',
-            explanation: 'A study is reported.', evidence: [], evidenceValidationStatus: 'not_required',
-          }],
-        })}
-      />,
-    )
-
-    const row = screen.getByText('Reports an evaluation').closest('tr') as HTMLElement
-    const notPrevented = fireEvent.keyDown(row, { key: ' ' })
-
-    expect(screen.getByText('A study is reported.')).toBeInTheDocument()
-    expect(notPrevented).toBe(false)
-  })
-
-  it('does not swallow Space when the reviewer has configured it as a decision hotkey', () => {
-    const queryClient = createTestQueryClient()
-    queryClient.setQueryData(sessionQueryOptions.queryKey, {
-      user: {
-        id: 'user-1', username: 'reviewer1', displayName: 'Reviewer One', isAdmin: false, isActive: true,
-        uiPreferences: { screeningHotkeys: { include: 'i', exclude: 'e', uncertain: 'u', duplicate: 'd', submit: ' ' } },
-      },
-      csrfToken: 'csrf-token',
-    })
-    renderWithProviders(
-      <Harness
-        criteria={criteria}
-        initialAnswers={{ 'criterion-1': true }}
-        llmData={readyAssistance({
-          criteria: [{
-            criterionId: 'criterion-1', criterionText: 'Reports an evaluation',
-            criterionKind: 'inclusion', assessment: 'met',
-            explanation: 'A study is reported.', evidence: [], evidenceValidationStatus: 'not_required',
-          }],
-        })}
-      />,
-      { queryClient },
-    )
-
-    const row = screen.getByText('Reports an evaluation').closest('tr') as HTMLElement
-    const notPrevented = fireEvent.keyDown(row, { key: ' ' })
-
-    expect(screen.getByText('A study is reported.')).toBeInTheDocument()
-    // Space is this reviewer's submit hotkey here, so it must reach
-    // useScreeningDecisionHotkeys' window listener un-prevented, same as
-    // Enter does when Space isn't bound to anything.
-    expect(notPrevented).toBe(true)
+    fireEvent.click(screen.getByText('Reports an evaluation'))
+    expect(screen.getByRole('checkbox', { name: /Fulfilled/ })).toHaveAttribute('aria-checked', 'true')
+    expect(screen.queryByText('A study is reported.')).not.toBeInTheDocument()
   })
 
   it('does not let a checkbox click bubble into toggling the LLM explanation row', () => {

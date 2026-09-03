@@ -9,7 +9,6 @@ import { cn } from '../../lib/cn'
 import {
   DEFAULT_SCREENING_HOTKEYS,
   formatHotkey,
-  SCREENING_HOTKEY_ACTIONS,
   SCREENING_HOTKEYS_PREFERENCE_KEY,
   type ScreeningHotkeyAction,
   type ScreeningHotkeys,
@@ -24,7 +23,6 @@ import { FieldLabel } from '../../components/FieldLabel'
 import {
   criterionComparison,
   LlmEvidence,
-  statusText,
   type CriterionSuggestion,
   type ScreeningAssistance,
 } from '../llm/LlmTaskComponents'
@@ -33,8 +31,14 @@ function capitalize(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1)
 }
 
-// Matches the max-[760px] breakpoint used elsewhere in this file to identify the mobile layout.
-const MOBILE_MEDIA_QUERY = '(max-width: 760px)'
+// Mirrors the "Fulfilled"/"Not fulfilled" wording already used for the reviewer's own
+// checkboxes in this table, rather than the LLM's raw 'met'/'not_met' assessment values,
+// so the same concept isn't described with two different words side by side.
+function assessmentVerdictText(assessment: 'met' | 'not_met' | 'unclear'): string {
+  if (assessment === 'met') return 'Fulfilled'
+  if (assessment === 'not_met') return 'Not fulfilled'
+  return 'Unclear'
+}
 
 const DECISION_OPTIONS: { value: string; label: string; hotkeyAction: ScreeningHotkeyAction }[] = [
   { value: 'include', label: 'Include', hotkeyAction: 'include' },
@@ -96,20 +100,6 @@ export function CriteriaAnswerFields({
   const numbers = criterionNumbers(criteria)
   const { value: hotkeys } = useUiPreference<ScreeningHotkeys>(SCREENING_HOTKEYS_PREFERENCE_KEY, DEFAULT_SCREENING_HOTKEYS)
   const sorted = sortedByKind(criteria)
-
-  // Mirrors useScreeningDecisionHotkeys' own key lookup: which literal keys
-  // (lowercased) the reviewer currently has bound to include/exclude/.../
-  // submit. Needed below so the row's own Enter/Space handling never steals
-  // a key the reviewer has configured as one of their decision hotkeys.
-  const boundHotkeyKeys = useMemo(
-    () => new Set(
-      SCREENING_HOTKEY_ACTIONS
-        .map((action) => hotkeys[action])
-        .filter((key): key is string => Boolean(key))
-        .map((key) => key.toLowerCase()),
-    ),
-    [hotkeys],
-  )
 
   const cellRefs = useRef(new Map<string, HTMLButtonElement>())
   const [focusedCell, setFocusedCell] = useState<{ row: number; column: CriterionColumn }>({ row: 0, column: 0 })
@@ -199,38 +189,17 @@ export function CriteriaAnswerFields({
               }
               return (
                 <Fragment key={criterion.id}>
-                  <tr
-                    className={cn(rowToneClass(comparison), suggestion && 'cursor-pointer')}
-                    onClick={suggestion ? toggleExpanded : undefined}
-                    onKeyDown={suggestion ? (event) => {
-                      if (event.key !== 'Enter' && event.key !== ' ') return
-                      // Space needs preventDefault to stop the page from scrolling --
-                      // but never when Space is itself one of the reviewer's configured
-                      // decision hotkeys (see AccountSettingsPage): calling it here would
-                      // mark the keydown as defaultPrevented, and useScreeningDecisionHotkeys'
-                      // window listener bails out on that flag before ever running the
-                      // reviewer's chosen action once this bubbled event reaches it. Enter
-                      // never needs preventDefault either way -- it has no default browser
-                      // action on a table row, so the default (Enter) submit hotkey is safe
-                      // regardless.
-                      if (event.key === ' ' && !boundHotkeyKeys.has(' ')) event.preventDefault()
-                      toggleExpanded()
-                    } : undefined}
-                    tabIndex={suggestion ? 0 : undefined}
-                    aria-expanded={suggestion ? isExpanded : undefined}
-                  >
+                  <tr className={rowToneClass(comparison)}>
                     <td className={cn('whitespace-nowrap text-center! align-middle!', isExpanded && 'border-b-0!')}>
                       <CriterionBadge kind={criterion.kind}>{numbers[criterion.id]}</CriterionBadge>
                     </td>
                     <th
                       scope="row"
-                      className={cn('max-[760px]:cursor-pointer max-[760px]:active:bg-surface-hover', isExpanded && 'border-b-0!')}
-                      onClick={(event) => {
-                        // On mobile the checkboxes are small tap targets, so tapping the criterion
-                        // text itself toggles fulfilled/not-fulfilled instead. Desktop pointers keep
-                        // using the checkboxes, so this is a no-op outside the mobile breakpoint.
-                        if (!window.matchMedia(MOBILE_MEDIA_QUERY).matches) return
-                        event.stopPropagation()
+                      className={cn('cursor-pointer hover:bg-surface-hover active:bg-surface-hover', isExpanded && 'border-b-0!')}
+                      onClick={() => {
+                        // Tapping/clicking the criterion text toggles fulfilled/not-fulfilled --
+                        // handy on mobile where the checkboxes are small tap targets, and just as
+                        // convenient on desktop, so this isn't gated to a breakpoint.
                         setAnswers((current) => ({
                           ...current,
                           [criterion.id]: current[criterion.id] === true ? false : true,
@@ -239,13 +208,26 @@ export function CriteriaAnswerFields({
                     >
                       {criterion.text}
                       {suggestion ? (
-                        <span
-                          className="ml-1.5 inline-flex align-text-top text-primary [&_svg]:size-3.5 [&_svg]:fill-current"
-                          aria-hidden="true"
-                          title="LLM suggestion available — click the row to view it"
-                        >
-                          <IconSparkle />
-                        </span>
+                        <div className="mt-1 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs font-normal text-text-secondary">
+                          <span className="inline-flex items-center text-primary [&_svg]:size-3.5 [&_svg]:fill-current" aria-hidden="true">
+                            <IconSparkle />
+                          </span>
+                          <span>LLM verdict: {assessmentVerdictText(suggestion.assessment)}</span>
+                          {comparison === 'mismatch' ? (
+                            <span className="font-semibold text-danger">⚠ Differs from your answer</span>
+                          ) : null}
+                          <button
+                            type="button"
+                            className="font-semibold text-primary hover:underline"
+                            aria-expanded={isExpanded}
+                            onClick={(event) => {
+                              event.stopPropagation()
+                              toggleExpanded()
+                            }}
+                          >
+                            {isExpanded ? 'Hide details' : 'Show more'}
+                          </button>
+                        </div>
                       ) : null}
                     </th>
                     <td className={cn('text-center! align-middle!', isExpanded && 'border-b-0!')}>
@@ -309,12 +291,6 @@ export function CriteriaAnswerFields({
                         a few pixels wider than the collapsed layout.
                       */}
                       <td colSpan={4} className="w-px">
-                        <p>
-                          <strong>LLM assessment:</strong> {statusText(suggestion.assessment)}
-                          {comparison === 'mismatch' ? (
-                            <span className="ml-2 font-semibold text-danger">⚠ Differs from your answer</span>
-                          ) : null}
-                        </p>
                         <p>{suggestion.explanation}</p>
                         {llm.stage === 'full_text' ? (
                           <LlmEvidence
@@ -356,7 +332,7 @@ export function CriteriaAnswerFields({
           Click on a checkbox, then use the arrow keys to move between criteria and Left/Right keys to answer them. Use your
           personalized hotkeys to include/exclude the paper and submit.
           {Object.keys(suggestionByCriterion).length > 0 ? (
-              " Rows are colored by how the LLM suggestion compares to your answer. Click a row to see its explanation."
+              " Rows are colored by how the LLM suggestion compares to your answer. Click “Show more” to see its explanation."
           ) : null}
         </p>
       </InfoBox>
