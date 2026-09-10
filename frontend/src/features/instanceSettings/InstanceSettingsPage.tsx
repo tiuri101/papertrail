@@ -10,6 +10,7 @@ import { InfoBox } from '../../components/InfoBox'
 import { Input } from '../../components/Input'
 import { Page } from '../../components/Page'
 import { SectionNavigationLayout } from '../../components/SectionNavigationLayout'
+import { Select } from '../../components/Select'
 import { Textarea } from '../../components/Textarea'
 import { FieldLabel } from '../../components/FieldLabel'
 import {
@@ -42,6 +43,12 @@ interface InstallationConnectionSettings {
   maxConcurrentJobs: number
   maxEvidenceItems: number
   maxEvidenceQuoteChars: number
+}
+
+interface OllamaModelsResponse {
+  available: boolean
+  models: string[]
+  error?: string
 }
 
 interface PromptFlow {
@@ -96,6 +103,11 @@ export function InstanceSettingsPage() {
   const instance = useQuery({
     queryKey: ['instance-settings'],
     queryFn: () => apiRequest<InstanceSettingsData>('/api/v1/instance-settings'),
+  })
+  const models = useQuery({
+    queryKey: ['instance-llm-models'],
+    queryFn: () => apiRequest<OllamaModelsResponse>('/api/v1/llm/installation-settings/models'),
+    enabled: Boolean(connection.data?.endpoint),
   })
 
   const [enabled, setEnabled] = useState(false)
@@ -188,6 +200,7 @@ export function InstanceSettingsPage() {
     onSuccess: (result) => {
       queryClient.setQueryData(['instance-llm-connection'], result)
       setApiKey('')
+      void queryClient.invalidateQueries({ queryKey: ['instance-llm-models'] })
     },
   })
 
@@ -271,6 +284,11 @@ export function InstanceSettingsPage() {
     }),
   })
 
+  const canPickModelFromList = Boolean(models.data?.available && models.data.models.length > 0)
+  const modelOptions = [...new Set([...(model ? [model] : []), ...(models.data?.models ?? [])])]
+    .sort((a, b) => a.localeCompare(b))
+  const modelListingFailed = models.isError || models.data?.available === false
+
   return (
     <SectionNavigationLayout items={instanceSettingsSections}>
       <Page>
@@ -316,15 +334,54 @@ export function InstanceSettingsPage() {
                     required
                   />
                 </FieldLabel>
-                <FieldLabel>
-                  Model
-                  <Input
-                    value={model}
-                    onChange={(event) => setModel(event.target.value)}
-                    placeholder="gemma3:12b"
-                    required
-                  />
-                </FieldLabel>
+                <div className="grid content-start gap-2">
+                  <FieldLabel>
+                    Model
+                    {canPickModelFromList ? (
+                      <Select
+                        value={model}
+                        onChange={(event) => setModel(event.target.value)}
+                        required
+                      >
+                        <option value="" disabled>
+                          Select a model…
+                        </option>
+                        {modelOptions.map((name) => (
+                          <option key={name} value={name}>
+                            {name}
+                          </option>
+                        ))}
+                      </Select>
+                    ) : (
+                      <Input
+                        value={model}
+                        onChange={(event) => setModel(event.target.value)}
+                        placeholder="gemma3:12b"
+                        required
+                      />
+                    )}
+                  </FieldLabel>
+                  {canPickModelFromList ? (
+                    <button
+                      type="button"
+                      className="justify-self-start text-sm text-text-muted underline"
+                      onClick={() => void models.refetch()}
+                    >
+                      Refresh models
+                    </button>
+                  ) : modelListingFailed ? (
+                    <span className="text-sm text-text-muted">
+                      Couldn&apos;t list models from Ollama — enter the name manually.{' '}
+                      <button
+                        type="button"
+                        className="underline"
+                        onClick={() => void models.refetch()}
+                      >
+                        Retry
+                      </button>
+                    </span>
+                  ) : null}
+                </div>
                 <FieldLabel>
                   Context length
                   <Input

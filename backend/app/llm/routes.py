@@ -40,7 +40,7 @@ from app.llm.models import (
     LlmTaskType,
     ProcessingStatus,
 )
-from app.llm.ollama import OllamaError, create_ollama_client
+from app.llm.ollama import OllamaError, create_ollama_client, fetch_ollama_models
 from app.llm.prompt_flows import PROMPT_FLOW_DEFAULTS, PROMPT_FLOW_LABELS
 from app.llm.schema_service import (
     active_extraction_fields,
@@ -210,6 +210,31 @@ def test_installation_connection(
         return create_ollama_client().test_connection()
     except OllamaError as exc:
         return {"available": False, "modelAvailable": False, "error": str(exc)}
+
+
+@router.get("/llm/installation-settings/models")
+def list_installation_models(
+    _: User = Depends(require_admin),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    config = effective_llm_settings(db)
+    base_url = config.ollama_base_url
+    if not base_url:
+        return {"available": False, "models": [], "error": "No endpoint configured"}
+    headers = (
+        {"Authorization": f"Bearer {config.ollama_api_key}"}
+        if config.ollama_api_key
+        else {}
+    )
+    try:
+        models = fetch_ollama_models(
+            base_url,
+            headers=headers,
+            timeout=config.ollama_request_timeout_seconds,
+        )
+        return {"available": True, "models": models}
+    except OllamaError as exc:
+        return {"available": False, "models": [], "error": str(exc)}
 
 
 def _prompt_flow_status(
