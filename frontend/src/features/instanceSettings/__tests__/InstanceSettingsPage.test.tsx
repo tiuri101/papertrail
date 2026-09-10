@@ -73,6 +73,9 @@ const instanceSettings = {
 
 function defaultRoutes(input: unknown, init?: RequestInit) {
   const path = String(input)
+  if (path.endsWith('/llm/installation-settings/models')) {
+    return jsonResponse({ available: true, models: ['gemma3:12b', 'qwen3:8b'] })
+  }
   if (path.endsWith('/llm/installation-settings')) return jsonResponse(connectionSettings)
   if (path.endsWith('/llm/installation-settings/prompts')) return jsonResponse(promptSettings)
   if (path.endsWith('/instance-settings')) return jsonResponse(instanceSettings)
@@ -92,10 +95,11 @@ describe('InstanceSettingsPage', () => {
     renderWithProviders(<InstanceSettingsPage />)
 
     expect(await screen.findByDisplayValue('http://ollama.example:11434')).toBeInTheDocument()
-    expect(screen.getByDisplayValue('qwen3:8b')).toBeInTheDocument()
+    const modelField = await screen.findByRole('combobox', { name: 'Model' })
+    expect(modelField).toHaveValue('qwen3:8b')
     expect(screen.getByDisplayValue('32768')).toBeInTheDocument()
 
-    fireEvent.change(screen.getByLabelText('Model'), { target: { value: 'gemma3:12b' } })
+    fireEvent.change(modelField, { target: { value: 'gemma3:12b' } })
     fireEvent.click(screen.getByRole('button', { name: 'Save Connection Settings' }))
 
     await waitFor(() => {
@@ -290,5 +294,48 @@ describe('InstanceSettingsPage', () => {
       const call = patchCalls[patchCalls.length - 1]
       expect(JSON.parse(String(call?.[1]?.body)).workerThreads).toBe(6)
     })
+  })
+
+  it('offers the Ollama models as a dropdown and saves the picked one', async () => {
+    const fetchMock = mockFetch(async (input, init) => {
+      const path = String(input)
+      if (path.endsWith('/llm/installation-settings') && init?.method === 'PATCH') {
+        return jsonResponse({ ...connectionSettings, ...JSON.parse(String(init.body)), apiKeySet: false })
+      }
+      return defaultRoutes(input, init)
+    })
+    renderWithProviders(<InstanceSettingsPage />)
+
+    const modelField = await screen.findByRole('combobox', { name: 'Model' })
+    expect(within(modelField).getByRole('option', { name: 'gemma3:12b' })).toBeInTheDocument()
+    expect(within(modelField).getByRole('option', { name: 'qwen3:8b' })).toBeInTheDocument()
+
+    fireEvent.change(modelField, { target: { value: 'gemma3:12b' } })
+    fireEvent.click(screen.getByRole('button', { name: 'Save Connection Settings' }))
+
+    await waitFor(() => {
+      const call = fetchMock.mock.calls.find(([input, init]) => (
+        String(input).endsWith('/llm/installation-settings') && init?.method === 'PATCH'
+      ))
+      expect(JSON.parse(String(call?.[1]?.body)).model).toBe('gemma3:12b')
+    })
+  })
+
+  it('falls back to manual entry when Ollama models cannot be listed', async () => {
+    mockFetch(async (input, init) => {
+      const path = String(input)
+      if (path.endsWith('/llm/installation-settings/models')) {
+        return jsonResponse({ available: false, models: [], error: 'Ollama is unreachable' })
+      }
+      return defaultRoutes(input, init)
+    })
+    renderWithProviders(<InstanceSettingsPage />)
+
+    expect(await screen.findByDisplayValue('http://ollama.example:11434')).toBeInTheDocument()
+    await waitFor(() => {
+      expect(screen.getByText(/enter the name manually/i)).toBeInTheDocument()
+    })
+    expect(screen.queryByRole('combobox', { name: 'Model' })).not.toBeInTheDocument()
+    expect(screen.getByLabelText('Model')).toHaveValue('qwen3:8b')
   })
 })

@@ -989,6 +989,115 @@ def test_administrator_can_test_installation_connection(
     assert forbidden.status_code == 403
 
 
+def test_fetch_ollama_models_parses_and_sorts_tag_names(monkeypatch) -> None:
+    from app.llm.ollama import fetch_ollama_models
+
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "models": [
+                    {"name": "llama3:8b"},
+                    {"model": "gemma3:12b"},
+                    {"name": "llama3:8b"},
+                    {"digest": "no-name-here"},
+                ]
+            }
+
+    captured: dict[str, object] = {}
+
+    def fake_get(url, **kwargs):
+        captured["url"] = url
+        captured["headers"] = kwargs.get("headers")
+        captured["timeout"] = kwargs.get("timeout")
+        return Response()
+
+    monkeypatch.setattr("app.llm.ollama.httpx.get", fake_get)
+
+    models = fetch_ollama_models(
+        "http://ollama.example:11434",
+        headers={"Authorization": "Bearer token"},
+        timeout=42,
+    )
+
+    assert models == ["gemma3:12b", "llama3:8b"]
+    assert captured["url"] == "http://ollama.example:11434/api/tags"
+    assert captured["headers"] == {"Authorization": "Bearer token"}
+    assert captured["timeout"] == 42
+
+
+def test_ollama_test_connection_reports_configured_model_presence(monkeypatch) -> None:
+    settings = get_settings()
+
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"models": [{"name": "test-model:latest"}, {"name": "other:latest"}]}
+
+    monkeypatch.setattr("app.llm.ollama.httpx.get", lambda url, **kwargs: Response())
+
+    result = OllamaClient(settings).test_connection()
+
+    assert result == {
+        "available": True,
+        "modelAvailable": True,
+        "model": "test-model:latest",
+    }
+
+
+def test_administrator_lists_installation_models(client, db, monkeypatch) -> None:
+    admin, reviewer, project, *_ = setup_llm_project(db)
+    admin_csrf = client.post(
+        "/api/v1/auth/login",
+        json={"username": admin.username, "password": "secret-password"},
+    ).json()["csrfToken"]
+
+    monkeypatch.setattr(
+        "app.llm.routes.fetch_ollama_models",
+        lambda *args, **kwargs: ["gemma3:12b", "llama3:8b"],
+    )
+    listed = client.get("/api/v1/llm/installation-settings/models")
+    assert listed.status_code == 200
+    assert listed.json() == {
+        "available": True,
+        "models": ["gemma3:12b", "llama3:8b"],
+    }
+
+    client.post("/api/v1/auth/logout", headers={"X-CSRF-Token": admin_csrf})
+    client.post(
+        "/api/v1/auth/login",
+        json={"username": reviewer.username, "password": "reviewer-password"},
+    )
+    forbidden = client.get("/api/v1/llm/installation-settings/models")
+    assert forbidden.status_code == 403
+
+
+def test_listing_installation_models_reports_ollama_failure(
+    client, db, monkeypatch
+) -> None:
+    admin, *_ = setup_llm_project(db)
+    client.post(
+        "/api/v1/auth/login",
+        json={"username": admin.username, "password": "secret-password"},
+    )
+
+    def boom(*args, **kwargs):
+        raise OllamaTransientError("Ollama is unreachable")
+
+    monkeypatch.setattr("app.llm.routes.fetch_ollama_models", boom)
+    listed = client.get("/api/v1/llm/installation-settings/models")
+    assert listed.status_code == 200
+    assert listed.json() == {
+        "available": False,
+        "models": [],
+        "error": "Ollama is unreachable",
+    }
+
+
 def test_administrator_can_override_and_reset_base_prompts(client, db) -> None:
     from app.llm.prompt import SYSTEM_PROMPT
     from app.llm.task_prompt import SCREENING_SYSTEM_PROMPT, VALIDATION_SYSTEM_PROMPT
