@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
 
 import { DoiPill } from '../../components/DoiPill'
+import { BookmarkToggle } from '../bookmarks/BookmarkToggle'
 import { Button } from '../../components/Button'
 import { Card } from '../../components/Card'
 import { HighlightedText } from '../../components/HighlightedText'
@@ -72,6 +73,7 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
         </Link>
       </h2>
       <div className="flex flex-wrap items-center gap-3 mt-2">
+        <BookmarkToggle projectId={queue.projectId} publicationId={item.publication.id} />
         <DoiPill doi={item.publication.doi} />
         {isSafeHttpUrl(item.publication.publisherUrl) ? (
           <PublisherLinkPill url={item.publication.publisherUrl} />

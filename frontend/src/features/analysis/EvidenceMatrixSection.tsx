@@ -8,6 +8,7 @@ import { Input } from '../../components/Input'
 import { DEFAULT_TABLE_PAGE_SIZE, PaginationControls, PaginationSummary } from '../../components/Pagination'
 import { Select } from '../../components/Select'
 import { LlmEvidence } from '../llm/LlmTaskComponents'
+import { BookmarkToggle } from '../bookmarks/BookmarkToggle'
 import { FieldLabel } from '../../components/FieldLabel'
 import {
   useEvidenceCellDetail,
@@ -377,10 +378,15 @@ export function EvidenceMatrixSection({ projectId }: { projectId: string }) {
               {data.items.map((item: EvidenceMatrixItem) => (
                 <tr key={item.publication.id}>
                   <th scope="row" className="sticky left-0 z-[1] min-w-56 max-w-[22rem] overflow-wrap-anywhere bg-bg-elevated whitespace-normal!">
-                    {item.publication.title}
-                    {item.publication.authors ? (
-                      <span className="text-text-muted"> · {item.publication.authors}</span>
-                    ) : null}
+                    <div className="flex items-start gap-2">
+                      <BookmarkToggle projectId={projectId} publicationId={item.publication.id} />
+                      <span className="min-w-0">
+                        {item.publication.title}
+                        {item.publication.authors ? (
+                          <span className="text-text-muted"> · {item.publication.authors}</span>
+                        ) : null}
+                      </span>
+                    </div>
                   </th>
                   {visibleColumns.map((column) => {
                     const cell = item.cells[column.key]

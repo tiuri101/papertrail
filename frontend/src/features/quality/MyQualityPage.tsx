@@ -74,6 +74,8 @@ function QualityRow({ projectId, entry, highlightKeywords }: {
 
   return (
     <ReviewWorkRow
+      projectId={projectId}
+      publicationId={publication.id}
       detailHref={detailHref}
       title={publication.title}
       authors={publication.authors}

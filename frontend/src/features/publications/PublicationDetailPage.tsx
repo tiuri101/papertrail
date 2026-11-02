@@ -10,6 +10,7 @@ import { Badge } from '../../components/Badge'
 import { Button } from '../../components/Button'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { DoiPill } from '../../components/DoiPill'
+import { BookmarkToggle } from '../bookmarks/BookmarkToggle'
 import { cardStyles } from '../../components/Card'
 import { pageStyles } from '../../components/Page'
 import {
@@ -311,6 +312,7 @@ export function PublicationDetailPage() {
               ].filter(Boolean).join(' · ')}
             </p>
             <div className="mt-3 flex flex-wrap items-center gap-2">
+              <BookmarkToggle projectId={projectId} publicationId={publication.id} />
               <Badge variant={stage.variant}>{stage.label}</Badge>
               <PdfAvailabilityPill
                 available={Boolean(publication.fullText?.available)}

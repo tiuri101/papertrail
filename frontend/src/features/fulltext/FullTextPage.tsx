@@ -6,6 +6,7 @@ import { apiRequest } from '../../api/client'
 import { cardStyles } from '../../components/Card'
 import { CountPill } from '../../components/CountPill'
 import { DoiPill } from '../../components/DoiPill'
+import { BookmarkToggle } from '../bookmarks/BookmarkToggle'
 import { GoBackButton } from '../../components/GoBackButton'
 import { InfoBox } from '../../components/InfoBox'
 import { IconAlertTriangle, IconArrowRight } from '../../components/icons'
@@ -214,6 +215,7 @@ function RetrievalCard({ projectId, retrieval, saving, onSubmit, onSkip, skippin
             pageCount={fullTextDocument.data.document?.pageCount}
           />
         ) : null}
+        <BookmarkToggle projectId={projectId} publicationId={publication.id} />
         <DoiPill doi={publication.doi} />
         {isSafeHttpUrl(publication.publisherUrl) ? (
           <PublisherLinkPill url={publication.publisherUrl} />

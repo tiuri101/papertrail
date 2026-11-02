@@ -41,6 +41,38 @@ class OllamaClientProtocol(Protocol):
         ...
 
 
+def fetch_ollama_models(
+    base_url: str, *, headers: dict[str, str], timeout: int
+) -> list[str]:
+    """Return the model tags installed on an Ollama server, sorted and de-duplicated.
+
+    Requires only a base URL, so it can be called before a model has been chosen.
+    """
+    try:
+        response = httpx.get(
+            f"{base_url}/api/tags", headers=headers, timeout=timeout
+        )
+        response.raise_for_status()
+        body = response.json()
+    except (httpx.TimeoutException, httpx.NetworkError) as exc:
+        raise OllamaTransientError("Ollama is unreachable") from exc
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code >= 500:
+            raise OllamaTransientError("Ollama returned a server error") from exc
+        raise OllamaResponseError(
+            f"Ollama returned HTTP {exc.response.status_code}"
+        ) from exc
+    except (ValueError, TypeError) as exc:
+        raise OllamaResponseError("Ollama returned an invalid response") from exc
+    return sorted(
+        {
+            str(model.get("name") or model.get("model"))
+            for model in body.get("models", [])
+            if isinstance(model, dict) and (model.get("name") or model.get("model"))
+        }
+    )
+
+
 class OllamaClient:
     def __init__(self, settings: Settings):
         if not settings.ollama_base_url or not settings.ollama_model:
@@ -56,27 +88,9 @@ class OllamaClient:
         )
 
     def test_connection(self) -> dict[str, object]:
-        try:
-            response = httpx.get(
-                f"{self.base_url}/api/tags", headers=self.headers, timeout=self.timeout
-            )
-            response.raise_for_status()
-            body = response.json()
-        except (httpx.TimeoutException, httpx.NetworkError) as exc:
-            raise OllamaTransientError("Ollama is unreachable") from exc
-        except httpx.HTTPStatusError as exc:
-            if exc.response.status_code >= 500:
-                raise OllamaTransientError("Ollama returned a server error") from exc
-            raise OllamaResponseError(
-                f"Ollama returned HTTP {exc.response.status_code}"
-            ) from exc
-        except (ValueError, TypeError) as exc:
-            raise OllamaResponseError("Ollama returned an invalid response") from exc
-        names = {
-            str(model.get("name") or model.get("model"))
-            for model in body.get("models", [])
-            if isinstance(model, dict)
-        }
+        names = fetch_ollama_models(
+            self.base_url, headers=self.headers, timeout=self.timeout
+        )
         return {
             "available": True,
             "modelAvailable": self.model in names,

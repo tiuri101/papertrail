@@ -9,6 +9,7 @@ import { tableBaseClass } from '../../components/layoutStyles'
 import { Page } from '../../components/Page'
 import { DEFAULT_TABLE_PAGE_SIZE, PaginationControls, PaginationSummary } from '../../components/Pagination'
 import { SortableColumnHeader } from '../../components/SortableColumnHeader'
+import { BookmarkToggle } from '../bookmarks/BookmarkToggle'
 import { StageEyebrow } from '../projects/StageEyebrow'
 import { extractionStatusLabel } from '../extraction/extractionStatus'
 
@@ -81,9 +82,19 @@ function statusLabel(status: string | undefined): string {
   return status.charAt(0).toUpperCase() + status.slice(1).replace(/_/g, ' ')
 }
 
-function buildColumns(data: FinalResultsResponse): Column[] {
+function buildColumns(data: FinalResultsResponse, projectId: string): Column[] {
   const columns: Column[] = [
-    { key: 'title', label: 'Title', getValue: (item) => item.publication.title },
+    {
+      key: 'title',
+      label: 'Title',
+      getValue: (item) => item.publication.title,
+      render: (item) => (
+        <span className="flex items-start gap-2">
+          <BookmarkToggle projectId={projectId} publicationId={item.publication.id} />
+          <span className="min-w-0">{item.publication.title}</span>
+        </span>
+      ),
+    },
     { key: 'authors', label: 'Authors', getValue: (item) => item.publication.authors ?? '—' },
     { key: 'year', label: 'Year', getValue: (item) => item.publication.publicationYear },
     { key: 'venue', label: 'Venue', getValue: (item) => item.publication.venue ?? '—' },
@@ -205,7 +216,7 @@ export function FinalResultsPage() {
     enabled: Boolean(projectId),
   })
 
-  const columns = useMemo(() => (query.data ? buildColumns(query.data) : []), [query.data])
+  const columns = useMemo(() => (query.data ? buildColumns(query.data, projectId) : []), [query.data, projectId])
 
   const filteredItems = useMemo(() => {
     if (!query.data) return []
