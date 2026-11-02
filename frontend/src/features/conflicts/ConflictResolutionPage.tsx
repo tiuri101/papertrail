@@ -11,6 +11,7 @@ import { tableBaseClass } from '../../components/layoutStyles'
 import { Textarea } from '../../components/Textarea'
 import { useProjectManageState } from '../../hooks/useCanManageProject'
 import { isSafeHttpUrl } from '../../lib/safeUrl'
+import { BookmarkToggle } from '../bookmarks/BookmarkToggle'
 import { StageEyebrow } from '../projects/StageEyebrow'
 
 interface ConflictPublication {
@@ -119,6 +120,7 @@ export function ConflictResolutionPage() {
         {list.map((conflict) => (
           <ConflictCard
             key={conflict.publicationId}
+            projectId={projectId}
             conflict={conflict}
             resolving={resolve.isPending}
             addingReviewer={addReviewer.isPending}
@@ -131,7 +133,8 @@ export function ConflictResolutionPage() {
   )
 }
 
-function ConflictCard({ conflict, resolving, addingReviewer, onResolve, onAddReviewer }: {
+function ConflictCard({ projectId, conflict, resolving, addingReviewer, onResolve, onAddReviewer }: {
+  projectId: string
   conflict: ConflictItem
   resolving: boolean
   addingReviewer: boolean
@@ -146,7 +149,10 @@ function ConflictCard({ conflict, resolving, addingReviewer, onResolve, onAddRev
 
   return (
     <Card as="li" className="text-text-secondary">
-      <h2>{publication.title}</h2>
+      <div className="flex items-start justify-between gap-3">
+        <h2>{publication.title}</h2>
+        <BookmarkToggle projectId={projectId} publicationId={conflict.publicationId} />
+      </div>
       <p className="text-text-muted">{publication.authors ?? 'Unknown authors'}</p>
       {publication.abstract ? <p>{publication.abstract}</p> : null}
       {link ? <p><a href={link} target="_blank" rel="noreferrer">View publication</a></p> : null}

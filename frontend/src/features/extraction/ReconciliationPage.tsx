@@ -8,6 +8,7 @@ import { Button } from '../../components/Button'
 import { Card } from '../../components/Card'
 import { CountPill } from '../../components/CountPill'
 import { DoiPill } from '../../components/DoiPill'
+import { BookmarkToggle } from '../bookmarks/BookmarkToggle'
 import { Input } from '../../components/Input'
 import { tableBaseClass, tableMobileScrollClass, toolbarClass } from '../../components/layoutStyles'
 import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
@@ -111,6 +112,7 @@ export function ReconciliationPage() {
             <h2>{item.publication.title}</h2>
             <p className="text-text-muted">{item.publication.authors ?? 'Unknown authors'}</p>
             <div className="flex flex-wrap items-center gap-3">
+              <BookmarkToggle projectId={projectId} publicationId={item.publication.id} />
               <DoiPill doi={item.publication.doi} />
               {isSafeHttpUrl(item.publication.publisherUrl) ? (
                 <PublisherLinkPill url={item.publication.publisherUrl} />

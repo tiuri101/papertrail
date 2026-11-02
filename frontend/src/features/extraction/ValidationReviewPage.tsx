@@ -5,6 +5,7 @@ import { Link, useNavigate, useParams } from 'react-router-dom'
 import { apiRequest } from '../../api/client'
 import { CountPill } from '../../components/CountPill'
 import { DoiPill } from '../../components/DoiPill'
+import { BookmarkToggle } from '../bookmarks/BookmarkToggle'
 import { HighlightedText } from '../../components/HighlightedText'
 import { PublicationListSortHeader } from '../../components/PublicationListSortHeader'
 import {
@@ -146,12 +147,17 @@ function ValidationRow({
     <li className={reviewWorkCardClass} onClick={openPublication}>
       <div className={reviewWorkGridClass}>
         <div className={reviewWorkTitleClass}>
-          <Link className={reviewWorkTitleLinkClass} to={detailHref}>
-            <h2 className={reviewWorkTitleTextClass}>
-              <HighlightedText text={publication.title} keywords={highlightKeywords} />
-            </h2>
-          </Link>
-          <div className={reviewWorkMetadataClass}>{publication.authors ?? 'Unknown authors'}</div>
+          <div className="flex items-start gap-2">
+            <div className="min-w-0 flex-1">
+              <Link className={reviewWorkTitleLinkClass} to={detailHref}>
+                <h2 className={reviewWorkTitleTextClass}>
+                  <HighlightedText text={publication.title} keywords={highlightKeywords} />
+                </h2>
+              </Link>
+              <div className={reviewWorkMetadataClass}>{publication.authors ?? 'Unknown authors'}</div>
+            </div>
+            <BookmarkToggle projectId={projectId} publicationId={publication.id} />
+          </div>
         </div>
         <span className={reviewWorkVenueClass} title={publication.venue ?? undefined}>
           {publication.venue ?? '—'}{publication.publicationYear ? ` (${publication.publicationYear})` : ''}

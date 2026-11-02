@@ -82,6 +82,11 @@ const HelpPage = lazy(async () => {
   return { default: module.HelpPage }
 })
 
+const BookmarksPage = lazy(async () => {
+  const module = await import('../features/bookmarks/BookmarksPage')
+  return { default: module.BookmarksPage }
+})
+
 type AdminTabId = 'general' | 'workflow' | 'ai' | 'danger'
 
 interface AdminTab {
@@ -273,6 +278,14 @@ export function App() {
             element={(
               <Suspense fallback={<main className={pageStyles}><p>Loading help…</p></main>}>
                 <HelpPage />
+              </Suspense>
+            )}
+          />
+          <Route
+            path="/bookmarks"
+            element={(
+              <Suspense fallback={<main className={pageStyles}><p>Loading bookmarks…</p></main>}>
+                <BookmarksPage />
               </Suspense>
             )}
           />

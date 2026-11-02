@@ -6,7 +6,7 @@ import { apiRequest } from '../api/client'
 import { Button, IconButton } from '../components/Button'
 import { Page } from '../components/Page'
 import { DecorativeDocTrail } from '../components/DecorativeDocTrail'
-import { IconFolder, IconHelpCircle, IconPerson, IconSettings, IconUsers } from '../components/icons'
+import { IconBookmark, IconFolder, IconHelpCircle, IconPerson, IconSettings, IconUsers } from '../components/icons'
 import { MOBILE_MENU_SECTION_SLOT_ID, MobileMenuContext } from '../components/mobileMenu'
 import { ThemeToggle } from '../components/ThemeToggle'
 import { cn } from '../lib/cn'
@@ -28,6 +28,10 @@ const HEADER_OVERFLOW_SAFETY_PX = 20
 function CollapsibleNavLinks({ isAdmin }: { isAdmin: boolean }) {
   return (
     <>
+      <NavLink to="/bookmarks" className={({ isActive }) => cn(navLinkBase, isActive && navLinkActive)}>
+        <IconBookmark />
+        Bookmarks
+      </NavLink>
       {isAdmin ? (
         <NavLink to="/users" className={({ isActive }) => cn(navLinkBase, isActive && navLinkActive)}>
           <IconUsers />
@@ -262,6 +266,10 @@ export function AppShell() {
             </IconButton>
           </div>
           <nav className="grid gap-1">
+            <NavLink to="/bookmarks" className={cn(navLinkBase, 'w-full justify-start')} onClick={() => setMobileMenuOpen(false)}>
+              <IconBookmark />
+              Bookmarks
+            </NavLink>
             {isAdmin ? (
               <NavLink to="/users" className={cn(navLinkBase, 'w-full justify-start')} onClick={() => setMobileMenuOpen(false)}>
                 <IconUsers />
