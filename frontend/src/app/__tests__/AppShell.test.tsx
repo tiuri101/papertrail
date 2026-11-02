@@ -99,6 +99,7 @@ describe('AppShell', () => {
 
     expect(screen.getByRole('button', { name: 'Sign Out' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Users' })).toHaveAttribute('href', '/users')
+    expect(screen.getByRole('link', { name: 'Bookmarks' })).toHaveAttribute('href', '/bookmarks')
     expect(screen.queryByRole('button', { name: 'Main menu' })).not.toBeInTheDocument()
   })
 
@@ -166,6 +167,13 @@ describe('AppShell', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Main menu' }))
     const drawer = screen.getByRole('dialog', { name: 'Main menu' })
     expect(within(drawer).getByRole('link', { name: 'Help' })).toHaveAttribute('href', '/help')
+  })
+
+  it('exposes Bookmarks to every signed-in user from the mobile menu', () => {
+    renderShell(reviewerSession)
+    fireEvent.click(screen.getByRole('button', { name: 'Main menu' }))
+    const drawer = screen.getByRole('dialog', { name: 'Main menu' })
+    expect(within(drawer).getByRole('link', { name: 'Bookmarks' })).toHaveAttribute('href', '/bookmarks')
   })
 
   it('shows user administration to the administrator', () => {

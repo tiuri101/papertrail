@@ -831,6 +831,11 @@ RETRY_SAFETY_REVIEW: dict[str, str] = {
         "naturally idempotent: returns the ExportArtifact already produced for "
         "this job id instead of building a second one"
     ),
+    "export_bookmarks": (
+        "naturally idempotent: the bundle is written to a path derived from "
+        "the job id, so a retry overwrites the same file, and only older "
+        "exports of the same user are ever deleted"
+    ),
     "extract_document_text": (
         "transactionally atomic: a completed extraction returns immediately, "
         "and a restart deletes the extraction's page rows before re-inserting"

@@ -11,6 +11,7 @@ import { isSafeHttpUrl } from '../../lib/safeUrl'
 import { fullTextDocumentEndpoint, type FullTextDocumentState } from '../fulltext/useFullTextDocument'
 import type { PublicationSummary } from '../publications/types'
 import { Button } from '../../components/Button'
+import { BookmarkToggle } from '../bookmarks/BookmarkToggle'
 
 /**
  * Publication title/authors/abstract, PDF/DOI/publisher pills, and the "Open PDF" link shared by
@@ -44,7 +45,7 @@ export function ReviewPublicationHeader({
         </Link>
       </h2>
       <div className="flex flex-wrap items-center gap-3 mt-2 max-[760px]:gap-2">
-        <DoiPill doi={publication.doi} />
+        <BookmarkToggle projectId={projectId} publicationId={publicationId} />\n        <DoiPill doi={publication.doi} />
         {isSafeHttpUrl(publication.publisherUrl) ? (
           <PublisherLinkPill url={publication.publisherUrl} />
         ) : null}

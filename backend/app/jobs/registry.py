@@ -24,6 +24,7 @@ from sqlalchemy.orm import Session
 
 from app.analysis.jobs import STAGE_ANALYSIS_JOB, generate_stage_analysis_job
 from app.analysis.rq_jobs import RQ_SYNTHESIS_JOB, generate_rq_synthesis_job
+from app.bookmarks.exports import BOOKMARK_EXPORT_JOB, export_bookmarks_job
 from app.deduplication.jobs import (
     assess_duplicate_candidates_job,
     detect_duplicates_job,
@@ -138,6 +139,12 @@ JOB_DEFINITIONS: dict[str, JobDefinition] = {
         worker_pool=WorkerPool.GENERAL,
         label="Generate project export",
         stage="Reporting and export",
+    ),
+    BOOKMARK_EXPORT_JOB: JobDefinition(
+        handler=export_bookmarks_job,
+        worker_pool=WorkerPool.GENERAL,
+        label="Export bookmarked publications",
+        stage="Bookmarks",
     ),
     TEXT_JOB: JobDefinition(
         handler=extract_document_text_job,

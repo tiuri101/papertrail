@@ -28,6 +28,7 @@ import {
   IconUpload,
 } from '../../components/icons'
 import { DoiPill } from '../../components/DoiPill'
+import { BookmarkToggle } from '../bookmarks/BookmarkToggle'
 import { PdfAvailabilityPill } from '../../components/PdfAvailabilityPill'
 import { PublicationListSortHeader } from '../../components/PublicationListSortHeader'
 import { RowActionsMenu } from '../../components/RowActionsMenu'
@@ -266,11 +267,14 @@ function PublicationRow({
             />
           ) : null}
         </span>
-        <div className="min-w-0 max-[900px]:[grid-area:title]">
-          <Link className="h-auto min-h-0 whitespace-normal text-left text-text [overflow-wrap:anywhere] hover:text-primary hover:no-underline" to={detailHref}>
-            <h2 className={reviewWorkTitleTextClass}><HighlightedText text={publication.title} keywords={highlightKeywords} /></h2>
-          </Link>
-          <div className="overflow-hidden text-ellipsis whitespace-nowrap text-[0.86rem] text-text-secondary">{publication.authors ?? 'Unknown authors'}</div>
+        <div className="flex min-w-0 items-start gap-2 max-[900px]:[grid-area:title]">
+          <div className="min-w-0 flex-1">
+            <Link className="h-auto min-h-0 whitespace-normal text-left text-text [overflow-wrap:anywhere] hover:text-primary hover:no-underline" to={detailHref}>
+              <h2 className={reviewWorkTitleTextClass}><HighlightedText text={publication.title} keywords={highlightKeywords} /></h2>
+            </Link>
+            <div className="overflow-hidden text-ellipsis whitespace-nowrap text-[0.86rem] text-text-secondary">{publication.authors ?? 'Unknown authors'}</div>
+          </div>
+          <BookmarkToggle projectId={projectId} publicationId={publication.id} />
         </div>
         <div className="contents [&>*]:min-w-0 max-[600px]:flex max-[600px]:flex-wrap max-[600px]:items-center max-[600px]:gap-x-3 max-[600px]:gap-y-1 max-[600px]:text-[0.8rem] max-[600px]:[grid-area:meta]">
           <span className="overflow-hidden text-ellipsis whitespace-nowrap text-[0.86rem] text-text-secondary max-[900px]:[grid-area:year] max-[600px]:text-[inherit]">{publication.publicationYear ?? '—'}</span>

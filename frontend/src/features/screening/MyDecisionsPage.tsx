@@ -9,6 +9,7 @@ import { Page } from '../../components/Page'
 import { ConfirmButton } from '../../components/ConfirmButton'
 import { CountPill } from '../../components/CountPill'
 import { DoiPill } from '../../components/DoiPill'
+import { BookmarkToggle } from '../bookmarks/BookmarkToggle'
 import { HighlightedText } from '../../components/HighlightedText'
 import { IconAlertTriangle } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
@@ -296,13 +297,18 @@ function DecisionRow({
     <li className={reviewWorkCardClass} onClick={openPublication}>
       <div className={reviewWorkGridClass}>
         <div className={reviewWorkTitleClass}>
-          <Link className={reviewWorkTitleLinkClass} to={detailHref}>
-            <h2 className={reviewWorkTitleTextClass}>
-              <HighlightedText text={publication.title} keywords={highlightKeywords} />
-            </h2>
-          </Link>
-          <div className={reviewWorkMetadataClass}>
-            {publication.authors ?? 'Unknown authors'}
+          <div className="flex items-start gap-2">
+            <div className="min-w-0 flex-1">
+              <Link className={reviewWorkTitleLinkClass} to={detailHref}>
+                <h2 className={reviewWorkTitleTextClass}>
+                  <HighlightedText text={publication.title} keywords={highlightKeywords} />
+                </h2>
+              </Link>
+              <div className={reviewWorkMetadataClass}>
+                {publication.authors ?? 'Unknown authors'}
+              </div>
+            </div>
+            <BookmarkToggle projectId={projectId} publicationId={publication.id} />
           </div>
         </div>
         <span className={reviewWorkVenueClass} title={publication.venue ?? undefined}>

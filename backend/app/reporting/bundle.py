@@ -7,21 +7,29 @@ from sqlalchemy.orm import Session
 
 from app.fulltext.documents import active_document
 from app.fulltext.storage import storage_path
+from app.publications.models import Publication
 from app.reporting.bibtex import build_bibtex_for_publications, publications_for_scope
 
 
 def build_publication_bundle(
     db: Session, project_id: str, publication_ids: list[str]
 ) -> bytes:
+    publications = publications_for_scope(
+        db, project_id, "selected", None, publication_ids
+    )
+    return build_bundle_for_publications(db, publications)
+
+
+def build_bundle_for_publications(
+    db: Session, publications: list[Publication]
+) -> bytes:
     """Build a zip with one combined metadata.bib and each publication's PDF.
 
     PDF files are named after their BibTeX citation key so a .bib entry and
     its matching PDF share a filename. Publications without an attached (or
-    readable) PDF are skipped and listed in MISSING_PDFS.txt instead.
+    readable) PDF are skipped and listed in MISSING_PDFS.txt instead. The
+    publications may come from different projects (the bookmarks export).
     """
-    publications = publications_for_scope(
-        db, project_id, "selected", None, publication_ids
-    )
     bibtex_text, keys = build_bibtex_for_publications(publications)
     missing: list[str] = []
     buffer = BytesIO()

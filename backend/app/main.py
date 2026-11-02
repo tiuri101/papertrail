@@ -15,6 +15,7 @@ from app.api.errors import install_error_handlers
 from app.api.health import router as health_router
 from app.api.health import system_router
 from app.audit.routes import router as audit_router
+from app.bookmarks.routes import router as bookmarks_router
 from app.conflicts.routes import router as conflicts_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging
@@ -103,6 +104,7 @@ def create_app() -> FastAPI:
     app.include_router(jobs_router, prefix=settings.api_prefix)
     app.include_router(llm_router, prefix=settings.api_prefix)
     app.include_router(publications_router, prefix=settings.api_prefix)
+    app.include_router(bookmarks_router, prefix=settings.api_prefix)
     app.include_router(deduplication_router, prefix=settings.api_prefix)
     app.include_router(screening_router, prefix=settings.api_prefix)
     app.include_router(conflicts_router, prefix=settings.api_prefix)

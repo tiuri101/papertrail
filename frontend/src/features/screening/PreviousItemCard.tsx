@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom'
 import { Button } from '../../components/Button'
 import { Card } from '../../components/Card'
 import { DoiPill } from '../../components/DoiPill'
+import { BookmarkToggle } from '../bookmarks/BookmarkToggle'
 import { HighlightedText } from '../../components/HighlightedText'
 import { PublisherLinkPill } from '../../components/PublisherLinkPill'
 import { usePaperTextStyle } from '../../hooks/usePaperTextStyle'
@@ -79,6 +80,7 @@ export function PreviousItemCard({
         </Link>
       </h2>
       <div className="flex flex-wrap items-center gap-3 mt-2">
+        <BookmarkToggle projectId={projectId} publicationId={previousItem.publication.id} />
         <DoiPill doi={previousItem.publication.doi} />
         {isSafeHttpUrl(previousItem.publication.publisherUrl) ? (
           <PublisherLinkPill url={previousItem.publication.publisherUrl} />

@@ -290,3 +290,19 @@ export function IconX() {
     </svg>
   )
 }
+
+export function IconBookmark() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" fillRule="evenodd">
+      <path d="M6 3h12v18l-6-4-6 4V3Zm2 2v12.3l4-2.7 4 2.7V5H8Z" />
+    </svg>
+  )
+}
+
+export function IconBookmarkFilled() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M6 3h12v18l-6-4-6 4V3Z" />
+    </svg>
+  )
+}
