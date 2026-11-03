@@ -11,6 +11,7 @@ from sqlalchemy import select
 from app.accounts.service import create_user, hash_token
 from app.audit.models import AuditEvent
 from app.core.config import get_settings
+from app.deduplication.service import detect_duplicates
 from app.fulltext.models import (
     FullTextRetrieval,
     PublicationDocument,
@@ -1243,6 +1244,10 @@ def test_create_agent_publication_creates_and_enrolls_in_screening(client, db) -
     assert publication.project_id == project.id
     assert publication.authors == "Doe, Jane and Smith, John"
     assert publication.publication_year == 2026
+    # Like any late addition, it is checked for duplicates before screening.
+    assert publication.duplicate_check_pending is True
+    detect_duplicates(db, project.id, [publication.id])
+    db.commit()
 
     work_item = db.scalar(
         select(ScreeningWorkItem).where(

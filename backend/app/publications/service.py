@@ -143,7 +143,7 @@ def create_publication(
     publication = Publication(project_id=project.id, **values)
     db.add(publication)
     db.flush()
-    sync_new_publications_with_stage(db, project, [publication.id])
+    hold_for_duplicate_check(db, project, [publication.id], actor_id)
     record_audit(
         db,
         action=audit_action,
@@ -300,7 +300,8 @@ def normalize_imported_records(db: Session, import_batch_id: str) -> int:
 def hold_for_duplicate_check(
     db: Session, project: Project, publication_ids: list[str], actor_id: str | None
 ) -> None:
-    """Route records imported after duplicate review through duplicate
+    """Route records added after duplicate review -- imported, or added one
+    at a time by hand or by the browser helper -- through duplicate
     detection before they reach screening.
 
     Before duplicate review there is nothing to do: the whole project is

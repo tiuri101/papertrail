@@ -258,6 +258,49 @@ def test_reimport_mid_screening_merges_into_the_screened_records(
     }
 
 
+def test_a_manually_added_duplicate_is_checked_and_merged_into_the_screened_record(
+    client, db, session_factory, tmp_path, monkeypatch
+) -> None:
+    csrf, project_id, _search_1, originals, _admin = _screening_project(
+        client, db, session_factory, tmp_path, monkeypatch
+    )
+    added = _post(
+        client, csrf, f"{project_id}/publications",
+        {"title": "Paper 1 (added by hand)", "doi": "10.1/p1"},
+    )
+    assert added.status_code == 201, added.json()
+    new_id = added.json()["id"]
+    db.expire_all()
+    assert db.get(Publication, new_id).duplicate_check_pending is True
+    create_screening_work_items(db, db.get(Project, project_id), TA)
+    db.commit()
+    assert _work_item_count(db, new_id) == 0
+
+    _run_queued_jobs(session_factory)
+    db.expire_all()
+    assert db.get(Publication, new_id).merged_into_id == originals["Paper 1"]
+    assert screened_publication_ids(db, [originals["Paper 1"]])
+
+
+def test_a_manually_added_distinct_publication_reaches_screening_once_checked(
+    client, db, session_factory, tmp_path, monkeypatch
+) -> None:
+    csrf, project_id, _search_1, _originals, _admin = _screening_project(
+        client, db, session_factory, tmp_path, monkeypatch
+    )
+    added = _post(
+        client, csrf, f"{project_id}/publications",
+        {"title": "An entirely unrelated study", "doi": "10.1/other"},
+    )
+    assert added.status_code == 201, added.json()
+    new_id = added.json()["id"]
+
+    _run_queued_jobs(session_factory)
+    db.expire_all()
+    assert db.get(Publication, new_id).duplicate_check_pending is False
+    assert _work_item_count(db, new_id) > 0
+
+
 def test_records_imported_mid_screening_wait_for_their_duplicate_check(
     client, db, session_factory, tmp_path, monkeypatch
 ) -> None:
