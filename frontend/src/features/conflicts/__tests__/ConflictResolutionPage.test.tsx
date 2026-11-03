@@ -41,6 +41,30 @@ describe('ConflictResolutionPage', () => {
     expect(screen.getByText('Seems off-topic')).toBeInTheDocument()
   })
 
+  it('shows the decisions of a merged duplicate whose outcome disagreed', async () => {
+    const mergedConflict = {
+      ...conflict,
+      decisions: [conflict.decisions[0]],
+      mergedDecisions: [
+        { reviewer: { id: 'r2', displayName: 'Reviewer Two' }, outcome: 'exclude', notes: null },
+      ],
+    }
+    mockFetch(async (input) => {
+      const path = String(input)
+      if (path.endsWith('/projects/p1')) return jsonResponse({ id: 'p1', canManage: true })
+      return jsonResponse([mergedConflict])
+    })
+    renderWithProviders(<ConflictResolutionPage />, {
+      route: '/projects/p1/conflicts/title_abstract',
+      path: '/projects/:projectId/conflicts/:stage',
+    })
+
+    expect(await screen.findByText(/A duplicate record of this publication was merged/)).toBeInTheDocument()
+    const mergedRow = screen.getByText('merged duplicate record').closest('tr')!
+    expect(mergedRow).toHaveTextContent('Reviewer Two')
+    expect(mergedRow).toHaveTextContent('Exclude')
+  })
+
   it('records a separate administrator consensus decision with a note', async () => {
     let resolved = false
     const fetchMock = mockFetch(async (input, init) => {

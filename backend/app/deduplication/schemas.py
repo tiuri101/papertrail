@@ -78,6 +78,9 @@ class CandidateResponse(ApiModel):
         default=None, serialization_alias="canonicalPublicationId"
     )
     merge_id: str | None = Field(default=None, serialization_alias="mergeId")
+    #: The project stage the active merge was made in (None for merges
+    #: recorded before this was tracked, all made in duplicate review).
+    merge_stage: str | None = Field(default=None, serialization_alias="mergeStage")
     reserved_until: datetime | None = Field(
         default=None, serialization_alias="reservedUntil"
     )

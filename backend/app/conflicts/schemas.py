@@ -44,3 +44,8 @@ class ConflictItem(ApiModel):
     publication_id: str = Field(serialization_alias="publicationId")
     publication: ConflictPublication
     decisions: list[ConflictDecision]
+    #: Decisions made on a duplicate record merged into this one whose
+    #: outcome disagreed -- the reason this publication needs a decision.
+    merged_decisions: list[ConflictDecision] = Field(
+        default_factory=list, serialization_alias="mergedDecisions"
+    )

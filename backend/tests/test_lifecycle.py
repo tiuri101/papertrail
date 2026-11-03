@@ -7,6 +7,7 @@ from app.audit.models import AuditEvent
 from app.conflicts.models import FinalDecision
 from app.conflicts.service import record_final_decision
 from app.core.config import get_settings
+from app.deduplication.models import PublicationMerge
 from app.extraction.models import (
     ExtractionStatus,
     ExtractionWorkItem,
@@ -431,10 +432,14 @@ def test_reset_proceeds_when_only_finished_jobs_exist(db) -> None:
 
 
 def test_merge_reversal_is_refused_once_the_project_left_duplicate_review(db) -> None:
-    _admin, project, _publication = create_included_project(db)
+    _admin, project, publication = create_included_project(db)
+    merge_from_duplicate_review = PublicationMerge(
+        stage_at_merge=ProjectStage.DUPLICATE_REVIEW.value,
+        merged_publication_id=publication.id,
+    )
 
     with pytest.raises(MergeReversalStageError) as raised:
-        require_merge_reversal_allowed(db, project)
+        require_merge_reversal_allowed(db, project, merge_from_duplicate_review)
 
     assert raised.value.status_code == 409
     assert raised.value.code == "merge_reversal_stage_locked"

@@ -33,6 +33,9 @@ interface ConflictItem {
   publicationId: string
   publication: ConflictPublication
   decisions: ConflictDecision[]
+  /** Decisions on a duplicate record merged into this one that reached a
+   * different outcome — why this publication needs a decision at all. */
+  mergedDecisions?: ConflictDecision[]
 }
 
 const outcomes = ['include', 'exclude', 'uncertain', 'duplicate']
@@ -143,6 +146,7 @@ function ConflictCard({ projectId, conflict, resolving, addingReviewer, onResolv
 }) {
   const [note, setNote] = useState('')
   const publication = conflict.publication
+  const mergedDecisions = conflict.mergedDecisions ?? []
   const link = publication.doi
     ? `https://doi.org/${publication.doi}`
     : isSafeHttpUrl(publication.publisherUrl) ? publication.publisherUrl : null
@@ -157,6 +161,12 @@ function ConflictCard({ projectId, conflict, resolving, addingReviewer, onResolv
       {publication.abstract ? <p>{publication.abstract}</p> : null}
       {link ? <p><a href={link} target="_blank" rel="noreferrer">View publication</a></p> : null}
       <h3>Reviewer Decisions</h3>
+      {mergedDecisions.length > 0 ? (
+        <p>
+          A duplicate record of this publication was merged into it after both had been screened,
+          and the two reached different outcomes. Decide the outcome for the merged publication.
+        </p>
+      ) : null}
       <div className="overflow-x-auto">
       <table className={`${tableBaseClass} min-w-[36rem]`}>
         <thead>
@@ -170,6 +180,16 @@ function ConflictCard({ projectId, conflict, resolving, addingReviewer, onResolv
           {conflict.decisions.map((decision) => (
             <tr key={decision.reviewer.id}>
               <th scope="row">{decision.reviewer.displayName}</th>
+              <td>{formatOutcome(decision.outcome)}</td>
+              <td>{decision.notes ?? '—'}</td>
+            </tr>
+          ))}
+          {mergedDecisions.map((decision) => (
+            <tr key={`merged-${decision.reviewer.id}`}>
+              <th scope="row">
+                {decision.reviewer.displayName}
+                <span className="block text-[0.78rem] font-medium text-text-muted">merged duplicate record</span>
+              </th>
               <td>{formatOutcome(decision.outcome)}</td>
               <td>{decision.notes ?? '—'}</td>
             </tr>

@@ -8,14 +8,14 @@ from typing import Any, TypeVar
 
 from rapidfuzz.fuzz import ratio
 from sqlalchemy import Select, func, or_, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from app.api.errors import ConflictError, NotFoundError
 from app.audit.service import record_audit
 from app.deduplication.models import DuplicateCandidate, PublicationMerge
 from app.fulltext.models import PublicationDocument
 from app.jobs.service import enqueue_job
-from app.projects.models import Project, ProjectStage
+from app.projects.models import Project, ProjectStage, ScreeningStage
 from app.publications.models import (
     ConflictStatus,
     MetadataConflict,
@@ -23,6 +23,7 @@ from app.publications.models import (
     PublicationSource,
 )
 from app.publications.service import IMPORTANT_FIELDS, values_conflict
+from app.screening.models import ScreeningDecision, ScreeningWorkItem
 
 UNIQUE_IDENTIFIER_FIELDS = ("pubmed_id", "arxiv_id")
 CONTEXT_IDENTIFIER_FIELDS = ("isbn", "issn")
@@ -210,7 +211,47 @@ def _duplicate_assessment(
     return reasons, title_score, author_score, year_agreement, confidence
 
 
-def detect_duplicates(db: Session, project_id: str) -> int:
+# Stages after duplicate review in which new records can still arrive (see
+# sync_new_publications_with_stage) and so still need checking and merging.
+DEDUP_DURING_REVIEW_STAGES = (
+    ProjectStage.TITLE_ABSTRACT,
+    ProjectStage.FULL_TEXT,
+    ProjectStage.EXTRACTION,
+    ProjectStage.COMPLETED,
+)
+
+
+def screening_aware_canonical(
+    db: Session, left_id: str, right_id: str, preferred_id: str
+) -> str | None:
+    """Which record an automatic merge may keep, or None if it must not merge.
+
+    Screening decisions stay with the record they were made on, so the record
+    carrying them is always the one kept. When both carry decisions, choosing
+    is a reviewer's call -- never an automatic one.
+    """
+    from app.screening.service import screened_publication_ids
+
+    screened = screened_publication_ids(db, (left_id, right_id))
+    if len(screened) == 2:
+        return None
+    if screened:
+        return next(iter(screened))
+    return preferred_id
+
+
+def detect_duplicates(
+    db: Session, project_id: str, publication_ids: list[str] | None = None
+) -> int:
+    """Find (and auto-merge exact) duplicates among the active publications.
+
+    With `publication_ids`, only pairs involving those publications are
+    assessed -- the incremental check for records imported after duplicate
+    review. Either way, the checked records' `duplicate_check_pending` hold is
+    cleared and any that are not part of an unresolved pair are released into
+    screening.
+    """
+    focus = set(publication_ids) if publication_ids is not None else None
     publications = list(
         db.scalars(
             select(Publication)
@@ -235,6 +276,10 @@ def detect_duplicates(db: Session, project_id: str) -> int:
     # reviewer's already-recorded "not duplicate" decision) that a previous,
     # possibly differently-blocked, run already surfaced.
     pairs_to_assess = candidate_pairs(publications) | set(existing_candidates)
+    if focus is not None:
+        pairs_to_assess = {
+            pair for pair in pairs_to_assess if pair[0] in focus or pair[1] in focus
+        }
 
     active_pairs: set[tuple[str, str]] = set()
     # Publications auto-merged away earlier in *this* run: any later pair
@@ -294,12 +339,15 @@ def detect_duplicates(db: Session, project_id: str) -> int:
             # a PublicationMerge.candidate_id -- flush now so a freshly
             # created `existing` already has its id assigned.
             db.flush()
-            canonical, duplicate_publication = sorted(
+            oldest = min(
                 (left, right), key=lambda publication: (publication.created_at, publication.id)
             )
-            merge = merge_publications(db, existing, canonical.id, merged_by_id=None)
+            canonical_id = screening_aware_canonical(db, left.id, right.id, oldest.id)
+            if canonical_id is None:
+                continue
+            merge = merge_publications(db, existing, canonical_id, merged_by_id=None)
             existing.auto_resolved = True
-            merged_away.add(duplicate_publication.id)
+            merged_away.add(merge.merged_publication_id)
             record_audit(
                 db,
                 action="duplicate.auto_merged",
@@ -315,10 +363,39 @@ def detect_duplicates(db: Session, project_id: str) -> int:
             )
 
     for pair, candidate in existing_candidates.items():
+        if focus is not None and pair not in pairs_to_assess:
+            continue
         if candidate.status == "unresolved" and pair not in active_pairs:
             db.delete(candidate)
     db.flush()
+    release_duplicate_check(db, project_id, publication_ids)
     return created
+
+
+def release_duplicate_check(
+    db: Session, project_id: str, publication_ids: list[str] | None = None
+) -> None:
+    """Clear the duplicate-check hold (on these publications, or every held
+    one in the project) and enroll them in screening if the project is past
+    duplicate review. Records still in an unresolved pair stay out until a
+    reviewer resolves it."""
+    from app.publications.service import sync_new_publications_with_stage
+
+    query = select(Publication).where(
+        Publication.project_id == project_id,
+        Publication.duplicate_check_pending.is_(True),
+    )
+    if publication_ids is not None:
+        query = query.where(Publication.id.in_(publication_ids))
+    released = list(db.scalars(query))
+    for publication in released:
+        publication.duplicate_check_pending = False
+    db.flush()
+    project = db.get(Project, project_id)
+    if released and project is not None:
+        sync_new_publications_with_stage(
+            db, project, [publication.id for publication in released]
+        )
 
 
 def snapshot(publication: Publication) -> dict[str, Any]:
@@ -347,6 +424,22 @@ def merge_publications(
     duplicate = db.get(Publication, merged_id)
     if canonical is None or duplicate is None:
         raise NotFoundError("Publication not found")
+    from app.screening.service import screened_publication_ids
+
+    screened = screened_publication_ids(db, (canonical_id, merged_id))
+    if screened and canonical_id not in screened:
+        raise ConflictError(
+            "Keep the record that already has screening decisions: a merge "
+            "does not move them to the kept record"
+        )
+    project = db.get(Project, candidate.project_id)
+    assert project is not None
+    during_review = project.stage in DEDUP_DURING_REVIEW_STAGES
+    if during_review:
+        from app.review_work.finalization import lock_publication_for_finalization
+
+        for publication_id in sorted((canonical_id, merged_id)):
+            lock_publication_for_finalization(db, publication_id)
     canonical_before = snapshot(canonical)
     merged_before = snapshot(duplicate)
     conflicts_created = 0
@@ -438,8 +531,26 @@ def merge_publications(
         merged_before=merged_before,
         moved_source_ids=moved_source_ids,
         moved_document_states=moved_document_states,
+        stage_at_merge=project.stage.value,
+        outcome_conflict_stages=(
+            _reopen_disagreeing_outcomes(db, canonical.id, duplicate.id)
+            if during_review and merged_id in screened
+            else []
+        ),
     )
     db.add(merge)
+    if during_review:
+        from app.publications.deletion import (
+            retract_open_review_work,
+            settle_stage_after_removal,
+        )
+        from app.publications.service import sync_new_publications_with_stage
+
+        retract_open_review_work(db, duplicate.id)
+        # The kept record may itself have been waiting on this pair.
+        sync_new_publications_with_stage(db, project, [canonical.id])
+        db.flush()
+        settle_stage_after_removal(db, project.id)
     if conflicts_created:
         # Give an external metadata provider a chance to break the tie
         # before asking a reviewer: runs in the worker, not this request/job
@@ -454,6 +565,84 @@ def merge_publications(
     db.flush()
     db.refresh(canonical, ["sources"])
     return merge
+
+
+def _reopen_disagreeing_outcomes(
+    db: Session, canonical_id: str, merged_id: str
+) -> list[str]:
+    """Invalidate the kept record's final decision at every screening stage
+    where the merged-away record was finalized differently (or the kept one
+    not at all), so a manager decides with both records' decisions in view.
+    Returns those stages; automatic finalization stays off for them."""
+    from app.conflicts.service import (
+        invalidate_final_decisions,
+        valid_final_decision,
+    )
+    stages: list[str] = []
+    for stage in (ScreeningStage.TITLE_ABSTRACT, ScreeningStage.FULL_TEXT):
+        merged_final = valid_final_decision(db, merged_id, stage)
+        if merged_final is None:
+            continue
+        kept_final = valid_final_decision(db, canonical_id, stage)
+        if kept_final is not None and kept_final.outcome == merged_final.outcome:
+            continue
+        invalidate_final_decisions(
+            db,
+            canonical_id,
+            stage,
+            "A merged duplicate record reached a different outcome",
+        )
+        stages.append(stage.value)
+    return stages
+
+
+def merge_outcome_conflict_stages(db: Session, publication_id: str) -> set[str]:
+    """Screening stages at which an active merge into this publication left
+    outcomes that disagree and need a manager's decision."""
+    stages: set[str] = set()
+    for flagged in db.scalars(
+        select(PublicationMerge.outcome_conflict_stages).where(
+            PublicationMerge.canonical_publication_id == publication_id,
+            PublicationMerge.reversed_at.is_(None),
+        )
+    ):
+        stages.update(flagged or [])
+    return stages
+
+
+def merged_duplicate_decisions(
+    db: Session, publication_id: str, stage: ScreeningStage
+) -> list[ScreeningDecision]:
+    """Current screening decisions on duplicates merged into this publication
+    whose outcome at `stage` disagreed with it."""
+    flagged = [
+        merged_id
+        for merged_id, stages in db.execute(
+            select(
+                PublicationMerge.merged_publication_id,
+                PublicationMerge.outcome_conflict_stages,
+            ).where(
+                PublicationMerge.canonical_publication_id == publication_id,
+                PublicationMerge.reversed_at.is_(None),
+            )
+        )
+        if stage.value in (stages or [])
+    ]
+    if not flagged:
+        return []
+    return list(
+        db.scalars(
+            select(ScreeningDecision)
+            .join(ScreeningWorkItem)
+            .options(joinedload(ScreeningDecision.reviewer))
+            .where(
+                ScreeningWorkItem.publication_id.in_(flagged),
+                ScreeningWorkItem.stage == stage,
+                ScreeningDecision.is_current.is_(True),
+            )
+            .order_by(ScreeningWorkItem.slot_number)
+        )
+    )
 
 
 def reverse_merge(
@@ -632,7 +821,6 @@ def revise_resolution(
         raise ConflictError("Unknown duplicate resolution")
     if candidate.status not in ("merged", "not_duplicate"):
         raise ConflictError("Only a resolved duplicate candidate can be revised")
-    require_merge_reversal_allowed(db, project)
 
     if candidate.status == "merged":
         active_merge = db.scalar(
@@ -643,8 +831,11 @@ def revise_resolution(
         )
         if active_merge is None:
             raise NotFoundError("No active merge to revise for this candidate")
+        require_merge_reversal_allowed(db, project, active_merge)
         # reverse_merge resets the candidate back to "unresolved".
         reverse_merge(db, active_merge, actor_id)
+    else:
+        require_merge_reversal_allowed(db, project)
 
     if candidate.status != "unresolved":
         # Was "not_duplicate": merge_publications' guard needs "unresolved".
@@ -664,9 +855,24 @@ def revise_resolution(
         new_merge = merge_publications(db, candidate, canonical_id, actor_id)
     else:
         mark_not_duplicate(candidate, actor_id, note)
+        release_resolved_pair(db, project, candidate)
 
     transition_if_duplicate_review_complete(db, project)
     return new_merge
+
+
+def release_resolved_pair(
+    db: Session, project: Project, candidate: DuplicateCandidate
+) -> None:
+    """Enroll a pair judged distinct in screening, if the project is past
+    duplicate review and they were waiting on this decision (records already
+    enrolled are left as they are)."""
+    from app.publications.service import sync_new_publications_with_stage
+
+    db.flush()
+    sync_new_publications_with_stage(
+        db, project, [candidate.publication_a_id, candidate.publication_b_id]
+    )
 
 
 def transition_if_duplicate_review_complete(db: Session, project: Project) -> bool:

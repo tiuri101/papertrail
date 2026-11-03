@@ -30,4 +30,19 @@ describe('DuplicateDecisionButtons', () => {
     renderButtons({ recommended: 'a', current: 'a' })
     expect(screen.queryByText('Suggested')).not.toBeInTheDocument()
   })
+
+  it('only lets the screened record be kept when exactly one record is screened', () => {
+    renderButtons({ screenedA: true, screenedB: false })
+    const keepB = screen.getByRole('button', { name: 'Keep Record B' })
+    expect(keepB).toBeDisabled()
+    expect(within(keepB).getByText('Record A has screening decisions, so it must be kept')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Keep Record A' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Not a Duplicate' })).toBeEnabled()
+  })
+
+  it('leaves the choice open when both records are screened', () => {
+    renderButtons({ screenedA: true, screenedB: true })
+    expect(screen.getByRole('button', { name: 'Keep Record A' })).toBeEnabled()
+    expect(screen.getByRole('button', { name: 'Keep Record B' })).toBeEnabled()
+  })
 })

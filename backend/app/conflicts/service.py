@@ -365,6 +365,12 @@ def refresh_automatic_final_decision(
     # the other reviewer and the publication is left with a full set of
     # decisions and no final decision at all.
     lock_publication_for_finalization(db, publication_id)
+    from app.deduplication.service import merge_outcome_conflict_stages
+
+    if stage.value in merge_outcome_conflict_stages(db, publication_id):
+        # A merged duplicate reached a different outcome: this record's own
+        # decisions agreeing doesn't settle it, a manager's decision does.
+        return valid_final_decision(db, publication_id, stage)
     if not decisions_visible(db, publication_id, stage):
         return None
     decisions = current_decisions(db, publication_id, stage)

@@ -20,6 +20,7 @@ from app.conflicts.service import (
     valid_final_decision,
 )
 from app.db.session import get_db
+from app.deduplication.service import merged_duplicate_decisions
 from app.projects.dependencies import require_project_manager_csrf
 from app.projects.models import ScreeningStage
 from app.projects.service import get_project
@@ -48,6 +49,9 @@ def list_conflicts(
                 "publication_id": publication_id,
                 "publication": publication,
                 "decisions": current_decisions(db, publication_id, stage),
+                "merged_decisions": merged_duplicate_decisions(
+                    db, publication_id, stage
+                ),
             }
         )
     return items

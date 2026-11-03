@@ -13,6 +13,7 @@ import { Page } from '../../components/Page'
 import { SectionNavigationLayout } from '../../components/SectionNavigationLayout'
 import { ProjectDashboard } from '../administration/ProjectDashboard'
 import { DuplicateDetectionAction } from '../duplicates/DuplicateDetectionAction'
+import { takesDuplicateDecisions } from '../duplicates/types'
 import { type PdfSummary } from '../imports/PdfMatchReview'
 import { ProjectChecklistPanel } from './ProjectChecklistPanel'
 import { STAGES, StageProgress } from './StageProgress'
@@ -415,7 +416,7 @@ export function ProjectPage() {
                       )
                     ))}
                     {group.stage === 'duplicate_review'
-                      && project.data.stage === 'duplicate_review'
+                      && takesDuplicateDecisions(project.data.stage)
                       && project.data.canManage ? (
                         <DuplicateDetectionAction projectId={projectId} compact />
                       ) : null}

@@ -13,7 +13,7 @@ import { DuplicateComparisonCard } from './DuplicateComparisonCard'
 import { DuplicateDecisionButtons } from './DuplicateDecisionButtons'
 import { DuplicateDecisionEditor } from './DuplicateDecisionEditor'
 import { DuplicateAssessmentAction, DuplicateDetectionAction } from './DuplicateDetectionAction'
-import { recommendedChoice, statusLabel } from './types'
+import { recommendedChoice, statusLabel, takesDuplicateDecisions } from './types'
 import { type DuplicateQueue, useDuplicateQueue } from './useDuplicateQueue'
 
 interface ProjectAccess {
@@ -48,6 +48,8 @@ function ActiveDuplicateCard({ queue }: { queue: DuplicateQueue }) {
       <DuplicateDecisionButtons
         publicationAId={candidate.publicationA.id}
         publicationBId={candidate.publicationB.id}
+        screenedA={candidate.publicationA.screened}
+        screenedB={candidate.publicationB.screened}
         recommended={recommendedChoice(candidate)}
         disabled={pending}
         onMerge={(canonicalPublicationId) => queue.merge.mutate(canonicalPublicationId)}
@@ -111,6 +113,13 @@ export function DuplicateQueuePage() {
         arXiv ID are merged automatically; everything else is shown here for you to compare and
         keep the record you want, or mark as distinct.
       </p>
+      {project.data && project.data.stage !== 'duplicate_review' && takesDuplicateDecisions(project.data.stage) ? (
+        <p className="text-text-muted">
+          Records imported after duplicate review are checked here before they reach screening;
+          they wait until their pair is decided. A merge always keeps the record that already has
+          screening decisions.
+        </p>
+      ) : null}
       {queue.progress ? (
         <CountPill count={queue.progress.remaining}>
           {queue.progress.remaining === 1 ? 'duplicate pair to review' : 'duplicate pairs to review'}
@@ -119,7 +128,7 @@ export function DuplicateQueuePage() {
       <p>
         <Link to={`/projects/${projectId}/duplicates/decisions`}>Review or change past decisions</Link>
       </p>
-      {project.data?.canManage && project.data.stage === 'duplicate_review' ? (
+      {project.data?.canManage && takesDuplicateDecisions(project.data.stage) ? (
         <div className="mb-5 flex flex-wrap items-center gap-x-6 gap-y-3">
           <DuplicateDetectionAction projectId={projectId} compact />
           <DuplicateAssessmentAction projectId={projectId} />

@@ -21,7 +21,7 @@ import { formatSubmittedAtParts } from '../../lib/format'
 import { type SortDirection } from '../../lib/sort'
 import { StageEyebrow } from '../projects/StageEyebrow'
 import { DuplicateDecisionEditor } from './DuplicateDecisionEditor'
-import { type Candidate, statusLabel } from './types'
+import { type Candidate, canReviseDecision, statusLabel } from './types'
 
 interface ProjectAccess {
   stage: string
@@ -170,7 +170,10 @@ export function DuplicateDecisionsPage() {
     placeholderData: keepPreviousData,
   })
 
-  const readOnly = Boolean(project.data) && project.data!.stage !== 'duplicate_review'
+  const projectStage = project.data?.stage
+  const pastDuplicateReview = projectStage !== undefined && projectStage !== 'duplicate_review'
+  const rowReadOnly = (candidate: Candidate) =>
+    projectStage !== undefined && !canReviseDecision(candidate, projectStage)
 
   // Any change to what matches invalidates the page number that was showing.
   const narrow = <T,>(apply: (value: T) => void) => (value: T) => {
@@ -214,12 +217,14 @@ export function DuplicateDecisionsPage() {
       {candidates.isLoading ? <p>Loading…</p> : null}
       {candidates.data ? (
         <>
-          {readOnly ? (
+          {pastDuplicateReview ? (
             <InfoBox icon={<IconAlertTriangle />} tone="warning" alert className="mt-4">
               <h3>Duplicate review is complete for this project</h3>
               <p>
-                Decisions below can be viewed but not changed. To revisit a merge, move the
-                project back to duplicate review from the project page.
+                Decisions made during duplicate review can be viewed but not changed. Pairs found
+                among records imported since then can be changed in the stage they were decided
+                in, unless the merged-away record had screening decisions. To revisit anything
+                else, move the project back to duplicate review from the project page.
               </p>
             </InfoBox>
           ) : null}
@@ -281,7 +286,7 @@ export function DuplicateDecisionsPage() {
                     key={candidate.id}
                     projectId={projectId}
                     candidate={candidate}
-                    readOnly={readOnly}
+                    readOnly={rowReadOnly(candidate)}
                     highlightKeywords={highlightKeywords}
                   />
                 ))}

@@ -31,12 +31,14 @@ from app.deduplication.schemas import (
     UrlCheckOut,
 )
 from app.deduplication.service import (
+    DEDUP_DURING_REVIEW_STAGES,
     claim_next_duplicate,
     duplicate_review_progress,
     lock_candidate_for_update,
     mark_not_duplicate,
     merge_publications,
     release_duplicate_candidate,
+    release_resolved_pair,
     reverse_merge,
     revise_resolution,
     transition_if_duplicate_review_complete,
@@ -47,7 +49,7 @@ from app.projects.dependencies import (
     require_project_manager_csrf,
     require_project_member_csrf,
 )
-from app.projects.models import ProjectStage
+from app.projects.models import Project, ProjectStage
 from app.projects.service import get_project
 from app.publications.models import Publication
 from app.screening.service import screened_publication_ids
@@ -146,6 +148,7 @@ def _candidate_response(
             active_merge.canonical_publication_id if active_merge else None
         ),
         merge_id=active_merge.id if active_merge else None,
+        merge_stage=active_merge.stage_at_merge if active_merge else None,
         reserved_until=candidate.reserved_until,
         reserved_by_id=candidate.reserved_by_id,
     )
@@ -162,6 +165,13 @@ def _single_candidate_response(
         active_merge,
         _load_url_checks(db, *pub_ids),
         screened_publication_ids(db, pub_ids),
+    )
+
+
+def _takes_duplicate_decisions(project: Project) -> bool:
+    return (
+        project.stage == ProjectStage.DUPLICATE_REVIEW
+        or project.stage in DEDUP_DURING_REVIEW_STAGES
     )
 
 
@@ -402,8 +412,10 @@ def rerun_duplicate_detection(
     db: Session = Depends(get_db),
 ) -> dict[str, str]:
     project = get_project(db, project_id)
-    if project.stage != ProjectStage.DUPLICATE_REVIEW:
-        raise DomainError("Duplicate detection can only run during duplicate review")
+    if not _takes_duplicate_decisions(project):
+        raise DomainError(
+            "Duplicate detection can only run during duplicate review or screening"
+        )
     active_job = db.scalar(
         select(BackgroundJob.id).where(
             BackgroundJob.project_id == project_id,
@@ -445,9 +457,9 @@ def rerun_candidate_assessment(
     """Re-check candidate-record links and re-query Crossref / Semantic Scholar
     for the unresolved pairs, without re-running blocking detection."""
     project = get_project(db, project_id)
-    if project.stage != ProjectStage.DUPLICATE_REVIEW:
+    if not _takes_duplicate_decisions(project):
         raise DomainError(
-            "Candidate assessment can only run during duplicate review"
+            "Candidate assessment can only run during duplicate review or screening"
         )
     active_job = db.scalar(
         select(BackgroundJob.id).where(
@@ -495,7 +507,9 @@ def resolve_not_duplicate(
             "Duplicate candidate was already resolved by another reviewer"
         )
     mark_not_duplicate(candidate, admin.id, payload.note)
-    transition_if_duplicate_review_complete(db, get_project(db, project_id))
+    project = get_project(db, project_id)
+    release_resolved_pair(db, project, candidate)
+    transition_if_duplicate_review_complete(db, project)
     record_audit(
         db,
         action="duplicate.not_duplicate",
@@ -604,7 +618,7 @@ def undo_merge(
     # coherent while the project is still in duplicate review, and getting
     # back there from a later stage is the lifecycle layer's job (Move Back),
     # not a silent stage reassignment from here.
-    require_merge_reversal_allowed(db, project)
+    require_merge_reversal_allowed(db, project, merge)
     reverse_merge(db, merge, admin.id)
     record_audit(
         db,
