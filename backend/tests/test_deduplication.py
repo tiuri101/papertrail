@@ -4,6 +4,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from sqlalchemy import select
 
+from app.accounts.models import User
 from app.accounts.service import create_user
 from app.api.errors import ConflictError
 from app.audit.models import AuditEvent
@@ -30,6 +31,12 @@ from app.projects.models import (
     ScreeningStage,
 )
 from app.publications.models import MetadataConflict, Publication, PublicationSource
+from app.screening.models import (
+    ScreeningDecision,
+    ScreeningOutcome,
+    ScreeningWorkItem,
+    WorkItemStatus,
+)
 
 
 def login(client) -> str:
@@ -1335,6 +1342,53 @@ def test_duplicate_list_exposes_resolver_and_active_merge(client, db) -> None:
     still_open = next(c for c in listed if c["status"] == "unresolved")
     assert still_open["mergeId"] is None
     assert still_open["resolvedAt"] is None
+
+
+def test_candidate_records_report_whether_they_were_already_screened(
+    client, db
+) -> None:
+    """A reviewer merging a pair needs to know which record carries screening
+    decisions, since keeping the other one leaves those decisions behind."""
+    project, publications, _merge = _merged_pair(db)
+    admin = db.scalar(select(User).where(User.username == "admin"))
+    work_item = ScreeningWorkItem(
+        project_id=project.id,
+        publication_id=publications[0].id,
+        stage="title_abstract",
+        slot_number=1,
+        assigned_reviewer_id=admin.id,
+        random_rank="rank",
+        status=WorkItemStatus.SUBMITTED,
+    )
+    db.add(work_item)
+    db.flush()
+    db.add(
+        ScreeningDecision(
+            work_item_id=work_item.id,
+            reviewer_id=admin.id,
+            outcome=ScreeningOutcome.INCLUDE,
+            criteria_answers={},
+            version=1,
+            is_current=True,
+        )
+    )
+    db.commit()
+    csrf = login(client)
+
+    listed = client.get(
+        f"/api/v1/projects/{project.id}/duplicates",
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+    still_open = next(c for c in listed if c["status"] == "unresolved")
+    assert still_open["publicationA"]["screened"] is True
+    assert still_open["publicationB"]["screened"] is False
+
+    single = client.get(
+        f"/api/v1/projects/{project.id}/duplicates/{still_open['id']}",
+        headers={"X-CSRF-Token": csrf},
+    ).json()
+    assert single["publicationA"]["screened"] is True
+    assert single["publicationB"]["screened"] is False
 
 
 def test_duplicate_next_and_progress_endpoints(client, db) -> None:

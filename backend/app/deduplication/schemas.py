@@ -22,6 +22,9 @@ class CandidatePublication(ApiModel):
     venue: str | None
     doi: str | None
     publisher_url: str | None = Field(serialization_alias="publisherUrl")
+    #: Whether any screening decision is recorded on this record. Those
+    #: decisions stay with it, so merging it away leaves them behind.
+    screened: bool = False
     #: publisher_url + DOI-URL reachability, written by the
     #: ``assess_duplicate_candidates`` job; empty until it has run.
     url_checks: list[UrlCheckOut] = Field(
@@ -75,6 +78,9 @@ class CandidateResponse(ApiModel):
         default=None, serialization_alias="canonicalPublicationId"
     )
     merge_id: str | None = Field(default=None, serialization_alias="mergeId")
+    #: The project stage the active merge was made in (None for merges
+    #: recorded before this was tracked, all made in duplicate review).
+    merge_stage: str | None = Field(default=None, serialization_alias="mergeStage")
     reserved_until: datetime | None = Field(
         default=None, serialization_alias="reservedUntil"
     )

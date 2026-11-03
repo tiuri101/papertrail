@@ -143,7 +143,7 @@ def create_publication(
     publication = Publication(project_id=project.id, **values)
     db.add(publication)
     db.flush()
-    sync_new_publications_with_stage(db, project, [publication.id])
+    hold_for_duplicate_check(db, project, [publication.id], actor_id)
     record_audit(
         db,
         action=audit_action,
@@ -293,8 +293,41 @@ def normalize_imported_records(db: Session, import_batch_id: str) -> int:
     if created_ids:
         project = db.get(Project, batch.project_id)
         assert project is not None
-        sync_new_publications_with_stage(db, project, created_ids)
+        hold_for_duplicate_check(db, project, created_ids, batch.created_by_id)
     return created
+
+
+def hold_for_duplicate_check(
+    db: Session, project: Project, publication_ids: list[str], actor_id: str | None
+) -> None:
+    """Route records added after duplicate review -- imported, or added one
+    at a time by hand or by the browser helper -- through duplicate
+    detection before they reach screening.
+
+    Before duplicate review there is nothing to do: the whole project is
+    checked when it enters that stage. Afterwards the records are held out
+    of screening and a detection job scoped to them is queued; that job (or,
+    if it gives up, its failure hook) releases them -- see
+    app.deduplication.service.release_duplicate_check.
+    """
+    from app.deduplication.service import DEDUP_DURING_REVIEW_STAGES
+    from app.jobs.service import enqueue_job
+
+    if project.stage not in DEDUP_DURING_REVIEW_STAGES:
+        sync_new_publications_with_stage(db, project, publication_ids)
+        return
+    for publication in db.scalars(
+        select(Publication).where(Publication.id.in_(publication_ids))
+    ):
+        publication.duplicate_check_pending = True
+    enqueue_job(
+        db,
+        "detect_duplicates",
+        {"project_id": project.id, "publication_ids": publication_ids},
+        project_id=project.id,
+        created_by_id=actor_id,
+    )
+    db.flush()
 
 
 def apply_enrichment(

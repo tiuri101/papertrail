@@ -41,6 +41,16 @@ Automatic and manual merges use the same underlying merge record, so the duplica
 
 A merge preserves provenance and transfers related data/documents to the canonical publication according to the workflow rules; it is not a hard delete of the duplicate history.
 
+### Records added after duplicate review
+
+Records added once screening has started — imported, added by hand with **Add publication**, or created by the Browser Helper while capturing a PDF — are checked for duplicates before anyone can screen them. Until that check has run — and, for a pair that needs a decision, until someone resolves it in the duplicate review queue — the new records stay out of the screening queue. Marking a pair **not a duplicate** releases the new record into screening.
+
+Screening decisions always stay with the record they were made on; a merge never moves them. So whenever one record of a pair already has screening decisions (shown with a **Screened** badge), that record is the one kept — automatically for exact matches, and as the only allowed choice in the review queue. The other record's metadata, sources and PDFs are merged into it as usual. This is what lets you re-import an overlapping search and later delete the original one: the merged records now also belong to the new search, so they and their screening survive.
+
+If both records of a pair were already screened, Papertrail never merges them automatically. When a reviewer merges them and the two reached different outcomes, the kept record's outcome is reopened as a conflict, shown on the conflict resolution page together with the merged record's decisions, for a manager to decide.
+
+A merge made during screening can be undone from **Review or Change Past Decisions** while the project is still in the stage it was made in, as long as the merged-away record had no screening decisions of its own. Anything else needs **Move back to duplicate review**. If duplicate detection for an import fails permanently, its records are released into screening unchecked; re-running duplicate detection from the duplicate review queue checks them later.
+
 ## Screening
 
 Open the active screening queue, inspect the publication metadata, complete each inclusion/exclusion criterion, and choose **Include**, **Exclude**, **Uncertain**, or **Duplicate**. Notes are optional unless a particular follow-up workflow requires a reason.

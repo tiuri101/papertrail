@@ -271,9 +271,8 @@ class MergeReversalStageError(ConflictError):
 
     def __init__(self, project_stage: ProjectStage) -> None:
         super().__init__(
-            "Undo Merge is only available while the project is in duplicate "
-            "review. Move the project back to duplicate review to revisit "
-            "its merges.",
+            "This merge can only be undone in duplicate review. Move the "
+            "project back to duplicate review to revisit its merges.",
             details={
                 "projectStage": project_stage.value,
                 "requiredStage": ProjectStage.DUPLICATE_REVIEW.value,
@@ -281,7 +280,9 @@ class MergeReversalStageError(ConflictError):
         )
 
 
-def require_merge_reversal_allowed(db: Session, project: Project) -> None:
+def require_merge_reversal_allowed(
+    db: Session, project: Project, merge: PublicationMerge | None = None
+) -> None:
     """Gate a standalone Undo Merge on the project still being reversible.
 
     Reversing a merge re-activates the merged-away publication and hands its
@@ -300,9 +301,27 @@ def require_merge_reversal_allowed(db: Session, project: Project) -> None:
     as one coherent lifecycle operation.  Job safety is shared with the other
     destructive operations: a running duplicate-detection or LLM job must not
     be racing the reversal.
+
+    The one exception is a merge made during screening (records imported
+    after duplicate review), while the project is still in the stage it was
+    made in and the merged-away record carries no screening work of its own:
+    nothing downstream was built on it, so restoring it is coherent. With no
+    ``merge`` (revising a "not duplicate" into a merge), any stage that still
+    takes duplicate decisions is fine.
     """
+    from app.deduplication.service import DEDUP_DURING_REVIEW_STAGES
+    from app.screening.service import screened_publication_ids
+
     if project.stage != ProjectStage.DUPLICATE_REVIEW:
-        raise MergeReversalStageError(project.stage)
+        allowed = project.stage in DEDUP_DURING_REVIEW_STAGES and (
+            merge is None
+            or (
+                merge.stage_at_merge == project.stage.value
+                and not screened_publication_ids(db, [merge.merged_publication_id])
+            )
+        )
+        if not allowed:
+            raise MergeReversalStageError(project.stage)
     guard_lifecycle_jobs(db, project.id, operation=LifecycleOperation.UNDO_MERGE)
 
 

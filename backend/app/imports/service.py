@@ -160,19 +160,6 @@ def mark_import_permanently_failed(
     db.flush()
 
 
-def _screened_publication_ids(db: Session, publication_ids: list[str]) -> set[str]:
-    if not publication_ids:
-        return set()
-    from app.screening.models import ScreeningDecision, ScreeningWorkItem
-
-    rows = db.scalars(
-        select(distinct(ScreeningWorkItem.publication_id))
-        .join(ScreeningDecision, ScreeningDecision.work_item_id == ScreeningWorkItem.id)
-        .where(ScreeningWorkItem.publication_id.in_(publication_ids))
-    ).all()
-    return set(rows)
-
-
 def preview_or_delete_search(
     db: Session, search: SearchSource, *, force: bool
 ) -> dict[str, Any]:
@@ -186,6 +173,7 @@ def preview_or_delete_search(
     papers have already been screened) so the UI can confirm first.
     """
     from app.publications.models import Publication, PublicationSource
+    from app.screening.service import screened_publication_ids
 
     batch_ids = [batch.id for batch in search.import_batches]
     publications_to_delete: list[Publication] = []
@@ -218,7 +206,7 @@ def preview_or_delete_search(
             if not has_other_source:
                 publications_to_delete.append(publication)
 
-    screened_ids = _screened_publication_ids(
+    screened_ids = screened_publication_ids(
         db, [publication.id for publication in publications_to_delete]
     )
     screened_publications = [

@@ -7,7 +7,9 @@ from app.core.config import get_settings
 from app.deduplication.assessment import assess_duplicate_candidates
 from app.deduplication.models import DuplicateCandidate
 from app.deduplication.service import (
+    DEDUP_DURING_REVIEW_STAGES,
     detect_duplicates,
+    release_duplicate_check,
     transition_if_duplicate_review_complete,
 )
 from app.jobs.errors import TransientJobError
@@ -58,12 +60,18 @@ def _queue_candidate_assessment(
 
 
 def detect_duplicates_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
+    """Run detection project-wide, or -- with ``publication_ids`` in the
+    payload -- only for records imported after duplicate review."""
     project_id = job.payload["project_id"]
-    count = detect_duplicates(db, project_id)
+    publication_ids = job.payload.get("publication_ids")
+    count = detect_duplicates(db, project_id, publication_ids)
     project = get_project(db, project_id)
     transition_if_duplicate_review_complete(db, project)
     assessment_job_id: str | None = None
-    if project.stage == ProjectStage.DUPLICATE_REVIEW:
+    if (
+        project.stage == ProjectStage.DUPLICATE_REVIEW
+        or project.stage in DEDUP_DURING_REVIEW_STAGES
+    ):
         assessment_job_id = _queue_candidate_assessment(
             db, project_id, job.created_by_id
         )
@@ -73,6 +81,17 @@ def detect_duplicates_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
         "candidates": count,
         "assessmentJobId": assessment_job_id,
     }
+
+
+def release_duplicate_check_after_failure(
+    db: Session, job: BackgroundJob, error: str
+) -> None:
+    """A detection run that gave up for good must not leave the records it
+    was checking invisible to reviewers: release them into screening
+    unchecked (a later re-run of detection can still find their duplicates)."""
+    release_duplicate_check(
+        db, job.payload["project_id"], job.payload.get("publication_ids")
+    )
 
 
 def assess_duplicate_candidates_job(
