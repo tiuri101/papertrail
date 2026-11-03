@@ -18,8 +18,8 @@ interface ReviseBody {
 /**
  * Expanded editor for one already-resolved candidate: the A/B comparison plus
  * the three-way control, wired to POST .../duplicates/{id}/revise. Read-only
- * once the project has left duplicate review — reversing a merge then needs
- * "Move project back to duplicate review".
+ * once later work builds on the decision (see canReviseDecision) — revisiting
+ * it then needs "Move project back to duplicate review".
  */
 export function DuplicateDecisionEditor({
   projectId,
@@ -52,9 +52,9 @@ export function DuplicateDecisionEditor({
       <DuplicateComparisonCard candidate={current} />
       {readOnly ? (
         <InfoBox icon={<IconAlertTriangle />} tone="warning" alert className="mt-4">
-          <h3>Duplicate review is complete for this project</h3>
+          <h3>This decision can no longer be changed here</h3>
           <p>
-            Decisions can no longer be changed here. To revisit a merge, move the project
+            Work in a later stage already builds on it. To revisit it, move the project
             back to duplicate review from the project page.
           </p>
         </InfoBox>
@@ -62,6 +62,8 @@ export function DuplicateDecisionEditor({
         <DuplicateDecisionButtons
           publicationAId={current.publicationA.id}
           publicationBId={current.publicationB.id}
+          screenedA={current.publicationA.screened}
+          screenedB={current.publicationB.screened}
           current={currentChoice(current)}
           recommended={recommendedChoice(current)}
           headline="Change this decision"

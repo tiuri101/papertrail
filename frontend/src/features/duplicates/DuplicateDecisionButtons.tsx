@@ -20,6 +20,8 @@ export function DuplicateDecisionButtons({
   recommended,
   headline = 'Your Decision',
   hint = 'Select the record to keep, or confirm that these publications are distinct.',
+  screenedA = false,
+  screenedB = false,
 }: {
   onMerge: (canonicalPublicationId: string) => void
   onNotDuplicate: () => void
@@ -32,7 +34,17 @@ export function DuplicateDecisionButtons({
   recommended?: DuplicateChoice
   headline?: string
   hint?: string
+  /** Whether each record already carries screening decisions. A merge never
+   * moves them, so when exactly one does, it is the only record that may be
+   * kept (the server refuses the other). */
+  screenedA?: boolean
+  screenedB?: boolean
 }) {
+  const keepALocked = screenedB && !screenedA
+  const keepBLocked = screenedA && !screenedB
+  const lockedNote = (otherLabel: string) =>
+    `Record ${otherLabel} has screening decisions, so it must be kept`
+
   const edge = (choice: DuplicateChoice, hover: string) => {
     const state =
       current === choice
@@ -63,12 +75,14 @@ export function DuplicateDecisionButtons({
           aria-label="Keep Record A"
           aria-pressed={current === 'a'}
           onClick={() => onMerge(publicationAId)}
-          disabled={disabled}
+          disabled={disabled || keepALocked}
         >
           <span className="inline-flex size-[1.4rem] shrink-0 items-center justify-center rounded-full border-2 border-[color-mix(in_srgb,var(--kw-1-fg)_62%,var(--color-border))] text-[var(--kw-1-fg)] [&_svg]:size-[0.8rem] [&_svg]:fill-current"><IconCheckCircle /></span>
           <span className="grid min-w-0 gap-1">
             <strong className="text-text">Keep Record A</strong>
-            <small className="text-[0.78rem] font-medium text-text-muted">Merge Record B into A</small>
+            <small className="text-[0.78rem] font-medium text-text-muted">
+              {keepALocked ? lockedNote('B') : 'Merge Record B into A'}
+            </small>
           </span>
           <SuggestedTag choice="a" />
         </button>
@@ -78,12 +92,14 @@ export function DuplicateDecisionButtons({
           aria-label="Keep Record B"
           aria-pressed={current === 'b'}
           onClick={() => onMerge(publicationBId)}
-          disabled={disabled}
+          disabled={disabled || keepBLocked}
         >
           <span className="inline-flex size-[1.4rem] shrink-0 items-center justify-center rounded-full border-2 border-[color-mix(in_srgb,var(--kw-4-fg)_62%,var(--color-border))] text-[var(--kw-4-fg)] [&_svg]:size-[0.8rem] [&_svg]:fill-current"><IconCheckCircle /></span>
           <span className="grid min-w-0 gap-1">
             <strong className="text-text">Keep Record B</strong>
-            <small className="text-[0.78rem] font-medium text-text-muted">Merge Record A into B</small>
+            <small className="text-[0.78rem] font-medium text-text-muted">
+              {keepBLocked ? lockedNote('A') : 'Merge Record A into B'}
+            </small>
           </span>
           <SuggestedTag choice="b" />
         </button>

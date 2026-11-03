@@ -7,7 +7,7 @@ from datetime import timedelta
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import and_, case, distinct, func, or_, select
+from sqlalchemy import ColumnElement, and_, case, distinct, func, or_, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.accounts.models import User
@@ -107,13 +107,15 @@ def screening_work_started(
 def screened_publication_ids(
     db: Session, publication_ids: Iterable[str]
 ) -> set[str]:
-    """Which of these publications carry at least one screening decision, at
-    any stage -- what is lost from the review if the publication is removed
-    or merged away."""
+    """Which of these publications carry screening progress -- a reviewer
+    decision or a valid final decision, at any stage. That is what is lost
+    from the review if the publication is removed or merged away."""
+    from app.conflicts.models import FinalDecision
+
     ids = set(publication_ids)
     if not ids:
         return set()
-    return set(
+    decided = set(
         db.scalars(
             select(distinct(ScreeningWorkItem.publication_id))
             .join(
@@ -123,6 +125,35 @@ def screened_publication_ids(
             .where(ScreeningWorkItem.publication_id.in_(ids))
         )
     )
+    finalized = set(
+        db.scalars(
+            select(distinct(FinalDecision.publication_id)).where(
+                FinalDecision.publication_id.in_(ids),
+                FinalDecision.is_valid.is_(True),
+            )
+        )
+    )
+    return decided | finalized
+
+
+def awaiting_duplicate_check_clause() -> ColumnElement[bool]:
+    """Publications that must stay out of screening for now: imported after
+    duplicate review and not yet checked, or part of an unresolved duplicate
+    pair. Either way a reviewer may be about to merge them away."""
+    from app.deduplication.models import DuplicateCandidate
+
+    in_unresolved_pair = (
+        select(DuplicateCandidate.id)
+        .where(
+            DuplicateCandidate.status == "unresolved",
+            or_(
+                DuplicateCandidate.publication_a_id == Publication.id,
+                DuplicateCandidate.publication_b_id == Publication.id,
+            ),
+        )
+        .exists()
+    )
+    return or_(Publication.duplicate_check_pending.is_(True), in_unresolved_pair)
 
 
 def update_screening_config(
@@ -190,6 +221,7 @@ def create_screening_work_items(
         Publication.project_id == project.id,
         Publication.is_active.is_(True),
         Publication.merged_into_id.is_(None),
+        ~awaiting_duplicate_check_clause(),
     )
     if publication_ids is not None:
         query = query.where(Publication.id.in_(publication_ids))

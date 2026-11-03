@@ -48,6 +48,13 @@ class Publication(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     merged_into_id: Mapped[str | None] = mapped_column(
         ForeignKey("publications.id", ondelete="SET NULL"), index=True
     )
+    # Imported after duplicate review, and not yet checked against the rest
+    # of the project. Held out of screening until the duplicate-detection job
+    # (or its permanent-failure hook) clears it, so nobody screens a record
+    # that is about to be merged away.
+    duplicate_check_pending: Mapped[bool] = mapped_column(
+        Boolean, default=False, server_default="false", nullable=False
+    )
 
     sources: Mapped[list[PublicationSource]] = relationship(
         back_populates="publication", cascade="all, delete-orphan"

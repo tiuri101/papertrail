@@ -34,6 +34,7 @@ from app.deduplication.service import (
     merge_publications,
     normalized_authors,
     normalized_title,
+    screening_aware_canonical,
 )
 from app.integrations.metadata import LookupOutcome, metadata_providers
 from app.integrations.url_health import check_url
@@ -399,15 +400,25 @@ def assess_duplicate_candidates(db: Session, project_id: str) -> dict[str, Any]:
             "merge" if assessment.recommendation == "same_work"
             else assessment.recommendation
         )
-        candidate.provider_recommended_canonical_id = assessment.canonical_id
+        canonical_id = assessment.canonical_id
+        if assessment.recommendation == "same_work":
+            assert canonical_id is not None
+            # Screening decisions outrank the provider's pick: they stay with
+            # the record they were made on. None: both carry decisions, so a
+            # reviewer chooses.
+            canonical_id = screening_aware_canonical(
+                db, left.id, right.id, canonical_id
+            )
+        candidate.provider_recommended_canonical_id = (
+            canonical_id or assessment.canonical_id
+        )
         candidate.provider_recommendation_reason = assessment.reason
         candidate.provider_recommendation_source = assessment.source
         candidate.provider_assessed_at = now
 
-        if assessment.recommendation == "same_work":
-            assert assessment.canonical_id is not None
+        if assessment.recommendation == "same_work" and canonical_id is not None:
             merge = merge_publications(
-                db, candidate, assessment.canonical_id, merged_by_id=None
+                db, candidate, canonical_id, merged_by_id=None
             )
             candidate.auto_resolved = True
             if "provider_confirmed" not in candidate.match_reasons:

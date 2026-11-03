@@ -171,7 +171,7 @@ def _retract_full_text_acquisition(db: Session, publication_id: str) -> int:
     return len(open_jobs)
 
 
-def _settle_stage_after_removal(db: Session, project_id: str) -> None:
+def settle_stage_after_removal(db: Session, project_id: str) -> None:
     """Let the project's stage catch up with the smaller cohort.
 
     Removing a publication can be the thing that finishes a stage: it may
@@ -225,14 +225,20 @@ def remove_publications_from_review(
     for publication in ordered:
         lock_publication_for_finalization(db, publication.id)
         publication.is_active = False
-        _retract_screening_work(db, publication.id)
-        _retract_extraction_and_quality_work(db, publication.id)
-        _retract_full_text_acquisition(db, publication.id)
-
-        from app.llm.service import cancel_queued_for_publication
-
-        cancel_queued_for_publication(db, publication.id)
+        retract_open_review_work(db, publication.id)
     db.flush()
     if ordered:
-        _settle_stage_after_removal(db, project_id)
+        settle_stage_after_removal(db, project_id)
     return len(ordered)
+
+
+def retract_open_review_work(db: Session, publication_id: str) -> None:
+    """Withdraw everything still outstanding for a publication leaving the
+    review -- unsubmitted screening, extraction and quality slots, PDF
+    acquisition and queued LLM work. Submitted work stays as history."""
+    from app.llm.service import cancel_queued_for_publication
+
+    _retract_screening_work(db, publication_id)
+    _retract_extraction_and_quality_work(db, publication_id)
+    _retract_full_text_acquisition(db, publication_id)
+    cancel_queued_for_publication(db, publication_id)

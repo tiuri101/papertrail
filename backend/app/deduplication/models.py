@@ -12,6 +12,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -127,6 +128,18 @@ class PublicationMerge(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     reversed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     reversed_by_id: Mapped[str | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL")
+    )
+    # The project stage the merge happened in. A merge made during screening
+    # can be undone while the project is still in that stage; NULL on rows
+    # from before this was recorded, all of which were made in duplicate
+    # review.
+    stage_at_merge: Mapped[str | None] = mapped_column(String(40))
+    # Screening stages at which the merged-away record carried a final
+    # decision the canonical record did not share. Automatic finalization of
+    # the canonical record is suspended at these stages until a manager
+    # resolves it (see app.conflicts.service).
+    outcome_conflict_stages: Mapped[list[str]] = mapped_column(
+        JSONType, default=list, server_default=text("'[]'"), nullable=False
     )
 
 

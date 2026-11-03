@@ -9,12 +9,14 @@ from app.accounts.service import create_user
 from app.audit.models import AuditEvent
 from app.conflicts.service import record_final_decision
 from app.core.config import get_settings
+from app.deduplication.service import detect_duplicates
 from app.extraction.final import create_or_replace_final_extraction
 from app.extraction.models import ExtractionStatus, ExtractionWorkItem
 from app.forms.models import FormKind
 from app.forms.service import add_field, create_form
 from app.fulltext.models import FullTextRetrieval, RetrievalStatus
 from app.imports.models import ImportBatch, ImportedRecord, ImportStatus, SearchSource
+from app.jobs.models import BackgroundJob
 from app.projects.models import (
     AllocationMode,
     Criterion,
@@ -846,6 +848,23 @@ def test_publication_import_after_title_abstract_started_gets_screened(db) -> No
     publication = db.scalar(
         select(Publication).where(Publication.title == "Second batch paper")
     )
+    # Held out of screening until it has been checked for duplicates...
+    assert publication.duplicate_check_pending is True
+    job = db.scalar(
+        select(BackgroundJob).where(BackgroundJob.job_type == "detect_duplicates")
+    )
+    assert job is not None
+    assert job.payload["publication_ids"] == [publication.id]
+    assert db.scalar(
+        select(ScreeningWorkItem.id).where(
+            ScreeningWorkItem.publication_id == publication.id
+        )
+    ) is None
+
+    # ...which, finding none, releases it to the reviewers.
+    detect_duplicates(db, project.id, job.payload["publication_ids"])
+    db.commit()
+    assert publication.duplicate_check_pending is False
     work_item = db.scalar(
         select(ScreeningWorkItem).where(
             ScreeningWorkItem.publication_id == publication.id,

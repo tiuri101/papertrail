@@ -28,6 +28,7 @@ from app.bookmarks.exports import BOOKMARK_EXPORT_JOB, export_bookmarks_job
 from app.deduplication.jobs import (
     assess_duplicate_candidates_job,
     detect_duplicates_job,
+    release_duplicate_check_after_failure,
 )
 from app.imports.service import mark_import_permanently_failed, process_import_job
 from app.jobs.models import BackgroundJob
@@ -127,6 +128,7 @@ JOB_DEFINITIONS: dict[str, JobDefinition] = {
         worker_pool=WorkerPool.GENERAL,
         label="Detect duplicate publications",
         stage="Duplicate review",
+        on_permanent_failure=release_duplicate_check_after_failure,
     ),
     "assess_duplicate_candidates": JobDefinition(
         handler=assess_duplicate_candidates_job,

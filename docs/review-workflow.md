@@ -2,7 +2,7 @@
 
 Papertrail uses six shared project states: draft, duplicate review, title/abstract screening, full-text retrieval and screening, extraction and quality assessment, and completed.
 
-Automatic transitions depend on authoritative workflow records. Duplicate suggestions must all be resolved before screening. Screening requires all reviewer slots and conflict resolutions. Full-text work distinguishes reports not retrieved from eligibility exclusions. Completion requires extraction and any enabled quality assessment for every finally included publication, and — in dual-extractor projects — an empty reconciliation queue.
+Automatic transitions depend on authoritative workflow records. Duplicate suggestions must all be resolved before screening. Records imported after that are checked for duplicates first and held out of screening (`Publication.duplicate_check_pending`, or membership in an unresolved duplicate pair) until the check and any resulting pair are resolved; a merge always keeps the record carrying screening decisions, and a merge of two screened records with different outcomes suspends automatic finalization of the kept record at that stage (`PublicationMerge.outcome_conflict_stages`) until a manager resolves it. Screening requires all reviewer slots and conflict resolutions. Full-text work distinguishes reports not retrieved from eligibility exclusions. Completion requires extraction and any enabled quality assessment for every finally included publication, and — in dual-extractor projects — an empty reconciliation queue.
 
 ## Data extraction: single vs. two independent extractors
 
