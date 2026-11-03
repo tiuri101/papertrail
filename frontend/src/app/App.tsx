@@ -3,6 +3,7 @@ import { lazy, Suspense, useState, type ReactNode } from 'react'
 import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-dom'
 
 import { AppShell } from './AppShell'
+import { CopyProjectPanel } from '../features/administration/CopyProjectPanel'
 import { DangerZonePanel } from '../features/administration/DangerZonePanel'
 import { ExtractionSettingsPanel } from '../features/administration/ExtractionSettingsPanel'
 import { HighlightKeywordsPanel } from '../features/administration/HighlightKeywordsPanel'
@@ -119,6 +120,7 @@ const adminTabs: AdminTab[] = [
       { id: 'section-reviewer-progress', label: 'Reviewer Progress' },
       { id: 'section-workflow-integrity', label: 'Workflow Integrity' },
       { id: 'section-audit-log', label: 'Audit Log' },
+      { id: 'section-copy-project', label: 'Copy Project' },
     ],
   },
   {
@@ -217,6 +219,7 @@ function ProjectAdministrationPage() {
                 </Button>
               </div>
             </CollapsibleSection>
+            <CopyProjectPanel projectId={projectId} />
           </>
         ) : null}
         {activeTab === 'ai' ? (

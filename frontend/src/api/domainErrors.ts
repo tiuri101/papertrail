@@ -82,6 +82,7 @@ const LIFECYCLE_OPERATION_LABELS: Record<string, string> = {
   reset: 'resetting the project',
   move_back: 'moving the project back',
   undo_merge: 'undoing this merge',
+  clone: 'copying the project',
 }
 
 // The stages a merge-reversal conflict can name (backend ProjectStage), with
