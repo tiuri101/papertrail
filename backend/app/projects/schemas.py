@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.api.schemas import EnumApiModel as ApiModel
 from app.projects.models import (
@@ -20,6 +20,17 @@ class ProjectCreate(ApiModel):
     name: str = Field(min_length=1, max_length=250)
     description: str | None = None
     review_type: ReviewType = Field(alias="reviewType")
+
+
+class ProjectCloneRequest(ApiModel):
+    name: str = Field(min_length=1, max_length=250)
+
+    @field_validator("name")
+    @classmethod
+    def _name_not_blank(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("Name must not be blank")
+        return value.strip()
 
 
 class ProjectSummary(ApiModel):

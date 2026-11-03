@@ -52,6 +52,7 @@ from app.projects.schemas import (
     OrderedTextCreate,
     OwnershipTransfer,
     ProjectChecklist,
+    ProjectCloneRequest,
     ProjectCreate,
     ProjectDetail,
     ProjectDetailsUpdate,
@@ -1037,6 +1038,26 @@ def move_project_back_endpoint(
         raise DomainError(str(exc)) from exc
     db.commit()
     return project
+
+
+@router.post(
+    "/{project_id}/clone",
+    response_model=JobResponse,
+    status_code=status.HTTP_202_ACCEPTED,
+)
+def clone_project_endpoint(
+    project_id: str,
+    payload: ProjectCloneRequest,
+    admin: User = Depends(require_project_manager_csrf),
+    db: Session = Depends(get_db),
+) -> BackgroundJob:
+    """Queue a deep copy of the project; the job's result names the new one."""
+    from app.projects.cloning import enqueue_project_clone
+
+    project = get_project(db, project_id)
+    job = enqueue_project_clone(db, project, name=payload.name, actor=admin)
+    db.commit()
+    return job
 
 
 @router.post("/{project_id}/reset", response_model=ProjectSummary)

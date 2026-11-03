@@ -804,6 +804,12 @@ def test_permanent_failure_hooks_are_derived_from_the_registry() -> None:
 # comment means a newly registered job type fails the suite until someone has
 # actually answered the question for it.
 RETRY_SAFETY_REVIEW: dict[str, str] = {
+    "clone_project": (
+        "naturally idempotent: all rows are written in the worker's single "
+        "transaction, a target project that already exists returns early, and "
+        "deterministic (UUIDv5) ids mean a retry rewrites the same file paths "
+        "after removing what the failed attempt copied"
+    ),
     "parse_import": (
         "checkpointed-restartable: rows already committed for a source row are "
         "skipped, counters are recomputed from stored rows, and "
