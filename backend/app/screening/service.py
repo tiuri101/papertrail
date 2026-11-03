@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import hashlib
 from collections import defaultdict
+from collections.abc import Iterable
 from datetime import timedelta
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import and_, case, func, or_, select
+from sqlalchemy import and_, case, distinct, func, or_, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from app.accounts.models import User
@@ -100,6 +101,27 @@ def screening_work_started(
         ScreeningWorkItem.id,
         ScreeningWorkItem.project_id == project_id,
         ScreeningWorkItem.stage == stage,
+    )
+
+
+def screened_publication_ids(
+    db: Session, publication_ids: Iterable[str]
+) -> set[str]:
+    """Which of these publications carry at least one screening decision, at
+    any stage -- what is lost from the review if the publication is removed
+    or merged away."""
+    ids = set(publication_ids)
+    if not ids:
+        return set()
+    return set(
+        db.scalars(
+            select(distinct(ScreeningWorkItem.publication_id))
+            .join(
+                ScreeningDecision,
+                ScreeningDecision.work_item_id == ScreeningWorkItem.id,
+            )
+            .where(ScreeningWorkItem.publication_id.in_(ids))
+        )
     )
 
 
