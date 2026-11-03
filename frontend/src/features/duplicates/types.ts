@@ -14,6 +14,9 @@ export interface CandidatePublication {
   venue: string | null
   doi: string | null
   publisherUrl: string | null
+  /** At least one screening decision is recorded on this record; merging it
+   * away leaves those decisions behind on the merged-away record. */
+  screened: boolean
   urlChecks: UrlCheck[]
 }
 

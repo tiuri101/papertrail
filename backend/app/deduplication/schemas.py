@@ -22,6 +22,9 @@ class CandidatePublication(ApiModel):
     venue: str | None
     doi: str | None
     publisher_url: str | None = Field(serialization_alias="publisherUrl")
+    #: Whether any screening decision is recorded on this record. Those
+    #: decisions stay with it, so merging it away leaves them behind.
+    screened: bool = False
     #: publisher_url + DOI-URL reachability, written by the
     #: ``assess_duplicate_candidates`` job; empty until it has run.
     url_checks: list[UrlCheckOut] = Field(

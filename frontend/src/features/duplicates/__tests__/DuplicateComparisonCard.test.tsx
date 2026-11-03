@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import { describe, expect, it } from 'vitest'
 
 import { renderWithProviders } from '../../../test/render'
@@ -16,6 +16,7 @@ function candidate(overrides: Partial<Candidate> = {}): Candidate {
       venue: 'CHI',
       doi: '10.1/a',
       publisherUrl: 'https://publisher.example/a',
+      screened: false,
       urlChecks: [
         { kind: 'publisher_url', url: 'https://a.invalid', reachable: true, statusCode: 200, checkedAt: '2026-08-27T00:00:00Z' },
         { kind: 'doi', url: 'https://doi.org/10.1/a', reachable: false, statusCode: 404, checkedAt: '2026-08-27T00:00:00Z' },
@@ -29,6 +30,7 @@ function candidate(overrides: Partial<Candidate> = {}): Candidate {
       venue: 'CHI',
       doi: '10.1/b',
       publisherUrl: null,
+      screened: false,
       urlChecks: [],
     },
     matchReasons: ['similar_title'],
@@ -106,5 +108,18 @@ describe('DuplicateComparisonCard', () => {
       />,
     )
     expect(screen.queryByText('Suggested: keep Record A')).not.toBeInTheDocument()
+  })
+
+  it('marks only the record that already has screening decisions', () => {
+    const base = candidate()
+    renderWithProviders(
+      <DuplicateComparisonCard
+        candidate={candidate({ publicationA: { ...base.publicationA, screened: true } })}
+      />,
+    )
+    const recordA = screen.getByText('Record A', { selector: 'p' }).closest('section')!
+    const recordB = screen.getByText('Record B', { selector: 'p' }).closest('section')!
+    expect(within(recordA).getByText('Screened')).toBeInTheDocument()
+    expect(within(recordB).queryByText('Screened')).not.toBeInTheDocument()
   })
 })

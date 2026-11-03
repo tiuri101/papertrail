@@ -50,6 +50,7 @@ from app.projects.dependencies import (
 from app.projects.models import ProjectStage
 from app.projects.service import get_project
 from app.publications.models import Publication
+from app.screening.service import screened_publication_ids
 
 router = APIRouter(tags=["deduplication"])
 
@@ -71,7 +72,7 @@ def _load_url_checks(db: Session, *publication_ids: str) -> UrlChecksByPub:
 
 
 def _candidate_publication(
-    publication: Publication, checks: list[PublicationUrlCheck]
+    publication: Publication, checks: list[PublicationUrlCheck], screened: bool
 ) -> CandidatePublication:
     return CandidatePublication(
         id=publication.id,
@@ -81,6 +82,7 @@ def _candidate_publication(
         venue=publication.venue,
         doi=publication.doi,
         publisher_url=publication.publisher_url,
+        screened=screened,
         url_checks=[
             UrlCheckOut(
                 kind=check.url_kind,
@@ -98,20 +100,26 @@ def _candidate_response(
     candidate: DuplicateCandidate,
     active_merge: PublicationMerge | None,
     url_checks: UrlChecksByPub | None = None,
+    screened_ids: set[str] | None = None,
 ) -> CandidateResponse:
     """Serialize a candidate for the review UI, folding in the resolver's
     display name, the merge a revision would undo (merged pairs), and each
-    record's URL-reachability results."""
+    record's URL-reachability results and screening status."""
     url_checks = url_checks or {}
+    screened_ids = screened_ids or set()
     return CandidateResponse(
         id=candidate.id,
         publication_a_id=candidate.publication_a_id,
         publication_b_id=candidate.publication_b_id,
         publication_a=_candidate_publication(
-            candidate.publication_a, url_checks.get(candidate.publication_a_id, [])
+            candidate.publication_a,
+            url_checks.get(candidate.publication_a_id, []),
+            candidate.publication_a_id in screened_ids,
         ),
         publication_b=_candidate_publication(
-            candidate.publication_b, url_checks.get(candidate.publication_b_id, [])
+            candidate.publication_b,
+            url_checks.get(candidate.publication_b_id, []),
+            candidate.publication_b_id in screened_ids,
         ),
         match_reasons=candidate.match_reasons,
         title_similarity=candidate.title_similarity,
@@ -140,6 +148,20 @@ def _candidate_response(
         merge_id=active_merge.id if active_merge else None,
         reserved_until=candidate.reserved_until,
         reserved_by_id=candidate.reserved_by_id,
+    )
+
+
+def _single_candidate_response(
+    db: Session,
+    candidate: DuplicateCandidate,
+    active_merge: PublicationMerge | None,
+) -> CandidateResponse:
+    pub_ids = (candidate.publication_a_id, candidate.publication_b_id)
+    return _candidate_response(
+        candidate,
+        active_merge,
+        _load_url_checks(db, *pub_ids),
+        screened_publication_ids(db, pub_ids),
     )
 
 
@@ -231,8 +253,10 @@ def _candidate_responses(
         c.publication_b_id for c in candidates
     }
     url_checks = _load_url_checks(db, *pub_ids)
+    screened_ids = screened_publication_ids(db, pub_ids)
     return [
-        _candidate_response(c, merges.get(c.id), url_checks) for c in candidates
+        _candidate_response(c, merges.get(c.id), url_checks, screened_ids)
+        for c in candidates
     ]
 
 
@@ -322,10 +346,7 @@ def claim_next_candidate(
     db.commit()
     if candidate is None:
         return None
-    url_checks = _load_url_checks(
-        db, candidate.publication_a_id, candidate.publication_b_id
-    )
-    return _candidate_response(candidate, None, url_checks)
+    return _single_candidate_response(db, candidate, None)
 
 
 @router.get(
@@ -355,10 +376,7 @@ def get_candidate(
     previous pair" -- it used to fetch the entire candidate list just to find
     one by id."""
     candidate = _load_candidate(db, project_id, candidate_id)
-    url_checks = _load_url_checks(
-        db, candidate.publication_a_id, candidate.publication_b_id
-    )
-    return _candidate_response(candidate, _active_merge(db, candidate.id), url_checks)
+    return _single_candidate_response(db, candidate, _active_merge(db, candidate.id))
 
 
 @router.post("/projects/{project_id}/duplicates/{candidate_id}/release")
@@ -488,10 +506,7 @@ def resolve_not_duplicate(
         summary="Resolved duplicate candidate as distinct",
     )
     db.commit()
-    url_checks = _load_url_checks(
-        db, candidate.publication_a_id, candidate.publication_b_id
-    )
-    return _candidate_response(candidate, None, url_checks)
+    return _single_candidate_response(db, candidate, None)
 
 
 @router.post("/projects/{project_id}/duplicates/{candidate_id}/merge")
@@ -569,12 +584,7 @@ def revise_duplicate_decision(
         },
     )
     db.commit()
-    url_checks = _load_url_checks(
-        db, candidate.publication_a_id, candidate.publication_b_id
-    )
-    return _candidate_response(
-        candidate, _active_merge(db, candidate.id), url_checks
-    )
+    return _single_candidate_response(db, candidate, _active_merge(db, candidate.id))
 
 
 @router.post("/projects/{project_id}/merges/{merge_id}/reverse")

@@ -1,3 +1,4 @@
+import { Badge } from '../../components/Badge'
 import { DoiPill } from '../../components/DoiPill'
 import { IconCheckCircle, IconLightbulb, IconXCircle } from '../../components/icons'
 import { InfoBox } from '../../components/InfoBox'
@@ -72,6 +73,17 @@ function PublicationSummary({
           <h3 className="m-0 text-[0.95rem]">Potential Duplicate</h3>
           <p className="mb-0 mt-0.5 text-[0.76rem] text-text-muted">Record {recordLabel}</p>
         </div>
+        {publication.screened ? (
+          <Tooltip
+            className="ml-auto"
+            text="This record already has screening decisions. Keep it when merging to retain them — they are not moved to the kept record."
+          >
+            <Badge variant="primary">
+              <IconCheckCircle />
+              Screened
+            </Badge>
+          </Tooltip>
+        ) : null}
       </header>
       <dl className="m-0 grid gap-4 p-5 [&>div]:min-w-0 [&_dt]:mb-[3px] [&_dt]:text-xs [&_dt]:font-semibold [&_dt]:text-text-muted [&_dd]:m-0 [&_dd]:min-w-0 [&_dd]:overflow-wrap-anywhere [&_dd]:text-[0.9rem] [&_dd]:leading-[1.45] [&_dd]:text-text-secondary">
         <div>
