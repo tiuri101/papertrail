@@ -41,9 +41,9 @@ Automatic and manual merges use the same underlying merge record, so the duplica
 
 A merge preserves provenance and transfers related data/documents to the canonical publication according to the workflow rules; it is not a hard delete of the duplicate history.
 
-### Imports after duplicate review
+### Records added after duplicate review
 
-Records imported once screening has started are checked for duplicates before anyone can screen them. Until that check has run — and, for a pair that needs a decision, until someone resolves it in the duplicate review queue — the new records stay out of the screening queue. Marking a pair **not a duplicate** releases the new record into screening.
+Records added once screening has started — imported, added by hand with **Add publication**, or created by the Browser Helper while capturing a PDF — are checked for duplicates before anyone can screen them. Until that check has run — and, for a pair that needs a decision, until someone resolves it in the duplicate review queue — the new records stay out of the screening queue. Marking a pair **not a duplicate** releases the new record into screening.
 
 Screening decisions always stay with the record they were made on; a merge never moves them. So whenever one record of a pair already has screening decisions (shown with a **Screened** badge), that record is the one kept — automatically for exact matches, and as the only allowed choice in the review queue. The other record's metadata, sources and PDFs are merged into it as usual. This is what lets you re-import an overlapping search and later delete the original one: the merged records now also belong to the new search, so they and their screening survive.
 
