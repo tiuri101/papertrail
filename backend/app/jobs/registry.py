@@ -42,6 +42,7 @@ from app.notifications.service import (
     check_llm_stage_email_job,
     send_email_job,
 )
+from app.projects.cloning import CLONE_PROJECT_JOB, clone_project_job
 from app.publications.jobs import enrich_publication_job, resolve_merge_conflicts_job
 from app.reporting.jobs import generate_export_job
 
@@ -181,6 +182,12 @@ JOB_DEFINITIONS: dict[str, JobDefinition] = {
         worker_pool=WorkerPool.GENERAL,
         label="Check LLM bulk-completion notifications",
         stage="Notifications",
+    ),
+    CLONE_PROJECT_JOB: JobDefinition(
+        handler=clone_project_job,
+        worker_pool=WorkerPool.GENERAL,
+        label="Copy project",
+        stage="Project copy",
     ),
     **_llm_task_definitions(),
 }

@@ -40,6 +40,7 @@ STAGE_ORDER = [
     "Stage narrative",
     "Reporting and export",
     "Notifications",
+    "Project copy",
 ]
 
 PROJECT_STAGE_LABELS = {

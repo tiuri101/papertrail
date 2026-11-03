@@ -44,7 +44,7 @@ from __future__ import annotations
 
 import enum
 
-from sqlalchemy import select
+from sqlalchemy import Connection, select
 from sqlalchemy.orm import Session
 
 from app.api.errors import ConflictError
@@ -59,6 +59,7 @@ class LifecycleOperation(enum.StrEnum):
     RESET = "reset"
     MOVE_BACK = "move_back"
     UNDO_MERGE = "undo_merge"
+    CLONE = "clone"
 
 
 # Phrased to complete "Wait for running background jobs to finish before ...".
@@ -67,6 +68,7 @@ _OPERATION_PHRASES: dict[LifecycleOperation, str] = {
     LifecycleOperation.RESET: "resetting the project",
     LifecycleOperation.MOVE_BACK: "moving the project back",
     LifecycleOperation.UNDO_MERGE: "undoing this merge",
+    LifecycleOperation.CLONE: "copying the project",
 }
 
 CANCELLED_BY_LIFECYCLE = (
@@ -137,3 +139,30 @@ def guard_lifecycle_jobs(
         job.error_message = job.error_message or CANCELLED_BY_LIFECYCLE
     db.flush()
     return len(unfinished)
+
+
+def require_no_unfinished_jobs(
+    db: Session | Connection,
+    project_id: str,
+    *,
+    operation: LifecycleOperation,
+    exclude_job_id: str | None = None,
+) -> None:
+    """Refuse ``operation`` while any of the project's jobs is queued or running.
+
+    The non-destructive counterpart of :func:`guard_lifecycle_jobs`, for an
+    operation that reads the whole project rather than rewinding it (Clone
+    Project): it cancels nothing -- the queued work is still wanted in the
+    source -- but a copy taken before that work finishes would capture its
+    half-done state (a PENDING LLM run, a PROCESSING import) with no job left
+    in the copy to complete it.
+    """
+    query = select(BackgroundJob).where(
+        BackgroundJob.project_id == project_id,
+        BackgroundJob.status.in_([JobStatus.QUEUED, JobStatus.RUNNING]),
+    )
+    if exclude_job_id is not None:
+        query = query.where(BackgroundJob.id != exclude_job_id)
+    unfinished = list(db.execute(query).scalars())
+    if unfinished:
+        raise ProjectJobsRunningError(operation, unfinished)
