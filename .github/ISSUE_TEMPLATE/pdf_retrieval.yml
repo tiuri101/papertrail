@@ -1,0 +1,86 @@
+name: PDF retrieval problem
+description: The Browser Helper cannot retrieve PDFs from a specific publisher or site.
+title: "[Retrieval]: "
+labels: ["browser-helper", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Use this form when automated PDF retrieval fails for a particular publisher.
+        For other Browser Helper problems (pairing, installation, crashes), use the bug report.
+
+        **Never paste cookies, login details, institutional credentials, or the contents
+        of a paywalled PDF.** A DOI or public article URL is all we need.
+
+  - type: input
+    id: publisher
+    attributes:
+      label: Publisher or website
+      placeholder: "Example: ScienceDirect (sciencedirect.com)"
+    validations:
+      required: true
+
+  - type: textarea
+    id: examples
+    attributes:
+      label: Example DOIs or article URLs
+      description: One to three publicly listed articles that fail. Open-access examples are ideal.
+      placeholder: |
+        Example:
+        10.1016/j.example.2024.101234
+        https://www.sciencedirect.com/science/article/pii/S0000000000000000
+    validations:
+      required: true
+
+  - type: dropdown
+    id: status
+    attributes:
+      label: Status shown in Papertrail
+      description: As shown in the Browser PDF retrieval panel.
+      options:
+        - Authentication required
+        - Not found
+        - Access denied
+        - Unexpected response
+        - Failed
+        - Stuck (never finishes)
+        - Wrong file attached
+    validations:
+      required: true
+
+  - type: dropdown
+    id: manual-access
+    attributes:
+      label: Can you download the PDF manually in the same browser?
+      description: Tells us whether this is a Browser Helper problem or a missing subscription.
+      options:
+        - "Yes, while signed in to my institution"
+        - "Yes, it is open access"
+        - "No"
+        - "Not tried"
+    validations:
+      required: true
+
+  - type: input
+    id: helper-version
+    attributes:
+      label: Browser Helper release
+      description: The release the extension came from, as in its ZIP file name (papertrail-browser-extension-<release>.zip).
+      placeholder: "Example: 2026.11.3"
+    validations:
+      required: true
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and operating system
+      placeholder: "Example: Chrome 142 on Windows 11"
+    validations:
+      required: true
+
+  - type: textarea
+    id: details
+    attributes:
+      label: What did you see?
+      description: Anything notable, e.g. a captcha, a cookie banner, or a redirect to a login page. Screenshots welcome (crop out personal details).
+      placeholder: "Example: The article page loads, but the PDF link opens a 'Verify you are human' page."

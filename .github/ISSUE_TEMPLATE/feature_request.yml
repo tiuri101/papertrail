@@ -1,0 +1,57 @@
+name: Feature request
+description: Suggest a new capability or an improvement to an existing one.
+title: "[Feature]: "
+labels: ["enhancement", "needs-triage"]
+body:
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Import / deduplication
+        - Screening / conflicts
+        - Full text / PDF retrieval
+        - Extraction / quality assessment
+        - Reporting / exports
+        - LLM assistance
+        - Email notifications
+        - Browser Helper extension
+        - Accounts / administration
+        - Installation / deployment
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do, and what gets in the way today? E.g. "I'm always frustrated when ..."
+      placeholder: |
+        Example: As a project owner I get every kind of email Papertrail sends,
+        but I only care about import results. There is no way to turn the others off.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: How would you like it to work?
+      placeholder: |
+        Example: Add an "Email Notifications" section to Account Settings with one
+        checkbox per email category. Password-reset emails should always be sent.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      placeholder: "Example: Filtering the emails in my mail client, which still floods the inbox."
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Screenshots, mock-ups, or links to related issues.
