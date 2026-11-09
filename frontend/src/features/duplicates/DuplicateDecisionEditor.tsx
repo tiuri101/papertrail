@@ -49,7 +49,7 @@ export function DuplicateDecisionEditor({
 
   return (
     <>
-      <DuplicateComparisonCard candidate={current} />
+      <DuplicateComparisonCard projectId={projectId} candidate={current} />
       {readOnly ? (
         <InfoBox icon={<IconAlertTriangle />} tone="warning" alert className="mt-4">
           <h3>This decision can no longer be changed here</h3>

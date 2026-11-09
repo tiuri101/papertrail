@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom'
+
 import { Badge } from '../../components/Badge'
 import { DoiPill } from '../../components/DoiPill'
 import { IconCheckCircle, IconLightbulb, IconXCircle } from '../../components/icons'
@@ -59,9 +61,11 @@ function UrlCheckBadge({ check }: { check: UrlCheck }) {
 }
 
 function PublicationSummary({
+  projectId,
   publication,
   recordLabel,
 }: {
+  projectId: string
   publication: CandidatePublication
   recordLabel: 'A' | 'B'
 }) {
@@ -88,7 +92,12 @@ function PublicationSummary({
       <dl className="m-0 grid gap-4 p-5 [&>div]:min-w-0 [&_dt]:mb-[3px] [&_dt]:text-xs [&_dt]:font-semibold [&_dt]:text-text-muted [&_dd]:m-0 [&_dd]:min-w-0 [&_dd]:overflow-wrap-anywhere [&_dd]:text-[0.9rem] [&_dd]:leading-[1.45] [&_dd]:text-text-secondary">
         <div>
           <dt>Title</dt>
-          <dd className="text-base! font-bold! text-text!">{publication.title}</dd>
+          <dd className="text-base! font-bold! text-text!">
+            {/* New tab, so the pair under review (and its queue reservation) stays open here. */}
+            <Link to={`/projects/${projectId}/publications/${publication.id}`} target="_blank" rel="noreferrer">
+              {publication.title}
+            </Link>
+          </dd>
         </div>
         <div>
           <dt>Authors</dt>
@@ -169,12 +178,18 @@ function ProviderRecommendationCallout({ candidate }: { candidate: Candidate }) 
  * evidence and confidence in the middle. Shared by the one-at-a-time review
  * queue and the "change a past decision" editor on the decisions page.
  */
-export function DuplicateComparisonCard({ candidate }: { candidate: Candidate }) {
+export function DuplicateComparisonCard({
+  projectId,
+  candidate,
+}: {
+  projectId: string
+  candidate: Candidate
+}) {
   return (
     <>
       <ProviderRecommendationCallout candidate={candidate} />
       <div className="grid grid-cols-1 items-stretch gap-5 p-4 min-[681px]:grid-cols-2 min-[681px]:p-5 min-[961px]:grid-cols-[minmax(0,1fr)_minmax(11rem,.42fr)_minmax(0,1fr)]">
-        <PublicationSummary publication={candidate.publicationA} recordLabel="A" />
+        <PublicationSummary projectId={projectId} publication={candidate.publicationA} recordLabel="A" />
         <aside className="flex min-w-0 flex-col self-center max-[960px]:col-span-full max-[960px]:row-start-2 max-[960px]:w-full max-[960px]:border-t max-[960px]:border-border max-[960px]:pt-5 min-[961px]:py-3" aria-label="Match evidence">
           <h3 className="mb-4 mt-0 text-left min-[961px]:text-center">Compare</h3>
           <ul className="m-0 grid list-none grid-cols-1 gap-3 p-0 min-[681px]:grid-cols-3 min-[961px]:grid-cols-1">
@@ -195,7 +210,7 @@ export function DuplicateComparisonCard({ candidate }: { candidate: Candidate })
             </span>
           </Tooltip>
         </aside>
-        <PublicationSummary publication={candidate.publicationB} recordLabel="B" />
+        <PublicationSummary projectId={projectId} publication={candidate.publicationB} recordLabel="B" />
       </div>
     </>
   )
