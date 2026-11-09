@@ -9,7 +9,7 @@ Papertrail is an API-first modular monolith. A React/TypeScript single-page appl
 
 For a more detailed, interactive view:
 
-[Open the interactive architecture diagram](https://tiuri101.github.io/papertrail/architecture/)
+[Open the interactive architecture diagram](architecture/interactive/index.html)
 
 ## Backend modules
 

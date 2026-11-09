@@ -30,3 +30,6 @@ backend/tests/data/pdfs
 # Never commit archives or local test logs (an archive of the project once leaked a local .env)
 *.zip
 test_output.txt
+
+# Documentation build output (mkdocs build / zensical build)
+site/

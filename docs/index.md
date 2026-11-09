@@ -29,7 +29,7 @@ The source code lives at [github.com/tiuri101/papertrail](https://github.com/tiu
 
 ## Development
 
-- [Architecture](architecture.md) and the [interactive architecture overview](architecture/)
+- [Architecture](architecture.md) and the [interactive architecture overview](architecture/interactive/index.html)
 - [Developer guide](developer-guide.md)
 - [Local development](local-development.md)
 - [Frontend testing](frontend-testing.md)

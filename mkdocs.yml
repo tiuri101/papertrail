@@ -1,0 +1,108 @@
+# Documentation site: https://tiuri101.github.io/papertrail/
+# Built from docs/ with MkDocs + Material and deployed by .github/workflows/docs.yml.
+# Local preview: pip install -r docs/requirements-docs.txt && mkdocs serve
+site_name: Papertrail
+site_description: Self-hosted, multi-user tool for structured literature reviews.
+site_url: https://tiuri101.github.io/papertrail/
+repo_url: https://github.com/tiuri101/papertrail
+repo_name: tiuri101/papertrail
+edit_uri: edit/dev/docs/
+copyright: >-
+  &copy; Georg Arbesser-Rastburg &middot; Papertrail is licensed under the
+  <a href="https://github.com/tiuri101/papertrail/blob/main/LICENSE">AGPL-3.0</a>
+
+docs_dir: docs
+exclude_docs: |
+  requirements-docs.txt
+strict: true
+
+theme:
+  name: material
+  language: en
+  icon:
+    logo: material/file-document-multiple-outline
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-night
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.indexes
+    - navigation.path
+    - navigation.top
+    - navigation.footer
+    - navigation.instant
+    - navigation.tracking
+    - search.highlight
+    - search.suggest
+    - toc.follow
+    - content.code.copy
+    - content.action.edit
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/tiuri101/papertrail
+      name: Papertrail on GitHub
+  generator: false
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.details
+
+validation:
+  links:
+    not_found: warn
+    anchors: warn
+    absolute_links: info
+    unrecognized_links: info
+
+nav:
+  - Home: index.md
+  - Getting started:
+      - Installation: installation.md
+      - Configuration: configuration.md
+      - Upgrade guide: upgrade.md
+      - Backup and restore: backup-and-restore.md
+  - Using Papertrail:
+      - Reviewer guide: user-guide.md
+      - Review workflow: review-workflow.md
+      - Import formats: import-formats.md
+      - Browser Helper: browser-helper.md
+      - LLM assistance: llm-assisted-extraction.md
+  - Administration:
+      - Administrator guide: administrator-guide.md
+      - Security operations: operations/security.md
+      - Reliability operations: operations/reliability.md
+  - Development:
+      - Developer guide: developer-guide.md
+      - Local development: local-development.md
+      - Frontend testing: frontend-testing.md
+      - Architecture: architecture.md
+      - API overview: api.md

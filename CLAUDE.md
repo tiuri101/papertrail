@@ -44,6 +44,16 @@ npm run dev        # vite build --watch; load browser-extension/dist as an unpac
 npm run build
 ```
 
+### Documentation site (repo root)
+
+```powershell
+pip install -r docs/requirements-docs.txt   # MkDocs + Material, pinned
+mkdocs serve                                # live preview at http://127.0.0.1:8000
+mkdocs build --strict                       # what CI runs; broken links/anchors fail
+```
+
+`docs/` is published to GitHub Pages by `.github/workflows/docs.yml` on pushes to `main`. Navigation, tabs, footer and theme live in `mkdocs.yml` — a new guide must be added to its `nav`. The interactive architecture diagram is a static page at `docs/architecture/interactive/index.html`. Material for MkDocs reaches end of life in May 2027; its successor Zensical builds the same `mkdocs.yml`.
+
 ### Local dev environment
 
 Only PostgreSQL runs in Docker; FastAPI, the worker, and Vite run on the host. `.\scripts\dev.ps1 setup|start|api|worker|llm-worker|frontend|migrate|db-up|db-down|db-status|db-reset|test|test-e2e` (see `docs/local-development.md` for the macOS/Linux equivalent and manual step-by-step setup). LLM assistance is disabled by default; the general test suite never needs Ollama or a GPU.
