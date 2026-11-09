@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
-
 from sqlalchemy import select
 
 from app.accounts.service import create_user
@@ -19,10 +17,8 @@ from app.forms.models import FormKind
 from app.forms.service import create_form
 from app.jobs.models import BackgroundJob, JobStatus
 from app.jobs.worker import execute_next_job
-from app.llm.models import LlmExtractionRun, LlmTaskType, ProcessingStatus
 from app.notifications.mailer import send_smtp_email
 from app.notifications.models import EmailDeliveryStatus, EmailNotification
-from app.notifications.service import queue_llm_bulk_completion_emails
 from app.notifications.templates import render_email
 from app.projects.lifecycle import evaluate_project_completion
 from app.projects.models import (
@@ -637,85 +633,6 @@ def test_project_owner_users_returns_only_owners(db) -> None:
     owners = _project_owner_users(db, project.id)
 
     assert {user.id for user in owners} == {owner.id}
-
-
-def test_owner_notified_once_when_entire_llm_bulk_finishes(db, monkeypatch) -> None:
-    monkeypatch.setattr(
-        "app.notifications.service.effective_instance_settings", email_settings
-    )
-    owner = create_user(
-        db,
-        "owner",
-        "Project Owner",
-        "secret-password",
-        email="owner@example.org",
-    )
-    project = create_project(
-        db, "Evidence Review", None, ReviewType.SYSTEMATIC_REVIEW, owner
-    )
-    publication = Publication(project_id=project.id, title="A study")
-    db.add(publication)
-    db.flush()
-    completed = LlmExtractionRun(
-        project_id=project.id,
-        publication_id=publication.id,
-        task_type=LlmTaskType.TITLE_ABSTRACT_SCREENING,
-        input_fingerprint="a" * 64,
-        model="test-model",
-        prompt_template_version="title_abstract_screening_v1",
-        status=ProcessingStatus.COMPLETED,
-        queued_at=datetime.now(UTC),
-        completed_at=datetime.now(UTC),
-    )
-    pending = LlmExtractionRun(
-        project_id=project.id,
-        publication_id=publication.id,
-        task_type=LlmTaskType.TITLE_ABSTRACT_SCREENING,
-        input_fingerprint="b" * 64,
-        model="test-model",
-        prompt_template_version="title_abstract_screening_v1",
-        status=ProcessingStatus.PENDING,
-        queued_at=datetime.now(UTC),
-    )
-    completed.bulk_id = "bulk-1"
-    pending.bulk_id = "bulk-1"
-    preparation = BackgroundJob(
-        project_id=project.id,
-        job_type="extract_document_text",
-        payload={"bulk_id": "bulk-1", "document_id": "document-2"},
-        status=JobStatus.QUEUED,
-    )
-    db.add_all([completed, pending, preparation])
-    db.flush()
-
-    assert queue_llm_bulk_completion_emails(db, project.id, "bulk-1") == []
-    pending.status = ProcessingStatus.COMPLETED
-    pending.completed_at = datetime.now(UTC)
-    assert queue_llm_bulk_completion_emails(db, project.id, "bulk-1") == []
-    preparation.status = JobStatus.COMPLETED
-    preparation.completed_at = datetime.now(UTC)
-    first = queue_llm_bulk_completion_emails(db, project.id, "bulk-1")
-    second = queue_llm_bulk_completion_emails(db, project.id, "bulk-1")
-
-    assert len(first) == 1
-    assert second == first
-    assert first[0].context["completed_count"] == 2
-    assert first[0].context["failed_count"] == 0
-    assert first[0].project_id == project.id
-    assert len(list(db.scalars(select(EmailNotification)))) == 1
-    assert (
-        len(
-            list(
-                db.scalars(
-                    select(BackgroundJob).where(
-                        BackgroundJob.status == JobStatus.QUEUED,
-                        BackgroundJob.job_type == "send_email",
-                    )
-                )
-            )
-        )
-        == 1
-    )
 
 
 def _capture_sent_email(monkeypatch) -> list[tuple[str, str, str]]:

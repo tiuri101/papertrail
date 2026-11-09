@@ -31,6 +31,12 @@ class User(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     ui_preferences: Mapped[dict[str, Any]] = mapped_column(
         JSONType, default=dict, nullable=False
     )
+    # Opt-outs for optional email categories, keyed by category
+    # (app.notifications.preferences.EMAIL_CATEGORIES). A missing key means the
+    # category is enabled; account/security emails are never optional.
+    email_preferences: Mapped[dict[str, bool]] = mapped_column(
+        JSONType, default=dict, nullable=False
+    )
 
     sessions: Mapped[list[UserSession]] = relationship(
         back_populates="user", cascade="all, delete-orphan"

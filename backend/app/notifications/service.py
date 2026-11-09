@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import logging
 from collections.abc import Callable
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from sqlalchemy import select
@@ -23,6 +23,7 @@ from app.notifications.encryption import (
 )
 from app.notifications.mailer import send_smtp_email
 from app.notifications.models import EmailDeliveryStatus, EmailNotification
+from app.notifications.preferences import wants_email
 from app.notifications.templates import render_email
 from app.projects.models import Project, ProjectMembership, ProjectStage
 
@@ -30,6 +31,14 @@ logger = logging.getLogger(__name__)
 
 SEND_EMAIL_JOB = "send_email"
 CHECK_LLM_STAGE_EMAIL_JOB = "check_llm_stage_email"
+TEXT_PREPARATION_JOB = "extract_document_text"
+
+#: How long a project's LLM queue must stay drained before the "LLM
+#: processing finished" email goes out. Long enough to bridge the gaps while
+#: a reviewer releases publications into screening one at a time.
+LLM_DIGEST_QUIET_PERIOD = timedelta(minutes=10)
+
+_ACTIVE_RUN_STATUSES = (ProcessingStatus.PENDING, ProcessingStatus.PROCESSING)
 
 #: Templates whose rendering needs the encrypted half of the payload. Listed so
 #: a notification that has lost it fails with a clear message instead of a
@@ -87,6 +96,8 @@ def queue_email_notification(
     """
     settings = effective_instance_settings(db)
     if not settings.email_enabled or not recipient.email or not recipient.is_active:
+        return None
+    if not wants_email(recipient, template):
         return None
 
     hashed_key = _hash_key(deduplication_key)
@@ -458,53 +469,111 @@ def queue_duplicate_detection_failed_emails(
     return notifications
 
 
-def queue_llm_bulk_completion_emails(
-    db: Session, project_id: str, bulk_id: str
-) -> list[EmailNotification]:
-    active_statuses = {ProcessingStatus.PENDING, ProcessingStatus.PROCESSING}
-    runs = list(
-        db.scalars(
-            select(LlmExtractionRun)
-            .where(
-                LlmExtractionRun.project_id == project_id,
-                LlmExtractionRun.bulk_id == bulk_id,
-            )
-            .order_by(LlmExtractionRun.id)
-        )
+def _llm_digest_items(
+    db: Session, project_id: str, since: datetime | None
+) -> tuple[list[LlmExtractionRun], list[BackgroundJob]]:
+    """Batch LLM work that finished after ``since``: runs queued as part of a
+    bulk, plus the text-preparation jobs whose failure kept a bulk's runs from
+    ever being created."""
+    run_query = select(LlmExtractionRun).where(
+        LlmExtractionRun.project_id == project_id,
+        LlmExtractionRun.bulk_id.is_not(None),
+        LlmExtractionRun.status.not_in(_ACTIVE_RUN_STATUSES),
+        LlmExtractionRun.completed_at.is_not(None),
     )
+    job_query = select(BackgroundJob).where(
+        BackgroundJob.project_id == project_id,
+        BackgroundJob.job_type == TEXT_PREPARATION_JOB,
+        BackgroundJob.status.in_([JobStatus.FAILED, JobStatus.CANCELLED]),
+        BackgroundJob.completed_at.is_not(None),
+    )
+    if since is not None:
+        run_query = run_query.where(LlmExtractionRun.completed_at > since)
+        job_query = job_query.where(BackgroundJob.completed_at > since)
+    runs = list(db.scalars(run_query.order_by(LlmExtractionRun.id)))
     preparation_jobs = [
-        job
-        for job in db.scalars(
-            select(BackgroundJob).where(
-                BackgroundJob.project_id == project_id,
-                BackgroundJob.job_type == "extract_document_text",
-            )
-        )
-        if job.payload.get("bulk_id") == bulk_id
+        job for job in db.scalars(job_query) if job.payload.get("bulk_id")
     ]
-    if not runs and not preparation_jobs:
-        return []
-    if any(item.status in active_statuses for item in runs) or any(
-        job.status in {JobStatus.QUEUED, JobStatus.RUNNING} for job in preparation_jobs
-    ):
-        return []
+    return runs, preparation_jobs
 
-    project = db.get(Project, project_id)
+
+def _llm_work_pending(db: Session, project_id: str) -> bool:
+    active_run = db.scalar(
+        select(LlmExtractionRun.id)
+        .where(
+            LlmExtractionRun.project_id == project_id,
+            LlmExtractionRun.status.in_(_ACTIVE_RUN_STATUSES),
+        )
+        .limit(1)
+    )
+    if active_run is not None:
+        return True
+    active_preparation = db.scalar(
+        select(BackgroundJob.id)
+        .where(
+            BackgroundJob.project_id == project_id,
+            BackgroundJob.job_type == TEXT_PREPARATION_JOB,
+            BackgroundJob.status.in_([JobStatus.QUEUED, JobStatus.RUNNING]),
+        )
+        .limit(1)
+    )
+    return active_preparation is not None
+
+
+def _as_aware(value: datetime) -> datetime:
+    # SQLite hands timezone-aware columns back naive; they are stored as UTC.
+    return value if value.tzinfo is not None else value.replace(tzinfo=UTC)
+
+
+def queue_llm_digest_emails(
+    db: Session, project_id: str, *, now: datetime | None = None
+) -> tuple[list[EmailNotification], datetime | None]:
+    """Report all of a project's batch LLM work that finished since the last
+    report, in one email per owner -- but only once the project's LLM queue
+    has drained and stayed quiet for ``LLM_DIGEST_QUIET_PERIOD``.
+
+    Returns the queued notifications and, when it is too early to report,
+    the moment to check again (``None`` once nothing is left to wait for).
+    """
+    now = now or datetime.now(UTC)
+    # Serializes concurrent checks for one project: the second sees the
+    # cursor the first advanced and finds nothing left to report.
+    project = db.scalar(
+        select(Project).where(Project.id == project_id).with_for_update()
+    )
     if project is None:
-        return []
-    owners = _project_owner_users(db, project.id)
+        return [], None
+    if _llm_work_pending(db, project_id):
+        # Finishing the remaining work reschedules this check anyway; the
+        # retry here covers work that ends without a completion hook (a run
+        # cancelled from the UI).
+        return [], now + LLM_DIGEST_QUIET_PERIOD
+
+    since = (
+        _as_aware(project.llm_notified_through)
+        if project.llm_notified_through
+        else None
+    )
+    runs, preparation_jobs = _llm_digest_items(db, project_id, since)
+    if not runs and not preparation_jobs:
+        return [], None
+    finished_through = max(
+        _as_aware(completed_at)
+        for completed_at in [
+            *(run.completed_at for run in runs),
+            *(job.completed_at for job in preparation_jobs),
+        ]
+        if completed_at is not None
+    )
+    quiet_until = finished_through + LLM_DIGEST_QUIET_PERIOD
+    if quiet_until > now:
+        return [], quiet_until
+
     completed = sum(item.status == ProcessingStatus.COMPLETED for item in runs)
     failed = sum(item.status == ProcessingStatus.FAILED for item in runs) + sum(
         job.status == JobStatus.FAILED for job in preparation_jobs
     )
-    other = (
-        len(runs)
-        - sum(
-            item.status in {ProcessingStatus.COMPLETED, ProcessingStatus.FAILED}
-            for item in runs
-        )
-        + sum(job.status == JobStatus.CANCELLED for job in preparation_jobs)
-    )
+    other = len(runs) + len(preparation_jobs) - completed - failed
     stage_label = (
         ", ".join(
             TASK_LABELS[task_type]
@@ -512,19 +581,21 @@ def queue_llm_bulk_completion_emails(
         )
         or "LLM processing"
     )
+    project.llm_notified_through = finished_through
     settings = effective_instance_settings(db)
     notifications: list[EmailNotification] = []
-    for owner in owners:
+    for owner in _project_owner_users(db, project.id):
         notification = queue_email_notification(
             db,
             recipient=owner,
             template="llm_stage_completed",
-            deduplication_key=f"llm-bulk-completed:{bulk_id}:{owner.id}",
+            deduplication_key=(
+                f"llm-digest:{project.id}:{finished_through.isoformat()}:{owner.id}"
+            ),
             context={
                 "recipient_name": owner.display_name,
                 "project_name": project.name,
                 "stage_label": stage_label,
-                "bulk_id": bulk_id,
                 "completed_count": completed,
                 "failed_count": failed,
                 "other_count": other,
@@ -534,52 +605,70 @@ def queue_llm_bulk_completion_emails(
         )
         if notification:
             notifications.append(notification)
-    return notifications
+    return notifications, None
 
 
-def queue_llm_bulk_completion_check(
-    db: Session, *, project_id: str, bulk_id: str
+def schedule_llm_digest_check(
+    db: Session, project_id: str, *, not_before: datetime | None = None
 ) -> BackgroundJob | None:
+    """Make sure one digest check is waiting for this project, due no earlier
+    than ``not_before`` (default: one quiet period from now).
+
+    Called whenever batch LLM work finishes. Each call pushes the waiting
+    check further out, so a steady trickle of finishing runs -- a reviewer
+    resolving duplicates one at a time, each releasing a publication into
+    screening -- produces a single email once the trickle stops, not one per
+    publication.
+    """
     if not effective_instance_settings(db).email_enabled:
         return None
-    existing = db.scalars(
-        select(BackgroundJob).where(
+    due = not_before or datetime.now(UTC) + LLM_DIGEST_QUIET_PERIOD
+    waiting = db.scalar(
+        select(BackgroundJob)
+        .where(
             BackgroundJob.project_id == project_id,
             BackgroundJob.job_type == CHECK_LLM_STAGE_EMAIL_JOB,
             BackgroundJob.status == JobStatus.QUEUED,
         )
+        .order_by(BackgroundJob.created_at)
+        .limit(1)
     )
-    if any(job.payload.get("bulk_id") == bulk_id for job in existing):
-        # A still-queued check will re-read live run state when it executes,
-        # so piling on another one per publication is pure job-table churn.
-        return None
+    if waiting is not None:
+        if waiting.run_after is None or _as_aware(waiting.run_after) < due:
+            waiting.run_after = due
+        return waiting
     return enqueue_job(
         db,
         CHECK_LLM_STAGE_EMAIL_JOB,
-        {"bulk_id": bulk_id},
+        {},
         project_id=project_id,
         created_by_id=None,
         max_attempts=3,
         priority=10,
+        run_after=due,
     )
 
 
-def queue_llm_stage_completion_check(
+def schedule_llm_digest_after_run(
     db: Session, run: LlmExtractionRun
 ) -> BackgroundJob | None:
+    # A run a reviewer started for one publication is visible where they
+    # started it; only batch (bulk) work is worth an email.
     if not run.bulk_id:
         return None
-    return queue_llm_bulk_completion_check(
-        db, project_id=run.project_id, bulk_id=run.bulk_id
-    )
+    return schedule_llm_digest_check(db, run.project_id)
 
 
 def check_llm_stage_email_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
-    bulk_id = str(job.payload.get("bulk_id", ""))
-    if not bulk_id or not job.project_id:
-        raise ValueError("LLM bulk context is missing")
-    notifications = queue_llm_bulk_completion_emails(db, job.project_id, bulk_id)
-    return {"notification_ids": [notification.id for notification in notifications]}
+    if not job.project_id:
+        raise ValueError("LLM digest project is missing")
+    notifications, retry_at = queue_llm_digest_emails(db, job.project_id)
+    if retry_at is not None:
+        schedule_llm_digest_check(db, job.project_id, not_before=retry_at)
+    return {
+        "notification_ids": [notification.id for notification in notifications],
+        **({"rescheduledFor": retry_at.isoformat()} if retry_at else {}),
+    }
 
 
 def send_email_job(db: Session, job: BackgroundJob) -> dict[str, Any]:

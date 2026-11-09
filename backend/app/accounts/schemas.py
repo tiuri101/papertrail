@@ -7,6 +7,7 @@ from pydantic import Field, field_validator
 
 from app.accounts.password_policy import MAX_PASSWORD_LENGTH
 from app.api.schemas import ApiModel
+from app.notifications.preferences import EMAIL_CATEGORY_KEYS
 
 # The *length policy* for a new password lives in
 # `app.accounts.password_policy` and is enforced by `set_user_password` /
@@ -46,6 +47,17 @@ class UserResponse(ApiModel):
     ui_preferences: dict[str, Any] = Field(
         default_factory=dict, serialization_alias="uiPreferences"
     )
+    email_preferences: dict[str, bool] = Field(
+        default_factory=dict, serialization_alias="emailPreferences"
+    )
+
+    @field_validator("email_preferences", mode="before")
+    @classmethod
+    def resolve_email_preferences(cls, value: Any) -> dict[str, bool]:
+        # Always report every optional category, so clients never have to
+        # know that a missing key means "enabled".
+        stored = value if isinstance(value, dict) else {}
+        return {key: bool(stored.get(key, True)) for key in sorted(EMAIL_CATEGORY_KEYS)}
 
 
 class UserCreate(ApiModel):
@@ -102,6 +114,22 @@ class SelfUpdate(ApiModel):
     # always sends the full merged object, so there is no partial-merge
     # ambiguity to resolve server-side.
     ui_preferences: dict[str, Any] | None = Field(default=None, alias="uiPreferences")
+    #: Partial update: only the categories present change.
+    email_preferences: dict[str, bool] | None = Field(
+        default=None, alias="emailPreferences"
+    )
+
+    @field_validator("email_preferences")
+    @classmethod
+    def validate_email_preference_keys(
+        cls, value: dict[str, bool] | None
+    ) -> dict[str, bool] | None:
+        if value is None:
+            return value
+        unknown = sorted(set(value) - EMAIL_CATEGORY_KEYS)
+        if unknown:
+            raise ValueError(f"Unknown email categories: {', '.join(unknown)}")
+        return value
 
     @field_validator("ui_preferences")
     @classmethod

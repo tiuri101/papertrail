@@ -71,6 +71,13 @@ _OPERATION_PHRASES: dict[LifecycleOperation, str] = {
     LifecycleOperation.CLONE: "copying the project",
 }
 
+#: Jobs a copy can safely be taken around. The LLM digest check waits out a
+#: quiet period of several minutes after LLM work finishes and only reads
+#: finished runs, so letting it block Clone Project would make every copy
+#: taken shortly after LLM work fail for no reason. (A string, not the
+#: notifications constant, to keep this module free of domain imports.)
+_CLONE_IGNORED_JOB_TYPES = ("check_llm_stage_email",)
+
 CANCELLED_BY_LIFECYCLE = (
     "Cancelled: a project lifecycle operation removed the work this job "
     "was queued for."
@@ -160,6 +167,7 @@ def require_no_unfinished_jobs(
     query = select(BackgroundJob).where(
         BackgroundJob.project_id == project_id,
         BackgroundJob.status.in_([JobStatus.QUEUED, JobStatus.RUNNING]),
+        BackgroundJob.job_type.not_in(_CLONE_IGNORED_JOB_TYPES),
     )
     if exclude_job_id is not None:
         query = query.where(BackgroundJob.id != exclude_job_id)

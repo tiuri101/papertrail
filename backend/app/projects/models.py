@@ -108,6 +108,12 @@ class Project(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     reopened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    #: Latest LLM run/preparation completion already reported in an "LLM
+    #: processing finished" email. The next digest only reports work that
+    #: finished after it, so a project never gets the same results twice.
+    llm_notified_through: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True)
+    )
     highlight_keywords_raw: Mapped[str] = mapped_column(
         Text, default="", server_default="", nullable=False
     )

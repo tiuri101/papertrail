@@ -128,7 +128,7 @@ def build_job_diagnostics(db: Session, job: BackgroundJob) -> dict[str, Any]:
             else None
         )
     elif job.job_type == CHECK_LLM_STAGE_EMAIL_JOB:
-        context["LLM bulk ID"] = _as_text(job.payload.get("bulk_id"))
+        context["Not before"] = job.run_after.isoformat() if job.run_after else None
     elif job.job_type == SEND_EMAIL_JOB:
         notification_id = str(job.payload.get("notification_id", ""))
         notification = (

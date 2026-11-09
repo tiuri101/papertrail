@@ -861,8 +861,9 @@ RETRY_SAFETY_REVIEW: dict[str, str] = {
         "trade-off against dropping one"
     ),
     "check_llm_stage_email": (
-        "naturally idempotent: notifications are queued under a stable "
-        "deduplication key per bulk run and owner"
+        "naturally idempotent: the project's notified-through cursor only "
+        "advances in the transaction that queues the digest, under a stable "
+        "deduplication key per cursor and owner"
     ),
 }
 
