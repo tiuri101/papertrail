@@ -119,7 +119,7 @@ Project-level **AI-generated interpretive analysis** also controls stage narrati
 
 ## Email notifications
 
-When the installation administrator enables SMTP and your account has an email address, Papertrail can email you when your account is created and when you are added to or removed from a project. Active administrators are notified of new projects. Project owners can receive stage-completion summaries for scheduled LLM work.
+When the installation administrator enables SMTP and your account has an email address, Papertrail can email you when your account is created and when you are added to or removed from a project. Active administrators are notified of new projects. Project owners can receive stage-completion summaries for scheduled LLM work, and are alerted if duplicate detection fails. You are also emailed when an import you started or a project copy you requested finishes or fails, so you don't need to keep the page open.
 
 You can update or clear your email in Account Settings.
 

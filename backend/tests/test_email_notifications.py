@@ -716,3 +716,169 @@ def test_owner_notified_once_when_entire_llm_bulk_finishes(db, monkeypatch) -> N
         )
         == 1
     )
+
+
+def _capture_sent_email(monkeypatch) -> list[tuple[str, str, str]]:
+    monkeypatch.setattr(
+        "app.notifications.service.effective_instance_settings", email_settings
+    )
+    sent: list[tuple[str, str, str]] = []
+
+    def fake_send(_settings, *, recipient, rendered) -> None:
+        sent.append((recipient, rendered.subject, rendered.text_body))
+
+    monkeypatch.setattr("app.notifications.service.send_smtp_email", fake_send)
+    return sent
+
+
+def _queue_import(db, tmp_path, content: bytes) -> tuple[str, str]:
+    from app.imports.models import ImportBatch, ImportStatus
+    from app.jobs.service import enqueue_job
+    from app.projects.models import Project
+
+    user = create_user(
+        db, "importer", "Importer", "secret-password", email="importer@example.org"
+    )
+    project = Project(
+        name="Review", review_type=ReviewType.SYSTEMATIC_REVIEW, random_seed="seed"
+    )
+    db.add(project)
+    db.flush()
+    stored_path = tmp_path / "records.csv"
+    stored_path.write_bytes(content)
+    batch = ImportBatch(
+        project_id=project.id,
+        original_filename="records.csv",
+        stored_path=str(stored_path),
+        file_type="csv",
+        status=ImportStatus.PENDING,
+        created_by_id=user.id,
+    )
+    db.add(batch)
+    db.flush()
+    enqueue_job(
+        db,
+        "parse_import",
+        {"import_batch_id": batch.id},
+        project_id=project.id,
+        created_by_id=user.id,
+        max_attempts=2,
+    )
+    db.commit()
+    return project.id, batch.id
+
+
+def test_importer_is_emailed_when_an_import_finishes(
+    db, session_factory, tmp_path, monkeypatch
+) -> None:
+    sent = _capture_sent_email(monkeypatch)
+    project_id, _batch_id = _queue_import(
+        db, tmp_path, b"Title,Authors\nPaper one,Doe\n,Roe\n"
+    )
+
+    while execute_next_job(session_factory, "test-worker"):
+        pass
+
+    assert len(sent) == 1
+    recipient, subject, body = sent[0]
+    assert recipient == "importer@example.org"
+    assert "records.csv" in subject
+    assert "2 record(s)" in body and "1 of them" in body
+    assert f"/projects/{project_id}/imports" in body
+
+
+def test_importer_is_emailed_once_when_an_import_fails_for_good(
+    db, session_factory, tmp_path, monkeypatch
+) -> None:
+    sent = _capture_sent_email(monkeypatch)
+
+    def broken_parse(_name, _data):
+        raise ValueError("unreadable file")
+
+    monkeypatch.setattr("app.imports.service.parse_file", broken_parse)
+    project_id, _batch_id = _queue_import(db, tmp_path, b"Title\nPaper\n")
+
+    while execute_next_job(session_factory, "test-worker"):
+        pass
+
+    assert len(sent) == 1
+    recipient, subject, body = sent[0]
+    assert recipient == "importer@example.org"
+    assert "records.csv" in subject and "failed" in subject
+    assert "unreadable file" in body
+    assert f"/projects/{project_id}/imports" in body
+
+
+def test_owners_are_emailed_when_duplicate_detection_fails_for_good(
+    db, session_factory, monkeypatch
+) -> None:
+    from app.jobs.service import enqueue_job
+
+    sent = _capture_sent_email(monkeypatch)
+    owner = create_user(
+        db, "owner", "Owner", "owner-password", email="owner@example.org"
+    )
+    member = create_user(
+        db, "member", "Member", "member-password", email="member@example.org"
+    )
+    project = create_project(
+        db,
+        "Dedup Review",
+        None,
+        ReviewType.SYSTEMATIC_REVIEW,
+        owner,
+    )
+    db.add(ProjectMembership(project_id=project.id, user_id=member.id))
+    enqueue_job(
+        db,
+        "detect_duplicates",
+        {"project_id": project.id},
+        project_id=project.id,
+        created_by_id=owner.id,
+        max_attempts=2,
+    )
+    db.commit()
+    sent.clear()
+
+    def broken_detection(*_args, **_kwargs):
+        raise RuntimeError("matcher crashed")
+
+    monkeypatch.setattr(
+        "app.deduplication.jobs.detect_duplicates", broken_detection
+    )
+    while execute_next_job(session_factory, "test-worker"):
+        pass
+
+    assert len(sent) == 1
+    recipient, subject, body = sent[0]
+    assert recipient == "owner@example.org"
+    assert "Dedup Review" in subject
+    assert "matcher crashed" in body
+    assert f"/projects/{project.id}/duplicates" in body
+
+
+def test_failed_import_is_still_marked_failed_when_its_email_cannot_be_queued(
+    db, session_factory, tmp_path, monkeypatch
+) -> None:
+    from app.imports.models import ImportBatch, ImportStatus
+
+    _capture_sent_email(monkeypatch)
+
+    def broken_parse(_name, _data):
+        raise ValueError("unreadable file")
+
+    def broken_email(*_args, **_kwargs):
+        raise RuntimeError("template exploded")
+
+    monkeypatch.setattr("app.imports.service.parse_file", broken_parse)
+    monkeypatch.setattr("app.imports.service.queue_import_failed_email", broken_email)
+    _project_id, batch_id = _queue_import(db, tmp_path, b"Title\nPaper\n")
+
+    while execute_next_job(session_factory, "test-worker"):
+        pass
+
+    db.expire_all()
+    batch = db.get(ImportBatch, batch_id)
+    assert batch is not None
+    assert batch.status == ImportStatus.FAILED
+    assert batch.error_message == "unreadable file"

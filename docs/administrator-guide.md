@@ -141,6 +141,11 @@ Email is installation-level optional configuration. Current durable email events
 - notification to active administrators when a project is created;
 - project membership added/removed (permission-only membership edits do not send mail);
 - project-owner summary when the currently scheduled LLM jobs for a task stage have all reached a terminal state.
+- to the user who started it, when a publication import finishes or fails for good (one email per imported file);
+- to the user who requested it, when a project copy finishes or fails for good;
+- project-owner alert when duplicate detection fails for good, because the records it was checking go on to screening unchecked.
+
+Failure emails are sent only once a job has used up its retries; attempts that will still be retried send nothing.
 
 Email delivery is a normal background job with retry state. SMTP failure does not roll back the domain operation that caused the notification.
 

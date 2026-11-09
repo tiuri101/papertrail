@@ -15,6 +15,10 @@ from app.deduplication.service import (
 from app.jobs.errors import TransientJobError
 from app.jobs.models import BackgroundJob, JobStatus
 from app.jobs.service import enqueue_job
+from app.notifications.service import (
+    queue_duplicate_detection_failed_emails,
+    queue_failure_email_safely,
+)
 from app.projects.models import ProjectStage
 from app.projects.service import get_project
 
@@ -88,9 +92,16 @@ def release_duplicate_check_after_failure(
 ) -> None:
     """A detection run that gave up for good must not leave the records it
     was checking invisible to reviewers: release them into screening
-    unchecked (a later re-run of detection can still find their duplicates)."""
-    release_duplicate_check(
-        db, job.payload["project_id"], job.payload.get("publication_ids")
+    unchecked (a later re-run of detection can still find their duplicates),
+    and tell the project owners, since nobody else knows a check was skipped."""
+    project_id = job.payload["project_id"]
+    release_duplicate_check(db, project_id, job.payload.get("publication_ids"))
+    queue_failure_email_safely(
+        db,
+        lambda: queue_duplicate_detection_failed_emails(
+            db, project_id, job_id=job.id, error=error
+        ),
+        job=job,
     )
 
 

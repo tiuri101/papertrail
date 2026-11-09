@@ -255,6 +255,56 @@ def render_email(template: str, context: dict[str, Any]) -> RenderedEmail:
         action_label = "Open project administration"
         action_url = context["project_url"]
         summary_items = [("Status", "Failed", "#bf3f46")]
+    elif template == "import_completed":
+        subject = f'Import of "{context["filename"]}" finished'
+        paragraphs = [
+            f"Hello {context['recipient_name']},",
+            f'Your import of "{context["filename"]}" into the Papertrail project '
+            f'"{context["project_name"]}" has finished: {context["record_count"]} '
+            "record(s) were read.",
+        ]
+        if context.get("invalid_count"):
+            paragraphs.append(
+                f"{context['invalid_count']} of them were flagged as invalid and need "
+                "attention on the import page."
+            )
+        action_label = "Open imports"
+        action_url = context["project_url"]
+        summary_items = [
+            ("Records", str(context["record_count"]), "#147a59"),
+            ("Invalid", str(context["invalid_count"]), "#bf3f46"),
+        ]
+    elif template == "import_failed":
+        subject = f'Import of "{context["filename"]}" failed'
+        if context.get("records_imported"):
+            outcome = (
+                "Its records were read, but a later step (adding them to the project "
+                "or matching uploaded PDFs) failed."
+            )
+        else:
+            outcome = "No records were imported."
+        paragraphs = [
+            f"Hello {context['recipient_name']},",
+            f'Your import of "{context["filename"]}" into the Papertrail project '
+            f'"{context["project_name"]}" failed. {outcome}',
+            f"Reason: {context['error_message']}",
+        ]
+        action_label = "Open imports"
+        action_url = context["project_url"]
+        summary_items = [("Status", "Failed", "#bf3f46")]
+    elif template == "duplicate_detection_failed":
+        subject = f'Duplicate detection failed in "{context["project_name"]}"'
+        paragraphs = [
+            f"Hello {context['recipient_name']},",
+            f'Duplicate detection in the Papertrail project "{context["project_name"]}" '
+            "failed. The records it was checking are no longer held back, so any "
+            "duplicates among them have not been found.",
+            f"Reason: {context['error_message']}",
+            "Re-run duplicate detection from the Duplicates page once the cause is fixed.",
+        ]
+        action_label = "Open duplicates"
+        action_url = context["project_url"]
+        summary_items = [("Status", "Failed", "#bf3f46")]
     else:
         raise ValueError(f"Unknown email template: {template}")
 
