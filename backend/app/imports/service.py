@@ -11,6 +11,11 @@ from app.api.errors import NotFoundError
 from app.imports.adapters import normalize_imported_row, parse_file
 from app.imports.models import ImportBatch, ImportedRecord, ImportStatus, SearchSource
 from app.jobs.models import BackgroundJob
+from app.notifications.service import (
+    queue_failure_email_safely,
+    queue_import_completed_email,
+    queue_import_failed_email,
+)
 
 
 def resolve_project_search_source(
@@ -128,6 +133,7 @@ def process_import_job(db: Session, job: BackgroundJob) -> dict[str, object]:
     from app.imports.pdf_import import process_pdf_matches
 
     pdfs = process_pdf_matches(db, batch)
+    queue_import_completed_email(db, batch)
     return {
         "importBatchId": batch.id,
         "records": len(rows),
@@ -147,17 +153,24 @@ def mark_import_permanently_failed(
     abandoned) parse job leaves its ImportBatch in PROCESSING forever and the
     UI reports a dead import as still running. A batch that already reached
     COMPLETED is left alone -- a later failure in the same job (PDF matching,
-    say) does not retract records that are genuinely imported.
+    say) does not retract records that are genuinely imported. Either way the
+    person who started the import is emailed the reason.
     """
     batch_id = job.payload.get("import_batch_id")
     if not batch_id:
         return
     batch = db.get(ImportBatch, str(batch_id))
-    if batch is None or batch.status == ImportStatus.COMPLETED:
+    if batch is None:
         return
-    batch.status = ImportStatus.FAILED
-    batch.error_message = error[:2000]
-    db.flush()
+    if batch.status != ImportStatus.COMPLETED:
+        batch.status = ImportStatus.FAILED
+        batch.error_message = error[:2000]
+        db.flush()
+    queue_failure_email_safely(
+        db,
+        lambda: queue_import_failed_email(db, batch, job_id=job.id, error=error),
+        job=job,
+    )
 
 
 def preview_or_delete_search(

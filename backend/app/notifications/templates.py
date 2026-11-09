@@ -228,6 +228,83 @@ def render_email(template: str, context: dict[str, Any]) -> RenderedEmail:
             ("Failed", str(context["failed_count"]), "#bf3f46"),
             ("Other", str(context["other_count"]), "#9d6712"),
         ]
+    elif template == "project_copy_completed":
+        subject = f'Your copy "{context["project_name"]}" is ready'
+        paragraphs = [
+            f"Hello {context['recipient_name']},",
+            f'The Papertrail project "{context["source_project_name"]}" has been copied '
+            f'into the new project "{context["project_name"]}". You are its owner.',
+        ]
+        if context.get("missing_files"):
+            paragraphs.append(
+                f"{context['missing_files']} file(s) were already missing from the source "
+                "project and could not be copied."
+            )
+        action_label = "Open the copy"
+        action_url = context["project_url"]
+        summary_items = [("Status", "Copied", "#147a59")]
+    elif template == "project_copy_failed":
+        subject = f'Copying "{context["source_project_name"]}" failed'
+        paragraphs = [
+            f"Hello {context['recipient_name']},",
+            f'Your copy "{context["project_name"]}" of the Papertrail project '
+            f'"{context["source_project_name"]}" could not be created. Nothing was '
+            "created and the source project is unchanged.",
+            f"Reason: {context['error_message']}",
+        ]
+        action_label = "Open project administration"
+        action_url = context["project_url"]
+        summary_items = [("Status", "Failed", "#bf3f46")]
+    elif template == "import_completed":
+        subject = f'Import of "{context["filename"]}" finished'
+        paragraphs = [
+            f"Hello {context['recipient_name']},",
+            f'Your import of "{context["filename"]}" into the Papertrail project '
+            f'"{context["project_name"]}" has finished: {context["record_count"]} '
+            "record(s) were read.",
+        ]
+        if context.get("invalid_count"):
+            paragraphs.append(
+                f"{context['invalid_count']} of them were flagged as invalid and need "
+                "attention on the import page."
+            )
+        action_label = "Open imports"
+        action_url = context["project_url"]
+        summary_items = [
+            ("Records", str(context["record_count"]), "#147a59"),
+            ("Invalid", str(context["invalid_count"]), "#bf3f46"),
+        ]
+    elif template == "import_failed":
+        subject = f'Import of "{context["filename"]}" failed'
+        if context.get("records_imported"):
+            outcome = (
+                "Its records were read, but a later step (adding them to the project "
+                "or matching uploaded PDFs) failed."
+            )
+        else:
+            outcome = "No records were imported."
+        paragraphs = [
+            f"Hello {context['recipient_name']},",
+            f'Your import of "{context["filename"]}" into the Papertrail project '
+            f'"{context["project_name"]}" failed. {outcome}',
+            f"Reason: {context['error_message']}",
+        ]
+        action_label = "Open imports"
+        action_url = context["project_url"]
+        summary_items = [("Status", "Failed", "#bf3f46")]
+    elif template == "duplicate_detection_failed":
+        subject = f'Duplicate detection failed in "{context["project_name"]}"'
+        paragraphs = [
+            f"Hello {context['recipient_name']},",
+            f'Duplicate detection in the Papertrail project "{context["project_name"]}" '
+            "failed. The records it was checking are no longer held back, so any "
+            "duplicates among them have not been found.",
+            f"Reason: {context['error_message']}",
+            "Re-run duplicate detection from the Duplicates page once the cause is fixed.",
+        ]
+        action_label = "Open duplicates"
+        action_url = context["project_url"]
+        summary_items = [("Status", "Failed", "#bf3f46")]
     else:
         raise ValueError(f"Unknown email template: {template}")
 

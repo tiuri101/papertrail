@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import hashlib
+import logging
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
@@ -9,6 +11,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.accounts.models import User
+from app.imports.models import ImportBatch, ImportStatus
 from app.instance_settings.service import effective_instance_settings
 from app.jobs.models import BackgroundJob, JobStatus
 from app.jobs.service import enqueue_job
@@ -22,6 +25,8 @@ from app.notifications.mailer import send_smtp_email
 from app.notifications.models import EmailDeliveryStatus, EmailNotification
 from app.notifications.templates import render_email
 from app.projects.models import Project, ProjectMembership, ProjectStage
+
+logger = logging.getLogger(__name__)
 
 SEND_EMAIL_JOB = "send_email"
 CHECK_LLM_STAGE_EMAIL_JOB = "check_llm_stage_email"
@@ -299,6 +304,152 @@ def queue_project_stage_completed_emails(
                 "stage_label": STAGE_LABELS[completed_stage],
                 "new_stage_label": STAGE_LABELS[project.stage],
                 "project_url": f"{settings.public_base_url}/projects/{project.id}",
+            },
+            project_id=project.id,
+        )
+        if notification:
+            notifications.append(notification)
+    return notifications
+
+
+def queue_project_copy_completed_email(
+    db: Session,
+    recipient: User,
+    *,
+    job_id: str,
+    source_project_name: str,
+    target_project_id: str,
+    target_project_name: str,
+    missing_files: int,
+) -> EmailNotification | None:
+    settings = effective_instance_settings(db)
+    return queue_email_notification(
+        db,
+        recipient=recipient,
+        template="project_copy_completed",
+        deduplication_key=f"project-copy-completed:{job_id}",
+        context={
+            "recipient_name": recipient.display_name,
+            "source_project_name": source_project_name,
+            "project_name": target_project_name,
+            "missing_files": missing_files,
+            "project_url": f"{settings.public_base_url}/projects/{target_project_id}",
+        },
+        project_id=target_project_id,
+    )
+
+
+def queue_project_copy_failed_email(
+    db: Session, job: BackgroundJob, error: str
+) -> None:
+    """Permanent-failure hook: tell whoever requested a project copy it failed."""
+    recipient = db.get(User, job.created_by_id) if job.created_by_id else None
+    project = db.get(Project, job.project_id) if job.project_id else None
+    if recipient is None or project is None:
+        return
+    settings = effective_instance_settings(db)
+    queue_email_notification(
+        db,
+        recipient=recipient,
+        template="project_copy_failed",
+        deduplication_key=f"project-copy-failed:{job.id}",
+        context={
+            "recipient_name": recipient.display_name,
+            "source_project_name": project.name,
+            "project_name": str(job.payload.get("name", "")),
+            "error_message": error[:500] or "unknown error",
+            "project_url": f"{settings.public_base_url}/projects/{project.id}/admin",
+        },
+        project_id=project.id,
+    )
+
+
+def queue_failure_email_safely(
+    db: Session, queue: Callable[[], object], *, job: BackgroundJob
+) -> None:
+    """Queue a failure email from a permanent-failure hook without risking
+    the hook's own state change: the email gets its own SAVEPOINT, and a
+    problem queueing it is logged instead of undoing that change."""
+    try:
+        with db.begin_nested():
+            queue()
+    except Exception:
+        logger.exception(
+            "Could not queue the failure email for background job %s (%s)",
+            job.id,
+            job.job_type,
+        )
+
+
+def queue_import_completed_email(
+    db: Session, batch: ImportBatch
+) -> EmailNotification | None:
+    recipient = db.get(User, batch.created_by_id)
+    project = db.get(Project, batch.project_id)
+    if recipient is None or project is None:
+        return None
+    settings = effective_instance_settings(db)
+    return queue_email_notification(
+        db,
+        recipient=recipient,
+        template="import_completed",
+        deduplication_key=f"import-completed:{batch.id}",
+        context={
+            "recipient_name": recipient.display_name,
+            "project_name": project.name,
+            "filename": batch.original_filename,
+            "record_count": batch.record_count,
+            "invalid_count": batch.invalid_record_count,
+            "project_url": f"{settings.public_base_url}/projects/{project.id}/imports",
+        },
+        project_id=project.id,
+    )
+
+
+def queue_import_failed_email(
+    db: Session, batch: ImportBatch, *, job_id: str, error: str
+) -> EmailNotification | None:
+    recipient = db.get(User, batch.created_by_id)
+    project = db.get(Project, batch.project_id)
+    if recipient is None or project is None:
+        return None
+    settings = effective_instance_settings(db)
+    return queue_email_notification(
+        db,
+        recipient=recipient,
+        template="import_failed",
+        deduplication_key=f"import-failed:{job_id}",
+        context={
+            "recipient_name": recipient.display_name,
+            "project_name": project.name,
+            "filename": batch.original_filename,
+            "records_imported": batch.status == ImportStatus.COMPLETED,
+            "error_message": error[:500] or "unknown error",
+            "project_url": f"{settings.public_base_url}/projects/{project.id}/imports",
+        },
+        project_id=project.id,
+    )
+
+
+def queue_duplicate_detection_failed_emails(
+    db: Session, project_id: str, *, job_id: str, error: str
+) -> list[EmailNotification]:
+    project = db.get(Project, project_id)
+    if project is None:
+        return []
+    settings = effective_instance_settings(db)
+    notifications: list[EmailNotification] = []
+    for owner in _project_owner_users(db, project.id):
+        notification = queue_email_notification(
+            db,
+            recipient=owner,
+            template="duplicate_detection_failed",
+            deduplication_key=f"duplicate-detection-failed:{job_id}:{owner.id}",
+            context={
+                "recipient_name": owner.display_name,
+                "project_name": project.name,
+                "error_message": error[:500] or "unknown error",
+                "project_url": f"{settings.public_base_url}/projects/{project.id}/duplicates",
             },
             project_id=project.id,
         )

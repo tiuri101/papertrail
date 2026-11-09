@@ -96,6 +96,7 @@ from app.llm.models import (
     LlmValidationResult,
     ProjectLlmSettings,
 )
+from app.notifications.service import queue_project_copy_completed_email
 from app.pdf_acquisition.models import PdfRetrievalBatch, PdfRetrievalJob
 from app.projects.file_cleanup import ProjectFileCleanup
 from app.projects.job_safety import (
@@ -412,6 +413,17 @@ def clone_project_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
                 "sourceProjectId": source_project_id,
                 "missingFiles": len(missing),
             },
+        )
+        # Queued in the clone's own transaction: the email goes out exactly
+        # when the copy commits, and never for an attempt that rolls back.
+        queue_project_copy_completed_email(
+            db,
+            owner,
+            job_id=job.id,
+            source_project_name=source_project,
+            target_project_id=target_project_id,
+            target_project_name=name,
+            missing_files=len(missing),
         )
         db.flush()
     except BaseException:

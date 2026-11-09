@@ -58,20 +58,20 @@ function candidate(overrides: Partial<Candidate> = {}): Candidate {
 
 describe('DuplicateComparisonCard', () => {
   it('renders a reachability badge per checked URL', () => {
-    renderWithProviders(<DuplicateComparisonCard candidate={candidate()} />)
+    renderWithProviders(<DuplicateComparisonCard projectId="p1" candidate={candidate()} />)
     expect(screen.getByText(/Publisher link: Reachable/)).toBeInTheDocument()
     expect(screen.getByText(/DOI link: Unreachable/)).toBeInTheDocument()
   })
 
   it('shows a publisher link pill when the record has one', () => {
-    renderWithProviders(<DuplicateComparisonCard candidate={candidate()} />)
+    renderWithProviders(<DuplicateComparisonCard projectId="p1" candidate={candidate()} />)
     const pill = screen.getByRole('link', { name: 'Publisher link' })
     expect(pill).toHaveAttribute('href', 'https://publisher.example/a')
   })
 
   it('shows the provider "keep record A" recommendation with its reason', () => {
     renderWithProviders(
-      <DuplicateComparisonCard
+      <DuplicateComparisonCard projectId="p1"
         candidate={candidate({
           providerRecommendation: 'merge',
           providerRecommendedCanonicalId: 'pub-a',
@@ -88,7 +88,7 @@ describe('DuplicateComparisonCard', () => {
     'shows no recommendation callout for %s',
     (recommendation) => {
       renderWithProviders(
-        <DuplicateComparisonCard
+        <DuplicateComparisonCard projectId="p1"
           candidate={candidate({ providerRecommendation: recommendation })}
         />,
       )
@@ -98,7 +98,7 @@ describe('DuplicateComparisonCard', () => {
 
   it('hides the recommendation once the pair is resolved', () => {
     renderWithProviders(
-      <DuplicateComparisonCard
+      <DuplicateComparisonCard projectId="p1"
         candidate={candidate({
           status: 'merged',
           providerRecommendation: 'merge',
@@ -113,7 +113,7 @@ describe('DuplicateComparisonCard', () => {
   it('marks only the record that already has screening decisions', () => {
     const base = candidate()
     renderWithProviders(
-      <DuplicateComparisonCard
+      <DuplicateComparisonCard projectId="p1"
         candidate={candidate({ publicationA: { ...base.publicationA, screened: true } })}
       />,
     )
@@ -121,5 +121,16 @@ describe('DuplicateComparisonCard', () => {
     const recordB = screen.getByText('Record B', { selector: 'p' }).closest('section')!
     expect(within(recordA).getByText('Screened')).toBeInTheDocument()
     expect(within(recordB).queryByText('Screened')).not.toBeInTheDocument()
+  })
+
+  it('links each record title to its publication details page in a new tab', () => {
+    renderWithProviders(<DuplicateComparisonCard projectId="p1" candidate={candidate()} />)
+    const linkA = screen.getByRole('link', { name: 'Record A' })
+    expect(linkA).toHaveAttribute('href', '/projects/p1/publications/pub-a')
+    expect(linkA).toHaveAttribute('target', '_blank')
+    expect(screen.getByRole('link', { name: 'Record B' })).toHaveAttribute(
+      'href',
+      '/projects/p1/publications/pub-b',
+    )
   })
 })

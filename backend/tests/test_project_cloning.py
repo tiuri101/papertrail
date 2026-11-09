@@ -672,3 +672,83 @@ def test_no_source_id_appears_anywhere_in_the_clone_even_inside_text(
             text = repr(row)
             leaked = {source_id for source_id in source_ids if source_id in text}
             assert not leaked, (table, row)
+
+
+def _enable_email(monkeypatch) -> list[tuple[str, str, str]]:
+    from app.core.config import Settings
+
+    def email_settings(db=None) -> Settings:
+        return Settings(
+            _env_file=None,
+            email_enabled=True,
+            public_base_url="https://papertrail.example.org/",
+            smtp_host="smtp.example.org",
+            smtp_from_address="papertrail@example.org",
+        )
+
+    sent: list[tuple[str, str, str]] = []
+
+    def fake_send(_settings, *, recipient, rendered) -> None:
+        sent.append((recipient, rendered.subject, rendered.text_body))
+
+    monkeypatch.setattr("app.notifications.service.effective_instance_settings", email_settings)
+    monkeypatch.setattr("app.notifications.service.send_smtp_email", fake_send)
+    return sent
+
+
+def test_requester_is_emailed_when_the_copy_finishes(
+    client, db, session_factory, isolated_storage, monkeypatch
+) -> None:
+    sent = _enable_email(monkeypatch)
+    data = build_populated_project(db, isolated_storage)
+    data["owner"].email = "owner@example.org"
+    data["reviewer"].email = "reviewer@example.org"
+    db.commit()
+    csrf = login(client, "owner", "owner-password")
+
+    clone_id = _clone(client, session_factory, data["project"].id, csrf, "Emailed Copy")
+    while execute_next_job(session_factory, worker_id="test-worker"):
+        pass
+
+    assert len(sent) == 1
+    recipient, subject, body = sent[0]
+    assert recipient == "owner@example.org"
+    assert "Emailed Copy" in subject
+    assert f"/projects/{clone_id}" in body
+
+
+def test_requester_is_emailed_once_when_the_copy_fails_for_good(
+    client, db, session_factory, isolated_storage, monkeypatch
+) -> None:
+    sent = _enable_email(monkeypatch)
+    data = build_populated_project(db, isolated_storage)
+    data["owner"].email = "owner@example.org"
+    db.commit()
+    source = data["project"]
+    csrf = login(client, "owner", "owner-password")
+
+    def fail(_state):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(cloning, "_copy_files", fail)
+    response = client.post(
+        f"/api/v1/projects/{source.id}/clone",
+        json={"name": "Doomed"},
+        headers={"X-CSRF-Token": csrf},
+    )
+    assert response.status_code == 202
+    while execute_next_job(session_factory, worker_id="test-worker"):
+        pass
+
+    db.expire_all()
+    job = db.scalar(
+        select(BackgroundJob).where(BackgroundJob.job_type == cloning.CLONE_PROJECT_JOB)
+    )
+    assert job is not None and job.status == JobStatus.FAILED
+    # Retried attempts stay silent; only the terminal failure is reported.
+    assert len(sent) == 1
+    recipient, subject, body = sent[0]
+    assert recipient == "owner@example.org"
+    assert "Source Review" in subject and "Doomed" in body
+    assert "disk full" in body
+    assert f"/projects/{source.id}/admin" in body

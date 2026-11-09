@@ -44,7 +44,7 @@ function ActiveDuplicateCard({ queue }: { queue: DuplicateQueue }) {
           <h2 className="mb-0 mt-0.5 text-base">Compare publication records</h2>
         </div>
       </header>
-      <DuplicateComparisonCard candidate={candidate} />
+      <DuplicateComparisonCard projectId={queue.projectId} candidate={candidate} />
       <DuplicateDecisionButtons
         publicationAId={candidate.publicationA.id}
         publicationBId={candidate.publicationB.id}
