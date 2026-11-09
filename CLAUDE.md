@@ -11,7 +11,7 @@ Papertrail is a self-hosted, multi-user tool for structured literature reviews (
 ### Backend (`cd backend`, with `.venv` active)
 
 ```powershell
-python -m pytest                                    # run tests
+python -m pytest -n auto                            # run tests in parallel (pytest-xdist; SQLite only)
 python -m pytest path/to/test_file.py::test_name     # run a single test
 python -m pytest --cov=app --cov-report=term-missing
 python -m ruff check app tests

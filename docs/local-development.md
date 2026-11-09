@@ -254,7 +254,7 @@ and frontend in separate terminals.
 ```powershell
 cd backend
 .\.venv\Scripts\Activate.ps1
-python -m pytest
+python -m pytest -n auto   # parallel; plain `python -m pytest` runs serially
 python -m pytest --cov=app --cov-report=term-missing
 python -m ruff check app tests
 python -m mypy app

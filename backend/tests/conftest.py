@@ -14,17 +14,41 @@ os.environ.setdefault(
 )
 
 import pytest
+from argon2 import PasswordHasher
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+import app.accounts.service as account_service
 from app.db.base import Base
 from app.db.session import get_db
 from app.main import create_app
 
+# Production Argon2 parameters cost ~50 ms per hash and per verify, and the
+# suite creates users and logs in well over a thousand times. The tests check
+# *that* passwords are hashed and verified, not how expensive it is, so they
+# run with the cheapest parameters argon2 accepts.
+account_service.password_hasher = PasswordHasher(
+    time_cost=1, memory_cost=8, parallelism=1
+)
+account_service._DUMMY_PASSWORD_HASH = account_service.password_hasher.hash(
+    secrets.token_urlsafe(32)
+)
+
 SQLITE_TEST_DATABASE_URL = "sqlite+pysqlite:///:memory:"
+
+if os.getenv("PYTEST_XDIST_WORKER") and not os.getenv(
+    "PAPERTRAIL_TEST_DATABASE_URL", SQLITE_TEST_DATABASE_URL
+).startswith("sqlite"):
+    # Every test creates and drops the full schema in the configured database,
+    # so parallel workers sharing one PostgreSQL database would wipe each
+    # other's tables mid-test. Each in-memory SQLite engine is private.
+    raise pytest.UsageError(
+        "pytest -n (xdist) only works with the default in-memory SQLite test "
+        "database; unset PAPERTRAIL_TEST_DATABASE_URL or run serially"
+    )
 
 
 def create_test_engine() -> Engine:

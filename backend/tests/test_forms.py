@@ -598,29 +598,33 @@ def test_field_updates_and_archiving_record_auditable_changes(client, db) -> Non
                     ]
                 ),
             )
-            .order_by(AuditEvent.created_at, AuditEvent.id)
         )
     )
-    assert [event.action for event in events] == [
-        "form_field.updated",
-        "form_field.replaced",
+    # Keyed by action, not sorted by created_at: the three requests can land
+    # in the same clock tick (Windows timers are coarse), and the random UUID
+    # tie-break would then shuffle them.
+    by_action = {event.action: event for event in events}
+    assert sorted(by_action) == [
         "form_field.archived",
+        "form_field.replaced",
+        "form_field.updated",
     ]
-    assert events[0].event_metadata == {
+    assert len(events) == 3
+    assert by_action["form_field.updated"].event_metadata == {
         "stableKey": stable_key,
         "changes": {
             "label": {"from": "Main finding", "to": "Primary outcome"},
             "required": {"from": False, "to": True},
         },
     }
-    assert events[1].event_metadata == {
+    assert by_action["form_field.replaced"].event_metadata == {
         "replacedStableKey": stable_key,
         "replacementStableKey": replacement_key,
         "changes": {
             "fieldType": {"from": "short_text", "to": "number"},
         },
     }
-    assert events[2].event_metadata == {
+    assert by_action["form_field.archived"].event_metadata == {
         "stableKey": replacement_key,
         "changes": {"isArchived": {"from": False, "to": True}},
     }
