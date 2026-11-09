@@ -11,7 +11,7 @@ Papertrail is a self-hosted, multi-user tool for structured literature reviews (
 ### Backend (`cd backend`, with `.venv` active)
 
 ```powershell
-python -m pytest -n auto                            # run tests in parallel (pytest-xdist; SQLite only)
+python -m pytest -n auto                            # run tests in parallel (pytest-xdist)
 python -m pytest path/to/test_file.py::test_name     # run a single test
 python -m pytest --cov=app --cov-report=term-missing
 python -m ruff check app tests
@@ -20,7 +20,7 @@ python -m alembic upgrade head
 python -m alembic revision --autogenerate -m "describe the schema change"
 ```
 
-Backend tests default to an in-memory SQLite engine (see `backend/tests/conftest.py`); they do not need the dev PostgreSQL container unless a test sets `PAPERTRAIL_TEST_DATABASE_URL` explicitly to target Postgres behavior.
+Backend tests default to an in-memory SQLite engine (see `backend/tests/conftest.py`); they do not need the dev PostgreSQL container unless `PAPERTRAIL_TEST_DATABASE_URL` is set to target Postgres behavior (as CI does). With a Postgres URL, each test process — every xdist worker included — creates its own scratch database `<name>_<worker>`, builds the schema once, and empties all tables after each test; the account in the URL therefore needs `CREATEDB`.
 
 ### Frontend (`cd frontend`)
 
