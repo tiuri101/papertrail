@@ -25,9 +25,9 @@ from app.jobs.service import claim_job, reap_abandoned_jobs, renew_job_lease
 from app.llm.service import TEXT_JOB
 from app.notifications.service import (
     SEND_EMAIL_JOB,
-    queue_llm_bulk_completion_check,
-    queue_llm_stage_completion_check,
     record_email_job_failure,
+    schedule_llm_digest_after_run,
+    schedule_llm_digest_check,
 )
 
 logger = logging.getLogger(__name__)
@@ -189,7 +189,7 @@ def execute_next_job(
 
                     run = db.get(LlmExtractionRun, str(job.payload.get("run_id")))
                     if run is not None:
-                        queue_llm_stage_completion_check(db, run)
+                        schedule_llm_digest_after_run(db, run)
                         if run.task_type == LlmTaskType.EXTRACTION_VALIDATION:
                             from app.projects.lifecycle import (
                                 evaluate_project_completion,
@@ -204,11 +204,7 @@ def execute_next_job(
                     and job.payload.get("bulk_id")
                     and job.project_id
                 ):
-                    queue_llm_bulk_completion_check(
-                        db,
-                        project_id=job.project_id,
-                        bulk_id=str(job.payload["bulk_id"]),
-                    )
+                    schedule_llm_digest_check(db, job.project_id)
                 record_audit(
                     db,
                     action="job.completed",
@@ -268,7 +264,7 @@ def execute_next_job(
                             run.error_type = "transient_retries_exhausted"
                             run.error_message = str(exc)[:2000]
                             run.completed_at = datetime.now(UTC)
-                            queue_llm_stage_completion_check(db, run)
+                            schedule_llm_digest_after_run(db, run)
                             if run.task_type == LlmTaskType.EXTRACTION_VALIDATION:
                                 from app.projects.lifecycle import (
                                     evaluate_project_completion,
@@ -284,11 +280,7 @@ def execute_next_job(
                     and job.payload.get("bulk_id")
                     and job.project_id
                 ):
-                    queue_llm_bulk_completion_check(
-                        db,
-                        project_id=job.project_id,
-                        bulk_id=str(job.payload["bulk_id"]),
-                    )
+                    schedule_llm_digest_check(db, job.project_id)
                 if job.job_type == SEND_EMAIL_JOB:
                     record_email_job_failure(db, job, exc)
                 if job.status == JobStatus.FAILED:

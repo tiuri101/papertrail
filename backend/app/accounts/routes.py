@@ -217,6 +217,12 @@ def update_me(
         # or identity-relevant change, so it's saved without an audit entry --
         # otherwise every hotkey tweak or font pick would spam the audit log.
         user.ui_preferences = payload.ui_preferences
+    if payload.email_preferences is not None:
+        user.email_preferences = {
+            **(user.email_preferences or {}),
+            **payload.email_preferences,
+        }
+        changed_fields.append("email_preferences")
     if payload.new_password is not None:
         client_address = request.client.host if request.client else "unknown"
         throttle_identity = f"currentpw:{user.id}"

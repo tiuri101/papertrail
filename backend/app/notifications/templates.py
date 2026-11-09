@@ -212,11 +212,11 @@ def render_email(template: str, context: dict[str, Any]) -> RenderedEmail:
             ("Now in progress", str(context["new_stage_label"]), "#5369d8"),
         ]
     elif template == "llm_stage_completed":
-        subject = f'LLM processing bulk finished for "{context["project_name"]}"'
+        subject = f'LLM processing finished for "{context["project_name"]}"'
         paragraphs = [
             f"Hello {context['recipient_name']},",
-            f'The complete queued LLM processing bulk in "{context["project_name"]}" '
-            "has finished.",
+            f'All queued LLM processing in "{context["project_name"]}" has finished. '
+            "This summary covers everything that finished since the last one.",
             f"Tasks: {context['stage_label']}.",
             f"Completed: {context['completed_count']}. Failed: {context['failed_count']}. "
             f"Other terminal results: {context['other_count']}.",
