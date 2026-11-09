@@ -39,6 +39,7 @@ papertrail = "app.cli:main"
 dev = [
   "pytest>=9,<10",
   "pytest-cov>=6,<7",
+  "pytest-xdist>=3,<4",
   "ruff>=0.12,<1",
   "mypy>=1.17,<2",
   "pip-tools>=7.6,<8",

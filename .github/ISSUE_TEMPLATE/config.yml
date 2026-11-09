@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Report a security vulnerability
+    url: https://github.com/tiuri101/papertrail/security/advisories/new
+    about: Please report security issues privately, never as a public issue. See SECURITY.md.
+  - name: Ask a question or get setup help
+    url: https://github.com/tiuri101/papertrail/discussions
+    about: Questions about installing, configuring, or using Papertrail.
+  - name: Local development guide
+    url: https://github.com/tiuri101/papertrail/blob/main/docs/local-development.md
+    about: Setup and troubleshooting for running Papertrail locally.

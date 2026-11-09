@@ -19,6 +19,7 @@ For a more detailed, interactive view:
 - `projects` — project model, membership/eligibility, criteria/RQs, screening configuration, lifecycle/integrity operations;
 - `imports` — search documentation, bibliographic imports, bulk PDF matching;
 - `publications` — normalized records, metadata editing/enrichment, exports for individual records;
+- `bookmarks` — private per-user publication bookmarks and the cross-project Bookmarks page;
 - `deduplication` — duplicate scoring, merge/reversal;
 - `screening` and `conflicts` — reviewer work, revisions, final decisions, conflict resolution;
 - `fulltext` — human retrieval status and protected PDF document/version management;

@@ -31,7 +31,7 @@ Significant workflow, administrative, and reviewer actions are recorded in an im
 
 - **Import and provenance:** import bibliographic exports from multiple databases
 - **PDF management:** attach full-text PDFs with version history, stored locally; an optional paired Chrome extension can retrieve them through the reviewer's own browser network access and sign-in state
-- **Duplicate review:** configurable duplicate scoring with reviewer-driven merge decisions
+- **Duplicate review:** duplicate scoring with automatic merges for exact-identifier and provider-confirmed matches; everything else is decided by reviewers
 - **Multi-reviewer screening:** title/abstract and full-text screening stages with configurable reviewer counts and conflict resolution
 - **Dynamic extraction forms:** versioned, project-defined forms with stable field identifiers for structured data extraction, optionally with two independent extractors per publication and adjudicator-led reconciliation of disagreements
 - **Quality assessment:** reviewer-recorded quality/risk-of-bias evaluation, kept separate from extraction data
@@ -39,6 +39,8 @@ Significant workflow, administrative, and reviewer actions are recorded in an im
 - **Charts & Analysis:** anonymized inter-reviewer agreement, a searchable/filterable evidence matrix of every result with its source traceable, and optional LLM-generated per-research-question synthesis
 - **Reporting and export:** PRISMA flow outputs, Excel workbooks, Parquet datasets, JSON and CSV exports, and BibTeX export
 - **Audit trail:** durable audit logging of workflow and reviewer actions
+- **Email notifications:** optional emails for finished imports, stage changes, completed LLM processing, and more, with per-user opt-outs
+- **Bookmarks and project copies:** private cross-project bookmarks, and one-click copies of a whole project in its current state
 - **Role-based access:** project-scoped membership so reviewers only see projects and actions they're eligible for
 
 ## 🏗️ Architecture
@@ -105,17 +107,24 @@ See [Installation](docs/installation.md) for production configuration.
 
 ## 📚 Documentation
 
+The documentation is also published as a website at https://tiuri101.github.io/papertrail/.
+
 | Guide | Description |
 | --- | --- |
+| [Installation](docs/installation.md) | Production deployment with Docker Compose |
+| [Upgrade guide](docs/upgrade.md) | Moving an installation to a new release |
 | [Local development](docs/local-development.md) | Manual setup, testing, database management, troubleshooting |
 | [Architecture](docs/architecture.md) | System design and component overview |
 | [Administrator guide](docs/administrator-guide.md) | Managing users, projects, jobs, integrity, and global settings |
 | [Reviewer guide](docs/user-guide.md) | Screening, PDFs, account settings, extraction, quality assessment, and analysis |
+| [Review workflow](docs/review-workflow.md) | Project stages, dual extraction, reconciliation, and revisions |
 | [Developer guide](docs/developer-guide.md) | Contributing and codebase conventions |
 | [Frontend testing](docs/frontend-testing.md) | Running and writing frontend tests |
 | [Configuration](docs/configuration.md) | Environment variables, Global Settings, precedence, and runtime behavior |
 | [Browser Helper](docs/browser-helper.md) | Installing, pairing, and operating browser-assisted PDF retrieval |
 | [Backup and restore](docs/backup-and-restore.md) | Data durability and disaster recovery |
+| [Security operations](docs/operations/security.md) | Hardening, authentication, secrets, and production checks |
+| [Reliability operations](docs/operations/reliability.md) | Health checks, background jobs, monitoring, and outages |
 | [Import formats](docs/import-formats.md) | Supported bibliographic export formats |
 | [LLM-assisted extraction](docs/llm-assisted-extraction.md) | How the optional Ollama integration works |
 | [API overview](docs/api.md) | API conventions and integration overview; `/docs` and `/openapi.json` are authoritative |

@@ -34,8 +34,8 @@ The supported subset covers what reference managers actually export, not the who
 
 - Entries delimited by `{}` or `()`, of any entry type; the entry type becomes the publication type and the citation key is kept for provenance.
 - Values as braced groups nested to any depth, quoted strings, bare numbers, and `@string` macros, joined with `#` concatenation. `@string`, `@comment`, and `@preamble` blocks are handled and never become records; a stray `@` elsewhere in the file is ignored.
-- Braces used only to protect capitalization (`{COVID-19}`, `{{visual analytics}}`) are removed; LaTeX accent and special-character commands (`{\"u}`, `\'e`, `{\ss}`) are decoded to Unicode.
-- `and`-separated author lists are normalized to the same `; ` separator RIS records use. A name wrapped in its own braces — `author = {{Ministry of Health and Care}}` — stays one author.
+- Braces used only to protect capitalization (`{COVID-19}`, <code>&#123;&#123;visual analytics&#125;&#125;</code>) are removed; LaTeX accent and special-character commands (`{\"u}`, `\'e`, `{\ss}`) are decoded to Unicode.
+- `and`-separated author lists are normalized to the same `; ` separator RIS records use. A name wrapped in its own braces — <code>author = &#123;&#123;Ministry of Health and Care&#125;&#125;</code> — stays one author.
 - `journal`, `journaltitle`, and `booktitle` map to venue; `eprint` (with `archivePrefix = {arXiv}`, or with no `archivePrefix`) maps to the arXiv ID; `pmid` maps to the PubMed ID.
 
 Not supported, and not planned: BibTeX's `\newcommand`/macro expansion beyond `@string`, `crossref` inheritance between entries, and `.bst` style semantics. Fields with no normalized counterpart (`volume`, `number`, `pages`, `note`, `publisher`, …) are parsed and retained in the raw imported record but are not stored on the publication.

@@ -1,0 +1,112 @@
+name: Bug report
+description: Something in Papertrail does not work as expected.
+title: "[Bug]: "
+labels: ["bug", "needs-triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a problem. Please do not paste passwords, API tokens,
+        session cookies, or unpublished review data into this issue.
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of Papertrail is affected?
+      options:
+        - Import / deduplication
+        - Screening / conflicts
+        - Full text / PDF retrieval
+        - Extraction / quality assessment
+        - Reporting / exports
+        - LLM assistance
+        - Email notifications
+        - Browser Helper extension
+        - Accounts / administration
+        - Installation / deployment
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: Describe the defect
+      description: A clear and concise description of what went wrong.
+      placeholder: |
+        Example: After resolving duplicates one at a time, I received one
+        "LLM processing finished" email per publication (several hundred in total).
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      placeholder: "Example: A single email once all LLM work in the project had finished."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        Example:
+        1. Enable email notifications and title/abstract LLM assistance.
+        2. Import a file that contains duplicates.
+        3. Resolve the duplicates one by one on the Duplicates page.
+        4. Watch the project owner's inbox.
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: Papertrail version
+      description: The release name or image tag (PAPERTRAIL_IMAGE_TAG), e.g. 2026.11.03.
+      placeholder: "Example: 2026.11.03"
+    validations:
+      required: true
+
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and operating system
+      description: Needed for problems in the web app or the Browser Helper extension.
+      placeholder: "Example: Chrome 142 on Windows 11"
+
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      options:
+        - Production (Docker Compose)
+        - Local development
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs or job errors
+      description: API/worker log lines or the error shown on the Jobs page. Redact anything sensitive.
+      render: text
+      placeholder: |
+        Example:
+        INFO app.jobs.worker Finished background job 3f2c... (check_llm_stage_email)
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: If applicable, drag screenshots or a screen recording in here.
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Anything else that helps, e.g. project size or whether it happens every time.
+      placeholder: "Example: Project with ~2,000 records; happens every time a duplicate is resolved."

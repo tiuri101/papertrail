@@ -80,6 +80,17 @@ The API derives the target publication from the server-side claim. The extension
 
 On upload, FastAPI performs its own file-size and PDF validation and attaches the document with source `browser_retrieval`. A successful upload advances the authoritative full-text retrieval record to **Available** and allows normal full-text screening to proceed.
 
+## Capturing a PDF you opened yourself
+
+Besides queued retrieval jobs, the Browser Helper can send a PDF you already have open in Chrome:
+
+1. Open the PDF in a tab, open the Browser Helper, and choose **Capture PDF from this tab**.
+2. Choose the project. Papertrail reads the PDF; if its DOI matches exactly one publication in the project, that publication is proposed.
+3. Otherwise use **Find the publication** to search the project, or, if the paper is not in Papertrail yet, add it on the spot and choose **Create & attach**. A typed or detected DOI is looked up so the new record gets authoritative metadata.
+4. If the publication already has a PDF, choose **Replace existing PDF** to make the capture its new version.
+
+Captured PDFs pass the same server-side validation and keep the same version history as any other upload. Capturing requires full-text access in the project (project owners and administrators also qualify). A publication created this way is checked for duplicates before it can be screened.
+
 ## Failures and retries
 
 Browser retrieval jobs can require attention because of publisher authentication, access denial, an unresolved PDF URL, invalid content, network failure, or another retrieval error.
@@ -116,5 +127,9 @@ Agent-token endpoints:
 - `POST /api/v1/browser-agent/retrieval-jobs/{job_id}/state`
 - `POST /api/v1/browser-agent/retrieval-jobs/{job_id}/upload`
 - `POST /api/v1/browser-agent/retrieval-jobs/{job_id}/retry`
+- `GET /api/v1/browser-agent/projects` and `GET /api/v1/browser-agent/projects/{project_id}/publications/search` (capture: project and publication pickers)
+- `POST /api/v1/browser-agent/projects/{project_id}/publications` (capture: add a missing publication)
+- `POST /api/v1/browser-agent/pdf-captures/detect` (capture: read the PDF's DOI/title and propose a match)
+- `POST /api/v1/browser-agent/publications/{publication_id}/pdf-captures` (capture: attach the PDF)
 
 Project batch endpoints are under `/api/v1/projects/{project_id}/pdf-retrieval-batches...`. For the complete current request/response schema, use FastAPI's `/docs` or `/openapi.json`.

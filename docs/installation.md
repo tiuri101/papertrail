@@ -98,7 +98,7 @@ Paper text can be sent to the configured Ollama service for full-text/extraction
 
 ## Optional Browser Helper
 
-Papertrail releases package the Chrome Browser Helper as a ZIP attached to the GitHub release. Users install it as an unpacked extension and pair it from Account Settings. See [Browser Helper](browser-helper.md).
+The backend image bundles the matching Chrome Browser Helper. Users download it from **Account Settings → Browser Helpers** (it is also attached to each GitHub release), install it as an unpacked extension, and pair it from Account Settings. See [Browser Helper](browser-helper.md).
 
 ## Verification
 

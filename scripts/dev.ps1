@@ -213,7 +213,7 @@ switch ($Command) {
         Write-Host "Open http://localhost:5173"
     }
     "test" {
-        Invoke-BackendPython -m pytest
+        Invoke-BackendPython -m pytest -n auto
         Invoke-BackendPython -m ruff check app tests
         Push-Location $Frontend
         try {

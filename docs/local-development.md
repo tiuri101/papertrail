@@ -254,11 +254,20 @@ and frontend in separate terminals.
 ```powershell
 cd backend
 .\.venv\Scripts\Activate.ps1
-python -m pytest
+python -m pytest -n auto   # parallel; plain `python -m pytest` runs serially
 python -m pytest --cov=app --cov-report=term-missing
 python -m ruff check app tests
 python -m mypy app
 ```
+
+The suite uses a private in-memory SQLite database by default. To run it against PostgreSQL the way CI does, point `PAPERTRAIL_TEST_DATABASE_URL` at an existing database whose account may create databases, for example the development container's:
+
+```powershell
+$env:PAPERTRAIL_TEST_DATABASE_URL = "postgresql+psycopg://papertrail:papertrail-dev@127.0.0.1:5432/papertrail"
+python -m pytest -n auto
+```
+
+The tests only connect to that database to create their own scratch databases (`papertrail_gw0`, `papertrail_gw1`, ..., or `papertrail_main` when not running in parallel) and drop them again at the end; the development data itself is never touched.
 
 Backend tests use isolated test databases and do not require the development PostgreSQL container unless a test explicitly targets PostgreSQL behavior.
 

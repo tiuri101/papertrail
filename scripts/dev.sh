@@ -109,7 +109,7 @@ case "$COMMAND" in
     (cd "$FRONTEND" && npm run dev)
     ;;
   test)
-    backend_python -m pytest
+    backend_python -m pytest -n auto
     backend_python -m ruff check app tests
     (cd "$FRONTEND" && npm run typecheck && npm run lint && npm test)
     ;;

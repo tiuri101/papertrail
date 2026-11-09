@@ -129,9 +129,10 @@ def pg_sessions(pg_engine: Engine) -> Any:
     """A session factory over the scratch database, wiped between tests."""
     factory = sessionmaker(bind=pg_engine, autoflush=False, expire_on_commit=False)
     yield factory
+    # One statement for every table: a TRUNCATE per table took ~5 s per test.
+    tables = ", ".join(f'"{table.name}"' for table in Base.metadata.sorted_tables)
     with pg_engine.begin() as connection:
-        for table in reversed(Base.metadata.sorted_tables):
-            connection.execute(text(f'TRUNCATE TABLE "{table.name}" CASCADE'))
+        connection.execute(text(f"TRUNCATE TABLE {tables} CASCADE"))
 
 
 def _open(factory: Any) -> Session:

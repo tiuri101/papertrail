@@ -137,15 +137,18 @@ See [Browser Helper](browser-helper.md) for released-extension installation, pai
 
 Email is installation-level optional configuration. Current durable email events include:
 
-- account creation;
+- account creation and requested password-reset links;
 - notification to active administrators when a project is created;
 - project membership added/removed (permission-only membership edits do not send mail);
-- project-owner summary when the currently scheduled LLM jobs for a task stage have all reached a terminal state.
+- project-owner notice when a project moves on to its next workflow stage, and when it is completed;
+- project-owner **LLM processing finished** summary: one email per project once all of its queued batch LLM work (bulk runs and the PDF text preparation they wait on) has finished and nothing more has finished for 10 minutes. Work that finishes in a steady trickle — for example while duplicates are resolved one at a time, each releasing a publication into screening — produces one summary when it stops, not one email per publication. Each summary covers only work that finished since the previous one. Runs a reviewer starts for a single publication are not reported;
 - to the user who started it, when a publication import finishes or fails for good (one email per imported file);
 - to the user who requested it, when a project copy finishes or fails for good;
 - project-owner alert when duplicate detection fails for good, because the records it was checking go on to screening unchecked.
 
 Failure emails are sent only once a job has used up its retries; attempts that will still be retried send nothing.
+
+Each user chooses which optional categories they receive under **Account Settings → Email Notifications**. Account-creation and password-reset emails cannot be turned off, and the "New projects" category is only offered to administrators.
 
 Email delivery is a normal background job with retry state. SMTP failure does not roll back the domain operation that caused the notification.
 

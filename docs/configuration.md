@@ -78,6 +78,7 @@ All settings below use the `PAPERTRAIL_` prefix. Defaults are those in `backend/
 | `PAPERTRAIL_JOB_LEASE_SECONDS` | `300` | yes | Lease length for newly claimed server-side background jobs. |
 | `PAPERTRAIL_BROWSER_AGENT_PAIRING_TTL_MINUTES` | `10` | no | Lifetime of a one-time Browser Helper pairing secret. |
 | `PAPERTRAIL_BROWSER_RETRIEVAL_LEASE_SECONDS` | `300` | yes | Lease length for a Browser Helper retrieval job. |
+| `PAPERTRAIL_BROWSER_EXTENSION_ZIP_PATH` | `static/papertrail-browser-extension.zip` | no | Browser Helper ZIP served by the in-app download. The backend image bakes it in at this path; only change it for a custom build. |
 
 The production Compose file only passes a subset of these advanced values into backend containers. Variables not present in the `x-backend-environment` block of `docker-compose.yml` must be explicitly added there (or otherwise injected into the containers) before changing them in `.env` will affect that deployment.
 
@@ -129,9 +130,19 @@ usable reset token.
 
 - **Rotation:** changing the key invalidates only reset emails that are still
   queued; affected users simply request a new link.
-- Deployments using `docker-compose.yml` must add
-  `PAPERTRAIL_NOTIFICATION_ENCRYPTION_KEY` to the `x-backend-environment` block,
-  like any other variable that is not already listed there.
+- `docker-compose.yml` already passes `PAPERTRAIL_NOTIFICATION_ENCRYPTION_KEY`
+  through to the backend containers; set it in `.env`.
+
+## Duplicate review assistance
+
+After duplicate detection, the worker checks unresolved candidate pairs against Crossref and Semantic Scholar and probes each record's publisher/DOI links. Provider-confirmed same-work pairs are merged automatically; other pairs get a non-binding "keep this record" suggestion.
+
+| Variable | Default | Global Settings override | Notes |
+| --- | --- | --- | --- |
+| `PAPERTRAIL_DUPLICATE_ASSESSMENT_ENABLED` | `true` | no | Set `false` on installations without outbound internet access. |
+| `PAPERTRAIL_URL_CHECK_TIMEOUT_SECONDS` | `8` | no | Timeout per link probe; minimum 1. |
+
+Neither is in the `x-backend-environment` block of `docker-compose.yml`; add them there to change them in a Compose deployment.
 
 ## Ollama / LLM settings
 
@@ -159,7 +170,7 @@ A blank API key or SMTP password submitted through Global Settings means "keep t
 
 Installation administrators can open **Global Settings** and edit:
 
-- LLM connection, model, limits, and base-prompt overrides;
+- LLM connection, model (chosen from the models installed on the Ollama server), limits, and base-prompt overrides;
 - SMTP delivery and public base URL;
 - password-reset lifetime and reset-request throttling;
 - maximum PDF size and Browser Helper retrieval lease;

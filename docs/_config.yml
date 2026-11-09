@@ -1,0 +1,22 @@
+# GitHub Pages configuration for the documentation site served from docs/.
+# GitHub builds this with Jekyll; Markdown files need no front matter
+# (jekyll-optional-front-matter), take their title from the first heading
+# (jekyll-titles-from-headings), and links between .md files are rewritten
+# to the rendered pages (jekyll-relative-links). Those plugins are enabled
+# by default on GitHub Pages and only listed here to make that explicit.
+title: Papertrail
+description: Self-hosted, multi-user tool for structured literature reviews.
+theme: jekyll-theme-primer
+
+plugins:
+  - jekyll-optional-front-matter
+  - jekyll-relative-links
+  - jekyll-titles-from-headings
+
+relative_links:
+  enabled: true
+  collections: false
+
+titles_from_headings:
+  enabled: true
+  strip_title: false

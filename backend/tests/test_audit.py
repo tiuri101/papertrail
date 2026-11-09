@@ -54,9 +54,11 @@ def test_audit_events_are_append_only_domain_records(db) -> None:
     )
     db.commit()
 
-    events = db.query(AuditEvent).order_by(AuditEvent.created_at, AuditEvent.id).all()
-    assert {event.id for event in events} == {first.id, second.id}
-    assert events[1].event_metadata == {"field": "review_type"}
+    # Looked up by id: both events can share a created_at tick, and the
+    # random UUID tie-break would then make any positional check flaky.
+    events = {event.id: event for event in db.query(AuditEvent).all()}
+    assert set(events) == {first.id, second.id}
+    assert events[second.id].event_metadata == {"field": "review_type"}
 
 
 def test_dashboard_and_excel_include_audit_information(db) -> None:
