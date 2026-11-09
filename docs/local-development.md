@@ -304,6 +304,17 @@ Extension tests mock the `chrome.*` APIs (see `browser-extension/tests/chrome-mo
 
 The current Playwright tests mock API responses and start their own Vite server. They do not require the FastAPI process or PostgreSQL.
 
+## Documentation site
+
+The documentation in `docs/` is published as a website with [MkDocs](https://www.mkdocs.org/) and the Material theme. To preview it while editing, from the repository root:
+
+```powershell
+pip install -r docs/requirements-docs.txt
+mkdocs serve
+```
+
+Open http://127.0.0.1:8000/papertrail/ (if the API already uses port 8000, add `-a 127.0.0.1:8001`). A new page must also be added to the `nav` section of `mkdocs.yml`. `mkdocs build --strict` is what CI runs on pull requests that touch the docs; it fails on broken links and anchors.
+
 ## Database tasks
 
 ### Apply migrations
