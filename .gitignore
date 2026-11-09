@@ -26,3 +26,7 @@ backend/papertrail_backend.egg-info
 frontend/.idea
 browser-extension/.idea
 backend/tests/data/pdfs
+
+# Never commit archives or local test logs (an archive of the project once leaked a local .env)
+*.zip
+test_output.txt
