@@ -40,6 +40,7 @@ from app.notifications.service import (
     CHECK_LLM_STAGE_EMAIL_JOB,
     SEND_EMAIL_JOB,
     check_llm_stage_email_job,
+    queue_project_copy_failed_email,
     send_email_job,
 )
 from app.projects.cloning import CLONE_PROJECT_JOB, clone_project_job
@@ -188,6 +189,7 @@ JOB_DEFINITIONS: dict[str, JobDefinition] = {
         worker_pool=WorkerPool.GENERAL,
         label="Copy project",
         stage="Project copy",
+        on_permanent_failure=queue_project_copy_failed_email,
     ),
     **_llm_task_definitions(),
 }

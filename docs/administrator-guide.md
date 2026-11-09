@@ -35,7 +35,7 @@ Papertrail advances lifecycle stages automatically when completion conditions ar
 
 **Copy Project** (Project Administration → Workflow) creates a new, independent project in exactly the source project's current state: configuration, forms, members and their roles, searches and imports, publications, duplicate-review history, PDFs and extracted text, screening decisions and final decisions, extraction and quality-assessment work (including drafts and open reservations), LLM runs and suggestions, analyses, bookmarks, and the audit log. The user who makes the copy becomes its owner; the previous owner stays a member. Background jobs, queued emails, and generated exports are not copied.
 
-The copy runs as a `clone_project` background job on the general worker. PDFs and uploaded import files are physically copied, so make sure the PDF volume has room for a second set of the project's files. A copy is refused while the source project has queued or running background jobs, because their half-finished work would be copied with nothing left to finish it — wait for them, then try again.
+The copy runs as a `clone_project` background job on the general worker. PDFs and uploaded import files are physically copied, so make sure the PDF volume has room for a second set of the project's files. A copy is refused while the source project has queued or running background jobs, because their half-finished work would be copied with nothing left to finish it — wait for them, then try again. When email is enabled, the user who requested the copy is emailed once it finishes (with a link to the new project) or once it has failed for good (with the reason); failed attempts that will still be retried send nothing.
 
 ## Account administration
 
