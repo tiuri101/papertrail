@@ -65,8 +65,8 @@ body:
     id: helper-version
     attributes:
       label: Browser Helper release
-      description: The release the extension came from, as in its ZIP file name (papertrail-browser-extension-<release>.zip).
-      placeholder: "Example: 2026.11.3"
+      description: If you downloaded it from Account Settings, this is your Papertrail version. From GitHub, it is in the ZIP name (papertrail-browser-extension-<release>.zip).
+      placeholder: "Example: 2026.11.03"
     validations:
       required: true
 

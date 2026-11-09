@@ -65,8 +65,8 @@ body:
     id: version
     attributes:
       label: Papertrail version
-      description: Shown in the release name or the image tag, e.g. 2026.11.3.
-      placeholder: "Example: 2026.11.3"
+      description: The release name or image tag (PAPERTRAIL_IMAGE_TAG), e.g. 2026.11.03.
+      placeholder: "Example: 2026.11.03"
     validations:
       required: true
 
