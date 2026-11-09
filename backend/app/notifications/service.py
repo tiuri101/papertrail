@@ -307,6 +307,58 @@ def queue_project_stage_completed_emails(
     return notifications
 
 
+def queue_project_copy_completed_email(
+    db: Session,
+    recipient: User,
+    *,
+    job_id: str,
+    source_project_name: str,
+    target_project_id: str,
+    target_project_name: str,
+    missing_files: int,
+) -> EmailNotification | None:
+    settings = effective_instance_settings(db)
+    return queue_email_notification(
+        db,
+        recipient=recipient,
+        template="project_copy_completed",
+        deduplication_key=f"project-copy-completed:{job_id}",
+        context={
+            "recipient_name": recipient.display_name,
+            "source_project_name": source_project_name,
+            "project_name": target_project_name,
+            "missing_files": missing_files,
+            "project_url": f"{settings.public_base_url}/projects/{target_project_id}",
+        },
+        project_id=target_project_id,
+    )
+
+
+def queue_project_copy_failed_email(
+    db: Session, job: BackgroundJob, error: str
+) -> None:
+    """Permanent-failure hook: tell whoever requested a project copy it failed."""
+    recipient = db.get(User, job.created_by_id) if job.created_by_id else None
+    project = db.get(Project, job.project_id) if job.project_id else None
+    if recipient is None or project is None:
+        return
+    settings = effective_instance_settings(db)
+    queue_email_notification(
+        db,
+        recipient=recipient,
+        template="project_copy_failed",
+        deduplication_key=f"project-copy-failed:{job.id}",
+        context={
+            "recipient_name": recipient.display_name,
+            "source_project_name": project.name,
+            "project_name": str(job.payload.get("name", "")),
+            "error_message": error[:500] or "unknown error",
+            "project_url": f"{settings.public_base_url}/projects/{project.id}/admin",
+        },
+        project_id=project.id,
+    )
+
+
 def queue_llm_bulk_completion_emails(
     db: Session, project_id: str, bulk_id: str
 ) -> list[EmailNotification]:

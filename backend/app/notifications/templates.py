@@ -228,6 +228,33 @@ def render_email(template: str, context: dict[str, Any]) -> RenderedEmail:
             ("Failed", str(context["failed_count"]), "#bf3f46"),
             ("Other", str(context["other_count"]), "#9d6712"),
         ]
+    elif template == "project_copy_completed":
+        subject = f'Your copy "{context["project_name"]}" is ready'
+        paragraphs = [
+            f"Hello {context['recipient_name']},",
+            f'The Papertrail project "{context["source_project_name"]}" has been copied '
+            f'into the new project "{context["project_name"]}". You are its owner.',
+        ]
+        if context.get("missing_files"):
+            paragraphs.append(
+                f"{context['missing_files']} file(s) were already missing from the source "
+                "project and could not be copied."
+            )
+        action_label = "Open the copy"
+        action_url = context["project_url"]
+        summary_items = [("Status", "Copied", "#147a59")]
+    elif template == "project_copy_failed":
+        subject = f'Copying "{context["source_project_name"]}" failed'
+        paragraphs = [
+            f"Hello {context['recipient_name']},",
+            f'Your copy "{context["project_name"]}" of the Papertrail project '
+            f'"{context["source_project_name"]}" could not be created. Nothing was '
+            "created and the source project is unchanged.",
+            f"Reason: {context['error_message']}",
+        ]
+        action_label = "Open project administration"
+        action_url = context["project_url"]
+        summary_items = [("Status", "Failed", "#bf3f46")]
     else:
         raise ValueError(f"Unknown email template: {template}")
 
