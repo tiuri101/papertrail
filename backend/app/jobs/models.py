@@ -49,5 +49,12 @@ class BackgroundJob(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     lease_until: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), index=True
     )
+    #: Earliest moment a worker may claim this job. Lets a job be scheduled
+    #: for later (e.g. a notification that waits for a quiet period) without a
+    #: worker holding a lease and sleeping on it. NULL means "as soon as
+    #: possible".
+    run_after: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), index=True
+    )
     error_message: Mapped[str | None] = mapped_column(Text)
     result: Mapped[dict[str, Any] | None] = mapped_column(JSONType)

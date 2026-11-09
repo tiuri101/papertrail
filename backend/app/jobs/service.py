@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import ColumnElement, case, func, nulls_last, or_, select, update
@@ -20,6 +20,7 @@ def enqueue_job(
     created_by_id: str | None,
     max_attempts: int = 3,
     priority: int = 0,
+    run_after: datetime | None = None,
 ) -> BackgroundJob:
     job = BackgroundJob(
         job_type=job_type,
@@ -28,6 +29,7 @@ def enqueue_job(
         created_by_id=created_by_id,
         max_attempts=max_attempts,
         priority=priority,
+        run_after=run_after,
     )
     db.add(job)
     db.flush()
@@ -52,6 +54,7 @@ def claim_job(
                 & (BackgroundJob.lease_until < now),
             ),
             BackgroundJob.attempts < BackgroundJob.max_attempts,
+            or_(BackgroundJob.run_after.is_(None), BackgroundJob.run_after <= now),
         )
         .order_by(BackgroundJob.priority.desc(), BackgroundJob.created_at)
     )
@@ -178,6 +181,7 @@ def restart_job(db: Session, job: BackgroundJob) -> None:
     job.completed_at = None
     job.lease_until = None
     job.locked_by = None
+    job.run_after = None
     job.progress_current = 0
     job.progress_total = 0
     job.progress_message = None

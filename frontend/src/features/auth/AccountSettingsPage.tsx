@@ -11,6 +11,7 @@ import { PaperTextDisplaySection } from '../../components/PaperTextDisplaySectio
 import { SectionNavigationLayout } from '../../components/SectionNavigationLayout'
 import { ScreeningHotkeysSection } from '../screening/ScreeningHotkeysSection'
 import { BrowserHelpersSection } from './BrowserHelpersSection'
+import { EmailNotificationsSection } from './EmailNotificationsSection'
 import { MIN_PASSWORD_LENGTH, PASSWORD_REQUIREMENTS_TEXT, passwordMeetsPolicy } from './passwordPolicy'
 import type { LoginResponse, User } from './types'
 import { sessionQueryOptions } from './sessionQuery'
@@ -20,6 +21,7 @@ import { Form } from '../../components/Form'
 const accountSections = [
   { id: 'section-account-profile', label: 'Profile' },
   { id: 'section-account-password', label: 'Password' },
+  { id: 'section-account-email', label: 'Email Notifications' },
   { id: 'section-account-hotkeys', label: 'Screening Hotkeys' },
   { id: 'section-account-paper-text', label: 'Title & Abstract Display' },
   { id: 'section-account-browser-helpers', label: 'Browser Helpers' },
@@ -74,7 +76,7 @@ export function AccountSettingsPage() {
       <Page>
         <p className="mb-1 text-xs font-bold uppercase tracking-[0.08em] text-primary">Personal settings</p>
         <h1>Account Settings</h1>
-        <p className="text-text">Manage your profile, password, and personal preferences.</p>
+        <p className="text-text">Manage your profile, password, email notifications, and personal preferences.</p>
         <CollapsibleSection id="section-account-profile" title="Profile" icon={<IconPerson />}>
           <p className="text-text">Changes save automatically when you leave a field.</p>
           <FieldLabel>
@@ -165,6 +167,7 @@ export function AccountSettingsPage() {
             </Button>
           </Form>
         </CollapsibleSection>
+        <EmailNotificationsSection />
         <ScreeningHotkeysSection />
         <PaperTextDisplaySection />
         <BrowserHelpersSection />

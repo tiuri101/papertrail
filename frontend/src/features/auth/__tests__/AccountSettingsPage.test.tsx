@@ -87,4 +87,30 @@ describe('AccountSettingsPage', () => {
       newPassword: 'new-password-1',
     })
   })
+
+  it('turns off one email category without touching the others', async () => {
+    const fetchMock = mockFetch(async (input, init) => {
+      if (String(input).endsWith('/auth/me') && init?.method === 'PATCH') {
+        return jsonResponse({
+          ...session.user,
+          emailPreferences: { llm_processing: false, imports: true },
+        })
+      }
+      return jsonResponse({})
+    })
+    renderWithSession()
+
+    const llm = screen.getByRole('checkbox', { name: 'LLM processing finished' })
+    expect(llm).toBeChecked()
+    // Administrator-only categories are hidden from everyone else.
+    expect(screen.queryByRole('checkbox', { name: 'New projects' })).not.toBeInTheDocument()
+    fireEvent.click(llm)
+
+    await waitFor(() => expect(screen.getByRole('checkbox', { name: 'LLM processing finished' })).not.toBeChecked())
+    expect(screen.getByRole('checkbox', { name: 'Imports' })).toBeChecked()
+    const call = fetchMock.mock.calls.find(([input]) => String(input).endsWith('/auth/me'))
+    expect(JSON.parse(String(call?.[1]?.body))).toEqual({
+      emailPreferences: { llm_processing: false },
+    })
+  })
 })

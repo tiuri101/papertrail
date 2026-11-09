@@ -181,7 +181,7 @@ JOB_DEFINITIONS: dict[str, JobDefinition] = {
     CHECK_LLM_STAGE_EMAIL_JOB: JobDefinition(
         handler=check_llm_stage_email_job,
         worker_pool=WorkerPool.GENERAL,
-        label="Check LLM bulk-completion notifications",
+        label="Check LLM processing-finished notification",
         stage="Notifications",
     ),
     CLONE_PROJECT_JOB: JobDefinition(
