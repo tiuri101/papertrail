@@ -10,8 +10,10 @@ Open **Account Settings** from the application navigation to manage:
 
 - display name and email address;
 - your password;
+- which emails Papertrail sends you (see [Email notifications](#email-notifications));
 - screening hotkeys;
-- paired Browser Helpers.
+- the font and size used for paper titles and abstracts (**Title & Abstract Display**);
+- paired Browser Helpers, including downloading the extension.
 
 Changing your password requires the current password and revokes your other active sessions. If an administrator gave you a temporary password, Papertrail requires a password change before normal application use.
 
@@ -33,9 +35,15 @@ Project members can browse the project publication set and open publication deta
 
 Project managers can also manually add a publication when it did not come from one of the documented import files.
 
+## Bookmarks
+
+Use the bookmark button on a publication's detail page, and on review pages such as full-text screening, conflict resolution, and the Evidence Matrix, to mark papers you want to come back to. Bookmarks are private reading aids: nobody else sees them, and they never affect screening, extraction, or final decisions. The **Bookmarks** page in the main navigation lists your bookmarks across all projects, with search and sorting. If a bookmarked publication is merged into another, the bookmark leads to the record that was kept.
+
 ## Duplicate review
 
 Candidate pairs that share an exact DOI, PubMed ID, or arXiv ID are merged automatically as soon as detection finds them, keeping the earliest-imported record as canonical — no reviewer action needed. Every other candidate still needs a decision: any project member can resolve it as **not a duplicate** or merge the pair and choose which publication remains canonical. The project owner/administrator marks the project ready to enter duplicate review and can reverse any completed merge, automatic or manual.
+
+When the installation can reach the internet, Papertrail also checks every unresolved pair against Crossref and Semantic Scholar and tests whether each record's links still resolve. If both records' DOIs clearly resolve to the same work, the pair is merged automatically; otherwise the comparison may mark one record as **Suggested**, with the reason. A suggestion never decides a pair on its own. Administrators can switch this check off (see [Configuration](configuration.md#duplicate-review-assistance)).
 
 Automatic and manual merges use the same underlying merge record, so the duplicate review list keeps showing every resolved pair (marked "Auto-merged" when Papertrail resolved it) alongside anything still awaiting review.
 
@@ -79,7 +87,7 @@ A publication's human retrieval status is separate from the full-text eligibilit
 
 The optional **Papertrail Browser Helper** retrieves publisher PDFs through your own Chrome network access/sign-in state. Papertrail never receives publisher passwords, institutional credentials, or browser cookies through this feature.
 
-For installation instructions, see [Browser Helper](browser-helper.md). Released Papertrail versions attach a matching Browser Helper ZIP to the GitHub release; it is installed as an unpacked Chrome extension.
+Download the extension from **Account Settings → Browser Helpers → Download Browser Helper (.zip)** (it is also attached to each GitHub release) and install it as an unpacked Chrome extension; see [Browser Helper](browser-helper.md) for the steps.
 
 To pair it:
 
@@ -95,6 +103,8 @@ Retrieval work can be queued in two ways:
 - on the Full-Text page, **Retrieve missing PDFs** creates a manual batch for missing publications.
 
 The extension periodically checks only the pending count and shows it on the toolbar badge. It does not retrieve anything until you open it and choose **Start**.
+
+You can also send a PDF you have opened yourself: open it in a Chrome tab, then choose **Capture PDF from this tab** in the Browser Helper. Papertrail proposes the matching publication from the PDF's DOI; otherwise search for it, or add it as a new publication on the spot. See [Browser Helper](browser-helper.md#capturing-a-pdf-you-opened-yourself).
 
 A successful Browser Helper upload goes through the same server-side PDF validation/storage path as a manual upload and makes the PDF available for normal screening. An automated failure does not mark the human retrieval outcome as not found/inaccessible. Sign in to the publisher/VPN and retry, upload manually, or use another authorized retrieval method as appropriate.
 
@@ -119,9 +129,15 @@ Project-level **AI-generated interpretive analysis** also controls stage narrati
 
 ## Email notifications
 
-When the installation administrator enables SMTP and your account has an email address, Papertrail can email you when your account is created and when you are added to or removed from a project. Active administrators are notified of new projects. Project owners can receive stage-completion summaries for scheduled LLM work, and are alerted if duplicate detection fails. You are also emailed when an import you started or a project copy you requested finishes or fails, so you don't need to keep the page open.
+When the installation administrator enables SMTP and your account has an email address, Papertrail can email you about:
 
-You can update or clear your email in Account Settings.
+- your account being created, and password-reset links you request;
+- being added to or removed from a project;
+- an import you started or a project copy you requested finishing or failing, so you don't need to keep the page open;
+- as a project owner: the project moving to its next stage or being completed, duplicate detection failing, and a summary once all queued LLM processing has finished (one email after the work stops, not one per paper);
+- as an administrator: new projects being created.
+
+Choose which of these you receive under **Account Settings → Email Notifications**. Account-creation and password-reset emails are always sent. You can update or clear your email address under **Profile**.
 
 ## Extraction and quality assessment
 

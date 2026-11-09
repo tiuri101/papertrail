@@ -94,7 +94,7 @@ See `backend/app/db/session.py` (`_effective_database_url`) and `backend/app/db/
 
 ## Container hardening
 
-Every `docker-compose.yml` service runs with `cap_drop: [ALL]` and `security_opt: [no-new-privileges:true]`, plus a `pids_limit` and a memory limit. Most services also run with a read-only root filesystem (`read_only: true`) and explicit `tmpfs` mounts for the few paths that must remain writable (`/tmp`, and for `postgres`/`frontend` the specific runtime directories their upstream images need). `postgres` and `frontend` (nginx) each get back the minimum extra Linux capabilities their official entrypoints require to start (`postgres`: `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `SETUID`, `SETGID` to initialize/chown its data directory and drop from root; `frontend`: `CHOWN`, `SETUID`, `SETGID` for the same reason in nginx's master process). No container's configured user/UID/GID was changed from the upstream image default.
+Every `docker-compose.yml` service runs with `cap_drop: [ALL]` and `security_opt: [no-new-privileges:true]`, plus a `pids_limit` and a memory limit. Every service also runs with a read-only root filesystem (`read_only: true`) and explicit `tmpfs` mounts for the few paths that must remain writable (`/tmp`, and for `postgres`/`frontend` the specific runtime directories their upstream images need). `postgres` and `frontend` (nginx) each get back the minimum extra Linux capabilities their official entrypoints require to start (`postgres`: `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `SETUID`, `SETGID` to initialize/chown its data directory and drop from root; `frontend`: `CHOWN`, `SETUID`, `SETGID` for the same reason in nginx's master process). No container's configured user/UID/GID was changed from the upstream image default.
 
 ## Secrets
 

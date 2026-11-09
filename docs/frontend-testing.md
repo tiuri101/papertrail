@@ -44,6 +44,7 @@ Playwright runs the built application behavior in Chromium while intercepting AP
 - Unauthenticated redirect and administrator login
 - Reviewer-specific navigation restrictions
 - A complete title/abstract exclusion decision
+- Dual extraction: an independent extractor submission followed by manager reconciliation
 - PRISMA reporting and Excel export generation
 
 Run the browser suite with:

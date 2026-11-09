@@ -71,7 +71,8 @@ The current API includes these major domains. Use `/docs` for exact methods, req
 | Projects/membership/configuration | `/projects...` |
 | Research questions/criteria/prompt settings | `/projects/{project_id}/...` |
 | Search documentation/imports/PDF matching | `/projects/{project_id}/searches...`, `/imports...`, `/pdf-matches...` |
-| Publications/metadata/enrichment | `/projects/{project_id}/publications...` |
+| Publications/metadata/enrichment | `/projects/{project_id}/publications...`, `/projects/{project_id}/metadata-conflicts...` |
+| Bookmarks | `/bookmarks...`, `/projects/{project_id}/bookmarks/ids`, `/projects/{project_id}/publications/{publication_id}/bookmark` |
 | Duplicate review | `/projects/{project_id}/duplicates...`, `/merges...` |
 | Screening | `/projects/{project_id}/screening...` |
 | Screening conflict resolution | `/projects/{project_id}/screening/{stage}/conflicts...` |
@@ -85,7 +86,7 @@ The current API includes these major domains. Use `/docs` for exact methods, req
 | Analysis | `/projects/{project_id}/analysis...`, `/research-questions/{id}/analysis...` |
 | Reporting/exports | `/projects/{project_id}/prisma...`, `/final-results`, `/evidence-matrix...`, `/exports...` |
 | Audit/progress | `/projects/{project_id}/audit`, `/dashboard`, `/reviewer-progress` |
-| Integrity/lifecycle | `/projects/{project_id}/integrity...`, `/reopen`, `/move-back`, `/reset` |
+| Integrity/lifecycle | `/projects/{project_id}/integrity...`, `/reopen`, `/move-back`, `/reset`, `/clone`, `/transfer-ownership` |
 
 ## Full-text document API
 
@@ -107,6 +108,7 @@ PDF content is streamed only after project authorization as `application/pdf` wi
 
 - `POST /api/v1/browser-agents/pairing-secrets` — create a one-time pairing secret;
 - `GET /api/v1/browser-agents` — list this user's paired helpers;
+- `GET /api/v1/browser-agents/extension-download` — download the Browser Helper ZIP bundled in the backend image (404 on a source/dev backend);
 - `DELETE /api/v1/browser-agents/{agent_id}` — revoke one helper;
 - `POST /api/v1/browser-agents/pair` — consume a pairing secret and return the agent bearer token exactly once. This endpoint is intentionally usable without an existing session because the one-time secret is the credential.
 
@@ -131,6 +133,14 @@ A paired extension sends `Authorization: Bearer <agent-token>` to:
 - `POST /api/v1/browser-agent/retrieval-jobs/{job_id}/state`
 - `POST /api/v1/browser-agent/retrieval-jobs/{job_id}/upload`
 - `POST /api/v1/browser-agent/retrieval-jobs/{job_id}/retry`
+
+Capturing a PDF the user opened themselves uses:
+
+- `GET /api/v1/browser-agent/projects`
+- `GET /api/v1/browser-agent/projects/{project_id}/publications/search`
+- `POST /api/v1/browser-agent/projects/{project_id}/publications`
+- `POST /api/v1/browser-agent/pdf-captures/detect`
+- `POST /api/v1/browser-agent/publications/{publication_id}/pdf-captures`
 
 The claim response exposes only retrieval-relevant publication data. The upload route derives its publication from the claimed job server-side; an extension cannot supply an arbitrary target publication ID.
 

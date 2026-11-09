@@ -52,7 +52,7 @@ Only PostgreSQL runs in Docker; FastAPI, the worker, and Vite run on the host. `
 
 ### Backend module layout
 
-`backend/app/` is divided by domain: `accounts`, `projects`, `imports`, `publications`, `deduplication`, `screening`, `conflicts`, `fulltext`, `pdf_acquisition`, `forms`, `review_work`, `extraction`, `quality`, `analysis`, `reporting`, `audit`, `notifications`, `instance_settings`, `integrations`, `llm`, and `jobs`. Most API-facing domains separate route validation/authorization from service/business logic and persistence models, but larger domains use additional specialized modules where appropriate. Cross-module workflow changes go through explicit service functions and DB transactions rather than ad-hoc direct writes.
+`backend/app/` is divided by domain: `accounts`, `projects`, `imports`, `publications`, `bookmarks`, `deduplication`, `screening`, `conflicts`, `fulltext`, `pdf_acquisition`, `forms`, `review_work`, `extraction`, `quality`, `analysis`, `reporting`, `audit`, `notifications`, `instance_settings`, `integrations`, `llm`, and `jobs`. Most API-facing domains separate route validation/authorization from service/business logic and persistence models, but larger domains use additional specialized modules where appropriate. Cross-module workflow changes go through explicit service functions and DB transactions rather than ad-hoc direct writes.
 
 ### Background work
 
