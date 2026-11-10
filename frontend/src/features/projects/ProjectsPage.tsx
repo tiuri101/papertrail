@@ -1,13 +1,13 @@
 import { useQuery } from '@tanstack/react-query'
 import { useMemo, useState, type CSSProperties } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { Badge } from '../../components/Badge'
 import { Button, IconButton } from '../../components/Button'
 import { Card } from '../../components/Card'
 import { CountPill } from '../../components/CountPill'
-import { IconGear, IconPlus, IconSearch } from '../../components/icons'
+import { IconArchive, IconFolder, IconGear, IconPlus, IconSearch } from '../../components/icons'
 import { Page } from '../../components/Page'
 import { Select } from '../../components/Select'
 import { ProjectProgressDots, STAGES } from './StageProgress'
@@ -19,6 +19,7 @@ interface Project {
   description: string | null
   reviewType: string
   stage: string
+  archivedAt: string | null
   createdAt: string
   updatedAt: string
   owner: { id: string; displayName: string } | null
@@ -116,6 +117,7 @@ function projectPills(project: Project): ProjectPill[] {
   ]
   if (project.owner && project.myRole !== 'owner') pills.push({ text: `Owner: ${project.owner.displayName}` })
   pills.push({ text: `Created ${formatCreatedAt(project.createdAt)}` })
+  if (project.archivedAt) pills.push({ text: `Archived ${formatCreatedAt(project.archivedAt)}` })
   if (project.openTaskCount > 0) {
     pills.push({
       text: `${project.openTaskCount} open ${project.openTaskCount === 1 ? 'task' : 'tasks'}`,
@@ -127,6 +129,10 @@ function projectPills(project: Project): ProjectPill[] {
 
 export function ProjectsPage() {
   const navigate = useNavigate()
+  // Archived projects live in their own view, kept in the URL so it survives
+  // a reload and the browser's back button returns to the active overview.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const showArchived = searchParams.get('view') === 'archived'
   const [search, setSearch] = useState('')
   const [reviewTypeFilter, setReviewTypeFilter] = useState('')
   const [stageFilter, setStageFilter] = useState('')
@@ -134,8 +140,8 @@ export function ProjectsPage() {
   const [ownerFilter, setOwnerFilter] = useState('')
   const [sortOption, setSortOption] = useState<SortOption>('name')
   const projects = useQuery({
-    queryKey: ['projects'],
-    queryFn: () => apiRequest<Project[]>('/api/v1/projects'),
+    queryKey: ['projects', { archived: showArchived }],
+    queryFn: () => apiRequest<Project[]>(`/api/v1/projects${showArchived ? '?archived=true' : ''}`),
   })
   const owners = useMemo(() => {
     const uniqueOwners = new Map<string, string>()
@@ -189,9 +195,19 @@ export function ProjectsPage() {
 
   return (
     <Page>
-      <div className="min-w-0">
-        <h1>Projects</h1>
-        <p className="text-text">Manage and monitor all your systematic reviews.</p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h1>{showArchived ? 'Archived Projects' : 'Projects'}</h1>
+          <p className="text-text">
+            {showArchived
+              ? 'Projects hidden from the overview. They remain fully accessible.'
+              : 'Manage and monitor all your systematic reviews.'}
+          </p>
+        </div>
+        <Button type="button" variant="secondary" onClick={() => setSearchParams(showArchived ? {} : { view: 'archived' })}>
+          {showArchived ? <IconFolder /> : <IconArchive />}
+          {showArchived ? 'Active projects' : 'Archived projects'}
+        </Button>
       </div>
       {projects.isLoading ? <p>Loading…</p> : null}
       {projects.error ? <p className="text-danger" role="alert">{projects.error.message}</p> : null}
@@ -264,11 +280,15 @@ export function ProjectsPage() {
       ) : null}
       {projects.data ? (
         <CountPill count={hasFilters ? filteredProjects.length : projects.data.length}>
-          {hasFilters ? `of ${projects.data.length} projects` : `project${projects.data.length === 1 ? '' : 's'}`}
+          {hasFilters
+            ? `of ${projects.data.length} ${showArchived ? 'archived ' : ''}projects`
+            : `${showArchived ? 'archived ' : ''}project${projects.data.length === 1 ? '' : 's'}`}
         </CountPill>
       ) : null}
       {projects.data?.length === 0 ? (
-        <p className="text-text">No projects yet. Create your first project to get started.</p>
+        <p className="text-text">
+          {showArchived ? 'No archived projects.' : 'No projects yet. Create your first project to get started.'}
+        </p>
       ) : null}
       {projects.data && projects.data.length > 0 && filteredProjects.length === 0 ? (
         <p className="text-text">No projects match your filters.</p>
@@ -337,7 +357,7 @@ export function ProjectsPage() {
             </div>
           </Card>
         ))}
-        {projects.data ? (
+        {projects.data && !showArchived ? (
           <Card as="li" className="flex flex-col items-center justify-center border-dashed bg-surface text-center">
             <IconButton type="button" className="size-12 min-h-12 min-w-12 rounded-full [&_svg]:size-[22px]" onClick={() => navigate('/projects/new')}>
               <IconPlus />

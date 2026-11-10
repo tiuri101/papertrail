@@ -22,6 +22,33 @@ class OllamaResponseError(OllamaError):
     pass
 
 
+class OllamaTruncatedError(OllamaTransientError):
+    """The model hit the output token limit, most likely by looping.
+
+    Retryable because a retry samples differently (see ``RETRY_TEMPERATURE``).
+    """
+
+
+# A retry of an identical request at temperature 0 reproduces the same output,
+# so a model stuck repeating itself on one document would simply loop again.
+RETRY_TEMPERATURE = 0.3
+REPEAT_PENALTY = 1.1
+
+
+def sampling_temperature(attempt: int) -> float:
+    return 0 if attempt <= 1 else RETRY_TEMPERATURE
+
+
+def with_attempt_sampling(
+    model_configuration: dict[str, Any] | None, attempt: int
+) -> dict[str, Any]:
+    """Return a run's recorded model configuration with this attempt's temperature."""
+    return {
+        **(model_configuration or {}),
+        "temperature": sampling_temperature(attempt),
+    }
+
+
 @dataclass(frozen=True)
 class OllamaResponse:
     content: dict[str, Any]
@@ -74,13 +101,15 @@ def fetch_ollama_models(
 
 
 class OllamaClient:
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, *, attempt: int = 1):
         if not settings.ollama_base_url or not settings.ollama_model:
             raise OllamaResponseError("Ollama is not configured")
         self.base_url = settings.ollama_base_url
         self.model = settings.ollama_model
         self.timeout = settings.ollama_request_timeout_seconds
         self.context_length = settings.llm_context_length
+        self.max_output_tokens = settings.llm_max_output_tokens
+        self.temperature = sampling_temperature(attempt)
         self.headers = (
             {"Authorization": f"Bearer {settings.ollama_api_key}"}
             if settings.ollama_api_key
@@ -109,7 +138,12 @@ class OllamaClient:
             "stream": False,
             "think": False,
             "format": output_schema,
-            "options": {"temperature": 0, "num_ctx": self.context_length},
+            "options": {
+                "temperature": self.temperature,
+                "num_ctx": self.context_length,
+                "num_predict": self.max_output_tokens,
+                "repeat_penalty": REPEAT_PENALTY,
+            },
         }
         try:
             response = httpx.post(
@@ -134,6 +168,12 @@ class OllamaClient:
             ) from exc
         except (ValueError, TypeError) as exc:
             raise OllamaResponseError("Ollama returned invalid JSON") from exc
+        if body.get("done_reason") == "length":
+            raise OllamaTruncatedError(
+                "Ollama output was truncated at the output token limit "
+                f"({self.max_output_tokens} tokens); the model was likely "
+                "repeating itself"
+            )
         try:
             content = json.loads(body["message"]["content"])
         except (KeyError, TypeError, json.JSONDecodeError) as exc:
@@ -155,5 +195,6 @@ class OllamaClient:
         return OllamaResponse(content=content, metrics=metrics)
 
 
-def create_ollama_client() -> OllamaClientProtocol:
-    return OllamaClient(effective_llm_settings())
+def create_ollama_client(*, attempt: int = 1) -> OllamaClientProtocol:
+    """``attempt`` is the background job's attempt number; retries sample differently."""
+    return OllamaClient(effective_llm_settings(), attempt=attempt)

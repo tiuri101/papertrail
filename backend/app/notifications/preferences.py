@@ -36,6 +36,7 @@ EMAIL_CATEGORIES: tuple[EmailCategory, ...] = (
         "project_membership",
         frozenset({"project_membership_added", "project_membership_removed"}),
     ),
+    EmailCategory("project_archive", frozenset({"project_archived"})),
     EmailCategory(
         "project_copies",
         frozenset({"project_copy_completed", "project_copy_failed"}),

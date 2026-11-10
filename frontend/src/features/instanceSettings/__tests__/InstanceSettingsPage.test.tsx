@@ -16,6 +16,7 @@ const connectionSettings = {
   maxConcurrentJobs: 1,
   maxEvidenceItems: 3,
   maxEvidenceQuoteChars: 500,
+  maxOutputTokens: 3000,
 }
 
 const promptSettings = {
@@ -116,6 +117,7 @@ describe('InstanceSettingsPage', () => {
         maxConcurrentJobs: 1,
         maxEvidenceItems: 3,
         maxEvidenceQuoteChars: 500,
+        maxOutputTokens: 3000,
       })
     })
   })

@@ -113,12 +113,13 @@ class Settings(BaseSettings):
     llm_enabled: bool = False
     ollama_base_url: str | None = None
     ollama_model: str | None = None
-    ollama_request_timeout_seconds: int = 300
+    ollama_request_timeout_seconds: int = 600
     ollama_api_key: str | None = None
     llm_max_concurrent_jobs: int = 1
     llm_context_length: int = 32768
     llm_max_evidence_items: int = 3
     llm_max_evidence_quote_chars: int = 500
+    llm_max_output_tokens: int = 4096
     llm_title_abstract_base_prompt: str | None = None
     llm_full_text_base_prompt: str | None = None
     llm_extraction_base_prompt: str | None = None
@@ -257,6 +258,10 @@ class Settings(BaseSettings):
         if not 50 <= self.llm_max_evidence_quote_chars <= 2000:
             raise ValueError(
                 "PAPERTRAIL_LLM_MAX_EVIDENCE_QUOTE_CHARS must be between 50 and 2000"
+            )
+        if not 256 <= self.llm_max_output_tokens <= 32768:
+            raise ValueError(
+                "PAPERTRAIL_LLM_MAX_OUTPUT_TOKENS must be between 256 and 32768"
             )
         return self
 

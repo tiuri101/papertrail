@@ -46,7 +46,7 @@ def generate_stage_analysis_job(db: Session, job: BackgroundJob) -> dict[str, An
         return {"stage": stage, "status": "skipped", "reason": "llm_disabled"}
     stats = compute_stage_stats(db, job.project_id, stage)
     fingerprint = compute_stats_fingerprint(stats)
-    summary = generate_narrative(stage, stats)
+    summary = generate_narrative(stage, stats, attempt=job.attempts)
 
     existing = db.scalar(
         select(StageAnalysis).where(

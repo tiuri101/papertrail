@@ -407,7 +407,7 @@ def test_job_handler_completes_and_persists_result(db, monkeypatch):
             }
         ]
     )
-    monkeypatch.setattr("app.llm.rq_synthesis.create_ollama_client", lambda: fake)
+    monkeypatch.setattr("app.llm.rq_synthesis.create_ollama_client", lambda **_: fake)
 
     run = queue_rq_synthesis(db, project.id, rq, created_by_id=None)
     db.commit()
@@ -430,7 +430,7 @@ def test_job_handler_marks_stale_when_data_changed_since_queued(db, monkeypatch)
     rq = _add_research_question(db, project)
     monkeypatch.setattr(
         "app.llm.rq_synthesis.create_ollama_client",
-        lambda: FakeOllama([{"statements": [], "limitations": []}]),
+        lambda **_: FakeOllama([{"statements": [], "limitations": []}]),
     )
     run = queue_rq_synthesis(db, project.id, rq, created_by_id=None)
     db.commit()
@@ -467,7 +467,7 @@ def test_job_handler_is_idempotent_for_already_completed_run(db, monkeypatch):
     project, *_ = setup_matrix_project(db)
     rq = _add_research_question(db, project)
     fake = FakeOllama([{"statements": [], "limitations": []}])
-    monkeypatch.setattr("app.llm.rq_synthesis.create_ollama_client", lambda: fake)
+    monkeypatch.setattr("app.llm.rq_synthesis.create_ollama_client", lambda **_: fake)
 
     run = queue_rq_synthesis(db, project.id, rq, created_by_id=None)
     db.commit()
@@ -490,7 +490,7 @@ def test_failed_job_marks_run_failed_and_leaves_prior_success_intact(db, monkeyp
 
     monkeypatch.setattr(
         "app.llm.rq_synthesis.create_ollama_client",
-        lambda: FakeOllama(
+        lambda **_: FakeOllama(
             [
                 {
                     "statements": [{"claim": "Good.", "sourceIds": [source_id]}],
@@ -511,7 +511,7 @@ def test_failed_job_marks_run_failed_and_leaves_prior_success_intact(db, monkeyp
         def chat(self, **_kwargs):
             raise OllamaResponseError("bad output")
 
-    monkeypatch.setattr("app.llm.rq_synthesis.create_ollama_client", lambda: Failing())
+    monkeypatch.setattr("app.llm.rq_synthesis.create_ollama_client", lambda **_: Failing())
     run2 = queue_rq_synthesis(db, project.id, rq, created_by_id=None)
     db.commit()
     generate_rq_synthesis_job(db, db.get(BackgroundJob, run2.background_job_id))
@@ -645,7 +645,7 @@ def test_analysis_not_stale_when_synthesis_disabled_after_prior_run(
     source_id = assign_source_ids(dataset)[0].id
     monkeypatch.setattr(
         "app.llm.rq_synthesis.create_ollama_client",
-        lambda: FakeOllama(
+        lambda **_: FakeOllama(
             [
                 {
                     "statements": [{"claim": "Finding.", "sourceIds": [source_id]}],

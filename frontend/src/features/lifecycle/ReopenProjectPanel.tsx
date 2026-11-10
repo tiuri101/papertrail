@@ -2,10 +2,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useState } from 'react'
 
 import { api } from '../../api/client'
-import { CollapsibleSection } from '../../components/CollapsibleSection'
-import { ConfirmButton } from '../../components/ConfirmButton'
-import { IconAlertTriangle, IconRestart } from '../../components/icons'
-import { InfoBox } from '../../components/InfoBox'
+import { DangerZoneConfirmButton, DangerZoneSection } from '../../components/DangerZoneSection'
+import { IconRestart } from '../../components/icons'
 import { Select } from '../../components/Select'
 import { humanizeStage, stageOrder, stages } from './lifecycleStages'
 import { FieldLabel } from '../../components/FieldLabel'
@@ -33,13 +31,17 @@ export function ReopenProjectPanel({ projectId }: { projectId: string }) {
   if (!isCompleted || reopenOptions.length === 0) return null
 
   return (
-    <CollapsibleSection id="section-reopen-project" title="Reopen at an Earlier Stage" tone="danger" icon={<IconRestart />}>
-      <InfoBox icon={<IconAlertTriangle />} tone="warning">
-        <p>
+    <DangerZoneSection
+      id="section-reopen-project"
+      title="Reopen at an Earlier Stage"
+      icon={<IconRestart />}
+      description={
+        <>
           Move a completed project back to an earlier stage to resume work. Screening, extraction, and quality-assessment data already recorded is kept, not deleted. Only shown once a project
           has reached Completed.
-        </p>
-      </InfoBox>
+        </>
+      }
+    >
       {reopen.error ? <p className="text-danger" role="alert">{reopen.error.message}</p> : null}
       <FieldLabel>
         Reopen at
@@ -50,15 +52,14 @@ export function ReopenProjectPanel({ projectId }: { projectId: string }) {
           {reopenOptions.map((stage) => <option key={stage} value={stage}>{humanizeStage(stage)}</option>)}
         </Select>
       </FieldLabel>
-      <ConfirmButton
+      <DangerZoneConfirmButton
         label="Reopen Project"
         confirmLabel="Reopen"
         warning="Are you sure you want to continue? This cannot be undone."
         onConfirm={() => reopen.mutate()}
         disabled={reopen.isPending}
-        variant="danger"
         icon={<IconRestart />}
       />
-    </CollapsibleSection>
+    </DangerZoneSection>
   )
 }

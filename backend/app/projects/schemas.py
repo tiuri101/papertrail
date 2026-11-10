@@ -39,6 +39,7 @@ class ProjectSummary(ApiModel):
     description: str | None
     review_type: ReviewType = Field(serialization_alias="reviewType")
     stage: ProjectStage
+    archived_at: datetime | None = Field(default=None, serialization_alias="archivedAt")
 
 
 class ProjectOwnerSummary(ApiModel):

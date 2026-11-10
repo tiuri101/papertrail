@@ -92,9 +92,11 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 
 @router.get("", response_model=list[ProjectListItem])
 def list_projects(
-    user: User = Depends(get_current_user), db: Session = Depends(get_db)
+    archived: bool = Query(False),
+    user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ) -> list[ProjectListItem]:
-    projects = list_projects_for_user(db, user)
+    projects = list_projects_for_user(db, user, archived=archived)
     if not projects:
         return []
 
@@ -142,6 +144,7 @@ def list_projects(
                 description=project.description,
                 review_type=project.review_type,
                 stage=project.stage,
+                archived_at=project.archived_at,
                 created_at=project.created_at,
                 updated_at=project.updated_at,
                 owner=owners.get(project.id),
@@ -197,6 +200,7 @@ def _serialize_project_detail(
         description=project.description,
         review_type=project.review_type,
         stage=project.stage,
+        archived_at=project.archived_at,
         memberships=[MembershipResponse.model_validate(m) for m in project.memberships],
         research_questions=[
             ResearchQuestionResponse.model_validate(item)
@@ -1017,6 +1021,34 @@ def reopen_completed_project(
         reopen_project(db, project, payload.target_stage, admin.id)
     except ValueError as exc:
         raise DomainError(str(exc)) from exc
+    db.commit()
+    return project
+
+
+@router.post("/{project_id}/archive", response_model=ProjectSummary)
+def archive_project_endpoint(
+    project_id: str,
+    admin: User = Depends(require_project_manager_csrf),
+    db: Session = Depends(get_db),
+) -> Project:
+    from app.projects.lifecycle import archive_project
+
+    project = get_project(db, project_id)
+    archive_project(db, project, admin)
+    db.commit()
+    return project
+
+
+@router.post("/{project_id}/unarchive", response_model=ProjectSummary)
+def unarchive_project_endpoint(
+    project_id: str,
+    admin: User = Depends(require_project_manager_csrf),
+    db: Session = Depends(get_db),
+) -> Project:
+    from app.projects.lifecycle import unarchive_project
+
+    project = get_project(db, project_id)
+    unarchive_project(db, project, admin.id)
     db.commit()
     return project
 

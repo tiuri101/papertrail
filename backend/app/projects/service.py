@@ -136,8 +136,14 @@ def require_manager_for(db: Session, user: User, project_id: str | None) -> None
         raise ForbiddenError("Project owner or administrator access required")
 
 
-def list_projects_for_user(db: Session, user: User) -> list[Project]:
+def list_projects_for_user(
+    db: Session, user: User, *, archived: bool = False
+) -> list[Project]:
+    """The user's projects: active ones by default, or only archived ones."""
     query = select(Project).order_by(Project.name)
+    query = query.where(
+        Project.archived_at.is_not(None) if archived else Project.archived_at.is_(None)
+    )
     if not user.is_admin:
         query = query.join(ProjectMembership).where(
             ProjectMembership.user_id == user.id

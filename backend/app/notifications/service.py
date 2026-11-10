@@ -284,6 +284,42 @@ def queue_project_completed_emails(
     return notifications
 
 
+def queue_project_archived_emails(
+    db: Session, project: Project, actor: User
+) -> list[EmailNotification]:
+    """Tell every project member, once per archiving, that it was archived."""
+    members = list(
+        db.scalars(
+            select(User)
+            .join(ProjectMembership, ProjectMembership.user_id == User.id)
+            .where(ProjectMembership.project_id == project.id)
+        )
+    )
+    settings = effective_instance_settings(db)
+    notifications: list[EmailNotification] = []
+    assert project.archived_at is not None
+    archive_key = project.archived_at.isoformat()
+    for member in members:
+        notification = queue_email_notification(
+            db,
+            recipient=member,
+            template="project_archived",
+            deduplication_key=(
+                f"project-archived:{project.id}:{archive_key}:{member.id}"
+            ),
+            context={
+                "recipient_name": member.display_name,
+                "project_name": project.name,
+                "actor_name": actor.display_name,
+                "project_url": f"{settings.public_base_url}/projects/{project.id}",
+            },
+            project_id=project.id,
+        )
+        if notification:
+            notifications.append(notification)
+    return notifications
+
+
 def queue_project_stage_completed_emails(
     db: Session, project: Project, completed_stage: ProjectStage, completed_at: datetime
 ) -> list[EmailNotification]:

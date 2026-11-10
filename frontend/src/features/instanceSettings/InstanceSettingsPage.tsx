@@ -43,6 +43,7 @@ interface InstallationConnectionSettings {
   maxConcurrentJobs: number
   maxEvidenceItems: number
   maxEvidenceQuoteChars: number
+  maxOutputTokens: number
 }
 
 interface OllamaModelsResponse {
@@ -116,10 +117,11 @@ export function InstanceSettingsPage() {
   const [contextLength, setContextLength] = useState('32768')
   const [apiKey, setApiKey] = useState('')
   const [apiKeySet, setApiKeySet] = useState(false)
-  const [requestTimeoutSeconds, setRequestTimeoutSeconds] = useState('300')
+  const [requestTimeoutSeconds, setRequestTimeoutSeconds] = useState('600')
   const [maxConcurrentJobs, setMaxConcurrentJobs] = useState('1')
   const [maxEvidenceItems, setMaxEvidenceItems] = useState('3')
   const [maxEvidenceQuoteChars, setMaxEvidenceQuoteChars] = useState('500')
+  const [maxOutputTokens, setMaxOutputTokens] = useState('4096')
   const [testResult, setTestResult] = useState<{ ok: boolean; message: string } | null>(null)
   const [promptDraft, setPromptDraft] = useState<Record<string, string>>({})
 
@@ -154,6 +156,7 @@ export function InstanceSettingsPage() {
     setMaxConcurrentJobs(String(connection.data.maxConcurrentJobs))
     setMaxEvidenceItems(String(connection.data.maxEvidenceItems))
     setMaxEvidenceQuoteChars(String(connection.data.maxEvidenceQuoteChars))
+    setMaxOutputTokens(String(connection.data.maxOutputTokens))
   }, [connection.data])
 
   useEffect(() => {
@@ -195,6 +198,7 @@ export function InstanceSettingsPage() {
         maxConcurrentJobs: Number(maxConcurrentJobs),
         maxEvidenceItems: Number(maxEvidenceItems),
         maxEvidenceQuoteChars: Number(maxEvidenceQuoteChars),
+        maxOutputTokens: Number(maxOutputTokens),
       }),
     }),
     onSuccess: (result) => {
@@ -442,6 +446,17 @@ export function InstanceSettingsPage() {
                     max="2000"
                     value={maxEvidenceQuoteChars}
                     onChange={(event) => setMaxEvidenceQuoteChars(event.target.value)}
+                    required
+                  />
+                </FieldLabel>
+                <FieldLabel>
+                  Max output tokens per request
+                  <Input
+                    type="number"
+                    min="256"
+                    max="32768"
+                    value={maxOutputTokens}
+                    onChange={(event) => setMaxOutputTokens(event.target.value)}
                     required
                   />
                 </FieldLabel>

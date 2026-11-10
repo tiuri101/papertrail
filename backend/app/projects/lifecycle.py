@@ -3,6 +3,7 @@ from __future__ import annotations
 from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session
 
+from app.accounts.models import User
 from app.api.errors import ConflictError
 from app.audit.models import AuditEvent
 from app.audit.service import record_audit
@@ -225,6 +226,50 @@ def reopen_project(
             "previousStage": previous_stage.value,
             "targetStage": target_stage.value,
         },
+    )
+    db.flush()
+    return project
+
+
+def archive_project(db: Session, project: Project, actor: User) -> Project:
+    """Hide the project from the default overview and tell every member.
+
+    Archiving is purely a visibility flag: workflow state, data and access are
+    untouched, so :func:`unarchive_project` restores the project exactly as it
+    was. Archiving an already archived project is a no-op.
+    """
+    from app.notifications.service import queue_project_archived_emails
+
+    if project.archived_at is not None:
+        return project
+    project.archived_at = utcnow()
+    record_audit(
+        db,
+        action="project.archived",
+        entity_type="project",
+        entity_id=project.id,
+        project_id=project.id,
+        actor_id=actor.id,
+        summary=f"Archived project {project.name}",
+    )
+    queue_project_archived_emails(db, project, actor)
+    db.flush()
+    return project
+
+
+def unarchive_project(db: Session, project: Project, actor_id: str) -> Project:
+    """Return an archived project to the default overview."""
+    if project.archived_at is None:
+        return project
+    project.archived_at = None
+    record_audit(
+        db,
+        action="project.unarchived",
+        entity_type="project",
+        entity_id=project.id,
+        project_id=project.id,
+        actor_id=actor_id,
+        summary=f"Restored project {project.name} from the archive",
     )
     db.flush()
     return project

@@ -155,21 +155,15 @@ function PapertrailOverview() {
 function StageTimeline({
   descriptions = stageDescriptions,
   label = 'Review stages',
-  centerMarkers = false,
 }: {
   descriptions?: Record<string, string>
   label?: string
-  centerMarkers?: boolean
 }) {
   return (
-    <ol
-      className="m-0 grid list-none gap-5 p-0"
-      data-marker-alignment={centerMarkers ? 'center' : 'start'}
-      aria-label={label}
-    >
+    <ol className="m-0 grid list-none gap-5 p-0" aria-label={label}>
       {STAGES.map((stage, index) => (
         <li
-          className={`grid grid-cols-[56px_1fr] gap-4 ${centerMarkers ? 'items-center' : 'items-start'}`}
+          className="grid grid-cols-[56px_1fr] items-center gap-4"
           key={stage.value}
           style={{ '--stage-color': stage.color } as CSSProperties}
         >
@@ -310,7 +304,7 @@ function OwnerDangerZoneGuide() {
         title="Reset is a fresh start, delete is permanent removal"
         subtitle="Before using the Danger Zone"
         icon={<IconTrash />}
-        className="overflow-hidden rounded-lg border-[color-mix(in_srgb,var(--color-danger)_28%,var(--color-border))] [background:radial-gradient(circle_at_100%_0,var(--color-danger-container),transparent_20rem),color-mix(in_srgb,var(--color-danger)_3%,var(--color-surface))] p-0 shadow-none [&>.collapsible-section__heading]:p-4 min-[561px]:[&>.collapsible-section__heading]:p-5 [&_.collapsible-section__heading]:text-[1.08rem] [&_.collapsible-section__icon]:size-[42px] [&_.collapsible-section__icon]:items-center [&_.collapsible-section__icon]:justify-center [&_.collapsible-section__icon]:rounded-md [&_.collapsible-section__icon]:bg-danger-container [&_.collapsible-section__icon]:text-danger [&_.collapsible-section__subtitle]:mb-1 [&_.collapsible-section__subtitle]:text-danger [&>.collapsible-section__content[data-expanded=true]]:mt-0 [&>.collapsible-section__content[data-expanded=true]]:border-t [&>.collapsible-section__content[data-expanded=true]]:border-[color-mix(in_srgb,var(--color-danger)_18%,var(--color-border))]"
+        className="overflow-hidden rounded-lg border-[color-mix(in_srgb,var(--color-danger)_28%,var(--color-border))] [background:radial-gradient(circle_at_100%_0,var(--color-danger-container),transparent_20rem),color-mix(in_srgb,var(--color-danger)_3%,var(--color-surface))] p-0 shadow-none [&>[data-section-heading]]:px-4 min-[561px]:[&>[data-section-heading]]:px-5 [&[data-expanded=true]>[data-section-heading]]:pb-4 min-[561px]:[&[data-expanded=true]>[data-section-heading]]:pb-5 [&_[data-section-heading]]:text-[1.08rem] [&_[data-section-heading]]:text-danger [&_[data-section-heading]_button:hover]:text-danger [&_[data-section-icon]]:size-[42px] [&_[data-section-icon]]:items-center [&_[data-section-icon]]:justify-center [&_[data-section-icon]]:rounded-md [&_[data-section-icon]]:bg-danger-container [&_[data-section-icon]]:text-danger [&_[data-section-subtitle]]:mb-1 [&_[data-section-subtitle]]:text-danger [&>[data-section-content][data-expanded=true]]:mt-0 [&>[data-section-content][data-expanded=true]]:border-t [&>[data-section-content][data-expanded=true]]:border-[color-mix(in_srgb,var(--color-danger)_18%,var(--color-border))]"
         defaultExpanded={false}
         headingLevel={3}
       >
@@ -557,14 +551,13 @@ function LlmHelpSection() {
       <StageTimeline
         descriptions={llmStageDescriptions}
         label="LLM assistance by review stage"
-        centerMarkers
       />
 
       <CollapsibleSection
         title="Configuring LLM assistance and custom prompts"
         subtitle="For project owners and administrators"
         icon={<IconSparkle />}
-        className="relative overflow-hidden rounded-lg border-border [background:radial-gradient(circle_at_100%_0,var(--color-primary-container-hover),transparent_20rem),var(--color-surface)] p-4 shadow-none min-[481px]:p-6 [&_.collapsible-section__heading]:m-0 [&_.collapsible-section__heading]:text-[1.16rem] [&>.collapsible-section__heading_.collapsible-section__icon]:size-[42px] [&>.collapsible-section__heading_.collapsible-section__icon]:items-center [&>.collapsible-section__heading_.collapsible-section__icon]:justify-center [&>.collapsible-section__heading_.collapsible-section__icon]:rounded-md [&>.collapsible-section__heading_.collapsible-section__icon]:bg-primary-container [&>.collapsible-section__heading_.collapsible-section__subtitle]:mb-1 [&>.collapsible-section__heading_.collapsible-section__subtitle]:text-primary"
+        className="relative overflow-hidden rounded-lg border-border [background:radial-gradient(circle_at_100%_0,var(--color-primary-container-hover),transparent_20rem),var(--color-surface)] p-4 shadow-none min-[481px]:p-6 [&_[data-section-heading]]:text-[1.16rem] [&>[data-section-heading]_[data-section-icon]]:size-[42px] [&>[data-section-heading]_[data-section-icon]]:items-center [&>[data-section-heading]_[data-section-icon]]:justify-center [&>[data-section-heading]_[data-section-icon]]:rounded-md [&>[data-section-heading]_[data-section-icon]]:bg-primary-container [&>[data-section-heading]_[data-section-subtitle]]:mb-1 [&>[data-section-heading]_[data-section-subtitle]]:text-primary"
         defaultExpanded={false}
         headingLevel={3}
       >

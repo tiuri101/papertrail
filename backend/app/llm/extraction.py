@@ -30,6 +30,7 @@ from app.llm.ollama import (
     OllamaResponseError,
     OllamaTransientError,
     create_ollama_client,
+    with_attempt_sampling,
 )
 from app.llm.prompt import (
     chunk_pages,
@@ -193,6 +194,9 @@ def run_llm_extraction_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
         + sum(len(item.text) for item in research_questions),
         field_count=len(fields),
     )
+    run.model_configuration = with_attempt_sampling(
+        run.model_configuration, job.attempts
+    )
     run.status = ProcessingStatus.PROCESSING
     run.started_at = datetime.now(UTC)
     run.error_type = None
@@ -202,7 +206,7 @@ def run_llm_extraction_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
     db.commit()
     metrics: dict[str, int] = {}
     try:
-        client = create_ollama_client()
+        client = create_ollama_client(attempt=job.attempts)
         candidates: list[dict[str, Any]] = []
         for chunk in chunks:
             result, response = _validated_chat(

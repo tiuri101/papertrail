@@ -3,10 +3,8 @@ import { useState } from 'react'
 
 import { api } from '../../api/client'
 import { describeError } from '../../api/domainErrors'
-import { CollapsibleSection } from '../../components/CollapsibleSection'
-import { ConfirmButton } from '../../components/ConfirmButton'
-import { IconAlertTriangle, IconRestart } from '../../components/icons'
-import { InfoBox } from '../../components/InfoBox'
+import { DangerZoneConfirmButton, DangerZoneSection } from '../../components/DangerZoneSection'
+import { IconRestart } from '../../components/icons'
 import { Select } from '../../components/Select'
 import { activeStages, humanizeStage, stageOrder, stages } from './lifecycleStages'
 import { FieldLabel } from '../../components/FieldLabel'
@@ -42,16 +40,20 @@ export function MoveProjectBackPanel({ projectId }: { projectId: string }) {
   if (!isActiveStage || !moveBackOptions.length) return null
 
   return (
-    <CollapsibleSection id="section-move-project-back" title="Move Project Back" tone="danger" icon={<IconRestart />}>
-      <InfoBox icon={<IconAlertTriangle />} tone="warning">
-        <p>
+    <DangerZoneSection
+      id="section-move-project-back"
+      title="Move Project Back"
+      icon={<IconRestart />}
+      description={
+        <>
           Move an in-progress project back to an earlier stage. Screening decisions, duplicate
           merges, extraction responses, and quality-assessment data recorded in the target
           stage and every stage after it are permanently deleted, and the target stage is then
           regenerated fresh. Data from stages before the target, and project configuration
           (criteria, forms, members), are left untouched.
-        </p>
-      </InfoBox>
+        </>
+      }
+    >
       {moveBack.error ? <p className="text-danger" role="alert">{describeError(moveBack.error)}</p> : null}
       <FieldLabel>
         Move back to
@@ -62,15 +64,14 @@ export function MoveProjectBackPanel({ projectId }: { projectId: string }) {
           {moveBackOptions.map((stage) => <option key={stage} value={stage}>{humanizeStage(stage)}</option>)}
         </Select>
       </FieldLabel>
-      <ConfirmButton
+      <DangerZoneConfirmButton
         label="Move Project Back"
         confirmLabel="Move Back"
         warning="This permanently deletes screening decisions, extraction responses, and quality-assessment data recorded in the target stage and any stage after it. This cannot be undone."
         onConfirm={() => moveBack.mutate()}
         disabled={moveBack.isPending}
-        variant="danger"
         icon={<IconRestart />}
       />
-    </CollapsibleSection>
+    </DangerZoneSection>
   )
 }

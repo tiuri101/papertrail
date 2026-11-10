@@ -26,16 +26,17 @@ Projects control title/abstract suggestions, full-text screening assistance, dat
 PAPERTRAIL_LLM_ENABLED=true
 PAPERTRAIL_OLLAMA_BASE_URL=http://ollama.internal:11434
 PAPERTRAIL_OLLAMA_MODEL=qwen3:8b
-PAPERTRAIL_OLLAMA_REQUEST_TIMEOUT_SECONDS=300
+PAPERTRAIL_OLLAMA_REQUEST_TIMEOUT_SECONDS=600
 PAPERTRAIL_LLM_MAX_CONCURRENT_JOBS=1
 PAPERTRAIL_LLM_CONTEXT_LENGTH=32768
 PAPERTRAIL_LLM_MAX_EVIDENCE_ITEMS=3
 PAPERTRAIL_LLM_MAX_EVIDENCE_QUOTE_CHARS=500
+PAPERTRAIL_LLM_MAX_OUTPUT_TOKENS=4096
 # Optional bearer token for a protected reverse proxy:
 # PAPERTRAIL_OLLAMA_API_KEY=secret
 ```
 
-`PAPERTRAIL_OLLAMA_BASE_URL` is the server base URL, without `/api/chat`. Papertrail sends native `POST /api/chat` requests with `stream=false`, `think=false`, JSON-schema structured output, temperature zero, and the configured context length. Credentials are backend-only and are neither returned by APIs nor logged. `PAPERTRAIL_LLM_ENABLED=false` leaves every existing workflow fully functional and requires no Ollama or GPU for development and tests.
+`PAPERTRAIL_OLLAMA_BASE_URL` is the server base URL, without `/api/chat`. Papertrail sends native `POST /api/chat` requests with `stream=false`, `think=false`, JSON-schema structured output, temperature zero, a repeat penalty of 1.1, the configured context length, and the configured output token cap (`num_predict`). A response cut off at that cap (`done_reason: "length"`) usually means the model was repeating itself; it is treated as a retryable failure, and retries of a job sample at temperature 0.3 so they don't reproduce the same loop. The temperature each attempt actually used is recorded in the run's model configuration. Keep the context length fixed: on Ollama, every change forces a full model reload. Credentials are backend-only and are neither returned by APIs nor logged. `PAPERTRAIL_LLM_ENABLED=false` leaves every existing workflow fully functional and requires no Ollama or GPU for development and tests.
 
 Ollama must already contain the configured model. The project administration connection test calls Ollama's model-list endpoint and reports reachability and model availability; it never pulls a model. The normal Compose stack does not contain Ollama or GPU configuration.
 
