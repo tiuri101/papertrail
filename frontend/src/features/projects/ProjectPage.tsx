@@ -23,6 +23,7 @@ interface ProjectDetail {
   id: string
   name: string
   stage: string
+  archivedAt: string | null
   canManage: boolean
   extractionValidationEnabled: boolean
   canTitleAbstractScreen: boolean
@@ -314,6 +315,18 @@ export function ProjectPage() {
           Project workspace · {STAGES[currentIndex]?.label ?? project.data.stage}
         </p>
         <h1>{project.data.name}</h1>
+        {project.data.archivedAt ? (
+          <section className={cn(cardPageSiblingSpacingStyles, 'rounded-md border border-border bg-surface p-4')} data-ui="card" role="status" aria-labelledby="archived-project-heading">
+            <h2 id="archived-project-heading">This project is archived</h2>
+            <p>
+              It is hidden from the project overview and listed under{' '}
+              <Link to="/projects?view=archived">Archived projects</Link>.
+              {project.data.canManage ? (
+                <> Restore it under <Link to={`/projects/${projectId}/admin`}>Project Administration</Link> → Danger Zone.</>
+              ) : null}
+            </p>
+          </section>
+        ) : null}
         {integrity.data?.issues.length ? (
           <section className={cn(cardPageSiblingSpacingStyles, 'rounded-md border border-[rgba(255,127,130,0.28)] bg-danger-container p-4 text-danger')} data-ui="card" role="alert" aria-labelledby="workflow-integrity-heading">
             <h2 id="workflow-integrity-heading">Workflow integrity issue</h2>

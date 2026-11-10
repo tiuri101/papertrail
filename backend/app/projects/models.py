@@ -108,6 +108,10 @@ class Project(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     reopened_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    #: Set while the project is archived: hidden from the default project
+    #: overview but otherwise fully accessible. Independent of ``stage``, so
+    #: a project can be archived at any point and restored where it left off.
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     #: Latest LLM run/preparation completion already reported in an "LLM
     #: processing finished" email. The next digest only reports work that
     #: finished after it, so a project never gets the same results twice.

@@ -37,6 +37,10 @@ Papertrail advances lifecycle stages automatically when completion conditions ar
 
 The copy runs as a `clone_project` background job on the general worker. PDFs and uploaded import files are physically copied, so make sure the PDF volume has room for a second set of the project's files. A copy is refused while the source project has queued or running background jobs, because their half-finished work would be copied with nothing left to finish it — wait for them, then try again. When email is enabled, the user who requested the copy is emailed once it finishes (with a link to the new project) or once it has failed for good (with the reason); failed attempts that will still be retried send nothing.
 
+### Archiving a project
+
+**Archive Project** (Project Administration → Danger Zone) hides a project from the default **Projects** overview without changing anything else: its data, workflow stage, members, and permissions stay as they are, and members can still open and work in it. Archived projects are listed under the **Archived projects** button on the overview, and an archived project's workspace shows a notice saying so. **Restore Project** in the same place returns it to the overview. Only the project owner or an administrator can archive or restore a project; both actions are recorded in the audit log. When email is enabled, every project member is emailed when the project is archived (restoring sends nothing).
+
 ## Account administration
 
 Only installation administrators create and manage local accounts.
@@ -140,6 +144,7 @@ Email is installation-level optional configuration. Current durable email events
 - account creation and requested password-reset links;
 - notification to active administrators when a project is created;
 - project membership added/removed (permission-only membership edits do not send mail);
+- to every project member, when a project is archived;
 - project-owner notice when a project moves on to its next workflow stage, and when it is completed;
 - project-owner **LLM processing finished** summary: one email per project once all of its queued batch LLM work (bulk runs and the PDF text preparation they wait on) has finished and nothing more has finished for 10 minutes. Work that finishes in a steady trickle — for example while duplicates are resolved one at a time, each releasing a publication into screening — produces one summary when it stops, not one email per publication. Each summary covers only work that finished since the previous one. Runs a reviewer starts for a single publication are not reported;
 - to the user who started it, when a publication import finishes or fails for good (one email per imported file);

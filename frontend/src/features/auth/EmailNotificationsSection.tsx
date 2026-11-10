@@ -43,6 +43,11 @@ const EMAIL_CATEGORY_OPTIONS: CategoryOption[] = [
     description: 'When you are added to or removed from a project.',
   },
   {
+    key: 'project_archive',
+    label: 'Archived projects',
+    description: 'When a project you are a member of is archived.',
+  },
+  {
     key: 'project_copies',
     label: 'Project copies',
     description: 'When a project copy you requested is ready or failed.',

@@ -176,4 +176,43 @@ describe('ProjectsPage', () => {
     fireEvent.change(screen.getByLabelText('Sort projects'), { target: { value: 'completion' } })
     expect(projectNames()).toEqual(['Alpha review', 'Zebra review'])
   })
+  it('switches to the archived projects view and back', async () => {
+    const archivedProject = {
+      id: 'p9',
+      name: 'Old review',
+      description: null,
+      reviewType: 'systematic_review',
+      stage: 'completed',
+      archivedAt: '2026-10-01T10:00:00Z',
+      createdAt: '2025-01-01T10:00:00Z',
+      updatedAt: '2026-10-01T10:00:00Z',
+      owner: { id: 'u1', displayName: 'Ada Lovelace' },
+      myRole: 'owner',
+      openTaskCount: 0,
+      primaryLabel: 'Included',
+      primaryCount: 4,
+      secondaryLabel: 'Screened',
+      secondaryCount: 10,
+      reviewerCount: 1,
+      percentComplete: 100,
+    }
+    const fetchMock = mockFetch(async (input) =>
+      jsonResponse(String(input).includes('archived=true') ? [archivedProject] : []),
+    )
+
+    renderWithProviders(<ProjectsPage />, { route: '/projects' })
+
+    expect(await screen.findByRole('heading', { name: 'Projects' })).toBeVisible()
+    fireEvent.click(screen.getByRole('button', { name: 'Archived projects' }))
+
+    expect(await screen.findByRole('heading', { name: 'Archived Projects' })).toBeVisible()
+    const projectLink = await screen.findByRole('link', { name: 'Old review' })
+    expect(within(projectLink.closest('li') as HTMLLIElement).getByText(/^Archived /)).toBeVisible()
+    expect(screen.queryByRole('heading', { name: 'Create New Project' })).not.toBeInTheDocument()
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toContain('/api/v1/projects?archived=true')
+
+    fireEvent.click(screen.getByRole('button', { name: 'Active projects' }))
+    expect(await screen.findByRole('heading', { name: 'Projects' })).toBeVisible()
+    expect(screen.queryByRole('link', { name: 'Old review' })).not.toBeInTheDocument()
+  })
 })

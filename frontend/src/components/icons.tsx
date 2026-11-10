@@ -306,3 +306,11 @@ export function IconBookmarkFilled() {
     </svg>
   )
 }
+
+export function IconArchive() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" fillRule="evenodd">
+      <path d="M3 4h18v5h-1v10.5A1.5 1.5 0 0 1 18.5 21h-13A1.5 1.5 0 0 1 4 19.5V9H3V4Zm2 2v1h14V6H5Zm1 3v10h12V9H6Zm3 2h6v2H9v-2Z" />
+    </svg>
+  )
+}

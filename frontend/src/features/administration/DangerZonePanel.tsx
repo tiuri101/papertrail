@@ -3,10 +3,8 @@ import { useNavigate } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
 import { describeError } from '../../api/domainErrors'
-import { CollapsibleSection } from '../../components/CollapsibleSection'
-import { ConfirmButton } from '../../components/ConfirmButton'
-import { IconAlertTriangle, IconRestart, IconTrash } from '../../components/icons'
-import { InfoBox } from '../../components/InfoBox'
+import { DangerZoneConfirmButton, DangerZoneSection } from '../../components/DangerZoneSection'
+import { IconRestart, IconTrash } from '../../components/icons'
 import { toolbarClass } from '../../components/layoutStyles'
 
 export function DangerZonePanel({ projectId }: { projectId: string }) {
@@ -33,52 +31,58 @@ export function DangerZonePanel({ projectId }: { projectId: string }) {
 
   return (
     <>
-      <CollapsibleSection id="section-reset-project" title="Reset Project" tone="danger" icon={<IconRestart />}>
-        <InfoBox icon={<IconAlertTriangle />} tone="warning">
-          <p>
+      <DangerZoneSection
+        id="section-reset-project"
+        title="Reset Project"
+        icon={<IconRestart />}
+        description={
+          <>
             Wipes every imported publication and all screening, duplicate-review, full-text,
             extraction, and quality-assessment progress, and returns the project to draft.
             Research questions, criteria, screening configuration, and membership are kept. This
             cannot be undone.
-          </p>
-        </InfoBox>
+          </>
+        }
+      >
         {/* A reset refused because a handler is mid-write (409
             `project_jobs_running`) is a wait-and-retry, not a failure --
             say which jobs, rather than surfacing a bare conflict. */}
         {reset.error ? <p className="text-danger" role="alert">{describeError(reset.error)}</p> : null}
         {reset.isSuccess ? <p>Project has been reset to draft.</p> : null}
         <div className={toolbarClass}>
-          <ConfirmButton
+          <DangerZoneConfirmButton
             label="Reset Project"
             confirmLabel="Reset Project"
             warning="Are you sure you want to continue? This cannot be undone."
             onConfirm={() => reset.mutate()}
             disabled={reset.isPending}
-            variant="danger"
             icon={<IconRestart />}
           />
         </div>
-      </CollapsibleSection>
-      <CollapsibleSection id="section-delete-project" title="Delete Project" tone="danger" icon={<IconTrash />}>
-        <InfoBox icon={<IconAlertTriangle />} tone="warning">
-          <p>
+      </DangerZoneSection>
+      <DangerZoneSection
+        id="section-delete-project"
+        title="Delete Project"
+        icon={<IconTrash />}
+        description={
+          <>
             Permanently removes the entire project, including its configuration, publications,
             stored PDFs, import files, and generated exports. This cannot be undone.
-          </p>
-        </InfoBox>
+          </>
+        }
+      >
         {deleteProject.error ? <p className="text-danger" role="alert">{describeError(deleteProject.error)}</p> : null}
         <div className={toolbarClass}>
-          <ConfirmButton
+          <DangerZoneConfirmButton
             label="Delete Project"
             confirmLabel="Permanently Delete"
             warning="Are you sure you want to continue? This cannot be undone."
             onConfirm={() => deleteProject.mutate()}
             disabled={deleteProject.isPending}
-            variant="danger"
             icon={<IconTrash />}
           />
         </div>
-      </CollapsibleSection>
+      </DangerZoneSection>
     </>
   )
 }

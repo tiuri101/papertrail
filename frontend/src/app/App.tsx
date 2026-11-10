@@ -4,6 +4,7 @@ import { Navigate, Route, Routes, useNavigate, useParams } from 'react-router-do
 
 import { AppShell } from './AppShell'
 import { CopyProjectPanel } from '../features/administration/CopyProjectPanel'
+import { ArchiveProjectPanel } from '../features/administration/ArchiveProjectPanel'
 import { DangerZonePanel } from '../features/administration/DangerZonePanel'
 import { ExtractionSettingsPanel } from '../features/administration/ExtractionSettingsPanel'
 import { HighlightKeywordsPanel } from '../features/administration/HighlightKeywordsPanel'
@@ -140,6 +141,7 @@ const adminTabs: AdminTab[] = [
     label: 'Danger Zone',
     icon: <IconTrash />,
     sections: [
+      { id: 'section-archive-project', label: 'Archive Project' },
       { id: 'section-reopen-project', label: 'Reopen at an Earlier Stage' },
       { id: 'section-reset-project', label: 'Reset Project' },
       { id: 'section-delete-project', label: 'Delete Project' },
@@ -230,6 +232,7 @@ function ProjectAdministrationPage() {
         ) : null}
         {activeTab === 'danger' ? (
           <>
+            <ArchiveProjectPanel projectId={projectId} />
             <MoveProjectBackPanel projectId={projectId} />
             <ReopenProjectPanel projectId={projectId} />
             <DangerZonePanel projectId={projectId} />

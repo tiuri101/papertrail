@@ -196,6 +196,18 @@ def render_email(template: str, context: dict[str, Any]) -> RenderedEmail:
         action_label = "Open completed project"
         action_url = context["project_url"]
         summary_items = [("Status", "Completed", "#147a59")]
+    elif template == "project_archived":
+        subject = f'Project "{context["project_name"]}" was archived'
+        paragraphs = [
+            f"Hello {context['recipient_name']},",
+            f'{context["actor_name"]} archived the Papertrail project '
+            f'"{context["project_name"]}".',
+            "Archived projects are hidden from the project overview but remain "
+            "available under Archived projects, with all of their data intact.",
+        ]
+        action_label = "Open project"
+        action_url = context["project_url"]
+        summary_items = [("Status", "Archived", "#59667a")]
     elif template == "project_stage_completed":
         subject = f'"{context["stage_label"]}" complete in "{context["project_name"]}"'
         paragraphs = [
