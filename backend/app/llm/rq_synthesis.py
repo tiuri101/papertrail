@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.llm.installation_settings import effective_llm_settings
 from app.llm.ollama import OllamaClientProtocol, create_ollama_client
+from app.llm.prompt import input_token_budget, message_chars
 from app.llm.rq_chunking import chunk_facts
 from app.llm.rq_prompt import (
     candidate_messages,
@@ -82,8 +83,18 @@ def run_rq_synthesis(
     entries_by_id = {entry.id: entry for entry in entries}
     schema = statements_output_schema()
     client = client or create_ollama_client(attempt=attempt)
-    context_length = effective_llm_settings(db).llm_context_length
-    chunks = chunk_facts(entries, context_length)
+    config = effective_llm_settings(db)
+    chunks = chunk_facts(
+        entries,
+        input_token_budget(
+            context_length=config.llm_context_length,
+            max_output_tokens=config.llm_max_output_tokens,
+            instruction_chars=message_chars(
+                candidate_messages(research_question_text, [])
+            ),
+            attempt=attempt,
+        ),
+    )
 
     candidates: list[dict[str, Any]] = []
     for chunk in chunks:

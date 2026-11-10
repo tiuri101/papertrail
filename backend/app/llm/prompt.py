@@ -128,17 +128,53 @@ def page_text(page_number: int, text: str) -> str:
     return f"--- PDF PAGE {page_number} ---\n{text.strip()}"
 
 
+# Conservative estimate; the safety margin absorbs chat-template tokens.
+CHARS_PER_TOKEN = 3
+SAFETY_MARGIN_TOKENS = 256
+
+
+def message_chars(messages: list[dict[str, str]]) -> int:
+    return sum(len(message["content"]) for message in messages)
+
+
+def input_token_budget(
+    *,
+    context_length: int,
+    max_output_tokens: int,
+    instruction_chars: int,
+    attempt: int = 1,
+) -> int:
+    """Tokens available for paper text or candidates in one request.
+
+    Reserves the full output token cap, so prompt + output fit the context
+    window. Ollama reports a full window like an output cap, and an unchanged
+    prompt overflows again, so each job retry shrinks the input.
+    """
+
+    available = (
+        context_length
+        - max_output_tokens
+        - instruction_chars // CHARS_PER_TOKEN
+        - SAFETY_MARGIN_TOKENS
+    )
+    scale = 1.0 if attempt <= 1 else 0.6 if attempt == 2 else 0.4
+    return max(500, int(available * scale))
+
+
 def chunk_pages(
     pages: list[tuple[int, str]],
     *,
     context_length: int,
     instruction_chars: int,
-    field_count: int,
+    max_output_tokens: int,
+    attempt: int = 1,
 ) -> list[str]:
-    reserved_tokens = max(1200, field_count * 300)
-    overhead_tokens = max(500, instruction_chars // 3)
-    text_token_budget = max(1000, context_length - reserved_tokens - overhead_tokens)
-    char_budget = text_token_budget * 3
+    char_budget = CHARS_PER_TOKEN * input_token_budget(
+        context_length=context_length,
+        max_output_tokens=max_output_tokens,
+        instruction_chars=instruction_chars,
+        attempt=attempt,
+    )
     chunks: list[str] = []
     current: list[str] = []
     current_chars = 0

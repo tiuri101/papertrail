@@ -263,6 +263,11 @@ class Settings(BaseSettings):
             raise ValueError(
                 "PAPERTRAIL_LLM_MAX_OUTPUT_TOKENS must be between 256 and 32768"
             )
+        if self.llm_max_output_tokens * 2 > self.llm_context_length:
+            raise ValueError(
+                "PAPERTRAIL_LLM_MAX_OUTPUT_TOKENS must be at most half of "
+                "PAPERTRAIL_LLM_CONTEXT_LENGTH"
+            )
         return self
 
     def ensure_directories(self) -> None:
