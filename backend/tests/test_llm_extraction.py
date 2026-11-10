@@ -40,7 +40,12 @@ from app.llm.models import (
     ProjectLlmSettings,
     SuggestionDisposition,
 )
-from app.llm.ollama import OllamaClient, OllamaResponse, OllamaTransientError
+from app.llm.ollama import (
+    OllamaClient,
+    OllamaResponse,
+    OllamaTransientError,
+    OllamaTruncatedError,
+)
 from app.llm.prompt import chunk_pages, extraction_messages, output_schema
 from app.llm.schema_service import (
     initialize_from_form,
@@ -537,7 +542,7 @@ def test_ollama_job_uses_structured_output_and_verifies_evidence(
         },
         on_chat=assert_processing_was_committed,
     )
-    monkeypatch.setattr("app.llm.extraction.create_ollama_client", lambda: fake)
+    monkeypatch.setattr("app.llm.extraction.create_ollama_client", lambda **_: fake)
     result = run_llm_extraction_job(db, job)
     db.commit()
     db.refresh(run)
@@ -722,12 +727,33 @@ def test_transient_ollama_failure_is_retryable_and_does_not_create_suggestions(
         def chat(self, **_):
             raise OllamaTransientError("offline")
 
-    monkeypatch.setattr("app.llm.extraction.create_ollama_client", lambda: Offline())
+    monkeypatch.setattr("app.llm.extraction.create_ollama_client", lambda **_: Offline())
     with pytest.raises(Exception, match="offline"):
         run_llm_extraction_job(db, job)
     db.rollback()
     assert db.scalar(select(func.count()).select_from(LlmFieldSuggestion)) == 0
     assert db.get(LlmExtractionRun, run.id).status == ProcessingStatus.PROCESSING
+
+
+def test_retried_job_samples_differently_and_records_it(db, monkeypatch) -> None:
+    *_, run, job = prepared_run(db)
+    job.attempts = 2
+    requested_attempts = []
+
+    class Truncated:
+        def chat(self, **_):
+            raise OllamaTruncatedError("truncated")
+
+    def create_client(*, attempt):
+        requested_attempts.append(attempt)
+        return Truncated()
+
+    monkeypatch.setattr("app.llm.extraction.create_ollama_client", create_client)
+    with pytest.raises(Exception, match="truncated"):
+        run_llm_extraction_job(db, job)
+    db.rollback()
+    assert requested_attempts == [2]
+    assert db.get(LlmExtractionRun, run.id).model_configuration["temperature"] == 0.3
 
 
 def test_invalid_structured_output_gets_one_repair_then_fails_cleanly(
@@ -750,7 +776,7 @@ def test_invalid_structured_output_gets_one_repair_then_fails_cleanly(
             }
         }
     )
-    monkeypatch.setattr("app.llm.extraction.create_ollama_client", lambda: invalid)
+    monkeypatch.setattr("app.llm.extraction.create_ollama_client", lambda **_: invalid)
     result = run_llm_extraction_job(db, job)
     db.commit()
     assert result["status"] == "failed"
@@ -775,7 +801,7 @@ def test_reviewer_submission_preserves_llm_output_and_records_provenance(
             }
         }
     )
-    monkeypatch.setattr("app.llm.extraction.create_ollama_client", lambda: fake)
+    monkeypatch.setattr("app.llm.extraction.create_ollama_client", lambda **_: fake)
     run_llm_extraction_job(db, job)
     item = ExtractionWorkItem(
         project_id=project.id,
@@ -846,7 +872,7 @@ def test_llm_admin_settings_schema_and_connection_api(client, db, monkeypatch) -
             }
 
     monkeypatch.setattr(
-        "app.llm.routes.create_ollama_client", lambda: ConnectionClient()
+        "app.llm.routes.create_ollama_client", lambda **_: ConnectionClient()
     )
     tested = client.post(
         f"/api/v1/projects/{project.id}/llm/test",
@@ -887,6 +913,7 @@ def test_administrator_can_override_installation_llm_settings(client, db) -> Non
             "maxConcurrentJobs": 2,
             "maxEvidenceItems": 5,
             "maxEvidenceQuoteChars": 800,
+            "maxOutputTokens": 3000,
         },
         headers={"X-CSRF-Token": admin_csrf},
     )
@@ -902,6 +929,7 @@ def test_administrator_can_override_installation_llm_settings(client, db) -> Non
         "maxConcurrentJobs": 2,
         "maxEvidenceItems": 5,
         "maxEvidenceQuoteChars": 800,
+        "maxOutputTokens": 3000,
     }
 
     admin_view = client.get("/api/v1/llm/installation-settings")
@@ -917,6 +945,7 @@ def test_administrator_can_override_installation_llm_settings(client, db) -> Non
         "maxConcurrentJobs": 2,
         "maxEvidenceItems": 5,
         "maxEvidenceQuoteChars": 800,
+        "maxOutputTokens": 3000,
     }
 
     project_view = client.get(f"/api/v1/projects/{project.id}/llm/settings")
@@ -945,6 +974,7 @@ def test_administrator_can_override_installation_llm_settings(client, db) -> Non
             "maxConcurrentJobs": 1,
             "maxEvidenceItems": 3,
             "maxEvidenceQuoteChars": 500,
+            "maxOutputTokens": 4096,
         },
         headers={"X-CSRF-Token": owner_csrf},
     )
@@ -968,7 +998,7 @@ def test_administrator_can_test_installation_connection(
             return {"available": True, "modelAvailable": True, "model": "test-model"}
 
     monkeypatch.setattr(
-        "app.llm.routes.create_ollama_client", lambda: ConnectionClient()
+        "app.llm.routes.create_ollama_client", lambda **_: ConnectionClient()
     )
     tested = client.post(
         "/api/v1/llm/installation-settings/test",
@@ -1230,6 +1260,7 @@ def test_disabling_installation_cancels_all_queued_llm_work(client, db) -> None:
             "maxConcurrentJobs": 1,
             "maxEvidenceItems": 3,
             "maxEvidenceQuoteChars": 500,
+            "maxOutputTokens": 4096,
         },
         headers={"X-CSRF-Token": csrf},
     )
@@ -1270,7 +1301,7 @@ def test_suggestions_are_visible_only_to_assigned_reviewer(
             }
         }
     )
-    monkeypatch.setattr("app.llm.extraction.create_ollama_client", lambda: fake)
+    monkeypatch.setattr("app.llm.extraction.create_ollama_client", lambda **_: fake)
     run_llm_extraction_job(db, job)
     db.commit()
 
@@ -1355,7 +1386,54 @@ def test_ollama_native_request_disables_streaming_and_thinking(monkeypatch) -> N
     assert body["think"] is False
     assert body["format"] == {"type": "object"}
     assert body["options"]["temperature"] == 0
+    assert body["options"]["num_predict"] == settings.llm_max_output_tokens
+    assert body["options"]["repeat_penalty"] == 1.1
     assert result.metrics["prompt_eval_count"] == 12
+
+
+def _capture_ollama_post(monkeypatch, body: dict) -> dict:
+    captured: dict = {}
+
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return body
+
+    def post(url, **kwargs):
+        captured.update(kwargs)
+        return Response()
+
+    monkeypatch.setattr("app.llm.ollama.httpx.post", post)
+    return captured
+
+
+def test_ollama_retry_attempt_samples_differently(monkeypatch) -> None:
+    # A retry of an identical request at temperature 0 reproduces the same
+    # output, so a model loop would simply repeat.
+    captured = _capture_ollama_post(
+        monkeypatch, {"message": {"content": "{}"}, "done_reason": "stop"}
+    )
+    OllamaClient(get_settings(), attempt=2).chat(
+        messages=[{"role": "user", "content": "paper"}],
+        output_schema={"type": "object"},
+    )
+    assert captured["json"]["options"]["temperature"] == 0.3
+
+
+def test_ollama_output_truncated_at_token_limit_is_retryable(monkeypatch) -> None:
+    _capture_ollama_post(
+        monkeypatch,
+        {"message": {"content": '{"fields": {"a": "aaaa'}, "done_reason": "length"},
+    )
+    with pytest.raises(OllamaTruncatedError) as excinfo:
+        OllamaClient(get_settings()).chat(
+            messages=[{"role": "user", "content": "paper"}],
+            output_schema={"type": "object"},
+        )
+    assert excinfo.value.transient
+    assert "output token limit" in str(excinfo.value)
 
 
 def test_worker_type_filter_keeps_gpu_jobs_for_dedicated_worker(db) -> None:
@@ -1503,7 +1581,7 @@ def test_title_suggestion_is_generated_independently_and_revealed_only_after_dec
         },
         on_chat=assert_processing_was_committed,
     )
-    monkeypatch.setattr("app.llm.task_execution.create_ollama_client", lambda: fake)
+    monkeypatch.setattr("app.llm.task_execution.create_ollama_client", lambda **_: fake)
     job = db.get(BackgroundJob, run.background_job_id)
     run_llm_task_job(db, job)
     db.commit()
@@ -1614,7 +1692,7 @@ def test_reviewer_never_sees_suggestion_after_capability_disabled(
             "reasoning_summary": "Looks relevant.",
         }
     )
-    monkeypatch.setattr("app.llm.task_execution.create_ollama_client", lambda: fake)
+    monkeypatch.setattr("app.llm.task_execution.create_ollama_client", lambda **_: fake)
     job = db.get(BackgroundJob, run.background_job_id)
     run_llm_task_job(db, job)
     db.commit()
@@ -1806,7 +1884,7 @@ def test_full_text_assistance_verifies_page_evidence(db, monkeypatch) -> None:
             "reasoning_summary": "The eligibility criterion is supported.",
         }
     )
-    monkeypatch.setattr("app.llm.task_execution.create_ollama_client", lambda: fake)
+    monkeypatch.setattr("app.llm.task_execution.create_ollama_client", lambda **_: fake)
     run_llm_task_job(db, db.get(BackgroundJob, run.background_job_id))
     db.commit()
     db.refresh(run)
@@ -1882,7 +1960,7 @@ def test_full_text_suggestion_is_generated_independently_and_revealed_only_after
             "reasoning_summary": "The eligibility criterion is supported.",
         }
     )
-    monkeypatch.setattr("app.llm.task_execution.create_ollama_client", lambda: fake)
+    monkeypatch.setattr("app.llm.task_execution.create_ollama_client", lambda **_: fake)
     run_llm_task_job(db, db.get(BackgroundJob, run.background_job_id))
     db.commit()
 
@@ -1981,7 +2059,7 @@ def test_validation_uses_human_values_and_never_changes_extraction(
             }
         }
     )
-    monkeypatch.setattr("app.llm.task_execution.create_ollama_client", lambda: fake)
+    monkeypatch.setattr("app.llm.task_execution.create_ollama_client", lambda **_: fake)
     run_llm_task_job(db, db.get(BackgroundJob, run.background_job_id))
     db.commit()
     db.refresh(response)
@@ -2331,7 +2409,7 @@ def test_disabling_capability_discards_an_in_flight_result(db, monkeypatch) -> N
         },
         on_chat=cancel_mid_flight,
     )
-    monkeypatch.setattr("app.llm.extraction.create_ollama_client", lambda: fake)
+    monkeypatch.setattr("app.llm.extraction.create_ollama_client", lambda **_: fake)
     result = run_llm_extraction_job(db, job)
     db.commit()
     db.refresh(run)

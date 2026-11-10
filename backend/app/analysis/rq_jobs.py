@@ -20,7 +20,11 @@ from app.jobs.errors import TransientJobError
 from app.jobs.models import BackgroundJob, JobStatus
 from app.jobs.service import enqueue_job
 from app.llm.installation_settings import effective_llm_settings
-from app.llm.ollama import OllamaResponseError, OllamaTransientError
+from app.llm.ollama import (
+    OllamaResponseError,
+    OllamaTransientError,
+    with_attempt_sampling,
+)
 from app.llm.rq_prompt import RQ_SYNTHESIS_PROMPT_VERSION
 from app.llm.rq_synthesis import run_rq_synthesis
 from app.llm.task_service import fingerprint
@@ -235,12 +239,15 @@ def generate_rq_synthesis_job(db: Session, job: BackgroundJob) -> dict[str, Any]
         run.completed_at = datetime.now(UTC)
         db.flush()
         return {"runId": run.id, "status": "stale"}
+    run.model_configuration = with_attempt_sampling(
+        run.model_configuration, job.attempts
+    )
     run.status = "processing"
     run.started_at = datetime.now(UTC)
     db.commit()
     try:
         result_payload, _metrics = run_rq_synthesis(
-            db, run.project_id, research_question.text
+            db, run.project_id, research_question.text, attempt=job.attempts
         )
     except OllamaTransientError as exc:
         raise TransientJobError(str(exc)) from exc

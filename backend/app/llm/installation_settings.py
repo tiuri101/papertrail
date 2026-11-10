@@ -47,6 +47,7 @@ def effective_llm_settings(db: Session | None = None) -> Settings:
             "llm_max_concurrent_jobs": stored.max_concurrent_jobs,
             "llm_max_evidence_items": stored.max_evidence_items,
             "llm_max_evidence_quote_chars": stored.max_evidence_quote_chars,
+            "llm_max_output_tokens": stored.max_output_tokens,
             "llm_title_abstract_base_prompt": stored.title_abstract_base_prompt,
             "llm_full_text_base_prompt": stored.full_text_base_prompt,
             "llm_extraction_base_prompt": stored.extraction_base_prompt,
@@ -67,6 +68,7 @@ def update_installation_settings(
     max_concurrent_jobs: int,
     max_evidence_items: int,
     max_evidence_quote_chars: int,
+    max_output_tokens: int,
     updated_by_user_id: str,
 ) -> LlmInstallationSettings:
     stored = installation_settings(db)
@@ -81,6 +83,7 @@ def update_installation_settings(
             max_concurrent_jobs=max_concurrent_jobs,
             max_evidence_items=max_evidence_items,
             max_evidence_quote_chars=max_evidence_quote_chars,
+            max_output_tokens=max_output_tokens,
             updated_by_user_id=updated_by_user_id,
         )
         db.add(stored)
@@ -97,6 +100,7 @@ def update_installation_settings(
         stored.max_concurrent_jobs = max_concurrent_jobs
         stored.max_evidence_items = max_evidence_items
         stored.max_evidence_quote_chars = max_evidence_quote_chars
+        stored.max_output_tokens = max_output_tokens
         stored.updated_by_user_id = updated_by_user_id
     db.flush()
     return stored
@@ -128,6 +132,7 @@ def update_installation_prompts(
             max_concurrent_jobs=defaults.llm_max_concurrent_jobs,
             max_evidence_items=defaults.llm_max_evidence_items,
             max_evidence_quote_chars=defaults.llm_max_evidence_quote_chars,
+            max_output_tokens=defaults.llm_max_output_tokens,
             updated_by_user_id=updated_by_user_id,
         )
         db.add(stored)

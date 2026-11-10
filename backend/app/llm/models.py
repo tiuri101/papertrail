@@ -124,6 +124,7 @@ class LlmInstallationSettings(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     max_concurrent_jobs: Mapped[int] = mapped_column(Integer, nullable=False)
     max_evidence_items: Mapped[int] = mapped_column(Integer, nullable=False)
     max_evidence_quote_chars: Mapped[int] = mapped_column(Integer, nullable=False)
+    max_output_tokens: Mapped[int] = mapped_column(Integer, nullable=False)
     title_abstract_base_prompt: Mapped[str | None] = mapped_column(Text)
     full_text_base_prompt: Mapped[str | None] = mapped_column(Text)
     extraction_base_prompt: Mapped[str | None] = mapped_column(Text)

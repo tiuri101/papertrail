@@ -67,6 +67,7 @@ def run_rq_synthesis(
     research_question_text: str,
     *,
     client: OllamaClientProtocol | None = None,
+    attempt: int = 1,
 ) -> tuple[dict[str, Any], dict[str, int]]:
     dataset = build_evidence_dataset(db, project_id)
     entries = assign_source_ids(dataset)
@@ -80,7 +81,7 @@ def run_rq_synthesis(
 
     entries_by_id = {entry.id: entry for entry in entries}
     schema = statements_output_schema()
-    client = client or create_ollama_client()
+    client = client or create_ollama_client(attempt=attempt)
     context_length = effective_llm_settings(db).llm_context_length
     chunks = chunk_facts(entries, context_length)
 

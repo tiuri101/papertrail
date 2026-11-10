@@ -34,6 +34,7 @@ from app.llm.ollama import (
     OllamaResponseError,
     OllamaTransientError,
     create_ollama_client,
+    with_attempt_sampling,
 )
 from app.llm.prompt import chunk_pages
 from app.llm.structured import add_metrics, validated_chat
@@ -123,8 +124,9 @@ def _consolidate(
     return validator(current[0])
 
 
-def _commit_started(db: Session, run: LlmExtractionRun) -> None:
+def _commit_started(db: Session, run: LlmExtractionRun, attempt: int) -> None:
     """Publish the processing state without holding locks during model inference."""
+    run.model_configuration = with_attempt_sampling(run.model_configuration, attempt)
     run.status = ProcessingStatus.PROCESSING
     run.started_at = datetime.now(UTC)
     run.error_type = None
@@ -220,7 +222,9 @@ def _store_criteria(
         )
 
 
-def _run_title_abstract(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
+def _run_title_abstract(
+    db: Session, run: LlmExtractionRun, attempt: int
+) -> dict[str, Any]:
     publication = db.get(Publication, run.publication_id)
     if publication is None:
         return _mark_failed(run, "publication_missing", "Publication is unavailable")
@@ -236,11 +240,11 @@ def _run_title_abstract(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
         max_evidence=0,
         max_quote=config.llm_max_evidence_quote_chars,
     )
-    _commit_started(db, run)
+    _commit_started(db, run, attempt)
     metrics: dict[str, int] = {}
     try:
         result, response = validated_chat(
-            create_ollama_client(),
+            create_ollama_client(attempt=attempt),
             title_abstract_messages(
                 publication,
                 criteria,
@@ -267,7 +271,9 @@ def _run_title_abstract(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
     return {"runId": run.id, "status": "completed", "chunks": 0}
 
 
-def _run_full_text(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
+def _run_full_text(
+    db: Session, run: LlmExtractionRun, attempt: int
+) -> dict[str, Any]:
     publication = db.get(Publication, run.publication_id)
     extraction = (
         db.get(DocumentTextExtraction, run.text_extraction_id)
@@ -301,8 +307,8 @@ def _run_full_text(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
         + sum(len(item.text) for item in research_questions),
         field_count=len(criteria),
     )
-    _commit_started(db, run)
-    client = create_ollama_client()
+    _commit_started(db, run, attempt)
+    client = create_ollama_client(attempt=attempt)
     metrics: dict[str, int] = {}
 
     def validator(payload: dict[str, Any]) -> ScreeningTaskResult:
@@ -377,7 +383,9 @@ def _validation_fields(
     ]
 
 
-def _run_validation(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
+def _run_validation(
+    db: Session, run: LlmExtractionRun, attempt: int
+) -> dict[str, Any]:
     final_extraction = (
         db.get(FinalExtraction, run.final_extraction_id)
         if run.final_extraction_id
@@ -419,8 +427,8 @@ def _run_validation(db: Session, run: LlmExtractionRun) -> dict[str, Any]:
         + sum(len(item.text) for item in research_questions),
         field_count=len(fields),
     )
-    _commit_started(db, run)
-    client = create_ollama_client()
+    _commit_started(db, run, attempt)
+    client = create_ollama_client(attempt=attempt)
     metrics: dict[str, int] = {}
 
     def validator(payload: dict[str, Any]) -> ExtractionValidationResult:
@@ -507,11 +515,11 @@ def run_llm_task_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
         db.flush()
         return {"runId": run.id, "status": "stale"}
     if run.task_type == LlmTaskType.TITLE_ABSTRACT_SCREENING:
-        return _run_title_abstract(db, run)
+        return _run_title_abstract(db, run, job.attempts)
     if run.task_type == LlmTaskType.FULL_TEXT_SCREENING:
-        return _run_full_text(db, run)
+        return _run_full_text(db, run, job.attempts)
     if run.task_type == LlmTaskType.EXTRACTION_VALIDATION:
-        return _run_validation(db, run)
+        return _run_validation(db, run, job.attempts)
     from app.llm.extraction import run_llm_extraction_job
 
     return run_llm_extraction_job(db, job)

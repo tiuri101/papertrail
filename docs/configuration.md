@@ -153,12 +153,13 @@ Ollama is an external service; Compose does not install or manage it.
 | `PAPERTRAIL_LLM_ENABLED` | `false` | yes |
 | `PAPERTRAIL_OLLAMA_BASE_URL` | unset | yes |
 | `PAPERTRAIL_OLLAMA_MODEL` | unset | yes |
-| `PAPERTRAIL_OLLAMA_REQUEST_TIMEOUT_SECONDS` | `300` | yes |
+| `PAPERTRAIL_OLLAMA_REQUEST_TIMEOUT_SECONDS` | `600` | yes |
 | `PAPERTRAIL_OLLAMA_API_KEY` | unset | yes; stored secret |
 | `PAPERTRAIL_LLM_MAX_CONCURRENT_JOBS` | `1` | stored value exists; see exception above |
 | `PAPERTRAIL_LLM_CONTEXT_LENGTH` | `32768` | yes; minimum 4096 |
 | `PAPERTRAIL_LLM_MAX_EVIDENCE_ITEMS` | `3` | yes; range 1–10 |
 | `PAPERTRAIL_LLM_MAX_EVIDENCE_QUOTE_CHARS` | `500` | yes; range 50–2000 |
+| `PAPERTRAIL_LLM_MAX_OUTPUT_TOKENS` | `4096` | yes; range 256–32768 |
 | `PAPERTRAIL_LLM_TITLE_ABSTRACT_BASE_PROMPT` | built-in | yes through AI Prompts |
 | `PAPERTRAIL_LLM_FULL_TEXT_BASE_PROMPT` | built-in | yes through AI Prompts |
 | `PAPERTRAIL_LLM_EXTRACTION_BASE_PROMPT` | built-in | yes through AI Prompts |

@@ -199,6 +199,7 @@ def get_llm_installation_settings(
         "maxConcurrentJobs": config.llm_max_concurrent_jobs,
         "maxEvidenceItems": config.llm_max_evidence_items,
         "maxEvidenceQuoteChars": config.llm_max_evidence_quote_chars,
+        "maxOutputTokens": config.llm_max_output_tokens,
     }
 
 
@@ -314,6 +315,7 @@ def update_llm_installation_settings(
         max_concurrent_jobs=payload.max_concurrent_jobs,
         max_evidence_items=payload.max_evidence_items,
         max_evidence_quote_chars=payload.max_evidence_quote_chars,
+        max_output_tokens=payload.max_output_tokens,
         updated_by_user_id=admin.id,
     )
     changes: dict[str, Any] = {}
@@ -342,6 +344,11 @@ def update_llm_installation_settings(
             "maxEvidenceQuoteChars",
             previous.llm_max_evidence_quote_chars,
             stored.max_evidence_quote_chars,
+        ),
+        (
+            "maxOutputTokens",
+            previous.llm_max_output_tokens,
+            stored.max_output_tokens,
         ),
     ):
         if before != after:
@@ -376,6 +383,7 @@ def update_llm_installation_settings(
         "maxConcurrentJobs": stored.max_concurrent_jobs,
         "maxEvidenceItems": stored.max_evidence_items,
         "maxEvidenceQuoteChars": stored.max_evidence_quote_chars,
+        "maxOutputTokens": stored.max_output_tokens,
     }
 
 

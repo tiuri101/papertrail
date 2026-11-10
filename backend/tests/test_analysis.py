@@ -653,7 +653,7 @@ def test_generate_stage_analysis_job_persists_narrative(db, monkeypatch) -> None
     project = _seed_extraction_project(db)
     monkeypatch.setattr(
         "app.analysis.jobs.generate_narrative",
-        lambda stage, stats: "Auto-generated summary.",
+        lambda stage, stats, **_: "Auto-generated summary.",
     )
     job = BackgroundJob(
         job_type="generate_stage_analysis",
@@ -679,7 +679,7 @@ def test_generate_stage_analysis_job_persists_narrative(db, monkeypatch) -> None
     # Re-running upserts the same row instead of creating a duplicate.
     monkeypatch.setattr(
         "app.analysis.jobs.generate_narrative",
-        lambda stage, stats: "Updated summary.",
+        lambda stage, stats, **_: "Updated summary.",
     )
     generate_stage_analysis_job(db, job)
     db.commit()
@@ -762,6 +762,7 @@ def test_disabling_installation_llm_cancels_queued_stage_analysis_job(
             "maxConcurrentJobs": 1,
             "maxEvidenceItems": 3,
             "maxEvidenceQuoteChars": 500,
+            "maxOutputTokens": 4096,
         },
         headers={"X-CSRF-Token": csrf},
     )
