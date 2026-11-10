@@ -33,10 +33,12 @@ from app.llm.ollama import (
     with_attempt_sampling,
 )
 from app.llm.prompt import (
+    CHARS_PER_TOKEN,
     chunk_pages,
     consolidation_messages,
     extraction_messages,
-    field_instructions,
+    input_token_budget,
+    message_chars,
     output_schema,
 )
 from app.llm.service import full_text_excluded, title_abstract_included
@@ -68,16 +70,22 @@ def _consolidate_candidates(
     research_questions: list[ResearchQuestion],
     metrics: dict[str, int],
     context_length: int,
+    max_output_tokens: int,
+    attempt: int,
     custom_instructions: str | None = None,
     base_prompt: str | None = None,
 ) -> ExtractionResult:
     current = candidates
-    instruction_tokens = (
-        len(field_instructions(fields))
-        + sum(len(item.text) for item in research_questions)
-    ) // 3
-    response_tokens = max(1200, len(fields) * 300)
-    char_budget = max(4000, (context_length - instruction_tokens - response_tokens) * 3)
+    char_budget = CHARS_PER_TOKEN * input_token_budget(
+        context_length=context_length,
+        max_output_tokens=max_output_tokens,
+        instruction_chars=message_chars(
+            consolidation_messages(
+                fields, research_questions, [], custom_instructions, base_prompt
+            )
+        ),
+        attempt=attempt,
+    )
     while len(current) > 1:
         batches: list[list[dict[str, Any]]] = []
         batch: list[dict[str, Any]] = []
@@ -190,9 +198,17 @@ def run_llm_extraction_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
     chunks = chunk_pages(
         [(page.page_number, page.text) for page in pages],
         context_length=config.llm_context_length,
-        instruction_chars=len(field_instructions(fields))
-        + sum(len(item.text) for item in research_questions),
-        field_count=len(fields),
+        instruction_chars=message_chars(
+            extraction_messages(
+                fields,
+                research_questions,
+                "",
+                custom_instructions,
+                config.llm_extraction_base_prompt,
+            )
+        ),
+        max_output_tokens=config.llm_max_output_tokens,
+        attempt=job.attempts,
     )
     run.model_configuration = with_attempt_sampling(
         run.model_configuration, job.attempts
@@ -231,6 +247,8 @@ def run_llm_extraction_job(db: Session, job: BackgroundJob) -> dict[str, Any]:
             research_questions,
             metrics,
             config.llm_context_length,
+            config.llm_max_output_tokens,
+            job.attempts,
             custom_instructions,
             config.llm_extraction_base_prompt,
         )

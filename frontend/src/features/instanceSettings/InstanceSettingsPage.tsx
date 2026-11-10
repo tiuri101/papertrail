@@ -454,7 +454,7 @@ export function InstanceSettingsPage() {
                   <Input
                     type="number"
                     min="256"
-                    max="32768"
+                    max={String(Math.min(32768, Math.floor(Number(contextLength) / 2) || 32768))}
                     value={maxOutputTokens}
                     onChange={(event) => setMaxOutputTokens(event.target.value)}
                     required

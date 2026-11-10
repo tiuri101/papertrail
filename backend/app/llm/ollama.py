@@ -29,6 +29,16 @@ class OllamaTruncatedError(OllamaTransientError):
     """
 
 
+class OllamaContextOverflowError(OllamaTransientError):
+    """Prompt and output together filled the context window.
+
+    Retryable because a job retry splits its input into smaller chunks.
+    """
+
+
+# Ollama stops one token short of a full window.
+CONTEXT_FULL_MARGIN_TOKENS = 16
+
 # A retry of an identical request at temperature 0 reproduces the same output,
 # so a model stuck repeating itself on one document would simply loop again.
 RETRY_TEMPERATURE = 0.3
@@ -169,6 +179,19 @@ class OllamaClient:
         except (ValueError, TypeError) as exc:
             raise OllamaResponseError("Ollama returned invalid JSON") from exc
         if body.get("done_reason") == "length":
+            prompt_tokens = body.get("prompt_eval_count")
+            output_tokens = body.get("eval_count")
+            if (
+                isinstance(prompt_tokens, int)
+                and isinstance(output_tokens, int)
+                and prompt_tokens + output_tokens
+                >= self.context_length - CONTEXT_FULL_MARGIN_TOKENS
+            ):
+                raise OllamaContextOverflowError(
+                    f"Ollama ran out of context: the prompt ({prompt_tokens} tokens) "
+                    f"and output ({output_tokens} tokens) filled the "
+                    f"{self.context_length}-token context window"
+                )
             raise OllamaTruncatedError(
                 "Ollama output was truncated at the output token limit "
                 f"({self.max_output_tokens} tokens); the model was likely "

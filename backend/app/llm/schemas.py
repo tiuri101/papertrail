@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Any
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 
 from app.api.schemas import EnumApiModel as ApiModel
 
@@ -61,6 +61,15 @@ class LlmInstallationSettingsUpdate(ApiModel):
         if not normalized:
             raise ValueError("Model is required")
         return normalized
+
+    @model_validator(mode="after")
+    def validate_output_token_cap(self) -> LlmInstallationSettingsUpdate:
+        # Every request reserves the full cap, so it must leave room for input.
+        if self.max_output_tokens * 2 > self.context_length:
+            raise ValueError(
+                "Max output tokens must be at most half the context length"
+            )
+        return self
 
 
 class LlmPromptFlowStatus(ApiModel):

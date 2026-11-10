@@ -42,17 +42,24 @@ from app.llm.models import (
 )
 from app.llm.ollama import (
     OllamaClient,
+    OllamaContextOverflowError,
     OllamaResponse,
     OllamaTransientError,
     OllamaTruncatedError,
 )
-from app.llm.prompt import chunk_pages, extraction_messages, output_schema
+from app.llm.prompt import (
+    chunk_pages,
+    extraction_messages,
+    input_token_budget,
+    output_schema,
+)
 from app.llm.schema_service import (
     initialize_from_form,
     mapping_state,
     project_settings,
     publish_schema,
 )
+from app.llm.schemas import LlmInstallationSettingsUpdate
 from app.llm.service import (
     LLM_JOB_DATA_EXTRACTION,
     TEXT_JOB,
@@ -707,9 +714,13 @@ def test_long_documents_are_page_aware_and_chunked_without_losing_page_numbers(
         [(number, "x" * 2500) for number in range(1, 9)],
         context_length=4096,
         instruction_chars=1000,
-        field_count=2,
+        max_output_tokens=1024,
     )
     assert len(chunks) > 1
+    char_budget = 3 * input_token_budget(
+        context_length=4096, max_output_tokens=1024, instruction_chars=1000
+    )
+    assert all(len(chunk) <= char_budget for chunk in chunks)
     assert "--- PDF PAGE 1 ---" in chunks[0]
     assert any("--- PDF PAGE 8 ---" in chunk for chunk in chunks)
     messages = extraction_messages(schema.fields, [], chunks[0])
@@ -1423,9 +1434,15 @@ def test_ollama_retry_attempt_samples_differently(monkeypatch) -> None:
 
 
 def test_ollama_output_truncated_at_token_limit_is_retryable(monkeypatch) -> None:
+    settings = get_settings()
     _capture_ollama_post(
         monkeypatch,
-        {"message": {"content": '{"fields": {"a": "aaaa'}, "done_reason": "length"},
+        {
+            "message": {"content": '{"fields": {"a": "aaaa'},
+            "done_reason": "length",
+            "prompt_eval_count": 1000,
+            "eval_count": settings.llm_max_output_tokens,
+        },
     )
     with pytest.raises(OllamaTruncatedError) as excinfo:
         OllamaClient(get_settings()).chat(
@@ -1434,6 +1451,59 @@ def test_ollama_output_truncated_at_token_limit_is_retryable(monkeypatch) -> Non
         )
     assert excinfo.value.transient
     assert "output token limit" in str(excinfo.value)
+
+
+def test_ollama_full_context_window_is_not_reported_as_a_loop(monkeypatch) -> None:
+    # Ollama reports done_reason "length" both for num_predict and for a full
+    # context window; only the former suggests a model loop.
+    settings = get_settings()
+    _capture_ollama_post(
+        monkeypatch,
+        {
+            "message": {"content": '{"fields": {"a": "aaaa'},
+            "done_reason": "length",
+            "prompt_eval_count": settings.llm_context_length - 1000,
+            "eval_count": 999,
+        },
+    )
+    with pytest.raises(OllamaContextOverflowError) as excinfo:
+        OllamaClient(settings).chat(
+            messages=[{"role": "user", "content": "paper"}],
+            output_schema={"type": "object"},
+        )
+    assert excinfo.value.transient
+    assert "context window" in str(excinfo.value)
+
+
+def test_input_budget_reserves_output_and_shrinks_on_retry() -> None:
+    budgets = [
+        input_token_budget(
+            context_length=8192,
+            max_output_tokens=4096,
+            instruction_chars=3000,
+            attempt=attempt,
+        )
+        for attempt in (1, 2, 3)
+    ]
+    assert budgets[0] + 4096 + 3000 // 3 <= 8192
+    assert budgets[0] > budgets[1] > budgets[2]
+
+
+def test_output_token_cap_must_leave_room_for_input() -> None:
+    payload = {
+        "enabled": True,
+        "endpoint": "http://ollama.example:11434",
+        "model": "test-model:latest",
+        "contextLength": 8192,
+        "requestTimeoutSeconds": 600,
+        "maxConcurrentJobs": 1,
+        "maxEvidenceItems": 3,
+        "maxEvidenceQuoteChars": 500,
+        "maxOutputTokens": 4097,
+    }
+    with pytest.raises(ValueError, match="half the context length"):
+        LlmInstallationSettingsUpdate.model_validate(payload)
+    LlmInstallationSettingsUpdate.model_validate({**payload, "maxOutputTokens": 4096})
 
 
 def test_worker_type_filter_keeps_gpu_jobs_for_dedicated_worker(db) -> None:

@@ -36,7 +36,12 @@ from app.llm.ollama import (
     create_ollama_client,
     with_attempt_sampling,
 )
-from app.llm.prompt import chunk_pages
+from app.llm.prompt import (
+    CHARS_PER_TOKEN,
+    chunk_pages,
+    input_token_budget,
+    message_chars,
+)
 from app.llm.structured import add_metrics, validated_chat
 from app.llm.task_prompt import (
     full_text_messages,
@@ -90,9 +95,16 @@ def _consolidate(
     messages: Callable[[list[dict[str, Any]]], list[dict[str, str]]],
     metrics: dict[str, int],
     context_length: int,
+    max_output_tokens: int,
+    attempt: int,
 ) -> TaskResult:
     current = candidates
-    char_budget = max(4000, context_length * 2)
+    char_budget = CHARS_PER_TOKEN * input_token_budget(
+        context_length=context_length,
+        max_output_tokens=max_output_tokens,
+        instruction_chars=message_chars(messages([])),
+        attempt=attempt,
+    )
     while len(current) > 1:
         batches: list[list[dict[str, Any]]] = []
         batch: list[dict[str, Any]] = []
@@ -303,9 +315,18 @@ def _run_full_text(
     chunks = chunk_pages(
         [(page.page_number, page.text) for page in page_rows],
         context_length=config.llm_context_length,
-        instruction_chars=sum(len(item.text) for item in criteria)
-        + sum(len(item.text) for item in research_questions),
-        field_count=len(criteria),
+        instruction_chars=message_chars(
+            full_text_messages(
+                publication,
+                criteria,
+                research_questions,
+                "",
+                custom_instructions,
+                config.llm_full_text_base_prompt,
+            )
+        ),
+        max_output_tokens=config.llm_max_output_tokens,
+        attempt=attempt,
     )
     _commit_started(db, run, attempt)
     client = create_ollama_client(attempt=attempt)
@@ -348,6 +369,8 @@ def _run_full_text(
             ),
             metrics=metrics,
             context_length=config.llm_context_length,
+            max_output_tokens=config.llm_max_output_tokens,
+            attempt=attempt,
         )
     except OllamaTransientError as exc:
         raise TransientJobError(str(exc)) from exc
@@ -423,9 +446,17 @@ def _run_validation(
     chunks = chunk_pages(
         [(page.page_number, page.text) for page in pages],
         context_length=config.llm_context_length,
-        instruction_chars=len(json.dumps(fields, ensure_ascii=False))
-        + sum(len(item.text) for item in research_questions),
-        field_count=len(fields),
+        instruction_chars=message_chars(
+            validation_messages(
+                fields,
+                research_questions,
+                "",
+                custom_instructions,
+                config.llm_validation_base_prompt,
+            )
+        ),
+        max_output_tokens=config.llm_max_output_tokens,
+        attempt=attempt,
     )
     _commit_started(db, run, attempt)
     client = create_ollama_client(attempt=attempt)
@@ -465,6 +496,8 @@ def _run_validation(
             ),
             metrics=metrics,
             context_length=config.llm_context_length,
+            max_output_tokens=config.llm_max_output_tokens,
+            attempt=attempt,
         )
     except OllamaTransientError as exc:
         raise TransientJobError(str(exc)) from exc
