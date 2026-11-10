@@ -20,7 +20,9 @@ const shellByTone = {
 
 const textByTone = {
   default: '',
-  danger: '[&_h2]:text-danger [&_h3]:text-danger [&_.collapsible-section__icon]:text-danger',
+  // Targets the icon by data attribute: in Tailwind arbitrary variants `_` means a space, so a
+  // `__` BEM class name in the selector would compile to a selector that never matches.
+  danger: '[&_h2]:text-danger [&_h3]:text-danger [&_[data-section-icon]]:text-danger',
 } as const
 
 interface CollapsibleSectionProps {
@@ -55,10 +57,10 @@ export function CollapsibleSection({
   const toggle = () => setExpanded((current) => !current)
   const titleContent = (
     <span className="collapsible-section__title inline-flex items-center gap-2">
-      {icon ? <span className="collapsible-section__icon inline-flex shrink-0 text-primary [&_svg]:size-5 [&_svg]:fill-current" aria-hidden="true">{icon}</span> : null}
+      {icon ? <span data-section-icon className="collapsible-section__icon inline-flex shrink-0 text-primary [&_svg]:size-5 [&_svg]:fill-current" aria-hidden="true">{icon}</span> : null}
       {subtitle ? (
         <span className="collapsible-section__title-text grid">
-          <span className="collapsible-section__subtitle text-xs font-bold uppercase leading-[1.35] tracking-[0.08em] text-text-secondary" aria-hidden="true">{subtitle}</span>
+          <span data-section-subtitle className="collapsible-section__subtitle text-xs font-bold uppercase leading-[1.35] tracking-[0.08em] text-text-secondary" aria-hidden="true">{subtitle}</span>
           <span>{title}</span>
         </span>
       ) : title}
@@ -81,7 +83,7 @@ export function CollapsibleSection({
       data-expanded={expanded}
     >
       {headingAccessory ? (
-        <Heading className={cn('collapsible-section__heading collapsible-section__heading--with-accessory m-0 flex items-center gap-2', expanded ? cn(headerNegativeMarginTopXStyles, headerPaddingTopXStyles) : cardPaddingStyles)} aria-label={title}>
+        <Heading data-section-heading className={cn('collapsible-section__heading collapsible-section__heading--with-accessory m-0 flex items-center gap-2', expanded ? cn(headerNegativeMarginTopXStyles, headerPaddingTopXStyles) : cardPaddingStyles)} aria-label={title}>
           <button
             type="button"
             className="collapsible-section__toggle inline-flex h-auto min-h-0 w-auto cursor-pointer items-center justify-between border-0 bg-none bg-transparent p-0 text-left text-[1.25rem] leading-[1.2] font-[680] tracking-[-0.018em] text-[inherit] shadow-none hover:bg-none hover:text-primary focus-visible:rounded-sm focus-visible:outline-3 focus-visible:outline-offset-4 focus-visible:outline-focus"
@@ -106,7 +108,7 @@ export function CollapsibleSection({
           </button>
         </Heading>
       ) : (
-        <Heading className={cn('collapsible-section__heading m-0', expanded && headerNegativeMarginTopXStyles)}>
+        <Heading data-section-heading className={cn('collapsible-section__heading m-0', expanded && headerNegativeMarginTopXStyles)}>
           <button
             type="button"
             className={cn(
@@ -126,6 +128,7 @@ export function CollapsibleSection({
       )}
       <div
         id={contentId}
+        data-section-content
         className={cn(
           'collapsible-section__content grid transition-[grid-template-rows,margin-top,opacity,visibility] duration-100',
           expanded ? 'visible mt-4 grid-rows-[1fr] opacity-100' : 'invisible mt-0 grid-rows-[0fr] opacity-0',

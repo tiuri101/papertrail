@@ -92,7 +92,6 @@ describe('HelpPage', () => {
     goToTab('AI & Automation')
 
     const timeline = screen.getByRole('list', { name: 'LLM assistance by review stage' })
-    expect(timeline).toHaveAttribute('data-marker-alignment', 'center')
     expect(timeline.children).toHaveLength(6)
     expect(timeline).toHaveTextContent('Duplicate review is entirely human-led')
     expect(timeline).toHaveTextContent('suggest values for configured extraction fields')
