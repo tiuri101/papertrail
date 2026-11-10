@@ -12,7 +12,9 @@ from app.accounts.service import create_user
 from app.core.config import Settings
 from app.jobs.models import BackgroundJob, JobStatus
 from app.jobs.service import claim_job
+from app.jobs.worker import run_permanent_failure_hook
 from app.llm.models import LlmExtractionRun, LlmTaskType, ProcessingStatus
+from app.llm.service import cancel_task_type_jobs
 from app.notifications.models import EmailNotification
 from app.notifications.service import (
     CHECK_LLM_STAGE_EMAIL_JOB,
@@ -61,10 +63,23 @@ def _run(
     bulk_id: str | None,
     status: ProcessingStatus,
     completed_at: datetime | None = None,
+    job_status: JobStatus | None = None,
 ) -> LlmExtractionRun:
+    """An active run gets a background job (queued unless ``job_status`` says
+    otherwise), as the queueing services create it."""
     publication = Publication(project_id=project.id, title="A study")
     db.add(publication)
     db.flush()
+    job = None
+    if status in (ProcessingStatus.PENDING, ProcessingStatus.PROCESSING):
+        job = BackgroundJob(
+            project_id=project.id,
+            job_type="llm_title_abstract_screening",
+            payload={},
+            status=job_status or JobStatus.QUEUED,
+        )
+        db.add(job)
+        db.flush()
     run = LlmExtractionRun(
         project_id=project.id,
         publication_id=publication.id,
@@ -76,9 +91,13 @@ def _run(
         queued_at=datetime.now(UTC),
         completed_at=completed_at,
         bulk_id=bulk_id,
+        background_job_id=job.id if job else None,
     )
     db.add(run)
     db.flush()
+    if job is not None:
+        job.payload = {"run_id": run.id}
+        db.flush()
     return run
 
 
@@ -144,9 +163,9 @@ def test_digest_waits_while_llm_work_is_still_queued(db, monkeypatch) -> None:
     )
     pending = _run(db, project, bulk_id="bulk-2", status=ProcessingStatus.PENDING)
 
-    notifications, retry_at = queue_llm_digest_emails(db, project.id, now=now)
-    assert notifications == []
-    assert retry_at == now + LLM_DIGEST_QUIET_PERIOD
+    # No retry time: the remaining work schedules the next check when it
+    # finishes, so polling while it is queued would only add jobs.
+    assert queue_llm_digest_emails(db, project.id, now=now) == ([], None)
 
     # A queued text-preparation job also counts as work still to come.
     pending.status = ProcessingStatus.COMPLETED
@@ -295,6 +314,90 @@ def test_check_job_reschedules_itself_while_too_early(db, monkeypatch) -> None:
     assert len(waiting) == 1
     assert waiting[0].run_after is not None
     assert db.scalar(select(EmailNotification)) is None
+
+
+def test_check_job_does_not_poll_while_llm_work_is_pending(db, monkeypatch) -> None:
+    _enable_email(monkeypatch)
+    project = _project(db)
+    _run(db, project, bulk_id="bulk-1", status=ProcessingStatus.PENDING)
+    running = BackgroundJob(
+        project_id=project.id,
+        job_type=CHECK_LLM_STAGE_EMAIL_JOB,
+        payload={},
+        status=JobStatus.RUNNING,
+    )
+    db.add(running)
+    db.flush()
+
+    result = check_llm_stage_email_job(db, running)
+
+    assert "rescheduledFor" not in result
+    assert [job for job in _digest_jobs(db) if job.status == JobStatus.QUEUED] == []
+
+
+def test_a_run_whose_job_will_never_run_is_not_pending_work(db, monkeypatch) -> None:
+    # A lifecycle rewind cancels queued jobs without touching their runs, and
+    # the reaper fails a dead worker's job; neither run will ever finish.
+    _enable_email(monkeypatch)
+    project = _project(db)
+    now = datetime.now(UTC)
+    _run(
+        db,
+        project,
+        bulk_id="bulk-1",
+        status=ProcessingStatus.COMPLETED,
+        completed_at=now - timedelta(hours=1),
+    )
+    _run(
+        db,
+        project,
+        bulk_id="bulk-2",
+        status=ProcessingStatus.PENDING,
+        job_status=JobStatus.CANCELLED,
+    )
+    _run(
+        db,
+        project,
+        bulk_id="bulk-3",
+        status=ProcessingStatus.PROCESSING,
+        job_status=JobStatus.FAILED,
+    )
+
+    notifications, _ = queue_llm_digest_emails(db, project.id, now=now)
+
+    assert len(notifications) == 1
+
+
+def test_disabling_a_capability_schedules_a_digest_check(db, monkeypatch) -> None:
+    _enable_email(monkeypatch)
+    project = _project(db)
+    _run(db, project, bulk_id="bulk-1", status=ProcessingStatus.PENDING)
+
+    cancel_task_type_jobs(db, project.id, LlmTaskType.TITLE_ABSTRACT_SCREENING)
+
+    assert [job.status for job in _digest_jobs(db)] == [JobStatus.QUEUED]
+
+
+def test_a_reaped_llm_job_fails_its_run_and_schedules_a_digest_check(
+    db, monkeypatch
+) -> None:
+    _enable_email(monkeypatch)
+    project = _project(db)
+    run = _run(
+        db,
+        project,
+        bulk_id="bulk-1",
+        status=ProcessingStatus.PROCESSING,
+        job_status=JobStatus.FAILED,
+    )
+    job = db.get(BackgroundJob, run.background_job_id)
+
+    run_permanent_failure_hook(db, job, "worker stopped")
+
+    assert run.status == ProcessingStatus.FAILED
+    assert run.error_message == "worker stopped"
+    assert run.completed_at is not None
+    assert [job.status for job in _digest_jobs(db)] == [JobStatus.QUEUED]
 
 
 def test_no_check_is_scheduled_when_email_is_disabled(db) -> None:

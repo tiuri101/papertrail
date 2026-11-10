@@ -196,6 +196,36 @@ def queue_llm_run_after_text(
     return run
 
 
+def _schedule_digest_after_cancel(db: Session, project_ids: list[str]) -> None:
+    # Cancelled runs never reach the worker's completion hook, which is what
+    # normally schedules the "LLM processing finished" digest check.
+    from app.notifications.service import schedule_llm_digest_checks
+
+    schedule_llm_digest_checks(db, project_ids)
+
+
+def fail_abandoned_llm_run(db: Session, job: BackgroundJob, error: str) -> None:
+    """Permanent-failure hook for LLM jobs.
+
+    The worker's own failure path already fails the run; this covers a job
+    reaped after its worker died, whose run would otherwise stay processing.
+    """
+    from app.notifications.service import schedule_llm_digest_after_run
+
+    run = db.get(LlmExtractionRun, str(job.payload.get("run_id")))
+    if run is None or run.status not in {
+        ProcessingStatus.PENDING,
+        ProcessingStatus.PROCESSING,
+    }:
+        return
+    run.status = ProcessingStatus.FAILED
+    run.error_type = "worker_abandoned"
+    run.error_message = error[:2000]
+    run.completed_at = utcnow()
+    db.flush()
+    schedule_llm_digest_after_run(db, run)
+
+
 def cancel_queued_for_publication(db: Session, publication_id: str) -> int:
     runs = list(
         db.scalars(
@@ -229,11 +259,24 @@ def cancel_queued_for_publication(db: Session, publication_id: str) -> int:
             )
         )
     )
-    for job in queued_text_jobs:
-        if str(job.payload.get("document_id")) in document_ids:
-            job.status = JobStatus.CANCELLED
-            job.completed_at = utcnow()
+    cancelled_text_jobs = [
+        job
+        for job in queued_text_jobs
+        if str(job.payload.get("document_id")) in document_ids
+    ]
+    for job in cancelled_text_jobs:
+        job.status = JobStatus.CANCELLED
+        job.completed_at = utcnow()
     db.flush()
+    _schedule_digest_after_cancel(
+        db,
+        [run.project_id for run in runs if run.bulk_id]
+        + [
+            job.project_id
+            for job in cancelled_text_jobs
+            if job.project_id and job.payload.get("bulk_id")
+        ],
+    )
     return len(runs)
 
 
@@ -267,6 +310,7 @@ def cancel_task_type_jobs(db: Session, project_id: str, task_type: LlmTaskType) 
                 job.status = JobStatus.CANCELLED
                 job.completed_at = utcnow()
     db.flush()
+    _schedule_digest_after_cancel(db, [run.project_id for run in runs if run.bulk_id])
     return len(runs)
 
 
@@ -299,6 +343,7 @@ def cancel_all_llm_jobs(db: Session) -> int:
                 job.status = JobStatus.CANCELLED
                 job.completed_at = utcnow()
     db.flush()
+    _schedule_digest_after_cancel(db, [run.project_id for run in runs if run.bulk_id])
     return len(runs)
 
 

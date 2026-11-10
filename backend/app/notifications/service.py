@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -534,11 +534,17 @@ def _llm_digest_items(
 
 
 def _llm_work_pending(db: Session, project_id: str) -> bool:
+    # Only a run whose job can still execute is work to wait for: a lifecycle
+    # rewind cancels queued jobs without touching their runs, and a reaped
+    # job may leave its run behind, so the run status alone can stay active
+    # forever.
     active_run = db.scalar(
         select(LlmExtractionRun.id)
+        .join(BackgroundJob, BackgroundJob.id == LlmExtractionRun.background_job_id)
         .where(
             LlmExtractionRun.project_id == project_id,
             LlmExtractionRun.status.in_(_ACTIVE_RUN_STATUSES),
+            BackgroundJob.status.in_([JobStatus.QUEUED, JobStatus.RUNNING]),
         )
         .limit(1)
     )
@@ -568,8 +574,9 @@ def queue_llm_digest_emails(
     report, in one email per owner -- but only once the project's LLM queue
     has drained and stayed quiet for ``LLM_DIGEST_QUIET_PERIOD``.
 
-    Returns the queued notifications and, when it is too early to report,
-    the moment to check again (``None`` once nothing is left to wait for).
+    Returns the queued notifications and, when the quiet period has not yet
+    passed, the moment to check again. While work is still pending it returns
+    no retry time: finishing (or cancelling) that work schedules the next check.
     """
     now = now or datetime.now(UTC)
     # Serializes concurrent checks for one project: the second sees the
@@ -580,10 +587,7 @@ def queue_llm_digest_emails(
     if project is None:
         return [], None
     if _llm_work_pending(db, project_id):
-        # Finishing the remaining work reschedules this check anyway; the
-        # retry here covers work that ends without a completion hook (a run
-        # cancelled from the UI).
-        return [], now + LLM_DIGEST_QUIET_PERIOD
+        return [], None
 
     since = (
         _as_aware(project.llm_notified_through)
@@ -683,6 +687,13 @@ def schedule_llm_digest_check(
         priority=10,
         run_after=due,
     )
+
+
+def schedule_llm_digest_checks(db: Session, project_ids: Iterable[str]) -> None:
+    """Schedule a digest check for each project whose batch LLM work ended
+    outside the worker (cancellation), where no completion hook fires."""
+    for project_id in sorted(set(project_ids)):
+        schedule_llm_digest_check(db, project_id)
 
 
 def schedule_llm_digest_after_run(
