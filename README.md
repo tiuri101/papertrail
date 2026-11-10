@@ -5,9 +5,10 @@
 Papertrail imports bibliographic exports and optional full-text PDFs, preserves source provenance and PDF version history, supports duplicate review and configurable multi-reviewer screening, tracks full-text retrieval (manual, or browser-assisted through an optional paired Chrome extension), and provides optional evidence-backed extraction suggestions through an external Ollama service. Reviewer-controlled extraction and quality-assessment data remain authoritative.
 
 <p>
+  <a href="https://github.com/tiuri101/papertrail/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/tiuri101/papertrail/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://tiuri101.github.io/papertrail/"><img alt="Documentation" src="https://img.shields.io/badge/Docs-tiuri101.github.io-526CFE?logo=materialformkdocs&logoColor=white"></a>
   <img alt="Python" src="https://img.shields.io/badge/Python-FastAPI-009688?logo=fastapi&logoColor=white">
   <img alt="React" src="https://img.shields.io/badge/React-TypeScript-61DAFB?logo=react&logoColor=0b1120">
-  <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-18-4169E1?logo=postgresql&logoColor=white">
   <img alt="Docker" src="https://img.shields.io/badge/Deploy-Docker%20Compose-2496ED?logo=docker&logoColor=white">
   <img alt="Self-hosted" src="https://img.shields.io/badge/Hosting-self--hosted-6f42c1">
 </p>
