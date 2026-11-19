@@ -186,6 +186,23 @@ mark {
   }
 }
 
+/*
+ * Inline error/success messages (`role="alert"`) appear all over the feature
+ * pages; rather than repeat a motion class at ~200 call sites, fade them in
+ * here. Being in this layer, any component's own `transition-*` utility wins.
+ * `translate` is ignored on inline boxes, so plain <span> alerts just fade.
+ */
+[role="alert"] {
+  transition: opacity 200ms ease-out, translate 200ms ease-out;
+}
+
+@starting-style {
+  [role="alert"] {
+    opacity: 0;
+    translate: 0 4px;
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

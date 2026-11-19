@@ -3,6 +3,8 @@ import type { ReactNode } from 'react'
 import { useDismissedInfoBox } from '../hooks/useDismissedInfoBox'
 import { cn } from '../lib/cn'
 import { IconX } from './icons'
+import { appearMotionClass, disappearMotionClass } from './motionStyles'
+import { usePresence } from '../hooks/usePresence'
 
 const toneStyles = {
   info: {
@@ -33,12 +35,15 @@ type InfoBoxProps = {
 export function InfoBox(props: InfoBoxProps) {
   const { icon, children, tone = 'info', alert = false, className, closable = false } = props
   const { dismissed, dismiss } = useDismissedInfoBox(props.closable ? props.id : '')
-  if (closable && dismissed) return null
+  const { present, ref, state } = usePresence<HTMLDivElement>(!(closable && dismissed))
+  if (!present) return null
 
   return (
     <div
-      className={cn('relative flex items-center gap-3 rounded-md border p-4', toneStyles[tone].box, className)}
+      ref={ref}
+      className={cn('relative flex items-center gap-3 rounded-md border p-4', appearMotionClass, disappearMotionClass, toneStyles[tone].box, className)}
       role={alert ? 'alert' : undefined}
+      data-state={state}
     >
       <span
         className={cn(

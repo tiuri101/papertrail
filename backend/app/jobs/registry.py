@@ -33,7 +33,11 @@ from app.deduplication.jobs import (
 from app.imports.service import mark_import_permanently_failed, process_import_job
 from app.jobs.models import BackgroundJob
 from app.llm.models import LlmTaskType
-from app.llm.service import LLM_JOB_TYPE_BY_TASK, TEXT_JOB
+from app.llm.service import (
+    LLM_JOB_TYPE_BY_TASK,
+    TEXT_JOB,
+    fail_abandoned_llm_run,
+)
 from app.llm.task_execution import run_llm_task_job
 from app.llm.text_extraction import extract_document_text_job
 from app.notifications.service import (
@@ -100,6 +104,7 @@ def _llm_task_definitions() -> dict[str, JobDefinition]:
             worker_pool=WorkerPool.LLM,
             label=f"Run LLM {TASK_STAGES[task_type].lower()}",
             stage=TASK_STAGES[task_type],
+            on_permanent_failure=fail_abandoned_llm_run,
         )
         for task_type, job_type in LLM_JOB_TYPE_BY_TASK.items()
     }

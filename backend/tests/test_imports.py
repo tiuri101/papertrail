@@ -148,8 +148,14 @@ def test_project_jobs_are_listed_with_status(
 
     get_settings.cache_clear()
 
+    search = client.post(
+        f"/api/v1/projects/{project_id}/searches",
+        json={"sourceName": "Scopus", "query": "q", "searchDate": "2026-07-30"},
+        headers={"X-CSRF-Token": csrf},
+    ).json()
     response = client.post(
         f"/api/v1/projects/{project_id}/imports",
+        data={"searchSourceId": search["id"]},
         files={"file": ("records.csv", b"Title,Authors\nPaper A,Doe\n", "text/csv")},
         headers={"X-CSRF-Token": csrf},
     )
@@ -299,6 +305,31 @@ def test_import_rejects_the_whole_upload_if_any_file_has_an_unsupported_format(
         headers={"X-CSRF-Token": csrf},
     )
     assert response.status_code == 415
+    assert list(db.scalars(select(ImportBatch))) == []
+
+
+def test_a_metadata_import_must_name_the_search_it_came_from(
+    client, db, tmp_path, monkeypatch
+) -> None:
+    """PRISMA accounts for every imported record by its documented search; an
+    import that names none would be identified under no search at all."""
+    create_user(db, "admin", "Administrator", "secret-password", is_admin=True)
+    db.commit()
+    csrf = login(client)
+    project_id = create_project(client, csrf)
+    monkeypatch.setenv("PAPERTRAIL_IMPORT_DIR", str(tmp_path / "imports"))
+    from app.core.config import get_settings
+
+    get_settings.cache_clear()
+
+    response = client.post(
+        f"/api/v1/projects/{project_id}/imports",
+        files={"file": ("records.csv", b"Title,Authors\nPaper A,Doe\n", "text/csv")},
+        headers={"X-CSRF-Token": csrf},
+    )
+
+    assert response.status_code == 400
+    assert "search" in response.json()["error"]["message"].lower()
     assert list(db.scalars(select(ImportBatch))) == []
 
 

@@ -3,6 +3,8 @@ import type { ReactNode } from 'react'
 import { useEffect, useId, useRef } from 'react'
 import { Button } from './Button'
 import { Card } from './Card'
+import { cn } from '../lib/cn'
+import { backdropMotionClass, dialogMotionClass } from './motionStyles'
 
 interface ConfirmDialogProps {
   title: string
@@ -37,12 +39,12 @@ export function ConfirmDialog({
 
   return (
     <div
-      className="modal-backdrop fixed inset-0 z-[200] flex items-center justify-center bg-bg p-5"
+      className={cn('modal-backdrop fixed inset-0 z-[200] flex items-center justify-center bg-bg p-5', backdropMotionClass)}
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onCancel()
       }}
     >
-      <Card className="w-[min(440px,100%)] max-h-[calc(100vh-2rem)] overflow-y-auto bg-surface-raised opacity-100" role="alertdialog" aria-modal="true" aria-labelledby={titleId}>
+      <Card className={cn('w-[min(440px,100%)] max-h-[calc(100vh-2rem)] overflow-y-auto bg-surface-raised', dialogMotionClass)} role="alertdialog" aria-modal="true" aria-labelledby={titleId}>
         <h2 id={titleId}>{title}</h2>
         <p>{message}</p>
         <div className={toolbarClass}>

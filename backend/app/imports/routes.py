@@ -220,6 +220,15 @@ async def upload_import(
         if not isinstance(mapping, dict):
             raise DomainError("Import field mapping must be an object")
 
+    # PRISMA attributes every imported record to the documented search it
+    # came from; an import naming none would be identified through no search
+    # at all. (Checked after the file checks so an unsupported file still
+    # reports as such, and before anything is written.)
+    if not search_source_id:
+        raise DomainError(
+            "Choose the documented search these records came from before importing"
+        )
+
     settings = get_settings()
     project_dir = settings.import_dir / project_id
     project_dir.mkdir(parents=True, exist_ok=True)

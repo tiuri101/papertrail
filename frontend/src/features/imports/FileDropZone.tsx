@@ -71,7 +71,7 @@ export function FileDropZone({
         />
       </FieldLabel>
       <div
-        className={`dropzone grid justify-items-center gap-1 min-h-[92px] rounded-md border-2 border-dashed border-border-strong bg-bg-elevated p-4 text-center text-[0.88rem] text-text-secondary cursor-pointer transition-[border-color,background-color,color] duration-150 ease-linear hover:border-primary hover:bg-surface-hover hover:text-text${dragging ? ' border-primary bg-primary-container text-primary' : ''}`}
+        className={`dropzone grid justify-items-center gap-1 min-h-[92px] rounded-md border-2 border-dashed border-border-strong bg-bg-elevated p-4 text-center text-[0.88rem] text-text-secondary cursor-pointer transition-[border-color,background-color,color] duration-150 ease-out hover:border-primary hover:bg-surface-hover hover:text-text${dragging ? ' border-primary bg-primary-container text-primary' : ''}`}
         data-dropzone
         onClick={() => inputRef.current?.click()}
         onDragOver={(event) => {

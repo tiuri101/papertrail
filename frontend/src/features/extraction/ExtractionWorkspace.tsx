@@ -1,5 +1,5 @@
 import { useMutation, useQuery } from '@tanstack/react-query'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { Link } from 'react-router-dom'
 
 import { apiRequest } from '../../api/client'
@@ -17,6 +17,7 @@ import type { ValidationResult } from './types'
 import { Button } from '../../components/Button'
 import { cardStyles } from '../../components/Card'
 import { Form } from '../../components/Form'
+import { useFadeOnChange } from '../../hooks/useFadeOnChange'
 
 interface WorkItem {
   id: string
@@ -113,6 +114,8 @@ export function ExtractionWorkspace({
     setSuggestionActions({})
   }, [item?.id])
   const fullTextDocument = useFullTextDocument(projectId, item?.publicationId ?? '')
+  const articleRef = useRef<HTMLElement>(null)
+  useFadeOnChange(articleRef, item?.id, { rise: true })
   const assistance = useQuery({
     queryKey: ['extraction-llm', projectId, item?.id],
     queryFn: () => apiRequest<LlmAssistance>(
@@ -438,5 +441,5 @@ export function ExtractionWorkspace({
     </>
   )
 
-  return variant === 'inline' ? body : <article className={cardStyles} data-ui="card">{body}</article>
+  return variant === 'inline' ? body : <article ref={articleRef} className={cardStyles} data-ui="card">{body}</article>
 }

@@ -3,7 +3,7 @@ from __future__ import annotations
 import secrets
 from typing import Any
 
-from sqlalchemy import Select, func, select
+from sqlalchemy import ColumnElement, Select, and_, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.accounts.models import User
@@ -201,6 +201,22 @@ def open_task_counts_for_user(
     return counts
 
 
+def _publication_in_review(publication_id: Any) -> ColumnElement[bool]:
+    """Whether a publication is still part of the review: active, or merged
+    away into one (a merge keeps it as a resolved duplicate). Only a removal
+    -- deactivation without a merge -- takes it out."""
+    from app.publications.models import Publication
+
+    return (
+        select(Publication.id)
+        .where(
+            Publication.id == publication_id,
+            or_(Publication.is_active.is_(True), Publication.merged_into_id.is_not(None)),
+        )
+        .exists()
+    )
+
+
 def project_progress_stats(
     db: Session, projects: list[Project]
 ) -> dict[str, dict[str, Any]]:
@@ -248,10 +264,16 @@ def project_progress_stats(
         .tuples()
         .all()
     )
+    # A pair involving a publication removed from the review (deleted, not
+    # merged away) no longer describes the project's duplicates.
+    pair_in_review = and_(
+        _publication_in_review(DuplicateCandidate.publication_a_id),
+        _publication_in_review(DuplicateCandidate.publication_b_id),
+    )
     duplicate_totals: dict[str, int] = dict(
         db.execute(
             select(DuplicateCandidate.project_id, func.count())
-            .where(DuplicateCandidate.project_id.in_(project_ids))
+            .where(DuplicateCandidate.project_id.in_(project_ids), pair_in_review)
             .group_by(DuplicateCandidate.project_id)
         )
         .tuples()
@@ -263,6 +285,7 @@ def project_progress_stats(
             .where(
                 DuplicateCandidate.project_id.in_(project_ids),
                 DuplicateCandidate.status != "unresolved",
+                pair_in_review,
             )
             .group_by(DuplicateCandidate.project_id)
         )
@@ -275,6 +298,7 @@ def project_progress_stats(
             .where(
                 DuplicateCandidate.project_id.in_(project_ids),
                 DuplicateCandidate.status == "merged",
+                pair_in_review,
             )
             .group_by(DuplicateCandidate.project_id)
         )
@@ -288,6 +312,12 @@ def project_progress_stats(
                 ExtractionWorkItem.project_id.in_(project_ids),
                 ExtractionWorkItem.status == ExtractionStatus.COMPLETED,
                 ExtractionWorkItem.slot_number == 1,
+                select(Publication.id)
+                .where(
+                    Publication.id == ExtractionWorkItem.publication_id,
+                    Publication.is_active.is_(True),
+                )
+                .exists(),
             )
             .group_by(ExtractionWorkItem.project_id)
         )

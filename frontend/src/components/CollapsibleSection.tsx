@@ -39,6 +39,21 @@ interface CollapsibleSectionProps {
   tone?: keyof typeof shellByTone
 }
 
+/** A plus that morphs into a minus: the vertical bar rotates flat and fades as the section expands. */
+function ExpandIndicator({ expanded }: { expanded: boolean }) {
+  return (
+    <span className="collapsible-section__indicator relative inline-block size-[0.6em] shrink-0 text-[1.4rem] text-text-secondary" aria-hidden="true">
+      <span className="absolute top-1/2 left-0 h-0.5 w-full -translate-y-1/2 rounded-full bg-current" />
+      <span
+        className={cn(
+          'absolute top-0 left-1/2 h-full w-0.5 -translate-x-1/2 rounded-full bg-current transition-[rotate,opacity] duration-200 ease-out',
+          expanded && 'rotate-90 opacity-0',
+        )}
+      />
+    </span>
+  )
+}
+
 export function CollapsibleSection({
   id,
   title,
@@ -102,9 +117,7 @@ export function CollapsibleSection({
             aria-controls={contentId}
             onClick={toggle}
           >
-            <span className="collapsible-section__indicator shrink-0 text-[1.4rem] leading-none text-text-secondary" aria-hidden="true">
-              {expanded ? '−' : '+'}
-            </span>
+            <ExpandIndicator expanded={expanded} />
           </button>
         </Heading>
       ) : (
@@ -120,9 +133,7 @@ export function CollapsibleSection({
             onClick={toggle}
           >
             {titleContent}
-            <span className="collapsible-section__indicator shrink-0 text-[1.4rem] leading-none text-text-secondary" aria-hidden="true">
-              {expanded ? '−' : '+'}
-            </span>
+            <ExpandIndicator expanded={expanded} />
           </button>
         </Heading>
       )}
@@ -130,7 +141,7 @@ export function CollapsibleSection({
         id={contentId}
         data-section-content
         className={cn(
-          'collapsible-section__content grid transition-[grid-template-rows,margin-top,opacity,visibility] duration-100',
+          'collapsible-section__content grid transition-[grid-template-rows,margin-top,opacity,visibility] duration-200 ease-out',
           expanded ? 'visible mt-4 grid-rows-[1fr] opacity-100' : 'invisible mt-0 grid-rows-[0fr] opacity-0',
         )}
         data-expanded={expanded}

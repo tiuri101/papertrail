@@ -32,6 +32,8 @@ export interface StageAnalysisResponse<TStats> {
 export interface DuplicateReviewStats {
   recordsIdentified: number
   duplicatesRemoved: number
+  /** Identified records that never became publications (e.g. rows without a title). Absent in stats stored before it existed. */
+  recordsRemovedOther?: number
   uniqueRecordsRemaining: number
   matchReasonCounts: BreakdownItem[]
 }

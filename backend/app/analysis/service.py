@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.conflicts.models import FinalDecision
-from app.deduplication.models import DuplicateCandidate, PublicationMerge
+from app.deduplication.models import DuplicateCandidate
 from app.extraction.final import get_current_final_extractions
 from app.extraction.service import active_fields as extraction_active_fields
 from app.extraction.service import project_form
@@ -22,6 +22,7 @@ from app.quality.models import QualityConfig, QualityResponse, QualityWorkItem
 from app.quality.service import active_fields as quality_active_fields
 from app.quality.service import quality_form
 from app.reporting.prisma import calculate_prisma_counts
+from app.reporting.record_flow import calculate_record_flow
 from app.screening.cohorts import (
     decided_final_decisions,
     full_text_included_ids,
@@ -157,10 +158,16 @@ def _current_extraction_answers(
 def _current_quality(
     db: Session, project_id: str
 ) -> tuple[dict[str, dict[str, Any]], list[float]]:
+    # Same cohort as extraction: a publication removed from the review keeps
+    # its submitted assessment as history, but it is no longer evidence.
+    included_ids = full_text_included_ids(db, project_id)
     items = {
         item.id: item.publication_id
         for item in db.scalars(
-            select(QualityWorkItem).where(QualityWorkItem.project_id == project_id)
+            select(QualityWorkItem).where(
+                QualityWorkItem.project_id == project_id,
+                QualityWorkItem.publication_id.in_(included_ids),
+            )
         )
     }
     answers: dict[str, dict[str, Any]] = {}
@@ -219,21 +226,24 @@ def compute_extraction_stats(db: Session, project_id: str) -> dict[str, Any]:
 def _duplicate_match_reason_counts(
     db: Session, project_id: str
 ) -> list[dict[str, Any]]:
+    """Match reasons of the merges that still account for a removed
+    duplicate -- the same merges ``duplicatesRemoved`` counts, so a merge
+    whose records were later deleted drops out of both together."""
+    candidate_ids = calculate_record_flow(db, project_id).counted_merge_candidate_ids
     reason_counter: Counter[str] = Counter()
-    rows = db.execute(
-        select(DuplicateCandidate.match_reasons)
-        .select_from(PublicationMerge)
-        .join(
-            DuplicateCandidate, DuplicateCandidate.id == PublicationMerge.candidate_id
+    if candidate_ids:
+        reasons_by_candidate = dict(
+            db.execute(
+                select(DuplicateCandidate.id, DuplicateCandidate.match_reasons).where(
+                    DuplicateCandidate.id.in_(candidate_ids)
+                )
+            )
+            .tuples()
+            .all()
         )
-        .where(
-            PublicationMerge.project_id == project_id,
-            PublicationMerge.reversed_at.is_(None),
-        )
-    )
-    for (reasons,) in rows:
-        for reason in reasons or []:
-            reason_counter[reason] += 1
+        for candidate_id in candidate_ids:
+            for reason in reasons_by_candidate.get(candidate_id) or []:
+                reason_counter[reason] += 1
     ranked = sorted(reason_counter.items(), key=lambda pair: -pair[1])
     return [{"label": label, "count": count} for label, count in ranked]
 
@@ -246,7 +256,10 @@ def compute_duplicate_review_stats(db: Session, project_id: str) -> dict[str, An
     return {
         "recordsIdentified": records_identified,
         "duplicatesRemoved": counts["duplicatesRemoved"],
-        "uniqueRecordsRemaining": records_identified - counts["duplicatesRemoved"],
+        "recordsRemovedOther": counts["recordsRemovedOther"],
+        "uniqueRecordsRemaining": records_identified
+        - counts["duplicatesRemoved"]
+        - counts["recordsRemovedOther"],
         "matchReasonCounts": _duplicate_match_reason_counts(db, project_id),
     }
 

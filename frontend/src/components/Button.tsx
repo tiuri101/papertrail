@@ -29,7 +29,7 @@ export type ButtonProps<T extends ElementType = 'button'> = ButtonOwnProps & {
 const baseClass = [
   'inline-flex h-10 min-h-10 items-center justify-center gap-2 rounded-sm border border-transparent px-4',
   'text-sm font-semibold leading-none no-underline select-none',
-  'transition-[background-color,border-color,color,box-shadow,transform,opacity] duration-150',
+  'transition-[background-color,border-color,color,box-shadow,translate,scale,opacity] duration-150',
   'focus:outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--button-focus)]',
   'disabled:cursor-not-allowed disabled:opacity-[var(--button-disabled-opacity)] disabled:transform-none disabled:shadow-none',
   '[&_svg]:size-4 [&_svg]:shrink-0 [&_svg]:fill-current',

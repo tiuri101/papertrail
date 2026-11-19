@@ -1,4 +1,4 @@
-import type { ElementType, HTMLAttributes } from 'react'
+import type { ElementType, HTMLAttributes, Ref } from 'react'
 import { cn } from '../lib/cn'
 import {
   cardStyles,
@@ -11,6 +11,7 @@ import {
 export interface CardProps extends HTMLAttributes<HTMLElement> {
   /** Render as a `<section>` where the card is a semantic landmark, not just visual grouping. */
   as?: ElementType
+  ref?: Ref<HTMLElement>
 }
 
 // Re-export card styles for backward compatibility with existing imports

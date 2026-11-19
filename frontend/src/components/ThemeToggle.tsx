@@ -5,6 +5,9 @@ import { persistTheme, THEMES, type Theme } from '../app/theme'
 import { IconButton } from './Button'
 import { ActionListItem } from './ActionListItem'
 import { IconCheck } from './icons'
+import { cn } from '../lib/cn'
+import { usePresence } from '../hooks/usePresence'
+import { popoverMotionClass } from './motionStyles'
 
 function themeFromDocument(): Theme {
   const current = document.documentElement.dataset.theme
@@ -23,7 +26,7 @@ export function ThemeToggle() {
   const [open, setOpen] = useState(false)
   const [position, setPosition] = useState<{ top: number; right: number } | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
+  const { present, ref: menuRef, state } = usePresence<HTMLDivElement>(open)
 
   useEffect(() => {
     if (!open) return undefined
@@ -46,7 +49,7 @@ export function ThemeToggle() {
       window.removeEventListener('scroll', close, true)
       window.removeEventListener('resize', close)
     }
-  }, [open])
+  }, [open, menuRef])
 
   const toggle = () => {
     if (!open && triggerRef.current) {
@@ -77,10 +80,12 @@ export function ThemeToggle() {
           <path d="M12 2a10 10 0 1 0 0 20 2.5 2.5 0 0 0 1.77-4.27 1.5 1.5 0 0 1 1.06-2.56H17a5 5 0 0 0 5-5 8 8 0 0 0-10-8Zm-5.5 9a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm3-4a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm5 0a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm3 4a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z" />
         </svg>
       </IconButton>
-      {open && position ? createPortal(
+      {present && position ? createPortal(
         <div
           ref={menuRef}
-          className="fixed z-1000 flex min-w-52 flex-col gap-0.5 rounded-md border border-border bg-surface-raised p-2 shadow-lg"
+          className={cn('fixed z-1000 flex min-w-52 flex-col gap-0.5 rounded-md border border-border bg-surface-raised p-2 shadow-lg', popoverMotionClass)}
+          data-state={state}
+          inert={!open}
           role="menu"
           aria-label="Choose theme"
           style={{ top: position.top, right: position.right }}

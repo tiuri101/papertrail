@@ -4,6 +4,8 @@ import { cn } from '../lib/cn'
 import { Button, IconButton } from './Button'
 import { Input } from './Input'
 import { FieldLabel } from './FieldLabel'
+import { fadeInMotionClass, popoverMotionClass } from './motionStyles'
+import { usePresence } from '../hooks/usePresence'
 
 interface DateFieldProps {
   id?: string
@@ -79,6 +81,7 @@ export function DateField({ id, label, value, onChange, required, disabled }: Da
   const fieldId = id ?? generatedId
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
+  const { present, ref: popupRef, state } = usePresence<HTMLDivElement>(open)
   const today = new Date()
   const todayIso = toIso(today.getFullYear(), today.getMonth(), today.getDate())
   const selected = parseIso(value)
@@ -145,8 +148,13 @@ export function DateField({ id, label, value, onChange, required, disabled }: Da
           </svg>
         </div>
       </FieldLabel>
-      {open ? (
-        <div className="absolute top-[calc(100%+0.5rem)] left-0 z-50 w-[min(300px,88vw)] rounded-md border border-border bg-surface-raised p-4 shadow-lg" role="dialog" aria-label={`${label} calendar`}>
+      {present ? (
+        <div
+          ref={popupRef}
+          className={cn('absolute top-[calc(100%+0.5rem)] left-0 z-50 w-[min(300px,88vw)] rounded-md border border-border bg-surface-raised p-4 shadow-lg', popoverMotionClass)}
+          data-state={state}
+          inert={!open}
+          role="dialog" aria-label={`${label} calendar`}>
           <div className="mb-3 flex items-center justify-between">
             <IconButton type="button" variant="ghost" size="sm" className="rounded-full" aria-label="Previous month" onClick={goToPreviousMonth}>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 4 6 12l9 8 1.4-1.4L8.8 12l7.6-6.6Z" /></svg>
@@ -159,7 +167,7 @@ export function DateField({ id, label, value, onChange, required, disabled }: Da
           <div className="mb-1 grid grid-cols-7 text-center text-xs font-bold tracking-[0.04em] text-text-muted uppercase">
             {WEEKDAY_LABELS.map((weekday) => <span key={weekday}>{weekday}</span>)}
           </div>
-          <div className="grid grid-cols-7" role="grid">
+          <div key={`${view.year}-${view.month}`} className={cn('grid grid-cols-7', fadeInMotionClass)} role="grid">
             {cells.map((cell) => {
               const iso = toIso(cell.year, cell.month, cell.day)
               const isSelected = iso === value

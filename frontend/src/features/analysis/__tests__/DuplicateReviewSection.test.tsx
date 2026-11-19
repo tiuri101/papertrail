@@ -49,4 +49,35 @@ describe('DuplicateReviewSection', () => {
     expect(screen.queryByText(/exact_doi/)).not.toBeInTheDocument()
     expect(screen.queryByText(/similar_title_authors/)).not.toBeInTheDocument()
   })
+
+  it('mentions records removed for other reasons only when there are some', async () => {
+    mockFetch((input) => {
+      if (String(input).endsWith('/analysis/duplicate_review')) {
+        return jsonResponse({ ...response, stats: { ...response.stats, recordsRemovedOther: 2, uniqueRecordsRemaining: 13 } })
+      }
+      throw new Error(`unexpected request: ${input}`)
+    })
+
+    renderWithProviders(<DuplicateReviewSection projectId="p1" />, {
+      route: '/projects/p1/analysis',
+      path: '/projects/:projectId/analysis',
+    })
+
+    expect(await screen.findByText(/2 removed for other reasons/)).toBeInTheDocument()
+  })
+
+  it('omits the other-reasons count for stats stored before it existed', async () => {
+    mockFetch((input) => {
+      if (String(input).endsWith('/analysis/duplicate_review')) return jsonResponse(response)
+      throw new Error(`unexpected request: ${input}`)
+    })
+
+    renderWithProviders(<DuplicateReviewSection projectId="p1" />, {
+      route: '/projects/p1/analysis',
+      path: '/projects/:projectId/analysis',
+    })
+
+    expect(await screen.findByText(/20 records identified/)).toBeInTheDocument()
+    expect(screen.queryByText(/other reasons/)).not.toBeInTheDocument()
+  })
 })

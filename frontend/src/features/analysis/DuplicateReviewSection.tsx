@@ -19,6 +19,7 @@ export function DuplicateReviewSection({ projectId }: { projectId: string }) {
           <p className="text-text-muted">
             {stats.recordsIdentified} records identified &middot; {stats.duplicatesRemoved} removed
             as duplicates
+            {stats.recordsRemovedOther ? <> &middot; {stats.recordsRemovedOther} removed for other reasons (e.g. missing title)</> : null}
           </p>
           <CompletionBar
             answered={stats.uniqueRecordsRemaining}

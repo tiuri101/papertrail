@@ -1,4 +1,4 @@
-export const reviewWorkCardClass = 'relative cursor-pointer rounded-md border border-border bg-linear-to-b from-surface-raised to-surface px-4 py-3 shadow-sm transition-[border-color,transform,box-shadow] duration-150 hover:-translate-y-0.5 hover:border-border-strong hover:shadow-md'
+export const reviewWorkCardClass = 'relative cursor-pointer rounded-md border border-border bg-linear-to-b from-surface-raised to-surface px-4 py-3 shadow-sm transition-[border-color,translate,box-shadow] duration-150 hover:-translate-y-0.5 hover:border-border-strong hover:shadow-md'
 export const reviewWorkGridClass = "grid grid-cols-[minmax(10rem,1fr)_minmax(5rem,9rem)_minmax(5rem,7rem)_4.5rem_4.5rem_minmax(5.5rem,7rem)] items-center gap-3 [&>*]:min-w-0 max-[520px]:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] max-[520px]:[grid-template-areas:'title_title'_'venue_venue'_'status_doi'_'submitted_submitted'_'actions_actions'] max-[520px]:gap-y-1"
 export const reviewWorkTitleClass = 'min-w-0 max-[520px]:[grid-area:title]'
 export const reviewWorkMetadataClass = 'overflow-hidden text-ellipsis whitespace-nowrap text-[0.86rem] text-text-secondary'
@@ -11,4 +11,4 @@ export const reviewWorkActionsClass = 'flex min-w-0 items-center justify-end [&_
 export const reviewWorkTitleLinkClass = 'h-auto min-h-0 whitespace-normal text-left text-text [overflow-wrap:anywhere] hover:text-primary hover:no-underline'
 export const reviewWorkTitleTextClass = 'm-0 inline text-[0.95rem] leading-[inherit]'
 export const reviewWorkEditorClass = 'mt-4 cursor-default border-t border-border pt-4'
-export const reviewWorkListClass = 'm-0 grid list-none gap-2 p-0'
+export const reviewWorkListClass = 'm-0 grid list-none gap-2 p-0 transition-opacity duration-200 ease-out starting:opacity-0'

@@ -963,9 +963,13 @@ def cancel_all_project_jobs(
     LLM runs are marked cancelled too so they do not linger as "processing".
     """
     from app.llm.service import cancel_project_llm_runs
+    from app.notifications.service import schedule_llm_digest_check
 
     cancel_project_llm_runs(db, project_id)
     jobs = cancel_project_jobs(db, project_id)
+    # After cancelling, so the waiting check is not cancelled with the rest:
+    # it reports whatever batch work finished before the cancellation.
+    schedule_llm_digest_check(db, project_id)
     for job in jobs:
         record_audit(
             db,

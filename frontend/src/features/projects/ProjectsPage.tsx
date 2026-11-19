@@ -295,7 +295,7 @@ export function ProjectsPage() {
       ) : null}
       <ul className="m-0 grid list-none overflow-hidden bg-transparent border-none grid-cols-[repeat(auto-fill,minmax(300px,1fr))] gap-4 p-0" aria-label="Projects">
         {sortedProjects.map((project) => (
-          <Card as="li" key={project.id} className="flex flex-col">
+          <Card as="li" key={project.id} className="flex flex-col transition-[border-color,box-shadow] duration-150 hover:border-border-strong hover:shadow-md">
             <div className="flex items-start justify-between gap-3">
               <span className="inline-flex min-h-[26px] items-center rounded-full border border-[color-mix(in_srgb,var(--stage-color,var(--color-primary))_35%,transparent)] bg-[color-mix(in_srgb,var(--stage-color,var(--color-primary))_14%,transparent)] px-2.5 py-[3px] text-[0.78rem] font-bold text-(--stage-color)" data-project-stage={project.stage} style={stageBadgeStyle(project.stage)}>
                 {formatStage(project.stage)}

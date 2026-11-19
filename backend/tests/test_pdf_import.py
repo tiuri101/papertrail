@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import zipfile
+from datetime import date
 from io import BytesIO
 
 import pytest
@@ -23,6 +24,7 @@ from app.imports.models import (
     ImportedRecord,
     ImportPdfItem,
     PdfMatchStatus,
+    SearchSource,
 )
 from app.imports.pdf_import import process_pdf_matches, resolve_pdf_match
 from app.imports.service import process_import_job
@@ -396,7 +398,17 @@ def test_metadata_with_zip_isolated_failures_and_metadata_only_still_works(
     db.add(project)
     db.flush()
     db.add(ProjectMembership(project_id=project.id, user_id=owner.id, is_owner=True))
+    search = SearchSource(
+        project_id=project.id,
+        source_name="Scopus",
+        query="zip",
+        search_date=date(2026, 1, 1),
+        exported_result_count=2,
+        created_by_id=owner.id,
+    )
+    db.add(search)
     db.commit()
+    search_data = {"searchSourceId": search.id}
     csrf = client.post(
         "/api/v1/auth/login",
         json={"username": owner.username, "password": "owner-password"},
@@ -418,6 +430,7 @@ def test_metadata_with_zip_isolated_failures_and_metadata_only_still_works(
         archive.writestr("second-zip-paper.pdf", second_zip_pdf)
     response = client.post(
         f"/api/v1/projects/{project.id}/imports",
+        data=search_data,
         files=[
             (
                 "file",
@@ -460,6 +473,7 @@ def test_metadata_with_zip_isolated_failures_and_metadata_only_still_works(
 
     metadata_only = client.post(
         f"/api/v1/projects/{project.id}/imports",
+        data=search_data,
         files={"file": ("only.csv", b"title\nMetadata only\n", "text/csv")},
         headers={"X-CSRF-Token": csrf},
     )
@@ -475,6 +489,7 @@ def test_metadata_with_zip_isolated_failures_and_metadata_only_still_works(
     try:
         suspicious = client.post(
             f"/api/v1/projects/{project.id}/imports",
+            data=search_data,
             files=[
                 ("file", ("bomb.csv", b"title\nBomb test\n", "text/csv")),
                 (

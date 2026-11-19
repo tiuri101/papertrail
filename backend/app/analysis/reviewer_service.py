@@ -31,6 +31,7 @@ from app.analysis.reviewer_stats import (
 )
 from app.projects.models import Criterion, Project, ProjectMembership, ScreeningConfig
 from app.projects.models import ScreeningStage as ProjectScreeningStage
+from app.publications.models import Publication
 from app.screening.cohorts import decided_final_decisions_by_publication
 from app.screening.models import ScreeningDecision, ScreeningOutcome, ScreeningWorkItem
 
@@ -66,6 +67,15 @@ def _gather_complete_publication_sets(
                 ScreeningWorkItem.project_id == project_id,
                 ScreeningWorkItem.stage == stage,
                 ScreeningWorkItem.is_additional_slot.is_(False),
+                # Decisions on a publication removed from the review stay as
+                # history but are no longer part of any statistic -- the same
+                # rule app.screening.cohorts applies to final decisions.
+                ScreeningWorkItem.publication_id.in_(
+                    select(Publication.id).where(
+                        Publication.project_id == project_id,
+                        Publication.is_active.is_(True),
+                    )
+                ),
             )
         )
     )

@@ -483,7 +483,7 @@ export function PublicationReviewDetails({
                             type="button"
                             role="checkbox"
                             className={cn(
-                              'inline-flex size-8 min-h-8 items-center justify-center rounded-md border border-border bg-none bg-bg-elevated p-0 text-text-muted shadow-none transition-colors hover:border-border-strong hover:bg-surface-hover [&_svg]:size-4 [&_svg]:fill-current',
+                              'inline-flex size-8 min-h-8 items-center justify-center rounded-md border border-border bg-none bg-bg-elevated p-0 text-text-muted shadow-none transition-[color,background-color,border-color,scale] duration-150 active:scale-[0.94] hover:border-border-strong hover:bg-surface-hover [&_svg]:size-4 [&_svg]:fill-current',
                               criterion.kind === 'exclusion'
                                 ? 'aria-checked:border-danger aria-checked:bg-danger-container aria-checked:text-danger'
                                 : 'aria-checked:border-success aria-checked:bg-success-container aria-checked:text-success',
@@ -506,7 +506,7 @@ export function PublicationReviewDetails({
                             type="button"
                             role="checkbox"
                             className={cn(
-                              'inline-flex size-8 min-h-8 items-center justify-center rounded-md border border-border bg-none bg-bg-elevated p-0 text-text-muted shadow-none transition-colors hover:border-border-strong hover:bg-surface-hover [&_svg]:size-4 [&_svg]:fill-current',
+                              'inline-flex size-8 min-h-8 items-center justify-center rounded-md border border-border bg-none bg-bg-elevated p-0 text-text-muted shadow-none transition-[color,background-color,border-color,scale] duration-150 active:scale-[0.94] hover:border-border-strong hover:bg-surface-hover [&_svg]:size-4 [&_svg]:fill-current',
                               criterion.kind === 'exclusion'
                                 ? 'aria-checked:border-success aria-checked:bg-success-container aria-checked:text-success'
                                 : 'aria-checked:border-danger aria-checked:bg-danger-container aria-checked:text-danger',
