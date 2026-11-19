@@ -99,6 +99,8 @@ PostgreSQL is authoritative for everything except PDF binaries: bibliographic re
 
 `frontend/src/features/<domain>/` mirrors the backend domains (screening, extraction, quality, fulltext, deduplication, audit, administration, llm, ...); shared UI lives in `src/components/`, cross-cutting hooks in `src/hooks/`. Server state lives in TanStack Query, not component state; forms use React Hook Form. FastAPI re-validates every authoritative rule already enforced in the UI — the frontend is a convenience layer, not a trust boundary.
 
+UI motion is minimal (150–200ms, `ease-out`) and built from the shared class strings in `src/components/motionStyles.ts` rather than ad-hoc durations; there is no animation library. Entry animations are pure CSS via Tailwind's `starting:` variant (`@starting-style`). Exit animations pair `data-[state=closed]:` classes with the `usePresence` hook (`src/hooks/usePresence.ts`), which keeps an element mounted until its transition ends and unmounts immediately when no transition is computed — so jsdom tests and reduced-motion users see instant open/close. To animate a content swap without remounting (which would reset subtree state), use `useFadeOnChange` (Web Animations API). Tailwind v4 moves elements with the CSS `translate`/`scale` properties, not `transform`, so transition lists must name `translate`/`scale`. The global `prefers-reduced-motion` rule in `base.css` disables CSS motion; `useFadeOnChange` checks the preference itself.
+
 ## Design rules (from `docs/developer-guide.md`)
 
 - Keep FastAPI routes thin; put business rules in domain services.

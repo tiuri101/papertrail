@@ -54,7 +54,7 @@ function AgreementBar({ value }: { value: number | null }) {
   return (
     <span className="inline-flex min-w-[118px] items-center gap-2">
       <span className="inline-block h-[7px] w-16 overflow-hidden rounded-full bg-border" aria-hidden="true">
-        <span className="block h-full rounded-[inherit] bg-success" style={{ width: `${Math.round(value * 100)}%` }} />
+        <span className="block h-full rounded-[inherit] bg-success transition-[width] duration-200 ease-out" style={{ width: `${Math.round(value * 100)}%` }} />
       </span>
       <span>{formatPercent(value)}</span>
     </span>

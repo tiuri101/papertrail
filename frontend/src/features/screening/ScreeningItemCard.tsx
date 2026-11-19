@@ -20,6 +20,7 @@ import { CriteriaAnswerFields } from './CriteriaAnswerFields'
 import { useScreeningDecisionHotkeys } from './useScreeningDecisionHotkeys'
 import type { ScreeningQueue } from './useScreeningQueue'
 import { ScreeningLlmPanel, useScreeningLlmAssistance } from '../llm/LlmTaskComponents'
+import { useFadeOnChange } from '../../hooks/useFadeOnChange'
 
 export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: string[] }) {
   const { item, answers, setAnswers, outcome, setOutcome, notes, setNotes, criteriaComplete, submit, highlightKeywords } = queue
@@ -38,7 +39,9 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
     humanDecision: awaitingConfirmation ? outcome : undefined,
   })
   const titleRef = useRef<HTMLHeadingElement>(null)
+  const cardRef = useRef<HTMLElement>(null)
   const visibleItemId = item?.id
+  useFadeOnChange(cardRef, visibleItemId, { rise: true })
   useEffect(() => {
     if (visibleItemId) titleRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }, [visibleItemId])
@@ -66,7 +69,7 @@ export function ScreeningItemCard(queue: ScreeningQueue & { highlightKeywords: s
   const yearVenue = formatYearVenue(item.publication.publicationYear, item.publication.venue)
 
   return (
-    <Card as="article">
+    <Card as="article" ref={cardRef}>
       <h2 ref={titleRef} className="scroll-mt-[92px]" style={paperTextStyle.title}>
         <Link to={`/projects/${queue.projectId}/publications/${item.publication.id}`} target="_blank" rel="noreferrer">
           <HighlightedText text={item.publication.title} keywords={highlightKeywords} />

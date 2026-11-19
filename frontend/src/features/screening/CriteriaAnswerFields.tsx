@@ -234,7 +234,7 @@ export function CriteriaAnswerFields({
                       <button
                         type="button"
                         role="checkbox"
-                        className={`inline-flex size-8 min-h-8 items-center justify-center rounded-md border border-border bg-none bg-bg-elevated p-0 text-text-muted shadow-none transition-colors hover:border-border-strong hover:bg-surface-hover [&_svg]:size-4 [&_svg]:fill-current ${fulfilledColorClasses}`}
+                        className={`inline-flex size-8 min-h-8 items-center justify-center rounded-md border border-border bg-none bg-bg-elevated p-0 text-text-muted shadow-none transition-[color,background-color,border-color,scale] duration-150 active:scale-[0.94] hover:border-border-strong hover:bg-surface-hover [&_svg]:size-4 [&_svg]:fill-current ${fulfilledColorClasses}`}
                         aria-checked={answers[criterion.id] === true}
                         aria-label={`${capitalize(criterion.kind)}: ${criterion.text} — Fulfilled`}
                         tabIndex={focusedCell.row === row && focusedCell.column === 0 ? 0 : -1}
@@ -259,7 +259,7 @@ export function CriteriaAnswerFields({
                       <button
                         type="button"
                         role="checkbox"
-                        className={`inline-flex size-8 min-h-8 items-center justify-center rounded-md border border-border bg-none bg-bg-elevated p-0 text-text-muted shadow-none transition-colors hover:border-border-strong hover:bg-surface-hover [&_svg]:size-4 [&_svg]:fill-current ${notFulfilledColorClasses}`}
+                        className={`inline-flex size-8 min-h-8 items-center justify-center rounded-md border border-border bg-none bg-bg-elevated p-0 text-text-muted shadow-none transition-[color,background-color,border-color,scale] duration-150 active:scale-[0.94] hover:border-border-strong hover:bg-surface-hover [&_svg]:size-4 [&_svg]:fill-current ${notFulfilledColorClasses}`}
                         aria-checked={answers[criterion.id] === false}
                         aria-label={`${capitalize(criterion.kind)}: ${criterion.text} — Not fulfilled`}
                         tabIndex={focusedCell.row === row && focusedCell.column === 1 ? 0 : -1}
@@ -368,7 +368,7 @@ export function CriteriaAnswerFields({
                 type="button"
                 role="radio"
                 aria-checked={outcome === value}
-                className={`relative inline-flex min-h-10 w-45 items-center justify-center gap-2 rounded-md border bg-none px-3 py-2 text-sm font-semibold transition-colors [&_svg]:size-4 [&_svg]:fill-current ${selected ? selectedClasses : `border-border bg-surface-raised text-text-secondary ${hoverClasses}`}`}
+                className={`relative inline-flex min-h-10 w-45 items-center justify-center gap-2 rounded-md border bg-none px-3 py-2 text-sm font-semibold transition-[color,background-color,border-color,scale] duration-150 active:scale-[0.98] [&_svg]:size-4 [&_svg]:fill-current ${selected ? selectedClasses : `border-border bg-surface-raised text-text-secondary ${hoverClasses}`}`}
                 onClick={() => setOutcome(value)}
               >
                 {value === 'include' ? <IconCheckCircle /> : value === 'exclude' ? <IconXCircle /> : null}

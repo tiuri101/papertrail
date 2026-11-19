@@ -32,7 +32,7 @@ export function llmSchemaFieldClass({ dragging, dragOver, draft }: {
   draft?: boolean
 } = {}) {
   return cn(
-    'overflow-hidden rounded-md border border-border bg-bg-elevated open:border-border-strong open:bg-surface-raised open:shadow-sm',
+    'overflow-hidden rounded-md border border-border bg-bg-elevated transition-[opacity,border-color,background-color,box-shadow] duration-150 open:border-border-strong open:bg-surface-raised open:shadow-sm',
     dragging && 'opacity-55',
     dragOver && 'border-primary shadow-[0_0_0_2px_color-mix(in_srgb,var(--color-primary)_18%,transparent)]',
     draft && 'border-primary bg-surface-raised shadow-sm',

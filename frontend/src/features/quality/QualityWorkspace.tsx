@@ -1,4 +1,5 @@
 import { useMutation } from '@tanstack/react-query'
+import { useRef } from 'react'
 
 import { apiRequest } from '../../api/client'
 import { IconArrowRight, IconCheckCircle } from '../../components/icons'
@@ -12,6 +13,7 @@ import { useReviewWorkQueue } from '../reviews/useReviewWorkQueue'
 import { Button } from '../../components/Button'
 import { cardStyles } from '../../components/Card'
 import { Form } from '../../components/Form'
+import { useFadeOnChange } from '../../hooks/useFadeOnChange'
 
 interface WorkItem {
   id: string
@@ -65,6 +67,8 @@ export function QualityWorkspace({
     loadErrorFallback: 'Failed to load the next assessment',
   })
   const fullTextDocument = useFullTextDocument(projectId, item?.publicationId ?? '')
+  const articleRef = useRef<HTMLElement>(null)
+  useFadeOnChange(articleRef, item?.id, { rise: true })
 
   const submit = useMutation({
     mutationFn: () => {
@@ -163,5 +167,5 @@ export function QualityWorkspace({
     </>
   )
 
-  return variant === 'inline' ? body : <article className={cardStyles} data-ui="card">{body}</article>
+  return variant === 'inline' ? body : <article ref={articleRef} className={cardStyles} data-ui="card">{body}</article>
 }

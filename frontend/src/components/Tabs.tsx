@@ -1,7 +1,8 @@
-import type { HTMLAttributes, ReactNode } from 'react'
+import { type HTMLAttributes, type ReactNode, useRef } from 'react'
 
 import { cn } from '../lib/cn'
 import { tabId, tabPanelId } from '../lib/tabs'
+import { useFadeOnChange } from '../hooks/useFadeOnChange'
 
 export interface TabItem {
   id: string
@@ -41,7 +42,7 @@ export function TabList({ items, activeId, onSelect, label, idPrefix, className 
             title={item.title}
             onClick={() => onSelect(item.id)}
             className={cn(
-              'inline-flex h-auto min-h-10 items-center justify-center gap-2 cursor-pointer rounded-sm border-0 px-5 py-2.5 text-sm font-semibold text-text-secondary disabled:cursor-not-allowed disabled:opacity-[.48] [&_svg]:size-[18px] [&_svg]:shrink-0 [&_svg]:fill-current',
+              'inline-flex h-auto min-h-10 items-center justify-center gap-2 cursor-pointer rounded-sm border-0 transition-[background-color,color,box-shadow] duration-150 px-5 py-2.5 text-sm font-semibold text-text-secondary disabled:cursor-not-allowed disabled:opacity-[.48] [&_svg]:size-[18px] [&_svg]:shrink-0 [&_svg]:fill-current',
               !active && 'shadow-none hover:not-disabled:bg-surface-hover hover:not-disabled:text-text',
               active && (item.danger ? 'bg-surface text-danger shadow-sm' : 'bg-surface text-primary shadow-sm'),
             )}
@@ -59,8 +60,11 @@ export function TabPanel({ idPrefix, id, className, ...props }: HTMLAttributes<H
   idPrefix: string
   id: string
 }) {
+  const panelRef = useRef<HTMLDivElement>(null)
+  useFadeOnChange(panelRef, id)
   return (
     <div
+      ref={panelRef}
       role="tabpanel"
       id={tabPanelId(idPrefix, id)}
       aria-labelledby={tabId(idPrefix, id)}

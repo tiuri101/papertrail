@@ -18,7 +18,7 @@ export function CompletionBar({
         aria-valuemax={total}
         aria-valuenow={answered}
       >
-        <div className="h-full rounded-full bg-success" style={{ width: `${percent}%` }} />
+        <div className="h-full rounded-full bg-success transition-[width] duration-200 ease-out" style={{ width: `${percent}%` }} />
       </div>
       <span className="text-[0.82rem] text-text-muted">
         {answered} of {total} {label} ({percent}%)

@@ -252,7 +252,7 @@ function PublicationRow({
 
   return (
     <li data-publication-row="true" data-selected={selected || undefined} className={cn(
-      'relative rounded-md border border-border bg-linear-to-b from-surface-raised to-surface px-4 py-3 shadow-sm transition-[border-color,background-color,transform,box-shadow] duration-150 hover:-translate-y-0.5 hover:border-border-strong hover:shadow-md max-[600px]:px-3 max-[600px]:py-2',
+      'relative rounded-md border border-border bg-linear-to-b from-surface-raised to-surface px-4 py-3 shadow-sm transition-[border-color,background-color,translate,box-shadow] duration-150 hover:-translate-y-0.5 hover:border-border-strong hover:shadow-md max-[600px]:px-3 max-[600px]:py-2',
       selected && 'border-primary bg-none bg-primary-container hover:border-primary',
     )}>
       <div className={publicationRowGridClass}>

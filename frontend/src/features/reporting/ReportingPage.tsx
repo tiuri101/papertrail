@@ -204,7 +204,7 @@ export function ReportingPage() {
         </header>
         <div className="grid grid-cols-1 gap-4 min-[681px]:grid-cols-2 min-[1051px]:grid-cols-4">
           {exportOptions.map((option) => (
-            <article className="flex min-w-0 flex-col items-start rounded-md border border-border bg-surface-raised p-5 transition-[transform,border-color] duration-150 hover:-translate-y-0.5 hover:border-border-strong" key={option.type}>
+            <article className="flex min-w-0 flex-col items-start rounded-md border border-border bg-surface-raised p-5 transition-[translate,border-color,box-shadow] duration-150 hover:-translate-y-0.5 hover:border-border-strong" key={option.type}>
               <div className="mb-4 flex w-full min-w-0 items-center gap-3">
                 <span className={reportingIconClass} aria-hidden="true">
                   <IconDownload />

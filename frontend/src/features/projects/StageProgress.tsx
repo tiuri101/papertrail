@@ -26,7 +26,7 @@ export function StageProgress({ stage }: { stage: string }) {
           <li
             key={step.value}
             ref={step.value === stage ? currentRef : undefined}
-            className="min-w-[150px] flex-auto px-[25px] py-[11px] text-center text-[0.79rem] font-bold whitespace-nowrap text-white opacity-30 saturate-50 transition-[filter,opacity,transform] duration-150 [clip-path:polygon(0_0,calc(100%_-_14px)_0,100%_50%,calc(100%_-_14px)_100%,0_100%,14px_50%)] first:[clip-path:polygon(0_0,calc(100%_-_14px)_0,100%_50%,calc(100%_-_14px)_100%,0_100%)] last:[clip-path:polygon(0_0,100%_0,100%_100%,0_100%,14px_50%)] not-first:-ml-[14px] not-first:pl-[39px] aria-[current=step]:z-1 aria-[current=step]:opacity-100 aria-[current=step]:saturate-100"
+            className="min-w-[150px] flex-auto px-[25px] py-[11px] text-center text-[0.79rem] font-bold whitespace-nowrap text-white opacity-30 saturate-50 transition-[filter,opacity] duration-200 [clip-path:polygon(0_0,calc(100%_-_14px)_0,100%_50%,calc(100%_-_14px)_100%,0_100%,14px_50%)] first:[clip-path:polygon(0_0,calc(100%_-_14px)_0,100%_50%,calc(100%_-_14px)_100%,0_100%)] last:[clip-path:polygon(0_0,100%_0,100%_100%,0_100%,14px_50%)] not-first:-ml-[14px] not-first:pl-[39px] aria-[current=step]:z-1 aria-[current=step]:opacity-100 aria-[current=step]:saturate-100"
             style={{ backgroundColor: step.color }}
             aria-current={step.value === stage ? 'step' : undefined}
           >

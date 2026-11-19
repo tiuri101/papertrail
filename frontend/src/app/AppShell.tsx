@@ -12,9 +12,11 @@ import { ThemeToggle } from '../components/ThemeToggle'
 import { cn } from '../lib/cn'
 import { setCsrfToken } from '../features/auth/session'
 import type { LoginResponse } from '../features/auth/types'
+import { usePresence } from '../hooks/usePresence'
+import { backdropMotionClass, drawerMotionClass } from '../components/motionStyles'
 
 const navLinkBase =
-  'inline-flex min-h-10 items-center gap-2 rounded-sm px-4 text-[0.92rem] font-semibold text-text-secondary hover:bg-surface-hover hover:text-text max-md:min-h-[38px] max-md:px-3 max-[480px]:px-2.5 max-[480px]:text-[0.86rem] [&>svg]:size-[17px] [&>svg]:shrink-0 [&>svg]:fill-current'
+  'inline-flex min-h-10 items-center gap-2 rounded-sm px-4 text-[0.92rem] font-semibold text-text-secondary transition-colors duration-150 hover:bg-surface-hover hover:text-text max-md:min-h-[38px] max-md:px-3 max-[480px]:px-2.5 max-[480px]:text-[0.86rem] [&>svg]:size-[17px] [&>svg]:shrink-0 [&>svg]:fill-current'
 const navLinkActive = 'bg-primary-container text-primary'
 
 // Pixels subtracted from the measured available width before comparing against the
@@ -65,6 +67,7 @@ export function AppShell() {
   const session = queryClient.getQueryData<LoginResponse>(['session'])
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
   const mobileMenuId = useId()
+  const { present: mobileMenuPresent, ref: mobileMenuRef, state: mobileMenuState } = usePresence<HTMLDivElement>(mobileMenuOpen)
   const isAdmin = Boolean(session?.user.isAdmin)
   const logout = useMutation({
     mutationFn: () => apiRequest<void>('/api/v1/auth/logout', { method: 'POST' }),
@@ -244,15 +247,19 @@ export function AppShell() {
         <div ref={sectionSlotProbeRef} data-testid="header-nav-probe-slot" />
       </div>
       <div
-        className={cn('fixed inset-0 z-[100] bg-overlay', mobileMenuOpen && 'flex')}
-        hidden={!mobileMenuOpen}
+        ref={mobileMenuRef}
+        className={cn('fixed inset-0 z-[100] bg-overlay', mobileMenuPresent && 'flex', backdropMotionClass)}
+        hidden={!mobileMenuPresent}
+        data-state={mobileMenuState}
+        inert={!mobileMenuOpen}
         onMouseDown={(event) => {
           if (event.target === event.currentTarget) setMobileMenuOpen(false)
         }}
       >
         <aside
           id={mobileMenuId}
-          className="h-full w-[min(320px,calc(100%-3rem))] overflow-y-auto border-r border-border bg-surface-raised p-5 shadow-lg"
+          className={cn('h-full w-[min(320px,calc(100%-3rem))] overflow-y-auto border-r border-border bg-surface-raised p-5 shadow-lg', drawerMotionClass)}
+          data-state={mobileMenuState}
           role="dialog"
           aria-modal="true"
           aria-label="Main menu"

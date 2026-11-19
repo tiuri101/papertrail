@@ -25,7 +25,7 @@ export function HotkeyButton({
       type="button"
       aria-label={`${label} hotkey: ${isCapturing ? 'Press a key…' : currentKey || 'Not set'}`}
       className={cn(
-        'relative inline-flex min-h-9 min-w-24 items-center justify-center gap-2 rounded-md border text-sm font-semibold transition-colors',
+        'relative inline-flex min-h-9 min-w-24 items-center justify-center gap-2 rounded-md border text-sm font-semibold transition-[color,background-color,border-color,scale] duration-150 active:scale-[0.98]',
         hasConflict
           ? 'border-danger bg-danger-container text-danger'
           : isCapturing

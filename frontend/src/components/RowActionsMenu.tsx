@@ -3,6 +3,9 @@ import { createPortal } from 'react-dom'
 
 import { IconButton } from './Button'
 import { IconMoreVertical } from './icons'
+import { cn } from '../lib/cn'
+import { usePresence } from '../hooks/usePresence'
+import { popoverMotionClass } from './motionStyles'
 
 /**
  * A "..." row-actions trigger whose menu renders in a portal at the end of
@@ -16,7 +19,7 @@ export function RowActionsMenu({ label, children }: { label: string; children: R
   const [open, setOpen] = useState(false)
   const [position, setPosition] = useState<{ top: number; right: number } | null>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
-  const menuRef = useRef<HTMLDivElement>(null)
+  const { present, ref: menuRef, state } = usePresence<HTMLDivElement>(open)
 
   useEffect(() => {
     if (!open) return undefined
@@ -39,7 +42,7 @@ export function RowActionsMenu({ label, children }: { label: string; children: R
       window.removeEventListener('scroll', close, true)
       window.removeEventListener('resize', close)
     }
-  }, [open])
+  }, [open, menuRef])
 
   const toggle = () => {
     if (!open && triggerRef.current) {
@@ -62,10 +65,12 @@ export function RowActionsMenu({ label, children }: { label: string; children: R
       >
         <IconMoreVertical />
       </IconButton>
-      {open && position ? createPortal(
+      {present && position ? createPortal(
         <div
           ref={menuRef}
-          className="fixed z-1000 flex min-w-44 flex-col gap-0.5 rounded-md border border-border bg-surface-raised p-2 shadow-lg"
+          className={cn('fixed z-1000 flex min-w-44 flex-col gap-0.5 rounded-md border border-border bg-surface-raised p-2 shadow-lg', popoverMotionClass)}
+          data-state={state}
+          inert={!open}
           role="menu"
           aria-label={label}
           style={{ top: position.top, right: position.right }}

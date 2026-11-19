@@ -7,6 +7,9 @@ export type BadgeVariant = 'info' | 'primary' | 'success' | 'danger' | 'warning'
 const base =
   'inline-flex min-h-[22px] items-center gap-1 whitespace-nowrap rounded-full py-0.5 pl-[7px] pr-[9px] text-[0.78rem] font-bold [&_svg]:size-3.5 [&_svg]:shrink-0 [&_svg]:fill-current'
 
+/** Link pills get a subtle hover ring so they read as clickable. */
+const linkMotion = 'no-underline transition-[box-shadow,filter] duration-150 hover:no-underline hover:brightness-110 hover:shadow-[inset_0_0_0_1px_color-mix(in_srgb,currentColor_45%,transparent)]'
+
 const variants: Record<BadgeVariant, string> = {
   info: 'bg-primary text-primary-contrast',
   primary: 'bg-primary-container text-primary',
@@ -33,5 +36,5 @@ export interface BadgeLinkProps extends AnchorHTMLAttributes<HTMLAnchorElement> 
 }
 
 export function BadgeLink({ variant = 'primary', className, ...props }: BadgeLinkProps) {
-  return <a className={cn(base, variants[variant], className)} {...props} />
+  return <a className={cn(base, variants[variant], linkMotion, className)} {...props} />
 }
