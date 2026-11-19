@@ -46,12 +46,14 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.time import utcnow
+from app.deduplication.models import DuplicateCandidate
 from app.extraction.models import ExtractionResponse, ExtractionStatus, ExtractionWorkItem
 from app.fulltext.models import FullTextRetrieval
+from app.jobs.models import BackgroundJob, JobStatus
 from app.pdf_acquisition.models import (
     ACTIVE_JOB_STATUSES,
     PdfRetrievalJob,
@@ -142,6 +144,32 @@ def _retract_extraction_and_quality_work(db: Session, publication_id: str) -> in
     return len(open_extraction_ids) + len(open_quality_ids)
 
 
+def _retract_duplicate_pairs(db: Session, publication_id: str) -> int:
+    """Drop unresolved duplicate pairs involving the publication.
+
+    Whether a removed record duplicates another is no longer a question
+    anyone needs to answer, and an unresolved pair left behind would sit in
+    the duplicate queue forever -- holding duplicate review open. Resolved
+    pairs are decisions someone made and stay as history.
+    """
+    open_pair_ids = list(
+        db.scalars(
+            select(DuplicateCandidate.id).where(
+                DuplicateCandidate.status == "unresolved",
+                or_(
+                    DuplicateCandidate.publication_a_id == publication_id,
+                    DuplicateCandidate.publication_b_id == publication_id,
+                ),
+            )
+        )
+    )
+    if open_pair_ids:
+        db.execute(
+            delete(DuplicateCandidate).where(DuplicateCandidate.id.in_(open_pair_ids))
+        )
+    return len(open_pair_ids)
+
+
 def _retract_full_text_acquisition(db: Session, publication_id: str) -> int:
     """Cancel PDF acquisition for a publication that left the review.
 
@@ -171,7 +199,9 @@ def _retract_full_text_acquisition(db: Session, publication_id: str) -> int:
     return len(open_jobs)
 
 
-def settle_stage_after_removal(db: Session, project_id: str) -> None:
+def settle_stage_after_removal(
+    db: Session, project_id: str, *, duplicate_pairs_retracted: bool = False
+) -> None:
     """Let the project's stage catch up with the smaller cohort.
 
     Removing a publication can be the thing that finishes a stage: it may
@@ -190,7 +220,19 @@ def settle_stage_after_removal(db: Session, project_id: str) -> None:
     project = db.get(Project, project_id)
     if project is None:
         return
-    if project.stage == ProjectStage.TITLE_ABSTRACT:
+    if project.stage == ProjectStage.DUPLICATE_REVIEW:
+        # Only when this removal is what emptied the queue: in duplicate
+        # review an empty queue can also mean detection hasn't run yet, and
+        # a running detection job settles the stage itself when it finishes.
+        if duplicate_pairs_retracted and not _duplicate_detection_pending(
+            db, project_id
+        ):
+            from app.deduplication.service import (
+                transition_if_duplicate_review_complete,
+            )
+
+            transition_if_duplicate_review_complete(db, project)
+    elif project.stage == ProjectStage.TITLE_ABSTRACT:
         transition_if_screening_complete(db, project, ScreeningStage.TITLE_ABSTRACT)
     elif project.stage == ProjectStage.FULL_TEXT:
         transition_if_full_text_complete(db, project)
@@ -222,14 +264,31 @@ def remove_publications_from_review(
         ),
         key=lambda publication: publication.id,
     )
+    duplicate_pairs_retracted = 0
     for publication in ordered:
         lock_publication_for_finalization(db, publication.id)
         publication.is_active = False
         retract_open_review_work(db, publication.id)
+        duplicate_pairs_retracted += _retract_duplicate_pairs(db, publication.id)
     db.flush()
     if ordered:
-        settle_stage_after_removal(db, project_id)
+        settle_stage_after_removal(
+            db, project_id, duplicate_pairs_retracted=duplicate_pairs_retracted > 0
+        )
     return len(ordered)
+
+
+def _duplicate_detection_pending(db: Session, project_id: str) -> bool:
+    return (
+        db.scalar(
+            select(BackgroundJob.id).where(
+                BackgroundJob.project_id == project_id,
+                BackgroundJob.job_type == "detect_duplicates",
+                BackgroundJob.status.in_([JobStatus.QUEUED, JobStatus.RUNNING]),
+            )
+        )
+        is not None
+    )
 
 
 def retract_open_review_work(db: Session, publication_id: str) -> None:

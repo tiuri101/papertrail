@@ -180,7 +180,12 @@ def test_prisma_counts_and_svg_are_derived_from_records(db) -> None:
         assert float(following_bar.attrib["y"]) - current_bottom >= 10
 
 
-def test_prisma_counts_do_not_treat_merged_publications_as_other_sources(db) -> None:
+def test_prisma_counts_a_merged_hand_added_publication_exactly_once(db) -> None:
+    """A hand-added record merged away as a duplicate was identified (through
+    other sources) and then removed as a duplicate -- never an additional
+    unique record. Identified minus removed must equal the unique records
+    left: the fixture's three hand-added publications plus its three
+    imported records that never became publications."""
     project, canonical = setup_report(db)
     merged = Publication(
         project_id=project.id,
@@ -205,8 +210,12 @@ def test_prisma_counts_do_not_treat_merged_publications_as_other_sources(db) -> 
 
     counts = calculate_prisma_counts(db, project.id)
 
-    assert counts["recordsIdentifiedOtherSources"] == 3
+    assert counts["recordsIdentifiedOtherSources"] == 4
     assert counts["duplicatesRemoved"] == 1
+    identified = (
+        counts["recordsIdentifiedDatabases"] + counts["recordsIdentifiedOtherSources"]
+    )
+    assert identified - counts["duplicatesRemoved"] == 3 + 3
 
 
 def test_prisma_svg_route_returns_the_figure_inline(client, db) -> None:

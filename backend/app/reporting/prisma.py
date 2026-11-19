@@ -2,14 +2,12 @@ from __future__ import annotations
 
 from xml.sax.saxutils import escape as xml_escape
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.deduplication.models import PublicationMerge
 from app.fulltext.models import FullTextRetrieval, RetrievalStatus
-from app.imports.models import ImportBatch, ImportedRecord
 from app.projects.models import ScreeningStage
-from app.publications.models import Publication, PublicationSource
+from app.reporting.record_flow import calculate_record_flow
 from app.screening.cohorts import decided_final_decisions
 from app.screening.models import ScreeningOutcome
 
@@ -18,47 +16,12 @@ def calculate_prisma_counts(
     db: Session,
     project_id: str,
 ) -> dict[str, int]:
-    database_records = (
-        db.scalar(
-            select(func.count())
-            .select_from(ImportedRecord)
-            .join(ImportBatch)
-            .where(
-                ImportBatch.project_id == project_id,
-                ImportBatch.search_source_id.is_not(None),
-            )
-        )
-        or 0
-    )
-    imported_publication_ids = (
-        select(PublicationSource.publication_id)
-        .join(ImportedRecord)
-        .join(ImportBatch)
-        .where(ImportBatch.project_id == project_id)
-    )
-    other_records = (
-        db.scalar(
-            select(func.count())
-            .select_from(Publication)
-            .where(
-                Publication.project_id == project_id,
-                Publication.is_active.is_(True),
-                ~Publication.id.in_(imported_publication_ids),
-            )
-        )
-        or 0
-    )
-    duplicates_removed = (
-        db.scalar(
-            select(func.count())
-            .select_from(PublicationMerge)
-            .where(
-                PublicationMerge.project_id == project_id,
-                PublicationMerge.reversed_at.is_(None),
-            )
-        )
-        or 0
-    )
+    # Identification and deduplication reflect the review as it stands now --
+    # see app.reporting.record_flow for why they are derived, not counted.
+    flow = calculate_record_flow(db, project_id)
+    database_records = flow.database_records
+    other_records = flow.other_records
+    duplicates_removed = flow.duplicates_removed
     title_finals = decided_final_decisions(
         db, project_id, ScreeningStage.TITLE_ABSTRACT
     )
@@ -72,6 +35,7 @@ def calculate_prisma_counts(
         "recordsIdentifiedDatabases": int(database_records),
         "recordsIdentifiedOtherSources": int(other_records),
         "duplicatesRemoved": int(duplicates_removed),
+        "recordsRemovedOther": int(flow.removed_other),
         "recordsScreened": len(title_finals),
         "recordsExcluded": sum(
             item.outcome == ScreeningOutcome.EXCLUDE for item in title_finals
@@ -325,8 +289,10 @@ def build_prisma_svg(project_name: str, counts: dict[str, int]) -> str:  # noqa:
             side_x,
             y_dedup,
             side_width,
+            # PRISMA 2020's "records removed before screening" box.
             [
                 f"Duplicate records removed (n={counts['duplicatesRemoved']})",
+                f"Removed for other reasons (n={counts['recordsRemovedOther']})",
             ],
             font_size=12,
         )

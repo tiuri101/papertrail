@@ -1,7 +1,9 @@
+from datetime import date
 from pathlib import Path
 
 from app.accounts.service import create_user
 from app.core.config import get_settings
+from app.imports.models import SearchSource
 from app.jobs.models import BackgroundJob, JobStatus
 from app.jobs.service import renew_job_lease
 from app.projects.models import Project, ReviewType
@@ -42,13 +44,23 @@ def test_login_is_rate_limited_after_repeated_failures(client, db) -> None:
 
 
 def test_import_upload_rejects_unsupported_and_oversized_files(client, db) -> None:
-    create_user(db, "admin", "Admin", "secret-password", is_admin=True)
+    admin = create_user(db, "admin", "Admin", "secret-password", is_admin=True)
     project = Project(
         name="Secure import",
         review_type=ReviewType.SYSTEMATIC_REVIEW,
         random_seed="seed",
     )
     db.add(project)
+    db.flush()
+    search = SearchSource(
+        project_id=project.id,
+        source_name="Scopus",
+        query="q",
+        search_date=date(2026, 1, 1),
+        exported_result_count=1,
+        created_by_id=admin.id,
+    )
+    db.add(search)
     db.commit()
     auth = login(client, "admin", "secret-password")
     csrf = auth.json()["csrfToken"]
@@ -66,6 +78,7 @@ def test_import_upload_rejects_unsupported_and_oversized_files(client, db) -> No
     try:
         oversized = client.post(
             f"/api/v1/projects/{project.id}/imports",
+            data={"searchSourceId": search.id},
             files={"file": ("papers.csv", b"12345", "text/csv")},
             headers={"X-CSRF-Token": csrf},
         )
